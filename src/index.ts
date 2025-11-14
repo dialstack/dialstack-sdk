@@ -18,6 +18,7 @@ export type {
 export { BaseComponent } from './components/base-component';
 export { CallLogsComponent } from './components/call-logs';
 export { VoicemailsComponent } from './components/voicemails';
+export type { DateRange } from './components/call-logs';
 
 // React exports
 export {

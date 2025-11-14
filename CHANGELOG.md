@@ -49,6 +49,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Web Components now receive SDK instance via `setInstance()` method
 - Components auto-initialize when both connected to DOM and instance is set
 - React wrapper components simplified to use `dialstack.create()` internally
+- **React Components Enhanced with Props** - Full prop synchronization support
+  - `<CallLogs />` now accepts `dateRange` and `limit` props
+  - `<Voicemails />` now accepts required `userId` prop
+  - Props automatically sync to Web Component setter methods
+  - `useUpdateWithSetter` hook for declarative prop-to-setter synchronization
+  - `useCreateComponent` now returns both containerRef and componentInstance
+  - `DateRange` type exported for TypeScript consumers
 
 ### Deprecated
 - `initialize()` function (use `loadDialstackAndInitialize()` instead)

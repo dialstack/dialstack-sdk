@@ -6,6 +6,14 @@ import { useLayoutEffect, useRef } from 'react';
 import type { ComponentTagName, ComponentElement, DialStackInstance } from '../core/types';
 
 /**
+ * Return type for useCreateComponent hook
+ */
+export interface UseCreateComponentResult {
+  containerRef: React.RefObject<HTMLDivElement>;
+  componentInstance: HTMLElement | null;
+}
+
+/**
  * Hook to create and manage a Web Component instance
  *
  * Uses useLayoutEffect for synchronous component creation,
@@ -14,12 +22,12 @@ import type { ComponentTagName, ComponentElement, DialStackInstance } from '../c
  *
  * @param dialstack - The DialStack instance
  * @param tagName - The component tag name (e.g., 'call-logs', 'voicemails')
- * @returns Ref to attach to a container div
+ * @returns Object with containerRef and componentInstance
  */
 export function useCreateComponent<T extends ComponentTagName>(
   dialstack: DialStackInstance,
   tagName: T
-): React.RefObject<HTMLDivElement> {
+): UseCreateComponentResult {
   const containerRef = useRef<HTMLDivElement>(null);
   const componentRef = useRef<ComponentElement[T] | null>(null);
 
@@ -41,5 +49,8 @@ export function useCreateComponent<T extends ComponentTagName>(
     };
   }, [dialstack, tagName]);
 
-  return containerRef;
+  return {
+    containerRef,
+    componentInstance: componentRef.current,
+  };
 }
