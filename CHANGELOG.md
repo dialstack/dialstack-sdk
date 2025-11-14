@@ -22,6 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated React components to use new SDK instance pattern
 - Vanilla JavaScript example demonstrating SDK usage
 - Comprehensive type definitions for all APIs
+- **CallLogs Web Component** - Displays call history in a formatted table
+  - Real-time data fetching from DialStack API with session authentication
+  - Professional table UI with Date, Direction, From, To, Duration, and Status columns
+  - Color-coded call directions (inbound/outbound) and statuses (answered/no-answer/failed)
+  - Loading, error, and empty state handling
+  - Date and duration formatting utilities
+  - React integration setter methods: `setDateRange()`, `setLimit()`, `setOffset()`
+  - Responsive design with hover effects
+  - Shadow DOM isolation for clean component encapsulation
 
 ### Changed
 - React Context Provider now accepts `dialstack` instance instead of `clientSecret`
