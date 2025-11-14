@@ -11,13 +11,13 @@ export default {
   external: ['react', 'react-dom'],
   output: [
     {
-      file: 'dist/sdk.js',
+      file: 'dist/sdk.cjs',
       format: 'cjs',
       sourcemap: true,
       exports: 'named',
     },
     {
-      file: 'dist/sdk.esm.js',
+      file: 'dist/sdk.mjs',
       format: 'esm',
       sourcemap: true,
     },

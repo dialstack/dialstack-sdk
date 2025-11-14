@@ -22,8 +22,8 @@
   "bugs": {
     "url": "https://github.com/dialstack/dialstack-sdk/issues"
   },
-  "main": "dist/sdk.js",
-  "module": "dist/sdk.esm.js",
+  "main": "dist/sdk.cjs",
+  "module": "dist/sdk.mjs",
   "unpkg": "dist/sdk.umd.js",
   "types": "dist/index.d.ts",
   "files": [
