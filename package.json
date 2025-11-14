@@ -1,6 +1,6 @@
 {
   "name": "@dialstack/sdk",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.1",
   "description": "Official JavaScript SDK for DialStack - Business Voice for Vertical SaaS",
   "keywords": [
     "dialstack",
