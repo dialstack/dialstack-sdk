@@ -5,16 +5,16 @@
  */
 
 // Core exports
-export { initialize, getInstance } from './core/initialize';
-export { createInstance } from './core/instance';
+export { loadDialstackAndInitialize, initialize, getInstance } from './core/initialize';
 export type {
-  DialStackOptions,
+  DialStackInitParams,
   DialStackInstance,
-  SessionOptions,
-  Session,
+  ComponentTagName,
+  AppearanceOptions,
+  UpdateOptions,
 } from './core/types';
 
-// Web Components
+// Web Components (for advanced usage)
 export { BaseComponent } from './components/base-component';
 export { CallLogsComponent } from './components/call-logs';
 export { VoicemailsComponent } from './components/voicemails';

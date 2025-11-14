@@ -6,32 +6,48 @@ import React, { createContext, useContext, ReactNode } from 'react';
 import { DialStackInstance } from '../core/types';
 
 interface DialstackComponentsContextValue {
-  dialstack: DialStackInstance | null;
-  clientSecret: string | null;
+  dialstack: DialStackInstance;
 }
 
-const DialstackComponentsContext = createContext<DialstackComponentsContextValue>({
-  dialstack: null,
-  clientSecret: null,
-});
+const DialstackComponentsContext = createContext<DialstackComponentsContextValue | null>(null);
 
 export interface DialstackComponentsProviderProps {
+  /**
+   * The DialStack instance from loadDialstackAndInitialize()
+   */
   dialstack: DialStackInstance;
-  clientSecret: string;
+
+  /**
+   * Child components to render
+   */
   children: ReactNode;
 }
 
 /**
- * Provider component that makes DialStack instance and client secret available to child components
+ * Provider component that makes DialStack instance available to child components
+ *
+ * @example
+ * ```tsx
+ * const dialstack = await loadDialstackAndInitialize({
+ *   publishableKey: 'pk_test_...',
+ *   fetchClientSecret: async () => {
+ *     const res = await fetch('/api/dialstack/session');
+ *     return (await res.json()).clientSecret;
+ *   }
+ * });
+ *
+ * <DialstackComponentsProvider dialstack={dialstack}>
+ *   <CallLogs />
+ *   <Voicemails />
+ * </DialstackComponentsProvider>
+ * ```
  */
 export const DialstackComponentsProvider: React.FC<DialstackComponentsProviderProps> = ({
   dialstack,
-  clientSecret,
   children,
 }) => {
   const value: DialstackComponentsContextValue = {
     dialstack,
-    clientSecret,
   };
 
   return (
@@ -43,10 +59,12 @@ export const DialstackComponentsProvider: React.FC<DialstackComponentsProviderPr
 
 /**
  * Hook to access the DialStack context
+ *
+ * @throws {Error} If used outside of DialstackComponentsProvider
  */
 export const useDialstackComponents = (): DialstackComponentsContextValue => {
   const context = useContext(DialstackComponentsContext);
-  if (!context.dialstack) {
+  if (!context) {
     throw new Error('useDialstackComponents must be used within a DialstackComponentsProvider');
   }
   return context;

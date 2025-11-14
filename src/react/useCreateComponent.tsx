@@ -2,32 +2,35 @@
  * React hook for creating and managing Web Components
  */
 
-import { useEffect, useRef } from 'react';
-import { BaseComponent } from '../components/base-component';
-
-export interface UseCreateComponentOptions {
-  clientSecret: string;
-}
+import { useLayoutEffect, useRef } from 'react';
+import type { ComponentTagName, ComponentElement, DialStackInstance } from '../core/types';
 
 /**
  * Hook to create and manage a Web Component instance
+ *
+ * Uses useLayoutEffect for synchronous component creation,
+ * creates components using dialstack.create(), and handles
+ * cleanup on unmount.
+ *
+ * @param dialstack - The DialStack instance
+ * @param tagName - The component tag name (e.g., 'call-logs', 'voicemails')
+ * @returns Ref to attach to a container div
  */
-export function useCreateComponent<T extends BaseComponent>(
-  ComponentClass: { new(): T },
-  options: UseCreateComponentOptions
+export function useCreateComponent<T extends ComponentTagName>(
+  dialstack: DialStackInstance,
+  tagName: T
 ): React.RefObject<HTMLDivElement> {
   const containerRef = useRef<HTMLDivElement>(null);
-  const componentRef = useRef<T | null>(null);
+  const componentRef = useRef<ComponentElement[T] | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!containerRef.current) return;
 
-    // Create component instance
-    const component = new ComponentClass();
-    component.setClientSecret(options.clientSecret);
+    // Create component using DialStack SDK
+    const component = dialstack.create(tagName);
 
     // Append to container
-    containerRef.current.appendChild(component);
+    containerRef.current.appendChild(component as Node);
     componentRef.current = component;
 
     // Cleanup on unmount
@@ -36,7 +39,7 @@ export function useCreateComponent<T extends BaseComponent>(
         componentRef.current.parentNode.removeChild(componentRef.current);
       }
     };
-  }, [options.clientSecret]);
+  }, [dialstack, tagName]);
 
   return containerRef;
 }

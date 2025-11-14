@@ -5,7 +5,6 @@
 import React from 'react';
 import { useDialstackComponents } from './DialstackComponentsProvider';
 import { useCreateComponent } from './useCreateComponent';
-import { VoicemailsComponent } from '../components/voicemails';
 
 export interface VoicemailsProps {
   /**
@@ -21,15 +20,19 @@ export interface VoicemailsProps {
 
 /**
  * Voicemails component displays a list of voicemails for the authenticated account
+ *
+ * Must be used within a DialstackComponentsProvider.
+ *
+ * @example
+ * ```tsx
+ * <DialstackComponentsProvider dialstack={dialstack}>
+ *   <Voicemails className="my-voicemails" />
+ * </DialstackComponentsProvider>
+ * ```
  */
 export const Voicemails: React.FC<VoicemailsProps> = ({ className, style }) => {
-  const { clientSecret } = useDialstackComponents();
-
-  if (!clientSecret) {
-    throw new Error('Voicemails: clientSecret is required');
-  }
-
-  const containerRef = useCreateComponent(VoicemailsComponent, { clientSecret });
+  const { dialstack } = useDialstackComponents();
+  const containerRef = useCreateComponent(dialstack, 'voicemails');
 
   return <div ref={containerRef} className={className} style={style} />;
 };

@@ -5,7 +5,6 @@
 import React from 'react';
 import { useDialstackComponents } from './DialstackComponentsProvider';
 import { useCreateComponent } from './useCreateComponent';
-import { CallLogsComponent } from '../components/call-logs';
 
 export interface CallLogsProps {
   /**
@@ -21,15 +20,19 @@ export interface CallLogsProps {
 
 /**
  * CallLogs component displays a list of call logs for the authenticated account
+ *
+ * Must be used within a DialstackComponentsProvider.
+ *
+ * @example
+ * ```tsx
+ * <DialstackComponentsProvider dialstack={dialstack}>
+ *   <CallLogs className="my-call-logs" />
+ * </DialstackComponentsProvider>
+ * ```
  */
 export const CallLogs: React.FC<CallLogsProps> = ({ className, style }) => {
-  const { clientSecret } = useDialstackComponents();
-
-  if (!clientSecret) {
-    throw new Error('CallLogs: clientSecret is required');
-  }
-
-  const containerRef = useCreateComponent(CallLogsComponent, { clientSecret });
+  const { dialstack } = useDialstackComponents();
+  const containerRef = useCreateComponent(dialstack, 'call-logs');
 
   return <div ref={containerRef} className={className} style={style} />;
 };
