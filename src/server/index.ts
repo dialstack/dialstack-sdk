@@ -11,7 +11,6 @@
  * const dialstack = new DialStack(process.env.DIALSTACK_API_KEY);
  *
  * const session = await dialstack.sessions.create({
- *   platform_id: 'platform_123',
  *   account_id: 'account_456',
  * });
  * ```
@@ -24,7 +23,6 @@ interface DialStackConfig {
 }
 
 interface SessionCreateParams {
-  platform_id: string;
   account_id: string;
 }
 
@@ -72,7 +70,7 @@ export class DialStack {
       params: SessionCreateParams
     ): Promise<SessionCreateResponse> => {
       return this._request(
-        `/api/v1/platforms/${params.platform_id}/accounts/${params.account_id}/sessions`,
+        `/api/v1/accounts/${params.account_id}/sessions`,
         {
           method: 'POST',
         }
