@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Server SDK** - Node.js SDK for server-side API operations
+  - `DialStack` class exported from `@dialstack/sdk/server`
+  - `sessions.create()` method for creating account-scoped sessions
+  - Secure API key authentication for server environments
+  - Package.json subpath exports for clean import separation
 - `loadDialstackAndInitialize()` - New primary initialization function
 - Eager client secret fetching for improved performance
 - Automatic session refresh every 50 minutes with 1-minute retry on failure
