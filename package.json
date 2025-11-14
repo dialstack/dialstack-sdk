@@ -12,6 +12,7 @@
     "react"
   ],
   "license": "MIT",
+  "type": "module",
   "author": "DialStack",
   "homepage": "https://github.com/dialstack/dialstack-sdk#readme",
   "repository": {
