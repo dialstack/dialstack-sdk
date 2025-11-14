@@ -33,3 +33,6 @@ export { Voicemails } from './react/Voicemails';
 export type { DialstackComponentsProviderProps } from './react/DialstackComponentsProvider';
 export type { CallLogsProps } from './react/CallLogs';
 export type { VoicemailsProps } from './react/Voicemails';
+
+// Note: Server SDK is exported from '@dialstack/sdk/server'
+// Do not import server SDK in browser code

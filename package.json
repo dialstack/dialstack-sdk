@@ -26,6 +26,18 @@
   "module": "dist/sdk.mjs",
   "unpkg": "dist/sdk.umd.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/sdk.mjs",
+      "require": "./dist/sdk.cjs",
+      "types": "./dist/index.d.ts"
+    },
+    "./server": {
+      "import": "./dist/server/index.js",
+      "require": "./dist/server/index.js",
+      "types": "./dist/server/index.d.ts"
+    }
+  },
   "files": [
     "dist"
   ],
