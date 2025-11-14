@@ -1,0 +1,61 @@
+{
+  "name": "@dialstack/sdk",
+  "version": "0.1.0",
+  "description": "Official JavaScript SDK for DialStack - Business Voice for Vertical SaaS",
+  "keywords": [
+    "dialstack",
+    "voice",
+    "telephony",
+    "sip",
+    "webrtc",
+    "embedded-components",
+    "react"
+  ],
+  "license": "MIT",
+  "author": "DialStack",
+  "homepage": "https://github.com/dialstack/dialstack-sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dialstack/dialstack-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dialstack/dialstack-sdk/issues"
+  },
+  "main": "dist/sdk.js",
+  "module": "dist/sdk.esm.js",
+  "unpkg": "dist/sdk.umd.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c -w",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.23.0",
+    "@babel/preset-env": "^7.23.0",
+    "@babel/preset-react": "^7.22.0",
+    "@babel/preset-typescript": "^7.23.0",
+    "@rollup/plugin-babel": "^6.0.4",
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-typescript": "^11.1.5",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "rollup": "^4.9.0",
+    "tslib": "^2.8.1",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
