@@ -31,6 +31,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - React integration setter methods: `setDateRange()`, `setLimit()`, `setOffset()`
   - Responsive design with hover effects
   - Shadow DOM isolation for clean component encapsulation
+- **Voicemails Web Component** - Displays user-specific voicemails with audio playback
+  - User-scoped voicemail fetching with session authentication
+  - List-based UI with avatars showing caller initials
+  - HTML5 audio player with native controls
+  - Automatic mark-as-read when audio playback starts
+  - Visual distinction for unread voicemails (bold text, colored background, indicator dot)
+  - Relative timestamp formatting ("5m ago", "2h ago", "Dec 15")
+  - Colorful avatar backgrounds based on name hash
+  - Duration badges for quick scanning
+  - React integration setter method: `setUserId()`
+  - Graceful error handling with silent mark-as-read failures
+  - Shadow DOM isolation for component encapsulation
 
 ### Changed
 - React Context Provider now accepts `dialstack` instance instead of `clientSecret`
