@@ -27,6 +27,7 @@ interface SessionCreateParams {
 }
 
 interface SessionCreateResponse {
+  account_id: string;
   client_secret: string;
   expires_at: string;
 }

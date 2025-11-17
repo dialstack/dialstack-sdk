@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking Changes
+- **Entity ID Format Migration**: All entity IDs now use TypeID format instead of UUIDs
+  - Account IDs: `acct_` prefix (e.g., `acct_01h2xcejqtf2nbrexx3vqjhp41`)
+  - User IDs: `user_` prefix (e.g., `user_01h2xcejqtf2nbrexx3vqjhp42`)
+  - Endpoint IDs: `ep_` prefix (e.g., `ep_01h2xcejqtf2nbrexx3vqjhp43`)
+  - All IDs should be treated as opaque strings
+- **Session API Changes**:
+  - Session creation endpoint changed from `/api/v1/platforms/{platform_id}/accounts/{account_id}/sessions` to `/api/v1/accounts/{account_id}/sessions`
+  - Platform context is now implicit (determined by API key)
+  - Session response now includes `account_id` field
+  - All `platform_id` fields removed from API responses
+
 ### Added
 - **Server SDK** - Node.js SDK for server-side API operations
   - `DialStack` class exported from `@dialstack/sdk/server`

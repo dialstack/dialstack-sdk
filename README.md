@@ -135,7 +135,7 @@ The SDK uses account-scoped sessions for authentication. You must:
 
 1. Call your backend to create a session using the DialStack API:
    ```bash
-   POST https://api.dialstack.ai/api/v1/platforms/{platform_id}/accounts/{account_id}/sessions
+   POST https://api.dialstack.ai/api/v1/accounts/{account_id}/sessions
    Authorization: Bearer sk_live_YOUR_SECRET_KEY
    ```
 
