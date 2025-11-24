@@ -22,6 +22,17 @@ interface DialStackConfig {
   apiUrl?: string;
 }
 
+interface AccountCreateParams {
+  email?: string;
+}
+
+interface Account {
+  id: string;
+  email: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 interface SessionCreateParams {
   account_id: string;
 }
@@ -66,19 +77,25 @@ export class DialStack {
     return await response.json();
   }
 
+  accounts = {
+    create: async (params?: AccountCreateParams): Promise<Account> => {
+      return this._request('/api/v1/accounts', {
+        method: 'POST',
+        body: JSON.stringify({ email: params?.email }),
+      });
+    },
+  };
+
   sessions = {
     create: async (
       params: SessionCreateParams
     ): Promise<SessionCreateResponse> => {
-      return this._request(
-        `/api/v1/account_sessions`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            account_id: params.account_id,
-          }),
-        }
-      );
+      return this._request(`/api/v1/account_sessions`, {
+        method: 'POST',
+        body: JSON.stringify({
+          account_id: params.account_id,
+        }),
+      });
     },
   };
 }
