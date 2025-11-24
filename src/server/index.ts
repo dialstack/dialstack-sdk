@@ -71,9 +71,12 @@ export class DialStack {
       params: SessionCreateParams
     ): Promise<SessionCreateResponse> => {
       return this._request(
-        `/api/v1/accounts/${params.account_id}/sessions`,
+        `/api/v1/account_sessions`,
         {
           method: 'POST',
+          body: JSON.stringify({
+            account_id: params.account_id,
+          }),
         }
       );
     },

@@ -19,6 +19,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Session response now includes `account_id` field
   - All `platform_id` fields removed from API responses
 
+## [0.2.1-alpha.1] - 2025-11-24
+
+### Changed
+- **Session Creation Endpoint**: Updated from `/api/v1/accounts/{account_id}/sessions` to `/api/v1/account_sessions` for improved security
+  - `account_id` now passed in request body instead of URL path
+  - Endpoint now only accepts API keys (not session tokens)
+  - Prevents session tokens from creating new session tokens
+
+### Security
+- Session creation now requires API keys only (session tokens are rejected)
+- Only API keys can create sessions, preventing unauthorized session extension
+
+### Migration
+No code changes required if using the SDK. Simply update to the latest version:
+```bash
+npm install @dialstack/sdk@0.2.1-alpha.1
+```
+
 ### Added
 - **Server SDK** - Node.js SDK for server-side API operations
   - `DialStack` class exported from `@dialstack/sdk/server`

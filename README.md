@@ -135,13 +135,20 @@ The SDK uses account-scoped sessions for authentication. You must:
 
 1. Call your backend to create a session using the DialStack API:
    ```bash
-   POST https://api.dialstack.ai/api/v1/accounts/{account_id}/sessions
+   POST https://api.dialstack.ai/api/v1/account_sessions
    Authorization: Bearer sk_live_YOUR_SECRET_KEY
+   Content-Type: application/json
+
+   {
+     "account_id": "acct_01h2xcejqtf2nbrexx3vqjhp41"
+   }
    ```
 
 2. Pass the returned `client_secret` to the `DialstackComponentsProvider`
 
 Sessions expire after 1 hour. Your application should handle refreshing expired sessions.
+
+**Security Note**: Only server-side API keys can create sessions. Session tokens cannot be used to create new sessions, preventing unauthorized session extension.
 
 ## Documentation
 
