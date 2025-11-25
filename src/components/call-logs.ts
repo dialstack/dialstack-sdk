@@ -8,21 +8,28 @@ import { BaseComponent } from './base-component';
  * Call log data structure from API
  */
 interface CallLog {
-  calldate: string;
-  direction: 'inbound' | 'outbound';
-  clid: string;
+  id: string;
+  user_id?: string;
+  endpoint_id?: string;
+  did_id?: string;
+  direction: 'inbound' | 'outbound' | 'internal';
   from_number: string;
-  dst: string;
   to_number: string;
-  billsec: number;
-  disposition: string;
+  started_at: string;
+  answered_at?: string;
+  ended_at?: string;
+  duration_seconds?: number;
+  status: 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
 }
 
 /**
  * API response structure
  */
 interface CallLogsResponse {
-  call_logs: CallLog[];
+  calls: CallLog[];
+  count: number;
+  limit: number;
+  offset: number;
 }
 
 /**
@@ -37,11 +44,10 @@ export interface DateRange {
  * CallLogs component displays call history in a table format
  */
 export class CallLogsComponent extends BaseComponent {
-  // Note: These properties are set via setter methods for React integration
-  // and will be used for API filtering/pagination in future updates
   private dateRange?: DateRange;
   private limit: number = 20;
   private offset: number = 0;
+  private totalCount: number = 0;
 
   private isLoading: boolean = false;
   private error: string | null = null;
@@ -69,19 +75,26 @@ export class CallLogsComponent extends BaseComponent {
     this.render();
 
     try {
-      // Note: dateRange, limit, offset will be used for API query parameters
-      // once the backend API supports filtering and pagination
-      const data = await this.fetchComponentData<CallLogsResponse>('/v1/calls');
-      this.callLogs = data.call_logs || [];
-      this.error = null;
+      const params = new URLSearchParams({
+        limit: this.limit.toString(),
+        offset: this.offset.toString(),
+      });
 
-      // Silence unused variable warnings (these are set via setters for React integration)
-      void this.dateRange;
-      void this.limit;
-      void this.offset;
+      if (this.dateRange?.start) {
+        params.set('from', this.dateRange.start);
+      }
+      if (this.dateRange?.end) {
+        params.set('to', this.dateRange.end);
+      }
+
+      const data = await this.fetchComponentData<CallLogsResponse>(`/v1/calls?${params}`);
+      this.callLogs = data.calls || [];
+      this.totalCount = data.count || 0;
+      this.error = null;
     } catch (err) {
       this.error = err instanceof Error ? err.message : 'Failed to load call logs';
       this.callLogs = [];
+      this.totalCount = 0;
     } finally {
       this.isLoading = false;
       this.render();
@@ -120,14 +133,6 @@ export class CallLogsComponent extends BaseComponent {
   }
 
   /**
-   * Extract phone number from CLID (e.g., "John Doe <555-1234>" -> "555-1234")
-   */
-  private formatPhoneNumber(clid: string): string {
-    const match = clid.match(/<(.+)>/);
-    return match ? match[1] : clid;
-  }
-
-  /**
    * Get color class for call direction
    */
   private getDirectionClass(direction: string): string {
@@ -135,24 +140,30 @@ export class CallLogsComponent extends BaseComponent {
   }
 
   /**
-   * Get color class for call disposition/status
+   * Get color class for call status
    */
-  private getDispositionClass(disposition: string): string {
-    const upper = disposition.toUpperCase();
-    if (upper.includes('ANSWER')) return 'badge-answered';
-    if (upper.includes('NO ANSWER') || upper.includes('NOANSWER')) return 'badge-no-answer';
-    if (upper.includes('BUSY') || upper.includes('FAIL') || upper.includes('CANCEL'))
-      return 'badge-failed';
-    return 'badge-default';
+  private getStatusClass(status: string): string {
+    switch (status) {
+      case 'completed':
+        return 'badge-answered';
+      case 'no-answer':
+        return 'badge-no-answer';
+      case 'busy':
+      case 'failed':
+        return 'badge-failed';
+      case 'voicemail':
+        return 'badge-voicemail';
+      default:
+        return 'badge-default';
+    }
   }
 
   /**
-   * Format disposition for display
+   * Format status for display
    */
-  private formatDisposition(disposition: string): string {
-    return disposition
-      .toLowerCase()
-      .replace(/_/g, ' ')
+  private formatStatus(status: string): string {
+    return status
+      .replace(/-/g, ' ')
       .replace(/\b\w/g, (l) => l.toUpperCase());
   }
 
@@ -275,9 +286,55 @@ export class CallLogsComponent extends BaseComponent {
           color: #dc2626;
         }
 
+        .badge-voicemail {
+          background: rgba(139, 92, 246, 0.1);
+          color: #7c3aed;
+        }
+
         .badge-default {
           background: rgba(0, 0, 0, 0.05);
           color: var(--ds-color-text);
+        }
+
+        .pagination {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-top: calc(var(--ds-spacing-unit) * 2);
+          padding-top: calc(var(--ds-spacing-unit) * 2);
+          border-top: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .pagination-info {
+          font-size: 0.875rem;
+          color: rgba(0, 0, 0, 0.6);
+        }
+
+        .pagination-buttons {
+          display: flex;
+          gap: calc(var(--ds-spacing-unit) * 1);
+        }
+
+        .pagination-btn {
+          padding: 6px 12px;
+          font-size: 0.875rem;
+          font-weight: 500;
+          border: 1px solid rgba(0, 0, 0, 0.2);
+          border-radius: var(--ds-border-radius);
+          background: var(--ds-color-background);
+          color: var(--ds-color-text);
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+
+        .pagination-btn:hover:not(:disabled) {
+          background: rgba(0, 0, 0, 0.05);
+          border-color: rgba(0, 0, 0, 0.3);
+        }
+
+        .pagination-btn:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
         }
       </style>
 
@@ -286,6 +343,9 @@ export class CallLogsComponent extends BaseComponent {
         ${this.renderContent()}
       </div>
     `;
+
+    // Attach event listeners after DOM is updated
+    this.attachPaginationListeners();
   }
 
   /**
@@ -328,16 +388,23 @@ export class CallLogsComponent extends BaseComponent {
       .map(
         (call) => `
       <tr>
-        <td>${this.formatDate(call.calldate)}</td>
+        <td>${this.formatDate(call.started_at)}</td>
         <td><span class="badge ${this.getDirectionClass(call.direction)}">${call.direction}</span></td>
-        <td>${this.formatPhoneNumber(call.clid)}</td>
-        <td>${call.to_number || call.dst}</td>
-        <td>${this.formatDuration(call.billsec)}</td>
-        <td><span class="badge ${this.getDispositionClass(call.disposition)}">${this.formatDisposition(call.disposition)}</span></td>
+        <td>${call.from_number}</td>
+        <td>${call.to_number}</td>
+        <td>${this.formatDuration(call.duration_seconds || 0)}</td>
+        <td><span class="badge ${this.getStatusClass(call.status)}">${this.formatStatus(call.status)}</span></td>
       </tr>
     `
       )
       .join('');
+
+    const totalPages = Math.ceil(this.totalCount / this.limit);
+    const startItem = this.offset + 1;
+    const endItem = Math.min(this.offset + this.limit, this.totalCount);
+
+    const hasPrev = this.offset > 0;
+    const hasNext = this.offset + this.limit < this.totalCount;
 
     return `
       <div class="table-container">
@@ -357,7 +424,59 @@ export class CallLogsComponent extends BaseComponent {
           </tbody>
         </table>
       </div>
+      ${
+        totalPages > 1
+          ? `
+        <div class="pagination">
+          <span class="pagination-info">
+            Showing ${startItem}–${endItem} of ${this.totalCount} calls
+          </span>
+          <div class="pagination-buttons">
+            <button class="pagination-btn" id="prev-btn" ${hasPrev ? '' : 'disabled'}>
+              ← Previous
+            </button>
+            <button class="pagination-btn" id="next-btn" ${hasNext ? '' : 'disabled'}>
+              Next →
+            </button>
+          </div>
+        </div>
+      `
+          : ''
+      }
     `;
+  }
+
+  /**
+   * Attach event listeners after render
+   */
+  private attachPaginationListeners(): void {
+    if (!this.shadowRoot) return;
+
+    const prevBtn = this.shadowRoot.getElementById('prev-btn');
+    const nextBtn = this.shadowRoot.getElementById('next-btn');
+
+    prevBtn?.addEventListener('click', () => this.goToPreviousPage());
+    nextBtn?.addEventListener('click', () => this.goToNextPage());
+  }
+
+  /**
+   * Navigate to previous page
+   */
+  private goToPreviousPage(): void {
+    if (this.offset > 0) {
+      this.offset = Math.max(0, this.offset - this.limit);
+      this.loadData();
+    }
+  }
+
+  /**
+   * Navigate to next page
+   */
+  private goToNextPage(): void {
+    if (this.offset + this.limit < this.totalCount) {
+      this.offset += this.limit;
+      this.loadData();
+    }
   }
 
   /**
