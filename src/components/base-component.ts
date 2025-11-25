@@ -5,9 +5,21 @@
 import type { DialStackInstanceImpl, AppearanceOptions } from '../core/types';
 
 /**
+ * Get HTMLElement base class - returns a no-op class in SSR environments
+ * This allows the SDK to be imported in Node.js without errors
+ */
+const getHTMLElementBase = (): typeof HTMLElement => {
+  if (typeof HTMLElement !== 'undefined') {
+    return HTMLElement;
+  }
+  // Return a minimal stub for SSR environments
+  return class {} as unknown as typeof HTMLElement;
+};
+
+/**
  * Base class for all DialStack Web Components
  */
-export abstract class BaseComponent extends HTMLElement {
+export abstract class BaseComponent extends getHTMLElementBase() {
   protected instance: DialStackInstanceImpl | null = null;
   protected isInitialized: boolean = false;
   protected appearance: AppearanceOptions | undefined;

@@ -5,6 +5,10 @@
 import type { DialStackInstance, DialStackInitParams } from './types';
 import { DialStackInstanceImplClass } from './instance';
 
+// Import components to ensure they self-register (browser-guarded internally)
+import '../components/call-logs';
+import '../components/voicemails';
+
 /**
  * Load and initialize the DialStack SDK
  *

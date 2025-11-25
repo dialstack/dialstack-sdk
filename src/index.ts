@@ -14,11 +14,10 @@ export type {
   UpdateOptions,
 } from './core/types';
 
-// Web Components (for advanced usage)
-export { BaseComponent } from './components/base-component';
-export { CallLogsComponent } from './components/call-logs';
-export { VoicemailsComponent } from './components/voicemails';
-export type { DateRange } from './components/call-logs';
+// Note: Web Components (BaseComponent, CallLogsComponent, VoicemailsComponent)
+// are not exported from the main entry point to ensure SSR compatibility.
+// They are registered automatically when the SDK is loaded in a browser.
+// For advanced usage, import from '@dialstack/sdk/components'.
 
 // React exports
 export {
@@ -33,6 +32,9 @@ export { Voicemails } from './react/Voicemails';
 export type { DialstackComponentsProviderProps } from './react/DialstackComponentsProvider';
 export type { CallLogsProps } from './react/CallLogs';
 export type { VoicemailsProps } from './react/Voicemails';
+
+// Type-only re-exports (safe for SSR)
+export type { DateRange } from './components/call-logs';
 
 // Note: Server SDK is exported from '@dialstack/sdk/server'
 // Do not import server SDK in browser code
