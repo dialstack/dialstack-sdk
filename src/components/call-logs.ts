@@ -209,13 +209,6 @@ export class CallLogsComponent extends BaseComponent {
           border-radius: var(--ds-border-radius);
         }
 
-        h3 {
-          margin: 0 0 calc(var(--ds-spacing-unit) * 2) 0;
-          color: var(--ds-color-primary);
-          font-size: 1.25rem;
-          font-weight: 600;
-        }
-
         .loading,
         .error,
         .empty {
@@ -358,10 +351,31 @@ export class CallLogsComponent extends BaseComponent {
           opacity: 0.4;
           cursor: not-allowed;
         }
+
+        .page-size-selector {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 0.875rem;
+          color: rgba(0, 0, 0, 0.6);
+        }
+
+        .page-size-select {
+          padding: 4px 8px;
+          font-size: 0.875rem;
+          border: 1px solid rgba(0, 0, 0, 0.2);
+          border-radius: var(--ds-border-radius);
+          background: var(--ds-color-background);
+          color: var(--ds-color-text);
+          cursor: pointer;
+        }
+
+        .page-size-select:hover {
+          border-color: rgba(0, 0, 0, 0.3);
+        }
       </style>
 
       <div class="container">
-        <h3>Call Logs</h3>
         ${this.renderContent()}
       </div>
     `;
@@ -446,13 +460,22 @@ export class CallLogsComponent extends BaseComponent {
           </tbody>
         </table>
       </div>
-      ${
-        totalPages > 1
-          ? `
-        <div class="pagination">
-          <span class="pagination-info">
-            Showing ${startItem}–${endItem} of ${this.totalCount} calls
-          </span>
+      <div class="pagination">
+        <span class="pagination-info">
+          Showing ${startItem}–${endItem} of ${this.totalCount} calls
+        </span>
+        <div class="page-size-selector">
+          <label for="page-size">Per page:</label>
+          <select id="page-size" class="page-size-select">
+            <option value="10" ${this.limit === 10 ? 'selected' : ''}>10</option>
+            <option value="20" ${this.limit === 20 ? 'selected' : ''}>20</option>
+            <option value="50" ${this.limit === 50 ? 'selected' : ''}>50</option>
+            <option value="100" ${this.limit === 100 ? 'selected' : ''}>100</option>
+          </select>
+        </div>
+        ${
+          totalPages > 1
+            ? `
           <div class="pagination-buttons">
             <button class="pagination-btn" id="prev-btn" ${hasPrev ? '' : 'disabled'}>
               ← Previous
@@ -461,10 +484,10 @@ export class CallLogsComponent extends BaseComponent {
               Next →
             </button>
           </div>
-        </div>
-      `
-          : ''
-      }
+        `
+            : ''
+        }
+      </div>
     `;
   }
 
@@ -476,9 +499,11 @@ export class CallLogsComponent extends BaseComponent {
 
     const prevBtn = this.shadowRoot.getElementById('prev-btn');
     const nextBtn = this.shadowRoot.getElementById('next-btn');
+    const pageSizeSelect = this.shadowRoot.getElementById('page-size') as HTMLSelectElement;
 
     prevBtn?.addEventListener('click', () => this.goToPreviousPage());
     nextBtn?.addEventListener('click', () => this.goToNextPage());
+    pageSizeSelect?.addEventListener('change', () => this.changePageSize(parseInt(pageSizeSelect.value, 10)));
   }
 
   /**
@@ -499,6 +524,15 @@ export class CallLogsComponent extends BaseComponent {
       this.offset += this.limit;
       this.loadData();
     }
+  }
+
+  /**
+   * Change page size and reload from first page
+   */
+  private changePageSize(newLimit: number): void {
+    this.limit = newLimit;
+    this.offset = 0;
+    this.loadData();
   }
 
   /**
