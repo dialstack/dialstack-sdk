@@ -70,5 +70,8 @@
   },
   "engines": {
     "node": ">=16.0.0"
+  },
+  "dependencies": {
+    "libphonenumber-js": "^1.12.29"
   }
 }

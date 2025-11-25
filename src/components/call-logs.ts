@@ -2,6 +2,7 @@
  * CallLogs Web Component
  */
 
+import { parsePhoneNumber, type PhoneNumber } from 'libphonenumber-js';
 import { BaseComponent } from './base-component';
 
 /**
@@ -130,6 +131,26 @@ export class CallLogsComponent extends BaseComponent {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+  }
+
+  /**
+   * Format phone number for display using libphonenumber-js
+   */
+  private formatPhoneNumber(phone: string): string {
+    if (!phone) return '';
+
+    try {
+      // Try to parse with US as default country
+      const parsed: PhoneNumber | undefined = parsePhoneNumber(phone, 'US');
+      if (parsed) {
+        return parsed.formatNational();
+      }
+    } catch {
+      // If parsing fails, return original
+    }
+
+    // Return original if parsing fails
+    return phone;
   }
 
   /**
@@ -390,8 +411,8 @@ export class CallLogsComponent extends BaseComponent {
       <tr>
         <td>${this.formatDate(call.started_at)}</td>
         <td><span class="badge ${this.getDirectionClass(call.direction)}">${call.direction}</span></td>
-        <td>${call.from_number}</td>
-        <td>${call.to_number}</td>
+        <td>${this.formatPhoneNumber(call.from_number)}</td>
+        <td>${this.formatPhoneNumber(call.to_number)}</td>
         <td>${this.formatDuration(call.duration_seconds || 0)}</td>
         <td><span class="badge ${this.getStatusClass(call.status)}">${this.formatStatus(call.status)}</span></td>
       </tr>
