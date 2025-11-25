@@ -202,11 +202,8 @@ export class CallLogsComponent extends BaseComponent {
         ${styles}
 
         .container {
-          padding: calc(var(--ds-spacing-unit) * 2);
           background: var(--ds-color-background);
           color: var(--ds-color-text);
-          border: 1px solid rgba(0, 0, 0, 0.1);
-          border-radius: var(--ds-border-radius);
         }
 
         .loading,
@@ -315,7 +312,6 @@ export class CallLogsComponent extends BaseComponent {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin-top: calc(var(--ds-spacing-unit) * 2);
           padding-top: calc(var(--ds-spacing-unit) * 2);
           border-top: 1px solid rgba(0, 0, 0, 0.1);
         }
