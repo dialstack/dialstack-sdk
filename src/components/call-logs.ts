@@ -108,13 +108,14 @@ export class CallLogsComponent extends BaseComponent {
   private formatDate(timestamp: string): string {
     try {
       const date = new Date(timestamp);
-      return date.toLocaleString(undefined, {
+      return date.toLocaleString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
         hour: 'numeric',
         minute: '2-digit',
         hour12: true,
+        timeZoneName: 'short',
       });
     } catch {
       return timestamp;
