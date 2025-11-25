@@ -71,7 +71,7 @@ export class CallLogsComponent extends BaseComponent {
     try {
       // Note: dateRange, limit, offset will be used for API query parameters
       // once the backend API supports filtering and pagination
-      const data = await this.fetchComponentData<CallLogsResponse>('/calls');
+      const data = await this.fetchComponentData<CallLogsResponse>('/v1/calls');
       this.callLogs = data.call_logs || [];
       this.error = null;
 

@@ -64,7 +64,7 @@ export class VoicemailsComponent extends BaseComponent {
     this.render();
 
     try {
-      const data = await this.fetchComponentData<VoicemailsResponse>('/voicemails');
+      const data = await this.fetchComponentData<VoicemailsResponse>(`/v1/users/${this.userId}/voicemails`);
       this.voicemails = data.voicemails || [];
       this.error = null;
     } catch (err) {
@@ -80,11 +80,12 @@ export class VoicemailsComponent extends BaseComponent {
    * Mark voicemail as read
    */
   private async markAsRead(voicemailId: string): Promise<void> {
-    if (!this.instance) return;
+    if (!this.instance || !this.userId) return;
 
     try {
-      await this.instance.fetchApi(`/component/voicemails/${voicemailId}/read`, {
-        method: 'PATCH',
+      await this.instance.fetchApi(`/v1/users/${this.userId}/voicemails/${voicemailId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ is_read: true }),
       });
 
       // Update local state
