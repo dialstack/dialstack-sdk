@@ -147,13 +147,10 @@ export class DialStack {
     create: async (
       params: AccountSessionCreateParams
     ): Promise<AccountSessionCreateResponse> => {
-      return this._request(
-        '/v1/account_sessions',
-        {
-          method: 'POST',
-        },
-        params.account
-      );
+      return this._request('/v1/account_sessions', {
+        method: 'POST',
+        body: JSON.stringify({ account: params.account }),
+      });
     },
   };
 
