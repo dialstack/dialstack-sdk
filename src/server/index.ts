@@ -10,8 +10,12 @@
  *
  * const dialstack = new DialStack(process.env.DIALSTACK_API_KEY);
  *
- * const session = await dialstack.sessions.create({
- *   account_id: 'account_456',
+ * // Create an account
+ * const account = await dialstack.accounts.create({ email: 'test@example.com' });
+ *
+ * // Create a session for embedded components
+ * const session = await dialstack.accountSessions.create({
+ *   account: account.id,
  * });
  * ```
  */
@@ -26,6 +30,10 @@ interface AccountCreateParams {
   email?: string;
 }
 
+interface AccountUpdateParams {
+  email?: string;
+}
+
 interface Account {
   id: string;
   email: string | null;
@@ -33,12 +41,16 @@ interface Account {
   updated_at: string;
 }
 
-interface SessionCreateParams {
-  account_id: string;
+interface AccountListResponse {
+  accounts: Account[];
+  count: number;
 }
 
-interface SessionCreateResponse {
-  account_id: string;
+interface AccountSessionCreateParams {
+  account: string;
+}
+
+interface AccountSessionCreateResponse {
   client_secret: string;
   expires_at: string;
 }
@@ -52,13 +64,25 @@ export class DialStack {
     this._apiUrl = config?.apiUrl || DEFAULT_API_URL;
   }
 
-  private async _request(path: string, options: RequestInit = {}): Promise<any> {
+  private async _request(
+    path: string,
+    options: RequestInit = {},
+    accountId?: string
+  ): Promise<any> {
     const url = `${this._apiUrl}${path}`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${this._apiKey}`,
+    };
+
+    if (accountId) {
+      headers['DialStack-Account'] = accountId;
+    }
+
     const response = await fetch(url, {
       ...options,
       headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this._apiKey}`,
+        ...headers,
         ...options.headers,
       },
     });
@@ -74,28 +98,67 @@ export class DialStack {
       throw new Error(`DialStack API error: ${errorMessage}`);
     }
 
+    // Handle 204 No Content
+    if (response.status === 204) {
+      return undefined;
+    }
+
     return await response.json();
   }
 
   accounts = {
     create: async (params?: AccountCreateParams): Promise<Account> => {
-      return this._request('/api/v1/accounts', {
+      return this._request('/v1/accounts', {
         method: 'POST',
         body: JSON.stringify({ email: params?.email }),
       });
     },
-  };
 
-  sessions = {
-    create: async (
-      params: SessionCreateParams
-    ): Promise<SessionCreateResponse> => {
-      return this._request(`/api/v1/account_sessions`, {
-        method: 'POST',
-        body: JSON.stringify({
-          account_id: params.account_id,
-        }),
+    retrieve: async (accountId: string): Promise<Account> => {
+      return this._request(`/v1/accounts/${accountId}`, {
+        method: 'GET',
+      });
+    },
+
+    update: async (
+      accountId: string,
+      params: AccountUpdateParams
+    ): Promise<Account> => {
+      return this._request(`/v1/accounts/${accountId}`, {
+        method: 'PUT',
+        body: JSON.stringify(params),
+      });
+    },
+
+    del: async (accountId: string): Promise<void> => {
+      return this._request(`/v1/accounts/${accountId}`, {
+        method: 'DELETE',
+      });
+    },
+
+    list: async (): Promise<AccountListResponse> => {
+      return this._request('/v1/accounts', {
+        method: 'GET',
       });
     },
   };
+
+  accountSessions = {
+    create: async (
+      params: AccountSessionCreateParams
+    ): Promise<AccountSessionCreateResponse> => {
+      return this._request(
+        '/v1/account_sessions',
+        {
+          method: 'POST',
+        },
+        params.account
+      );
+    },
+  };
+
+  /**
+   * @deprecated Use `accountSessions` instead
+   */
+  sessions = this.accountSessions;
 }
