@@ -270,6 +270,24 @@ export abstract class BaseComponent extends getHTMLElementBase() {
     const focusRingColor = vars.focusRingColor || colorPrimary;
     const focusRingWidth = vars.focusRingWidth || '2px';
 
+    // Icon sizes
+    const iconSize = vars.iconSize || '24px';
+    const iconSizeSmall = vars.iconSizeSmall || '20px';
+
+    // Player/media controls
+    const playerButtonSize = vars.playerButtonSize || '44px';
+    const playerProgressHeight = vars.playerProgressHeight || '4px';
+    const playerProgressHandleSize = vars.playerProgressHandleSize || '14px';
+
+    // Indicators
+    const unreadIndicatorSize = vars.unreadIndicatorSize || '10px';
+
+    // Spinner
+    const spinnerSize = vars.spinnerSize || '24px';
+
+    // Time display
+    const timeDisplayWidth = vars.timeDisplayWidth || '36px';
+
     return `
       :host {
         /* Colors - Primary */
@@ -317,6 +335,24 @@ export abstract class BaseComponent extends getHTMLElementBase() {
         /* Effects */
         --ds-transition-duration: ${transitionDuration};
         --ds-focus-ring: 0 0 0 ${focusRingWidth} ${focusRingColor};
+
+        /* Icon sizes */
+        --ds-icon-size: ${iconSize};
+        --ds-icon-size-small: ${iconSizeSmall};
+
+        /* Player/media controls */
+        --ds-player-button-size: ${playerButtonSize};
+        --ds-player-progress-height: ${playerProgressHeight};
+        --ds-player-progress-handle-size: ${playerProgressHandleSize};
+
+        /* Indicators */
+        --ds-unread-indicator-size: ${unreadIndicatorSize};
+
+        /* Spinner */
+        --ds-spinner-size: ${spinnerSize};
+
+        /* Time display */
+        --ds-time-display-width: ${timeDisplayWidth};
       }
 
       * {

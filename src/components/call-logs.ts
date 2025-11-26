@@ -4,7 +4,7 @@
 
 import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenumber-js';
 import { BaseComponent } from './base-component';
-import type { CallLog } from '../core/types';
+import type { CallLog, PaginationOptions } from '../core/types';
 
 /**
  * API response structure
@@ -37,6 +37,12 @@ export class CallLogsComponent extends BaseComponent {
   private error: string | null = null;
   private callLogs: CallLog[] = [];
 
+  // Pagination configuration
+  private _paginationOptions: PaginationOptions = {
+    pageSizes: [10, 20, 50, 100],
+    defaultPageSize: 20,
+  };
+
   // Callbacks
   private _onPageChange?: (event: { offset: number; limit: number }) => void;
   private _onRowClick?: (event: { callId: string; call: CallLog }) => void;
@@ -64,6 +70,20 @@ export class CallLogsComponent extends BaseComponent {
    */
   setOnRowClick(callback: (event: { callId: string; call: CallLog }) => void): void {
     this._onRowClick = callback;
+  }
+
+  /**
+   * Set pagination options
+   */
+  setPaginationOptions(options: PaginationOptions): void {
+    this._paginationOptions = { ...this._paginationOptions, ...options };
+    // Update limit if default page size changed and limit matches old default
+    if (options.defaultPageSize && this.limit === 20) {
+      this.limit = options.defaultPageSize;
+    }
+    if (this.isInitialized) {
+      this.render();
+    }
   }
 
   // ============================================================================
@@ -259,8 +279,8 @@ export class CallLogsComponent extends BaseComponent {
 
         .spinner {
           display: inline-block;
-          width: 24px;
-          height: 24px;
+          width: var(--ds-spinner-size);
+          height: var(--ds-spinner-size);
           border: 3px solid var(--ds-color-border);
           border-top-color: var(--ds-color-primary);
           border-radius: var(--ds-border-radius-round);
@@ -504,10 +524,9 @@ export class CallLogsComponent extends BaseComponent {
         <div class="page-size-selector">
           <label for="page-size">${this.t('common.perPage')}:</label>
           <select id="page-size" class="page-size-select" aria-label="${this.t('common.perPage')}">
-            <option value="10" ${this.limit === 10 ? 'selected' : ''}>10</option>
-            <option value="20" ${this.limit === 20 ? 'selected' : ''}>20</option>
-            <option value="50" ${this.limit === 50 ? 'selected' : ''}>50</option>
-            <option value="100" ${this.limit === 100 ? 'selected' : ''}>100</option>
+            ${(this._paginationOptions.pageSizes || [10, 20, 50, 100])
+              .map((size) => `<option value="${size}" ${this.limit === size ? 'selected' : ''}>${size}</option>`)
+              .join('')}
           </select>
         </div>
         ${

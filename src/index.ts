@@ -20,6 +20,7 @@ export type {
   VoicemailsCallbacks,
   CallLog,
   FormattingOptions,
+  PaginationOptions,
 } from './core/types';
 
 // Note: Web Components (BaseComponent, CallLogsComponent, VoicemailsComponent)

@@ -480,7 +480,7 @@ export class VoicemailsComponent extends BaseComponent {
    * Get play icon SVG
    */
   private getPlayIcon(): string {
-    return `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+    return `<svg viewBox="0 0 24 24" fill="currentColor">
       <path d="M8 5v14l11-7z"/>
     </svg>`;
   }
@@ -489,7 +489,7 @@ export class VoicemailsComponent extends BaseComponent {
    * Get pause icon SVG
    */
   private getPauseIcon(): string {
-    return `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+    return `<svg viewBox="0 0 24 24" fill="currentColor">
       <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
     </svg>`;
   }
@@ -498,7 +498,7 @@ export class VoicemailsComponent extends BaseComponent {
    * Get phone icon SVG
    */
   private getPhoneIcon(): string {
-    return `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    return `<svg viewBox="0 0 24 24" fill="currentColor">
       <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
     </svg>`;
   }
@@ -507,7 +507,7 @@ export class VoicemailsComponent extends BaseComponent {
    * Get trash icon SVG
    */
   private getTrashIcon(): string {
-    return `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    return `<svg viewBox="0 0 24 24" fill="currentColor">
       <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
     </svg>`;
   }
@@ -555,8 +555,8 @@ export class VoicemailsComponent extends BaseComponent {
 
         .spinner {
           display: inline-block;
-          width: 24px;
-          height: 24px;
+          width: var(--ds-spinner-size);
+          height: var(--ds-spinner-size);
           border: 3px solid var(--ds-color-border);
           border-top-color: var(--ds-color-primary);
           border-radius: var(--ds-border-radius-round);
@@ -605,8 +605,8 @@ export class VoicemailsComponent extends BaseComponent {
 
         /* Unread dot */
         .unread-dot {
-          width: 10px;
-          height: 10px;
+          width: var(--ds-unread-indicator-size);
+          height: var(--ds-unread-indicator-size);
           border-radius: var(--ds-border-radius-round);
           background: var(--ds-color-primary);
           margin-right: var(--ds-spacing-md);
@@ -710,7 +710,7 @@ export class VoicemailsComponent extends BaseComponent {
 
         .progress-bar {
           flex: 1;
-          height: 4px;
+          height: var(--ds-player-progress-height);
           background: var(--ds-color-border);
           border-radius: var(--ds-border-radius-small);
           cursor: pointer;
@@ -728,8 +728,8 @@ export class VoicemailsComponent extends BaseComponent {
           position: absolute;
           top: 50%;
           transform: translate(-50%, -50%);
-          width: 14px;
-          height: 14px;
+          width: var(--ds-player-progress-handle-size);
+          height: var(--ds-player-progress-handle-size);
           background: var(--ds-color-primary);
           border-radius: var(--ds-border-radius-round);
           cursor: grab;
@@ -744,7 +744,7 @@ export class VoicemailsComponent extends BaseComponent {
         .time-remaining {
           font-size: var(--ds-font-size-small);
           color: var(--ds-color-text-secondary);
-          min-width: 36px;
+          min-width: var(--ds-time-display-width);
         }
 
         .time-current {
@@ -764,8 +764,8 @@ export class VoicemailsComponent extends BaseComponent {
         }
 
         .play-btn {
-          width: 44px;
-          height: 44px;
+          width: var(--ds-player-button-size);
+          height: var(--ds-player-button-size);
           border-radius: var(--ds-border-radius-round);
           border: none;
           background: var(--ds-color-primary);
@@ -776,6 +776,11 @@ export class VoicemailsComponent extends BaseComponent {
           justify-content: center;
           flex-shrink: 0;
           transition: opacity var(--ds-transition-duration);
+        }
+
+        .play-btn svg {
+          width: var(--ds-icon-size);
+          height: var(--ds-icon-size);
         }
 
         .play-btn:hover {
@@ -804,6 +809,11 @@ export class VoicemailsComponent extends BaseComponent {
 
         .action-btn:hover {
           opacity: 0.85;
+        }
+
+        .action-btn svg {
+          width: var(--ds-icon-size-small);
+          height: var(--ds-icon-size-small);
         }
 
         .action-btn.call {

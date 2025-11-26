@@ -67,6 +67,24 @@ export interface AppearanceOptions {
     transitionDuration?: string;
     focusRingColor?: string;
     focusRingWidth?: string;
+
+    // Icon sizes
+    iconSize?: string;
+    iconSizeSmall?: string;
+
+    // Player/media controls
+    playerButtonSize?: string;
+    playerProgressHeight?: string;
+    playerProgressHandleSize?: string;
+
+    // Indicators
+    unreadIndicatorSize?: string;
+
+    // Spinner
+    spinnerSize?: string;
+
+    // Time display
+    timeDisplayWidth?: string;
   };
 }
 
@@ -137,6 +155,23 @@ export interface CallLogsCallbacks extends CommonComponentCallbacks {
 // ============================================================================
 // Configuration Types
 // ============================================================================
+
+/**
+ * Pagination options for list components
+ */
+export interface PaginationOptions {
+  /**
+   * Available page sizes for the dropdown
+   * @default [10, 20, 50, 100]
+   */
+  pageSizes?: number[];
+
+  /**
+   * Default page size
+   * @default 20
+   */
+  defaultPageSize?: number;
+}
 
 /**
  * Formatting options for components

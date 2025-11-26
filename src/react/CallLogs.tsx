@@ -12,6 +12,7 @@ import type {
   LoadError,
   CallLog,
   FormattingOptions,
+  PaginationOptions,
 } from '../core/types';
 import type { Locale } from '../locales';
 
@@ -35,6 +36,11 @@ export interface CallLogsProps {
    * Maximum number of call logs to display (default: 20)
    */
   limit?: number;
+
+  /**
+   * Pagination options for configuring page sizes
+   */
+  paginationOptions?: PaginationOptions;
 
   /**
    * Locale for UI strings
@@ -89,6 +95,7 @@ export const CallLogs: React.FC<CallLogsProps> = ({
   style,
   dateRange,
   limit,
+  paginationOptions,
   locale,
   formatting,
   onLoaderStart,
@@ -102,6 +109,7 @@ export const CallLogs: React.FC<CallLogsProps> = ({
   // Sync data props to Web Component
   useUpdateWithSetter(componentInstance, dateRange, 'setDateRange');
   useUpdateWithSetter(componentInstance, limit, 'setLimit');
+  useUpdateWithSetter(componentInstance, paginationOptions, 'setPaginationOptions');
 
   // Sync configuration props
   useUpdateWithSetter(componentInstance, locale, 'setLocale');
