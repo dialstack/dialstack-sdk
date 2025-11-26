@@ -32,6 +32,11 @@
       "require": "./dist/sdk.cjs",
       "types": "./dist/index.d.ts"
     },
+    "./pure": {
+      "import": "./dist/pure.mjs",
+      "require": "./dist/pure.cjs",
+      "types": "./dist/pure.d.ts"
+    },
     "./server": {
       "import": "./dist/server/index.js",
       "require": "./dist/server/index.js",

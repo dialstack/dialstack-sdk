@@ -396,6 +396,20 @@ export interface UpdateOptions {
 }
 
 /**
+ * Client secret response from fetchClientSecret
+ * Can be either a string (for backward compatibility) or an object with expiry info
+ */
+export type ClientSecretResponse =
+  | string
+  | {
+      clientSecret: string;
+      /**
+       * ISO 8601 datetime string when the session expires
+       */
+      expiresAt?: string;
+    };
+
+/**
  * Initialization parameters for loadDialstackAndInitialize()
  */
 export interface DialStackInitParams {
@@ -405,9 +419,30 @@ export interface DialStackInitParams {
   publishableKey: string;
 
   /**
-   * Function that fetches a client secret from your backend
+   * Function that fetches a client secret from your backend.
+   *
+   * Can return either:
+   * - A string (the client secret)
+   * - An object with `clientSecret` and optional `expiresAt` for optimal refresh scheduling
+   *
+   * @example
+   * ```typescript
+   * // Simple: just return the secret
+   * fetchClientSecret: async () => {
+   *   const res = await fetch('/api/dialstack/session');
+   *   const { client_secret } = await res.json();
+   *   return client_secret;
+   * }
+   *
+   * // Recommended: return with expiry for optimal refresh
+   * fetchClientSecret: async () => {
+   *   const res = await fetch('/api/dialstack/session');
+   *   const { client_secret, expires_at } = await res.json();
+   *   return { clientSecret: client_secret, expiresAt: expires_at };
+   * }
+   * ```
    */
-  fetchClientSecret: () => Promise<string>;
+  fetchClientSecret: () => Promise<ClientSecretResponse>;
 
   /**
    * Optional appearance configuration

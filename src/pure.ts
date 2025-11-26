@@ -1,11 +1,25 @@
 /**
- * DialStack SDK - Official JavaScript SDK for DialStack
+ * DialStack SDK - Pure Entry Point (No Side Effects)
+ *
+ * This entry point does NOT auto-register Web Components.
+ * Use this for:
+ * - Server-side rendering (SSR)
+ * - Testing environments
+ * - When you want manual control over component registration
+ *
+ * For automatic component registration, use '@dialstack/sdk' instead.
  *
  * @packageDocumentation
  */
 
-// Core exports
-export { loadDialstackAndInitialize, initialize, getInstance } from './core/initialize';
+// Core exports (pure - no component auto-registration)
+export {
+  loadDialstackAndInitialize,
+  initialize,
+  getInstance,
+  registerComponents,
+} from './core/initialize-pure';
+
 export type {
   DialStackInitParams,
   DialStackInstance,
@@ -39,11 +53,6 @@ export type {
 // Default icons (can be used to customize or extend)
 export { defaultIcons } from './components/base-component';
 
-// Note: Web Components (BaseComponent, CallLogsComponent, VoicemailsComponent)
-// are not exported from the main entry point to ensure SSR compatibility.
-// They are registered automatically when the SDK is loaded in a browser.
-// For advanced usage, import from '@dialstack/sdk/components'.
-
 // React exports
 export {
   DialstackComponentsProvider,
@@ -64,6 +73,3 @@ export type { VoicemailsProps } from './react/Voicemails';
 
 // Type-only re-exports (safe for SSR)
 export type { DateRange } from './components/call-logs';
-
-// Note: Server SDK is exported from '@dialstack/sdk/server'
-// Do not import server SDK in browser code

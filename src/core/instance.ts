@@ -10,11 +10,14 @@ import type {
   AppearanceOptions,
   ComponentTagName,
   ComponentElement,
+  ClientSecretResponse,
 } from './types';
 
 const DEFAULT_API_URL = 'https://api.dialstack.ai';
-const SESSION_REFRESH_INTERVAL_MS = 50 * 60 * 1000; // 50 minutes
-const SESSION_RETRY_INTERVAL_MS = 1 * 60 * 1000; // 1 minute
+const DEFAULT_SESSION_DURATION_MS = 60 * 60 * 1000; // 1 hour default
+const SESSION_REFRESH_BUFFER_MS = 5 * 60 * 1000; // Refresh 5 minutes before expiry
+const MIN_REFRESH_INTERVAL_MS = 30 * 1000; // Minimum 30 seconds between refreshes
+const SESSION_RETRY_INTERVAL_MS = 1 * 60 * 1000; // 1 minute retry on error
 
 /**
  * Internal implementation of DialStack SDK instance
@@ -22,7 +25,7 @@ const SESSION_RETRY_INTERVAL_MS = 1 * 60 * 1000; // 1 minute
 export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   private publishableKey: string;
   private apiUrl: string;
-  private fetchClientSecretFn: () => Promise<string>;
+  private fetchClientSecretFn: () => Promise<ClientSecretResponse>;
   private appearance: AppearanceOptions | undefined;
   private sessionData: SessionData | null = null;
   private sessionPromise: Promise<SessionData> | null = null;
@@ -55,26 +58,77 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   }
 
   /**
+   * Parse client secret response (handles both string and object formats)
+   */
+  private parseClientSecretResponse(response: ClientSecretResponse): {
+    clientSecret: string;
+    expiresAt: Date;
+  } {
+    if (typeof response === 'string') {
+      // Legacy format: just a string, use default expiry
+      return {
+        clientSecret: response,
+        expiresAt: new Date(Date.now() + DEFAULT_SESSION_DURATION_MS),
+      };
+    }
+
+    // Object format with optional expiry
+    const { clientSecret, expiresAt } = response;
+
+    if (!clientSecret || typeof clientSecret !== 'string') {
+      throw new Error('DialStack: clientSecret must be a valid string');
+    }
+
+    let parsedExpiresAt: Date;
+    if (expiresAt) {
+      parsedExpiresAt = new Date(expiresAt);
+      if (isNaN(parsedExpiresAt.getTime())) {
+        console.warn('DialStack: Invalid expiresAt format, using default duration');
+        parsedExpiresAt = new Date(Date.now() + DEFAULT_SESSION_DURATION_MS);
+      }
+    } else {
+      parsedExpiresAt = new Date(Date.now() + DEFAULT_SESSION_DURATION_MS);
+    }
+
+    return { clientSecret, expiresAt: parsedExpiresAt };
+  }
+
+  /**
+   * Calculate optimal refresh interval based on expiry
+   */
+  private calculateRefreshInterval(expiresAt: Date): number {
+    const now = Date.now();
+    const expiryTime = expiresAt.getTime();
+    const timeUntilExpiry = expiryTime - now;
+
+    // Refresh before expiry (with buffer)
+    const refreshIn = timeUntilExpiry - SESSION_REFRESH_BUFFER_MS;
+
+    // Ensure minimum interval
+    return Math.max(refreshIn, MIN_REFRESH_INTERVAL_MS);
+  }
+
+  /**
    * Refresh the session
    */
   private async refreshSession(): Promise<void> {
     try {
-      const clientSecret = await this.fetchClientSecretFn();
+      const response = await this.fetchClientSecretFn();
 
-      if (!clientSecret || typeof clientSecret !== 'string') {
-        throw new Error('DialStack: fetchClientSecret must return a valid string');
+      if (!response) {
+        throw new Error('DialStack: fetchClientSecret must return a valid response');
       }
 
-      // Parse expiry from client secret or set default (1 hour from now)
-      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+      const { clientSecret, expiresAt } = this.parseClientSecretResponse(response);
 
       this.sessionData = {
         clientSecret,
         expiresAt,
       };
 
-      // Schedule next refresh at 50 minutes
-      this.scheduleRefresh(SESSION_REFRESH_INTERVAL_MS);
+      // Schedule next refresh based on actual expiry
+      const refreshInterval = this.calculateRefreshInterval(expiresAt);
+      this.scheduleRefresh(refreshInterval);
     } catch (error) {
       console.error('DialStack: Failed to refresh session, retrying in 1 minute:', error);
       // Retry in 1 minute
