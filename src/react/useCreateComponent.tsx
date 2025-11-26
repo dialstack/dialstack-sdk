@@ -2,7 +2,7 @@
  * React hook for creating and managing Web Components
  */
 
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { ComponentTagName, ComponentElement, DialStackInstance } from '../core/types';
 
 /**
@@ -30,6 +30,8 @@ export function useCreateComponent<T extends ComponentTagName>(
 ): UseCreateComponentResult {
   const containerRef = useRef<HTMLDivElement>(null);
   const componentRef = useRef<ComponentElement[T] | null>(null);
+  // Use state to trigger re-render when component is created
+  const [componentInstance, setComponentInstance] = useState<HTMLElement | null>(null);
 
   useLayoutEffect(() => {
     if (!containerRef.current) return;
@@ -40,6 +42,7 @@ export function useCreateComponent<T extends ComponentTagName>(
     // Append to container
     containerRef.current.appendChild(component as Node);
     componentRef.current = component;
+    setComponentInstance(component as HTMLElement);
 
     // Cleanup on unmount
     return () => {
@@ -51,6 +54,6 @@ export function useCreateComponent<T extends ComponentTagName>(
 
   return {
     containerRef,
-    componentInstance: componentRef.current,
+    componentInstance,
   };
 }
