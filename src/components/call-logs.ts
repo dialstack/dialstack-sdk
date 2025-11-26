@@ -2,26 +2,9 @@
  * CallLogs Web Component
  */
 
-import { parsePhoneNumber, type PhoneNumber } from 'libphonenumber-js';
+import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenumber-js';
 import { BaseComponent } from './base-component';
-
-/**
- * Call log data structure from API
- */
-interface CallLog {
-  id: string;
-  user_id?: string;
-  endpoint_id?: string;
-  did_id?: string;
-  direction: 'inbound' | 'outbound' | 'internal';
-  from_number: string;
-  to_number: string;
-  started_at: string;
-  answered_at?: string;
-  ended_at?: string;
-  duration_seconds?: number;
-  status: 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
-}
+import type { CallLog } from '../core/types';
 
 /**
  * API response structure
@@ -54,6 +37,10 @@ export class CallLogsComponent extends BaseComponent {
   private error: string | null = null;
   private callLogs: CallLog[] = [];
 
+  // Callbacks
+  private _onPageChange?: (event: { offset: number; limit: number }) => void;
+  private _onRowClick?: (event: { callId: string; call: CallLog }) => void;
+
   protected initialize(): void {
     if (this.isInitialized) return;
     this.render();
@@ -61,16 +48,39 @@ export class CallLogsComponent extends BaseComponent {
     this.isInitialized = true;
   }
 
+  // ============================================================================
+  // Callback Setters
+  // ============================================================================
+
+  /**
+   * Set callback for page change events
+   */
+  setOnPageChange(callback: (event: { offset: number; limit: number }) => void): void {
+    this._onPageChange = callback;
+  }
+
+  /**
+   * Set callback for row click events
+   */
+  setOnRowClick(callback: (event: { callId: string; call: CallLog }) => void): void {
+    this._onRowClick = callback;
+  }
+
+  // ============================================================================
+  // Data Loading
+  // ============================================================================
+
   /**
    * Load call logs from API
    */
   private async loadData(): Promise<void> {
     if (!this.instance) {
-      this.error = 'Component not initialized with instance';
+      this.error = this.t('common.error');
       this.render();
       return;
     }
 
+    this._onLoaderStart?.({ elementTagName: 'dialstack-call-logs' });
     this.isLoading = true;
     this.error = null;
     this.render();
@@ -93,7 +103,9 @@ export class CallLogsComponent extends BaseComponent {
       this.totalCount = data.count || 0;
       this.error = null;
     } catch (err) {
-      this.error = err instanceof Error ? err.message : 'Failed to load call logs';
+      const errorMessage = err instanceof Error ? err.message : this.t('callLogs.loading');
+      this.error = errorMessage;
+      this._onLoadError?.({ error: errorMessage, elementTagName: 'dialstack-call-logs' });
       this.callLogs = [];
       this.totalCount = 0;
     } finally {
@@ -102,21 +114,34 @@ export class CallLogsComponent extends BaseComponent {
     }
   }
 
+  // ============================================================================
+  // Formatting Helpers
+  // ============================================================================
+
   /**
    * Format timestamp to localized date/time string
    */
   private formatDate(timestamp: string): string {
     try {
       const date = new Date(timestamp);
-      return date.toLocaleString('en-US', {
+      const dateLocale = this.formatting.dateLocale || 'en-US';
+      const use24Hour = this.formatting.use24HourTime ?? false;
+      const showTimezone = this.formatting.showTimezone ?? true;
+
+      const options: Intl.DateTimeFormatOptions = {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
         hour: 'numeric',
         minute: '2-digit',
-        hour12: true,
-        timeZoneName: 'short',
-      });
+        hour12: !use24Hour,
+      };
+
+      if (showTimezone) {
+        options.timeZoneName = 'short';
+      }
+
+      return date.toLocaleString(dateLocale, options);
     } catch {
       return timestamp;
     }
@@ -141,8 +166,8 @@ export class CallLogsComponent extends BaseComponent {
     if (!phone) return '';
 
     try {
-      // Try to parse with US as default country
-      const parsed: PhoneNumber | undefined = parsePhoneNumber(phone, 'US');
+      const defaultCountry = (this.formatting.defaultCountry || 'US') as CountryCode;
+      const parsed: PhoneNumber | undefined = parsePhoneNumber(phone, defaultCountry);
       if (parsed) {
         return parsed.formatNational();
       }
@@ -181,13 +206,23 @@ export class CallLogsComponent extends BaseComponent {
   }
 
   /**
-   * Format status for display
+   * Format direction for display using i18n
+   */
+  private formatDirection(direction: 'inbound' | 'outbound' | 'internal'): string {
+    return this.t(`callLogs.directions.${direction}`);
+  }
+
+  /**
+   * Format status for display using i18n
    */
   private formatStatus(status: string): string {
-    return status
-      .replace(/-/g, ' ')
-      .replace(/\b\w/g, (l) => l.toUpperCase());
+    const statusKey = status === 'no-answer' ? 'noAnswer' : status;
+    return this.t(`callLogs.statuses.${statusKey}`);
   }
+
+  // ============================================================================
+  // Rendering
+  // ============================================================================
 
   /**
    * Render the component
@@ -204,19 +239,21 @@ export class CallLogsComponent extends BaseComponent {
         .container {
           background: var(--ds-color-background);
           color: var(--ds-color-text);
+          font-size: var(--ds-font-size-base);
+          line-height: var(--ds-line-height);
         }
 
         .loading,
         .error,
         .empty {
-          padding: calc(var(--ds-spacing-unit) * 3);
+          padding: var(--ds-spacing-xl);
           text-align: center;
-          background: rgba(0, 0, 0, 0.02);
+          background: var(--ds-color-surface-subtle);
           border-radius: var(--ds-border-radius);
         }
 
         .error {
-          background: rgba(229, 72, 77, 0.1);
+          background: color-mix(in srgb, var(--ds-color-danger) 10%, transparent);
           color: var(--ds-color-danger);
         }
 
@@ -224,9 +261,9 @@ export class CallLogsComponent extends BaseComponent {
           display: inline-block;
           width: 24px;
           height: 24px;
-          border: 3px solid rgba(0, 0, 0, 0.1);
+          border: 3px solid var(--ds-color-border);
           border-top-color: var(--ds-color-primary);
-          border-radius: 50%;
+          border-radius: var(--ds-border-radius-round);
           animation: spin 0.8s linear infinite;
         }
 
@@ -241,106 +278,110 @@ export class CallLogsComponent extends BaseComponent {
         table {
           width: 100%;
           border-collapse: collapse;
-          font-size: 0.875rem;
+          font-size: var(--ds-font-size-base);
         }
 
         thead {
-          background: rgba(0, 0, 0, 0.03);
+          background: var(--ds-color-surface-subtle);
         }
 
         th {
           text-align: left;
-          padding: calc(var(--ds-spacing-unit) * 1.5);
-          font-weight: 600;
-          border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+          padding: var(--ds-spacing-md);
+          font-weight: var(--ds-font-weight-bold);
+          border-bottom: 2px solid var(--ds-color-border);
         }
 
         td {
-          padding: calc(var(--ds-spacing-unit) * 1.5);
-          border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+          padding: var(--ds-spacing-md);
+          border-bottom: 1px solid var(--ds-color-border-subtle);
         }
 
-        tr:hover {
-          background: rgba(0, 0, 0, 0.02);
+        tbody tr {
+          cursor: pointer;
+        }
+
+        tbody tr:hover {
+          background: var(--ds-color-surface-subtle);
         }
 
         .badge {
           display: inline-block;
-          padding: 2px 8px;
-          border-radius: 12px;
-          font-size: 0.75rem;
-          font-weight: 500;
-          text-transform: capitalize;
+          padding: var(--ds-spacing-xs) var(--ds-spacing-sm);
+          border-radius: var(--ds-border-radius-large);
+          font-size: var(--ds-font-size-small);
+          font-weight: var(--ds-font-weight-medium);
         }
 
         .badge-inbound {
-          background: rgba(16, 185, 129, 0.1);
-          color: #059669;
+          background: color-mix(in srgb, var(--ds-color-success) 10%, transparent);
+          color: var(--ds-color-success);
         }
 
         .badge-outbound {
-          background: rgba(59, 130, 246, 0.1);
-          color: #2563eb;
+          background: color-mix(in srgb, var(--ds-color-primary) 10%, transparent);
+          color: var(--ds-color-primary);
         }
 
         .badge-answered {
-          background: rgba(16, 185, 129, 0.1);
-          color: #059669;
+          background: color-mix(in srgb, var(--ds-color-success) 10%, transparent);
+          color: var(--ds-color-success);
         }
 
         .badge-no-answer {
-          background: rgba(245, 158, 11, 0.1);
-          color: #d97706;
+          background: color-mix(in srgb, var(--ds-color-warning) 10%, transparent);
+          color: var(--ds-color-warning);
         }
 
         .badge-failed {
-          background: rgba(239, 68, 68, 0.1);
-          color: #dc2626;
+          background: color-mix(in srgb, var(--ds-color-danger) 10%, transparent);
+          color: var(--ds-color-danger);
         }
 
         .badge-voicemail {
-          background: rgba(139, 92, 246, 0.1);
+          background: color-mix(in srgb, #7c3aed 10%, transparent);
           color: #7c3aed;
         }
 
         .badge-default {
-          background: rgba(0, 0, 0, 0.05);
-          color: var(--ds-color-text);
+          background: var(--ds-color-surface-subtle);
+          color: var(--ds-color-text-secondary);
         }
 
         .pagination {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding-top: calc(var(--ds-spacing-unit) * 2);
-          border-top: 1px solid rgba(0, 0, 0, 0.1);
+          padding-top: var(--ds-spacing-lg);
+          margin-top: var(--ds-spacing-lg);
+          border-top: 1px solid var(--ds-color-border);
         }
 
         .pagination-info {
-          font-size: 0.875rem;
-          color: rgba(0, 0, 0, 0.6);
+          font-size: var(--ds-font-size-base);
+          color: var(--ds-color-text-secondary);
         }
 
         .pagination-buttons {
           display: flex;
-          gap: calc(var(--ds-spacing-unit) * 1);
+          gap: var(--ds-spacing-sm);
         }
 
         .pagination-btn {
-          padding: 6px 12px;
-          font-size: 0.875rem;
-          font-weight: 500;
-          border: 1px solid rgba(0, 0, 0, 0.2);
+          padding: var(--ds-spacing-xs) var(--ds-spacing-md);
+          font-size: var(--ds-font-size-base);
+          font-weight: var(--ds-font-weight-medium);
+          border: 1px solid var(--ds-color-border);
           border-radius: var(--ds-border-radius);
           background: var(--ds-color-background);
           color: var(--ds-color-text);
           cursor: pointer;
-          transition: all 0.15s ease;
+          transition: all var(--ds-transition-duration) ease;
         }
 
         .pagination-btn:hover:not(:disabled) {
-          background: rgba(0, 0, 0, 0.05);
-          border-color: rgba(0, 0, 0, 0.3);
+          background: var(--ds-color-surface-subtle);
+          border-color: var(--ds-color-border);
         }
 
         .pagination-btn:disabled {
@@ -351,15 +392,15 @@ export class CallLogsComponent extends BaseComponent {
         .page-size-selector {
           display: flex;
           align-items: center;
-          gap: 8px;
-          font-size: 0.875rem;
-          color: rgba(0, 0, 0, 0.6);
+          gap: var(--ds-spacing-sm);
+          font-size: var(--ds-font-size-base);
+          color: var(--ds-color-text-secondary);
         }
 
         .page-size-select {
-          padding: 4px 8px;
-          font-size: 0.875rem;
-          border: 1px solid rgba(0, 0, 0, 0.2);
+          padding: var(--ds-spacing-xs) var(--ds-spacing-sm);
+          font-size: var(--ds-font-size-base);
+          border: 1px solid var(--ds-color-border);
           border-radius: var(--ds-border-radius);
           background: var(--ds-color-background);
           color: var(--ds-color-text);
@@ -367,17 +408,17 @@ export class CallLogsComponent extends BaseComponent {
         }
 
         .page-size-select:hover {
-          border-color: rgba(0, 0, 0, 0.3);
+          border-color: var(--ds-color-border);
         }
       </style>
 
-      <div class="container">
+      <div class="container" role="region" aria-label="${this.t('callLogs.title')}">
         ${this.renderContent()}
       </div>
     `;
 
     // Attach event listeners after DOM is updated
-    this.attachPaginationListeners();
+    this.attachEventListeners();
   }
 
   /**
@@ -386,25 +427,25 @@ export class CallLogsComponent extends BaseComponent {
   private renderContent(): string {
     if (this.isLoading) {
       return `
-        <div class="loading">
-          <div class="spinner"></div>
-          <p>Loading call logs...</p>
+        <div class="loading" role="status" aria-live="polite">
+          <div class="spinner" aria-hidden="true"></div>
+          <p>${this.t('callLogs.loading')}</p>
         </div>
       `;
     }
 
     if (this.error) {
       return `
-        <div class="error">
-          <p><strong>Error:</strong> ${this.error}</p>
+        <div class="error" role="alert">
+          <p><strong>${this.t('common.error')}:</strong> ${this.error}</p>
         </div>
       `;
     }
 
     if (this.callLogs.length === 0) {
       return `
-        <div class="empty">
-          <p>No call logs found</p>
+        <div class="empty" role="status">
+          <p>${this.t('callLogs.empty')}</p>
         </div>
       `;
     }
@@ -419,9 +460,9 @@ export class CallLogsComponent extends BaseComponent {
     const rows = this.callLogs
       .map(
         (call) => `
-      <tr>
+      <tr data-call-id="${call.id}" tabindex="0" role="row">
         <td>${this.formatDate(call.started_at)}</td>
-        <td><span class="badge ${this.getDirectionClass(call.direction)}">${call.direction}</span></td>
+        <td><span class="badge ${this.getDirectionClass(call.direction)}">${this.formatDirection(call.direction)}</span></td>
         <td>${this.formatPhoneNumber(call.from_number)}</td>
         <td>${this.formatPhoneNumber(call.to_number)}</td>
         <td>${this.formatDuration(call.duration_seconds || 0)}</td>
@@ -440,15 +481,15 @@ export class CallLogsComponent extends BaseComponent {
 
     return `
       <div class="table-container">
-        <table>
+        <table role="grid" aria-label="${this.t('callLogs.title')}">
           <thead>
-            <tr>
-              <th>Date</th>
-              <th>Direction</th>
-              <th>From</th>
-              <th>To</th>
-              <th>Duration</th>
-              <th>Status</th>
+            <tr role="row">
+              <th role="columnheader" scope="col">${this.t('callLogs.columns.date')}</th>
+              <th role="columnheader" scope="col">${this.t('callLogs.columns.direction')}</th>
+              <th role="columnheader" scope="col">${this.t('callLogs.columns.from')}</th>
+              <th role="columnheader" scope="col">${this.t('callLogs.columns.to')}</th>
+              <th role="columnheader" scope="col">${this.t('callLogs.columns.duration')}</th>
+              <th role="columnheader" scope="col">${this.t('callLogs.columns.status')}</th>
             </tr>
           </thead>
           <tbody>
@@ -456,13 +497,13 @@ export class CallLogsComponent extends BaseComponent {
           </tbody>
         </table>
       </div>
-      <div class="pagination">
-        <span class="pagination-info">
-          Showing ${startItem}–${endItem} of ${this.totalCount} calls
+      <nav class="pagination" aria-label="Pagination">
+        <span class="pagination-info" aria-live="polite">
+          ${this.t('common.showing', { start: startItem, end: endItem, total: this.totalCount })}
         </span>
         <div class="page-size-selector">
-          <label for="page-size">Per page:</label>
-          <select id="page-size" class="page-size-select">
+          <label for="page-size">${this.t('common.perPage')}:</label>
+          <select id="page-size" class="page-size-select" aria-label="${this.t('common.perPage')}">
             <option value="10" ${this.limit === 10 ? 'selected' : ''}>10</option>
             <option value="20" ${this.limit === 20 ? 'selected' : ''}>20</option>
             <option value="50" ${this.limit === 50 ? 'selected' : ''}>50</option>
@@ -473,33 +514,68 @@ export class CallLogsComponent extends BaseComponent {
           totalPages > 1
             ? `
           <div class="pagination-buttons">
-            <button class="pagination-btn" id="prev-btn" ${hasPrev ? '' : 'disabled'}>
-              ← Previous
+            <button class="pagination-btn" id="prev-btn" ${hasPrev ? '' : 'disabled'} aria-label="${this.t('common.previous')}">
+              ← ${this.t('common.previous')}
             </button>
-            <button class="pagination-btn" id="next-btn" ${hasNext ? '' : 'disabled'}>
-              Next →
+            <button class="pagination-btn" id="next-btn" ${hasNext ? '' : 'disabled'} aria-label="${this.t('common.next')}">
+              ${this.t('common.next')} →
             </button>
           </div>
         `
             : ''
         }
-      </div>
+      </nav>
     `;
   }
+
+  // ============================================================================
+  // Event Handling
+  // ============================================================================
 
   /**
    * Attach event listeners after render
    */
-  private attachPaginationListeners(): void {
+  private attachEventListeners(): void {
     if (!this.shadowRoot) return;
 
+    // Pagination buttons
     const prevBtn = this.shadowRoot.getElementById('prev-btn');
     const nextBtn = this.shadowRoot.getElementById('next-btn');
     const pageSizeSelect = this.shadowRoot.getElementById('page-size') as HTMLSelectElement;
 
     prevBtn?.addEventListener('click', () => this.goToPreviousPage());
     nextBtn?.addEventListener('click', () => this.goToNextPage());
-    pageSizeSelect?.addEventListener('change', () => this.changePageSize(parseInt(pageSizeSelect.value, 10)));
+    pageSizeSelect?.addEventListener('change', () =>
+      this.changePageSize(parseInt(pageSizeSelect.value, 10))
+    );
+
+    // Row click handlers
+    const rows = this.shadowRoot.querySelectorAll('tbody tr[data-call-id]');
+    rows.forEach((row) => {
+      const callId = row.getAttribute('data-call-id');
+      if (!callId) return;
+
+      // Click handler
+      row.addEventListener('click', () => this.handleRowClick(callId));
+
+      // Keyboard handler
+      row.addEventListener('keydown', (e) => {
+        if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+          e.preventDefault();
+          this.handleRowClick(callId);
+        }
+      });
+    });
+  }
+
+  /**
+   * Handle row click
+   */
+  private handleRowClick(callId: string): void {
+    const call = this.callLogs.find((c) => c.id === callId);
+    if (call && this._onRowClick) {
+      this._onRowClick({ callId, call });
+    }
   }
 
   /**
@@ -508,6 +584,7 @@ export class CallLogsComponent extends BaseComponent {
   private goToPreviousPage(): void {
     if (this.offset > 0) {
       this.offset = Math.max(0, this.offset - this.limit);
+      this._onPageChange?.({ offset: this.offset, limit: this.limit });
       this.loadData();
     }
   }
@@ -518,6 +595,7 @@ export class CallLogsComponent extends BaseComponent {
   private goToNextPage(): void {
     if (this.offset + this.limit < this.totalCount) {
       this.offset += this.limit;
+      this._onPageChange?.({ offset: this.offset, limit: this.limit });
       this.loadData();
     }
   }
@@ -528,6 +606,7 @@ export class CallLogsComponent extends BaseComponent {
   private changePageSize(newLimit: number): void {
     this.limit = newLimit;
     this.offset = 0;
+    this._onPageChange?.({ offset: this.offset, limit: this.limit });
     this.loadData();
   }
 

@@ -97,16 +97,129 @@ function App() {
 Display a list of call history with details like caller, duration, and status.
 
 ```tsx
-<CallLogs />
+<CallLogs
+  dateRange={{ start: '2025-01-01', end: '2025-01-31' }}
+  limit={50}
+  onRowClick={(e) => console.log('Selected call:', e.callId)}
+  onLoadError={(e) => console.error(e.error)}
+/>
 ```
+
+**Props:**
+- `dateRange` - Filter by date range (`{ start?: string, end?: string }`)
+- `limit` - Maximum records to display (default: 20)
+- `locale` - Custom locale for UI strings
+- `formatting` - Date/phone formatting options
+- `onLoaderStart` - Callback when loading starts
+- `onLoadError` - Callback when loading fails
+- `onPageChange` - Callback when pagination changes
+- `onRowClick` - Callback when a row is clicked
 
 ### Voicemails
 
 Display a list of voicemails with playback controls.
 
 ```tsx
-<Voicemails />
+<Voicemails
+  userId="user-uuid-123"
+  onVoicemailSelect={(e) => console.log('Selected:', e.voicemailId)}
+  onCallBack={(e) => initiateCall(e.phoneNumber)}
+/>
 ```
+
+**Props:**
+- `userId` - User ID to fetch voicemails for (required)
+- `locale` - Custom locale for UI strings
+- `formatting` - Date/phone formatting options
+- `onLoaderStart` - Callback when loading starts
+- `onLoadError` - Callback when loading fails
+- `onVoicemailSelect` - Callback when a voicemail is selected
+- `onVoicemailPlay` - Callback when playback starts
+- `onVoicemailPause` - Callback when playback pauses
+- `onVoicemailDelete` - Callback when a voicemail is deleted
+- `onCallBack` - Callback when call back button is clicked
+
+## Theming
+
+Customize component appearance using CSS variables passed via the `appearance` option during initialization:
+
+```tsx
+const dialstack = initialize({
+  publishableKey: 'pk_live_YOUR_KEY',
+  appearance: {
+    theme: 'light', // 'light' | 'dark' | 'auto'
+    variables: {
+      // Colors
+      colorPrimary: '#6772E5',
+      colorBackground: '#ffffff',
+      colorText: '#1a1a1a',
+      colorDanger: '#e5484d',
+      colorSuccess: '#30a46c',
+
+      // Typography
+      fontFamily: 'Inter, system-ui, sans-serif',
+      fontSizeBase: '14px',
+
+      // Spacing
+      spacingUnit: '8px',
+      borderRadius: '4px',
+    },
+  },
+});
+```
+
+All components inherit appearance from the SDK instance and automatically adjust for light/dark themes.
+
+## Internationalization (i18n)
+
+Components support full internationalization via the `locale` prop:
+
+```tsx
+import { en } from '@dialstack/sdk/locales';
+
+// Create a custom locale by extending the default
+const fr: typeof en = {
+  common: {
+    loading: 'Chargement...',
+    error: 'Erreur',
+    // ... other translations
+  },
+  callLogs: {
+    title: 'Journal des appels',
+    // ... other translations
+  },
+  voicemails: {
+    title: 'Messagerie vocale',
+    // ... other translations
+  },
+};
+
+<CallLogs locale={fr} />
+```
+
+## Formatting
+
+Customize date and phone number formatting:
+
+```tsx
+<CallLogs
+  formatting={{
+    defaultCountry: 'FR',        // ISO 3166-1 alpha-2 country code
+    dateLocale: 'fr-FR',         // BCP 47 language tag
+    use24HourTime: true,         // 24-hour format
+    showTimezone: false,         // Hide timezone
+  }}
+/>
+```
+
+## Accessibility
+
+All components are built with accessibility in mind:
+
+- **ARIA Labels**: Proper `role`, `aria-label`, and `aria-live` attributes
+- **Keyboard Navigation**: Full keyboard support (Tab, Enter, Space)
+- **Focus Management**: Visible focus rings via CSS variables
+- **Screen Reader Support**: Status announcements for loading/error states
 
 ## API Reference
 

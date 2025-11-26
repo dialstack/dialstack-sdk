@@ -7,6 +7,13 @@ import { useDialstackComponents } from './DialstackComponentsProvider';
 import { useCreateComponent } from './useCreateComponent';
 import { useUpdateWithSetter } from './useUpdateWithSetter';
 import type { DateRange } from '../components/call-logs';
+import type {
+  LoaderStart,
+  LoadError,
+  CallLog,
+  FormattingOptions,
+} from '../core/types';
+import type { Locale } from '../locales';
 
 export interface CallLogsProps {
   /**
@@ -30,9 +37,34 @@ export interface CallLogsProps {
   limit?: number;
 
   /**
+   * Locale for UI strings
+   */
+  locale?: Locale;
+
+  /**
+   * Formatting options for dates and phone numbers
+   */
+  formatting?: FormattingOptions;
+
+  /**
+   * Callback when component starts loading
+   */
+  onLoaderStart?: (event: LoaderStart) => void;
+
+  /**
    * Callback when there's an error loading call logs
    */
-  onLoadError?: (error: Error) => void;
+  onLoadError?: (event: LoadError) => void;
+
+  /**
+   * Callback when pagination changes
+   */
+  onPageChange?: (event: { offset: number; limit: number }) => void;
+
+  /**
+   * Callback when a row is clicked
+   */
+  onRowClick?: (event: { callId: string; call: CallLog }) => void;
 }
 
 /**
@@ -46,7 +78,8 @@ export interface CallLogsProps {
  *   <CallLogs
  *     dateRange={{ start: '2025-01-01', end: '2025-01-31' }}
  *     limit={50}
- *     onLoadError={(error) => console.error(error)}
+ *     onLoadError={(e) => console.error(e.error)}
+ *     onRowClick={(e) => console.log('Selected call:', e.callId)}
  *   />
  * </DialstackComponentsProvider>
  * ```
@@ -56,22 +89,29 @@ export const CallLogs: React.FC<CallLogsProps> = ({
   style,
   dateRange,
   limit,
+  locale,
+  formatting,
+  onLoaderStart,
   onLoadError,
+  onPageChange,
+  onRowClick,
 }) => {
   const { dialstack } = useDialstackComponents();
   const { containerRef, componentInstance } = useCreateComponent(dialstack, 'call-logs');
 
-  // Sync dateRange prop to Web Component
+  // Sync data props to Web Component
   useUpdateWithSetter(componentInstance, dateRange, 'setDateRange');
-
-  // Sync limit prop to Web Component
   useUpdateWithSetter(componentInstance, limit, 'setLimit');
 
-  // Note: onLoadError would require event listener on the component
-  // This could be enhanced in the future if error events are added
-  if (onLoadError) {
-    // Placeholder for future error event handling
-  }
+  // Sync configuration props
+  useUpdateWithSetter(componentInstance, locale, 'setLocale');
+  useUpdateWithSetter(componentInstance, formatting, 'setFormatting');
+
+  // Sync callbacks to Web Component
+  useUpdateWithSetter(componentInstance, onLoaderStart, 'setOnLoaderStart');
+  useUpdateWithSetter(componentInstance, onLoadError, 'setOnLoadError');
+  useUpdateWithSetter(componentInstance, onPageChange, 'setOnPageChange');
+  useUpdateWithSetter(componentInstance, onRowClick, 'setOnRowClick');
 
   return <div ref={containerRef} className={className} style={style} />;
 };

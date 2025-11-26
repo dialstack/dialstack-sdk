@@ -2,7 +2,7 @@
  * Voicemails Web Component - iOS-style visual voicemail UI
  */
 
-import { parsePhoneNumber, type PhoneNumber } from 'libphonenumber-js';
+import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenumber-js';
 import { BaseComponent } from './base-component';
 
 /**
@@ -46,6 +46,13 @@ export class VoicemailsComponent extends BaseComponent {
   private duration: number = 0;
   private progressInterval: number | null = null;
 
+  // Callbacks
+  private _onVoicemailSelect?: (event: { voicemailId: string }) => void;
+  private _onVoicemailPlay?: (event: { voicemailId: string }) => void;
+  private _onVoicemailPause?: (event: { voicemailId: string }) => void;
+  private _onVoicemailDelete?: (event: { voicemailId: string }) => void;
+  private _onCallBack?: (event: { phoneNumber: string }) => void;
+
   protected initialize(): void {
     if (this.isInitialized) return;
     this.render();
@@ -55,22 +62,66 @@ export class VoicemailsComponent extends BaseComponent {
     this.isInitialized = true;
   }
 
+  // ============================================================================
+  // Callback Setters
+  // ============================================================================
+
+  /**
+   * Set callback for voicemail select events
+   */
+  setOnVoicemailSelect(callback: (event: { voicemailId: string }) => void): void {
+    this._onVoicemailSelect = callback;
+  }
+
+  /**
+   * Set callback for voicemail play events
+   */
+  setOnVoicemailPlay(callback: (event: { voicemailId: string }) => void): void {
+    this._onVoicemailPlay = callback;
+  }
+
+  /**
+   * Set callback for voicemail pause events
+   */
+  setOnVoicemailPause(callback: (event: { voicemailId: string }) => void): void {
+    this._onVoicemailPause = callback;
+  }
+
+  /**
+   * Set callback for voicemail delete events
+   */
+  setOnVoicemailDelete(callback: (event: { voicemailId: string }) => void): void {
+    this._onVoicemailDelete = callback;
+  }
+
+  /**
+   * Set callback for call back events
+   */
+  setOnCallBack(callback: (event: { phoneNumber: string }) => void): void {
+    this._onCallBack = callback;
+  }
+
+  // ============================================================================
+  // Data Loading
+  // ============================================================================
+
   /**
    * Load voicemails from API
    */
   private async loadData(): Promise<void> {
     if (!this.instance) {
-      this.error = 'Component not initialized with instance';
+      this.error = this.t('common.error');
       this.render();
       return;
     }
 
     if (!this.userId) {
-      this.error = 'User ID is required';
+      this.error = this.t('voicemails.noUserId');
       this.render();
       return;
     }
 
+    this._onLoaderStart?.({ elementTagName: 'dialstack-voicemails' });
     this.isLoading = true;
     this.error = null;
     this.render();
@@ -80,13 +131,19 @@ export class VoicemailsComponent extends BaseComponent {
       this.voicemails = data.voicemails || [];
       this.error = null;
     } catch (err) {
-      this.error = err instanceof Error ? err.message : 'Failed to load voicemails';
+      const errorMessage = err instanceof Error ? err.message : this.t('voicemails.loading');
+      this.error = errorMessage;
+      this._onLoadError?.({ error: errorMessage, elementTagName: 'dialstack-voicemails' });
       this.voicemails = [];
     } finally {
       this.isLoading = false;
       this.render();
     }
   }
+
+  // ============================================================================
+  // Expand/Collapse
+  // ============================================================================
 
   /**
    * Toggle expand/collapse for a voicemail
@@ -114,10 +171,17 @@ export class VoicemailsComponent extends BaseComponent {
       this.expandedId = voicemailId;
       clickedItem?.classList.add('expanded');
 
+      // Fire callback
+      this._onVoicemailSelect?.({ voicemailId });
+
       // Auto-play
       this.togglePlayPause(voicemailId);
     }
   }
+
+  // ============================================================================
+  // Audio Playback
+  // ============================================================================
 
   /**
    * Stop current audio playback
@@ -149,6 +213,7 @@ export class VoicemailsComponent extends BaseComponent {
     if (this.isPlaying && this.audioElement === audio) {
       audio.pause();
       this.isPlaying = false;
+      this._onVoicemailPause?.({ voicemailId });
       if (this.progressInterval) {
         clearInterval(this.progressInterval);
         this.progressInterval = null;
@@ -163,6 +228,7 @@ export class VoicemailsComponent extends BaseComponent {
       this.audioElement = audio;
       audio.play();
       this.isPlaying = true;
+      this._onVoicemailPlay?.({ voicemailId });
       this.markAsRead(voicemailId);
 
       // Start progress tracking
@@ -271,6 +337,10 @@ export class VoicemailsComponent extends BaseComponent {
     document.addEventListener('mouseup', onMouseUp);
   }
 
+  // ============================================================================
+  // Actions
+  // ============================================================================
+
   /**
    * Delete voicemail
    */
@@ -281,6 +351,9 @@ export class VoicemailsComponent extends BaseComponent {
       await this.instance.fetchApi(`/v1/users/${this.userId}/voicemails/${voicemailId}`, {
         method: 'DELETE',
       });
+
+      // Fire callback
+      this._onVoicemailDelete?.({ voicemailId });
 
       // Remove from local state
       this.voicemails = this.voicemails.filter((vm) => vm.id !== voicemailId);
@@ -324,6 +397,10 @@ export class VoicemailsComponent extends BaseComponent {
     }
   }
 
+  // ============================================================================
+  // Formatting Helpers
+  // ============================================================================
+
   /**
    * Format time in seconds to "M:SS" format
    */
@@ -331,41 +408,50 @@ export class VoicemailsComponent extends BaseComponent {
     if (!seconds || isNaN(seconds)) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${String(secs).padStart(2, '0')}`;
   }
 
   /**
-   * Format timestamp in short ISO format (YYYY-MM-DD HH:MM)
+   * Format timestamp in short format
    */
   private formatDateShort(timestamp: string): string {
     try {
       const date = new Date(timestamp);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const hours = String(date.getHours()).padStart(2, '0');
-      const mins = String(date.getMinutes()).padStart(2, '0');
-      return `${year}-${month}-${day} ${hours}:${mins}`;
+      const dateLocale = this.formatting.dateLocale || 'en-US';
+
+      return date.toLocaleDateString(dateLocale, {
+        month: 'short',
+        day: 'numeric',
+      });
     } catch {
       return timestamp;
     }
   }
 
   /**
-   * Format timestamp in long format (like call-logs)
+   * Format timestamp in long format
    */
   private formatDateLong(timestamp: string): string {
     try {
       const date = new Date(timestamp);
-      return date.toLocaleString('en-US', {
+      const dateLocale = this.formatting.dateLocale || 'en-US';
+      const use24Hour = this.formatting.use24HourTime ?? false;
+      const showTimezone = this.formatting.showTimezone ?? true;
+
+      const options: Intl.DateTimeFormatOptions = {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
         hour: 'numeric',
         minute: '2-digit',
-        hour12: true,
-        timeZoneName: 'short',
-      });
+        hour12: !use24Hour,
+      };
+
+      if (showTimezone) {
+        options.timeZoneName = 'short';
+      }
+
+      return date.toLocaleString(dateLocale, options);
     } catch {
       return timestamp;
     }
@@ -378,7 +464,8 @@ export class VoicemailsComponent extends BaseComponent {
     if (!phone) return '';
 
     try {
-      const parsed: PhoneNumber | undefined = parsePhoneNumber(phone, 'US');
+      const defaultCountry = (this.formatting.defaultCountry || 'US') as CountryCode;
+      const parsed: PhoneNumber | undefined = parsePhoneNumber(phone, defaultCountry);
       if (parsed) {
         return parsed.formatNational();
       }
@@ -425,6 +512,10 @@ export class VoicemailsComponent extends BaseComponent {
     </svg>`;
   }
 
+  // ============================================================================
+  // Rendering
+  // ============================================================================
+
   /**
    * Render the component
    */
@@ -439,25 +530,26 @@ export class VoicemailsComponent extends BaseComponent {
 
         :host {
           display: block;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
         .container {
           background: var(--ds-color-background);
           color: var(--ds-color-text);
+          font-size: var(--ds-font-size-base);
+          line-height: var(--ds-line-height);
         }
 
         .loading,
         .error,
         .empty {
-          padding: calc(var(--ds-spacing-unit) * 3);
+          padding: var(--ds-spacing-xl);
           text-align: center;
-          background: rgba(0, 0, 0, 0.02);
+          background: var(--ds-color-surface-subtle);
           border-radius: var(--ds-border-radius);
         }
 
         .error {
-          background: rgba(229, 72, 77, 0.1);
+          background: color-mix(in srgb, var(--ds-color-danger) 10%, transparent);
           color: var(--ds-color-danger);
         }
 
@@ -465,9 +557,9 @@ export class VoicemailsComponent extends BaseComponent {
           display: inline-block;
           width: 24px;
           height: 24px;
-          border: 3px solid rgba(0, 0, 0, 0.1);
+          border: 3px solid var(--ds-color-border);
           border-top-color: var(--ds-color-primary);
-          border-radius: 50%;
+          border-radius: var(--ds-border-radius-round);
           animation: spin 0.8s linear infinite;
         }
 
@@ -483,7 +575,7 @@ export class VoicemailsComponent extends BaseComponent {
 
         /* Voicemail Item Container */
         .voicemail-item {
-          border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+          border-bottom: 1px solid var(--ds-color-border);
           cursor: pointer;
         }
 
@@ -496,7 +588,7 @@ export class VoicemailsComponent extends BaseComponent {
         }
 
         .voicemail-item:hover {
-          background: rgba(0, 0, 0, 0.02);
+          background: var(--ds-color-surface-subtle);
         }
 
         /* Collapsed Row - hidden when expanded */
@@ -504,7 +596,7 @@ export class VoicemailsComponent extends BaseComponent {
           display: grid;
           grid-template-columns: auto 1fr auto;
           align-items: center;
-          padding: 12px 16px;
+          padding: var(--ds-spacing-md) var(--ds-spacing-lg);
         }
 
         .voicemail-item.expanded .voicemail-row {
@@ -515,9 +607,9 @@ export class VoicemailsComponent extends BaseComponent {
         .unread-dot {
           width: 10px;
           height: 10px;
-          border-radius: 50%;
+          border-radius: var(--ds-border-radius-round);
           background: var(--ds-color-primary);
-          margin-right: 12px;
+          margin-right: var(--ds-spacing-md);
           flex-shrink: 0;
         }
 
@@ -529,38 +621,39 @@ export class VoicemailsComponent extends BaseComponent {
         .row-content {
           display: grid;
           grid-template-columns: 1fr auto;
-          gap: 4px 16px;
+          gap: var(--ds-spacing-xs) var(--ds-spacing-lg);
         }
 
         .caller-name {
-          font-size: 16px;
+          font-size: var(--ds-font-size-large);
+          font-weight: var(--ds-font-weight-normal);
           color: var(--ds-color-text);
           grid-column: 1;
           grid-row: 1;
         }
 
         .caller-name.unread {
-          font-weight: 600;
+          font-weight: var(--ds-font-weight-bold);
         }
 
         .phone-number-collapsed {
-          font-size: 14px;
-          color: rgba(0, 0, 0, 0.5);
+          font-size: var(--ds-font-size-base);
+          color: var(--ds-color-text-secondary);
           grid-column: 1;
           grid-row: 2;
         }
 
         .timestamp {
-          font-size: 14px;
-          color: rgba(0, 0, 0, 0.4);
+          font-size: var(--ds-font-size-base);
+          color: var(--ds-color-text-secondary);
           grid-column: 2;
           grid-row: 1;
           text-align: right;
         }
 
         .duration {
-          font-size: 13px;
-          color: rgba(0, 0, 0, 0.4);
+          font-size: var(--ds-font-size-small);
+          color: var(--ds-color-text-secondary);
           grid-column: 2;
           grid-row: 2;
           text-align: right;
@@ -568,9 +661,9 @@ export class VoicemailsComponent extends BaseComponent {
 
         /* Chevron */
         .chevron {
-          color: rgba(0, 0, 0, 0.3);
-          margin-left: 8px;
-          transition: transform 0.2s ease;
+          color: var(--ds-color-text-secondary);
+          margin-left: var(--ds-spacing-sm);
+          transition: transform var(--ds-transition-duration) ease;
         }
 
         .voicemail-item.expanded .chevron {
@@ -580,7 +673,7 @@ export class VoicemailsComponent extends BaseComponent {
         /* Expanded detail section - replaces collapsed row */
         .voicemail-detail {
           display: none;
-          padding: 16px;
+          padding: var(--ds-spacing-lg);
         }
 
         .voicemail-item.expanded .voicemail-detail {
@@ -589,37 +682,37 @@ export class VoicemailsComponent extends BaseComponent {
 
         /* Detail rows */
         .detail-caller {
-          font-size: 18px;
-          font-weight: 600;
+          font-size: var(--ds-font-size-xlarge);
+          font-weight: var(--ds-font-weight-bold);
           color: var(--ds-color-text);
-          margin-bottom: 4px;
+          margin-bottom: var(--ds-spacing-xs);
         }
 
         .detail-phone {
-          font-size: 15px;
-          color: rgba(0, 0, 0, 0.6);
-          margin-bottom: 4px;
+          font-size: var(--ds-font-size-base);
+          color: var(--ds-color-text-secondary);
+          margin-bottom: var(--ds-spacing-xs);
         }
 
         .detail-date {
-          font-size: 14px;
-          color: rgba(0, 0, 0, 0.5);
-          margin-bottom: 16px;
+          font-size: var(--ds-font-size-base);
+          color: var(--ds-color-text-secondary);
+          margin-bottom: var(--ds-spacing-lg);
         }
 
         /* Progress bar row */
         .progress-row {
           display: flex;
           align-items: center;
-          gap: 8px;
-          margin-bottom: 12px;
+          gap: var(--ds-spacing-sm);
+          margin-bottom: var(--ds-spacing-md);
         }
 
         .progress-bar {
           flex: 1;
           height: 4px;
-          background: rgba(0, 0, 0, 0.1);
-          border-radius: 2px;
+          background: var(--ds-color-border);
+          border-radius: var(--ds-border-radius-small);
           cursor: pointer;
           position: relative;
         }
@@ -627,7 +720,7 @@ export class VoicemailsComponent extends BaseComponent {
         .progress-fill {
           height: 100%;
           background: var(--ds-color-primary);
-          border-radius: 2px;
+          border-radius: var(--ds-border-radius-small);
           width: 0%;
         }
 
@@ -638,9 +731,9 @@ export class VoicemailsComponent extends BaseComponent {
           width: 14px;
           height: 14px;
           background: var(--ds-color-primary);
-          border-radius: 50%;
+          border-radius: var(--ds-border-radius-round);
           cursor: grab;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+          box-shadow: 0 1px 3px var(--ds-color-border);
         }
 
         .progress-handle:active {
@@ -649,8 +742,8 @@ export class VoicemailsComponent extends BaseComponent {
 
         .time-current,
         .time-remaining {
-          font-size: 12px;
-          color: rgba(0, 0, 0, 0.5);
+          font-size: var(--ds-font-size-small);
+          color: var(--ds-color-text-secondary);
           min-width: 36px;
         }
 
@@ -667,13 +760,13 @@ export class VoicemailsComponent extends BaseComponent {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 16px;
+          margin-bottom: var(--ds-spacing-lg);
         }
 
         .play-btn {
           width: 44px;
           height: 44px;
-          border-radius: 50%;
+          border-radius: var(--ds-border-radius-round);
           border: none;
           background: var(--ds-color-primary);
           color: white;
@@ -682,7 +775,7 @@ export class VoicemailsComponent extends BaseComponent {
           align-items: center;
           justify-content: center;
           flex-shrink: 0;
-          transition: opacity 0.15s;
+          transition: opacity var(--ds-transition-duration);
         }
 
         .play-btn:hover {
@@ -692,21 +785,21 @@ export class VoicemailsComponent extends BaseComponent {
         /* Action buttons */
         .action-buttons {
           display: flex;
-          gap: 8px;
+          gap: var(--ds-spacing-sm);
         }
 
         .action-btn {
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 6px;
-          padding: 8px 14px;
+          gap: var(--ds-spacing-xs);
+          padding: var(--ds-spacing-sm) var(--ds-spacing-md);
           border-radius: var(--ds-border-radius);
           border: none;
-          font-size: 14px;
-          font-weight: 500;
+          font-size: var(--ds-font-size-base);
+          font-weight: var(--ds-font-weight-medium);
           cursor: pointer;
-          transition: opacity 0.15s;
+          transition: opacity var(--ds-transition-duration);
         }
 
         .action-btn:hover {
@@ -725,21 +818,21 @@ export class VoicemailsComponent extends BaseComponent {
 
         /* Transcription */
         .transcription {
-          padding: 12px;
-          background: rgba(0, 0, 0, 0.03);
+          padding: var(--ds-spacing-md);
+          background: var(--ds-color-surface-subtle);
           border-radius: var(--ds-border-radius);
         }
 
         .transcription-header {
-          font-size: 13px;
-          font-weight: 600;
-          color: rgba(0, 0, 0, 0.5);
-          margin-bottom: 8px;
+          font-size: var(--ds-font-size-small);
+          font-weight: var(--ds-font-weight-bold);
+          color: var(--ds-color-text-secondary);
+          margin-bottom: var(--ds-spacing-sm);
         }
 
         .transcription-text {
-          font-size: 14px;
-          line-height: 1.5;
+          font-size: var(--ds-font-size-base);
+          line-height: var(--ds-line-height);
           color: var(--ds-color-text);
         }
 
@@ -749,7 +842,7 @@ export class VoicemailsComponent extends BaseComponent {
         }
       </style>
 
-      <div class="container">
+      <div class="container" role="region" aria-label="${this.t('voicemails.title')}">
         ${this.renderContent()}
       </div>
     `;
@@ -763,16 +856,16 @@ export class VoicemailsComponent extends BaseComponent {
   private renderContent(): string {
     if (this.isLoading) {
       return `
-        <div class="loading">
-          <div class="spinner"></div>
-          <p>Loading voicemails...</p>
+        <div class="loading" role="status" aria-live="polite">
+          <div class="spinner" aria-hidden="true"></div>
+          <p>${this.t('voicemails.loading')}</p>
         </div>
       `;
     }
 
     if (this.error) {
       return `
-        <div class="error">
+        <div class="error" role="alert">
           <p>${this.error}</p>
         </div>
       `;
@@ -780,16 +873,16 @@ export class VoicemailsComponent extends BaseComponent {
 
     if (!this.userId) {
       return `
-        <div class="empty">
-          <p>Please set a user ID to load voicemails</p>
+        <div class="empty" role="status">
+          <p>${this.t('voicemails.noUserId')}</p>
         </div>
       `;
     }
 
     if (this.voicemails.length === 0) {
       return `
-        <div class="empty">
-          <p>No voicemails</p>
+        <div class="empty" role="status">
+          <p>${this.t('voicemails.empty')}</p>
         </div>
       `;
     }
@@ -805,18 +898,24 @@ export class VoicemailsComponent extends BaseComponent {
       .map((vm) => {
         const isExpanded = this.expandedId === vm.id;
         const isUnread = !vm.is_read;
+        const callerName = vm.from_name || 'Unknown';
 
         return `
-          <div class="voicemail-item ${isExpanded ? 'expanded' : ''}" data-id="${vm.id}">
+          <div class="voicemail-item ${isExpanded ? 'expanded' : ''}"
+               data-id="${vm.id}"
+               role="listitem"
+               tabindex="0"
+               aria-expanded="${isExpanded}"
+               aria-label="${callerName}, ${this.formatPhoneNumber(vm.from_number)}, ${this.formatDateShort(vm.created_at)}">
             <div class="voicemail-row">
-              <span class="unread-dot ${isUnread ? '' : 'hidden'}"></span>
+              <span class="unread-dot ${isUnread ? '' : 'hidden'}" aria-hidden="true"></span>
               <div class="row-content">
-                <span class="caller-name ${isUnread ? 'unread' : ''}">${vm.from_name || 'Unknown'}</span>
+                <span class="caller-name ${isUnread ? 'unread' : ''}">${callerName}</span>
                 <span class="phone-number-collapsed">${this.formatPhoneNumber(vm.from_number)}</span>
                 <span class="timestamp">${this.formatDateShort(vm.created_at)}</span>
                 <span class="duration">${this.formatTime(vm.duration_seconds)}</span>
               </div>
-              <span class="chevron">›</span>
+              <span class="chevron" aria-hidden="true">›</span>
             </div>
             ${this.renderExpandedDetail(vm)}
           </div>
@@ -824,16 +923,16 @@ export class VoicemailsComponent extends BaseComponent {
       })
       .join('');
 
-    return `<div class="voicemail-list">${items}</div>`;
+    return `<div class="voicemail-list" role="list" aria-label="${this.t('voicemails.title')}">${items}</div>`;
   }
 
   /**
    * Render expanded voicemail detail
    */
   private renderExpandedDetail(vm: Voicemail): string {
-    const transcription =
-      vm.transcription ||
-      '"Hi, this is a sample transcription of the voicemail message. The actual transcription will appear here once available..."';
+    const callerName = vm.from_name || 'Unknown';
+    const isCurrentlyPlaying = this.isPlaying && this.audioElement?.getAttribute('data-id') === vm.id;
+    const progressPercent = this.duration > 0 ? (this.currentTime / this.duration) * 100 : 0;
 
     return `
       <div class="voicemail-detail" data-detail-id="${vm.id}">
@@ -842,7 +941,7 @@ export class VoicemailsComponent extends BaseComponent {
         </audio>
 
         <!-- Row 1: Caller ID -->
-        <div class="detail-caller">${vm.from_name || 'Unknown'}</div>
+        <div class="detail-caller">${callerName}</div>
 
         <!-- Row 2: Phone number -->
         <div class="detail-phone">${this.formatPhoneNumber(vm.from_number)}</div>
@@ -851,40 +950,60 @@ export class VoicemailsComponent extends BaseComponent {
         <div class="detail-date">${this.formatDateLong(vm.created_at)}</div>
 
         <!-- Row 4: Progress bar -->
-        <div class="progress-row">
+        <div class="progress-row"
+             role="slider"
+             aria-label="${this.t('voicemails.progress')}"
+             aria-valuemin="0"
+             aria-valuemax="${this.duration || vm.duration_seconds}"
+             aria-valuenow="${this.currentTime}">
           <span class="time-current">${this.formatTime(this.currentTime)}</span>
           <div class="progress-bar" data-action="seek">
-            <div class="progress-fill" style="width: ${this.duration > 0 ? (this.currentTime / this.duration) * 100 : 0}%"></div>
-            <div class="progress-handle" style="left: ${this.duration > 0 ? (this.currentTime / this.duration) * 100 : 0}%"></div>
+            <div class="progress-fill" style="width: ${progressPercent}%"></div>
+            <div class="progress-handle" style="left: ${progressPercent}%"></div>
           </div>
           <span class="time-remaining">-${this.formatTime(this.duration - this.currentTime || vm.duration_seconds)}</span>
         </div>
 
         <!-- Row 5: Play button (left) + Action buttons (right) -->
         <div class="controls-row">
-          <button class="play-btn" data-action="play" data-id="${vm.id}">
-            ${this.isPlaying && this.audioElement?.getAttribute('data-id') === vm.id ? this.getPauseIcon() : this.getPlayIcon()}
+          <button class="play-btn"
+                  data-action="play"
+                  data-id="${vm.id}"
+                  aria-label="${isCurrentlyPlaying ? this.t('common.pause') : this.t('common.play')}">
+            ${isCurrentlyPlaying ? this.getPauseIcon() : this.getPlayIcon()}
           </button>
           <div class="action-buttons">
-            <button class="action-btn call" data-action="call" data-number="${vm.from_number}">
+            <button class="action-btn call"
+                    data-action="call"
+                    data-number="${vm.from_number}"
+                    aria-label="${this.t('common.call')}">
               ${this.getPhoneIcon()}
-              Call
+              ${this.t('common.call')}
             </button>
-            <button class="action-btn delete" data-action="delete" data-id="${vm.id}">
+            <button class="action-btn delete"
+                    data-action="delete"
+                    data-id="${vm.id}"
+                    aria-label="${this.t('common.delete')}">
               ${this.getTrashIcon()}
-              Delete
+              ${this.t('common.delete')}
             </button>
           </div>
         </div>
 
         <!-- Row 6: Transcription -->
+        ${vm.transcription ? `
         <div class="transcription">
-          <div class="transcription-header">Transcription</div>
-          <div class="transcription-text">${transcription}</div>
+          <div class="transcription-header">${this.t('voicemails.transcription')}</div>
+          <div class="transcription-text">${vm.transcription}</div>
         </div>
+        ` : ''}
       </div>
     `;
   }
+
+  // ============================================================================
+  // Event Handling
+  // ============================================================================
 
   /**
    * Attach event listeners
@@ -895,6 +1014,7 @@ export class VoicemailsComponent extends BaseComponent {
     // Item click to expand/collapse (works on both collapsed row and expanded detail header)
     const items = this.shadowRoot.querySelectorAll('.voicemail-item');
     items.forEach((item) => {
+      // Click handler
       item.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
         // Don't toggle if clicking on buttons or interactive elements
@@ -903,6 +1023,18 @@ export class VoicemailsComponent extends BaseComponent {
         const id = item.getAttribute('data-id');
         // Only expand, don't collapse when clicking on already expanded item
         if (id && this.expandedId !== id) this.toggleExpand(id);
+      });
+
+      // Keyboard handler
+      item.addEventListener('keydown', (e) => {
+        const key = (e as KeyboardEvent).key;
+        if (key === 'Enter' || key === ' ') {
+          const id = item.getAttribute('data-id');
+          if (id && this.expandedId !== id) {
+            e.preventDefault();
+            this.toggleExpand(id);
+          }
+        }
       });
     });
 
@@ -941,20 +1073,21 @@ export class VoicemailsComponent extends BaseComponent {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const id = btn.getAttribute('data-id');
-        if (id && confirm('Delete this voicemail?')) {
+        if (id && confirm(this.t('voicemails.deleteConfirm'))) {
           this.deleteVoicemail(id);
         }
       });
     });
 
-    // Call button (placeholder - logs for now)
+    // Call button
     const callBtns = this.shadowRoot.querySelectorAll('[data-action="call"]');
     callBtns.forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const number = btn.getAttribute('data-number');
-        console.log('Call back:', number);
-        // TODO: Implement call functionality
+        const phoneNumber = btn.getAttribute('data-number');
+        if (phoneNumber) {
+          this._onCallBack?.({ phoneNumber });
+        }
       });
     });
   }
