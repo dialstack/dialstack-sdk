@@ -13,6 +13,10 @@ import type {
   CallLog,
   FormattingOptions,
   PaginationOptions,
+  ComponentIcons,
+  LayoutVariant,
+  CallLogDisplayOptions,
+  CallLogRowRenderer,
 } from '../core/types';
 import type { Locale } from '../locales';
 
@@ -51,6 +55,26 @@ export interface CallLogsProps {
    * Formatting options for dates and phone numbers
    */
   formatting?: FormattingOptions;
+
+  /**
+   * Custom icons (partial override of defaults)
+   */
+  icons?: ComponentIcons;
+
+  /**
+   * Layout variant (compact, comfortable, default)
+   */
+  layoutVariant?: LayoutVariant;
+
+  /**
+   * Display options for controlling column visibility
+   */
+  displayOptions?: CallLogDisplayOptions;
+
+  /**
+   * Custom row renderer for call log rows
+   */
+  customRowRenderer?: CallLogRowRenderer;
 
   /**
    * Callback when component starts loading
@@ -98,6 +122,10 @@ export const CallLogs: React.FC<CallLogsProps> = ({
   paginationOptions,
   locale,
   formatting,
+  icons,
+  layoutVariant,
+  displayOptions,
+  customRowRenderer,
   onLoaderStart,
   onLoadError,
   onPageChange,
@@ -114,6 +142,10 @@ export const CallLogs: React.FC<CallLogsProps> = ({
   // Sync configuration props
   useUpdateWithSetter(componentInstance, locale, 'setLocale');
   useUpdateWithSetter(componentInstance, formatting, 'setFormatting');
+  useUpdateWithSetter(componentInstance, icons, 'setIcons');
+  useUpdateWithSetter(componentInstance, layoutVariant, 'setLayoutVariant');
+  useUpdateWithSetter(componentInstance, displayOptions, 'setDisplayOptions');
+  useUpdateWithSetter(componentInstance, customRowRenderer, 'setCustomRowRenderer');
 
   // Sync callbacks to Web Component
   useUpdateWithSetter(componentInstance, onLoaderStart, 'setOnLoaderStart');

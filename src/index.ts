@@ -21,7 +21,22 @@ export type {
   CallLog,
   FormattingOptions,
   PaginationOptions,
+  // Icon types
+  IconString,
+  ComponentIcons,
+  // Layout types
+  LayoutVariant,
+  // Display options
+  VoicemailDisplayOptions,
+  VoicemailBehaviorOptions,
+  CallLogDisplayOptions,
+  // Custom render types
+  VoicemailRowRenderer,
+  CallLogRowRenderer,
 } from './core/types';
+
+// Default icons (can be used to customize or extend)
+export { defaultIcons } from './components/base-component';
 
 // Note: Web Components (BaseComponent, CallLogsComponent, VoicemailsComponent)
 // are not exported from the main entry point to ensure SSR compatibility.

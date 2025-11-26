@@ -8,8 +8,31 @@ import type {
   FormattingOptions,
   LoaderStart,
   LoadError,
+  ComponentIcons,
+  LayoutVariant,
 } from '../core/types';
 import { type Locale, defaultLocale } from '../locales';
+
+// ============================================================================
+// Default Icons
+// ============================================================================
+
+/**
+ * Default SVG icons used by components
+ * Can be overridden via setIcons()
+ */
+export const defaultIcons: Required<ComponentIcons> = {
+  play: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`,
+  pause: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`,
+  phone: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>`,
+  trash: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>`,
+  chevronRight: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>`,
+  chevronLeft: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>`,
+  chevronDown: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/></svg>`,
+  spinner: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg>`,
+  inbound: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 5.41L18.59 4 7 15.59V9H5v10h10v-2H8.41z"/></svg>`,
+  outbound: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 5v2h6.59L4 18.59 5.41 20 17 8.41V15h2V5z"/></svg>`,
+};
 
 /**
  * Get HTMLElement base class - returns a no-op class in SSR environments
@@ -32,6 +55,12 @@ export abstract class BaseComponent extends getHTMLElementBase() {
   protected appearance: AppearanceOptions | undefined;
   protected locale: Locale = defaultLocale;
   protected formatting: FormattingOptions = {};
+
+  // Icons (can be customized)
+  protected icons: Required<ComponentIcons> = { ...defaultIcons };
+
+  // Layout variant
+  protected layoutVariant: LayoutVariant = 'default';
 
   // Common callbacks
   protected _onLoaderStart?: (event: LoaderStart) => void;
@@ -115,6 +144,26 @@ export abstract class BaseComponent extends getHTMLElementBase() {
    */
   setFormatting(formatting: FormattingOptions): void {
     this.formatting = { ...this.formatting, ...formatting };
+    if (this.isInitialized) {
+      this.render();
+    }
+  }
+
+  /**
+   * Set custom icons (partial override)
+   */
+  setIcons(icons: ComponentIcons): void {
+    this.icons = { ...this.icons, ...icons };
+    if (this.isInitialized) {
+      this.render();
+    }
+  }
+
+  /**
+   * Set layout variant (compact, comfortable, default)
+   */
+  setLayoutVariant(variant: LayoutVariant): void {
+    this.layoutVariant = variant;
     if (this.isInitialized) {
       this.render();
     }
@@ -288,8 +337,24 @@ export abstract class BaseComponent extends getHTMLElementBase() {
     // Time display
     const timeDisplayWidth = vars.timeDisplayWidth || '36px';
 
+    // Layout variant spacing multipliers
+    const layoutMultiplier = this.layoutVariant === 'compact' ? 0.75 : this.layoutVariant === 'comfortable' ? 1.25 : 1;
+    const layoutSpacingXs = `${Math.round(4 * layoutMultiplier)}px`;
+    const layoutSpacingSm = `${Math.round(8 * layoutMultiplier)}px`;
+    const layoutSpacingMd = `${Math.round(12 * layoutMultiplier)}px`;
+    const layoutSpacingLg = `${Math.round(16 * layoutMultiplier)}px`;
+    const layoutSpacingXl = `${Math.round(24 * layoutMultiplier)}px`;
+
     return `
       :host {
+        /* Layout variant */
+        --ds-layout-variant: ${this.layoutVariant};
+        --ds-layout-spacing-xs: ${layoutSpacingXs};
+        --ds-layout-spacing-sm: ${layoutSpacingSm};
+        --ds-layout-spacing-md: ${layoutSpacingMd};
+        --ds-layout-spacing-lg: ${layoutSpacingLg};
+        --ds-layout-spacing-xl: ${layoutSpacingXl};
+
         /* Colors - Primary */
         --ds-color-primary: ${colorPrimary};
         --ds-color-primary-hover: ${colorPrimaryHover};

@@ -4,7 +4,12 @@
 
 import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenumber-js';
 import { BaseComponent } from './base-component';
-import type { CallLog, PaginationOptions } from '../core/types';
+import type {
+  CallLog,
+  PaginationOptions,
+  CallLogDisplayOptions,
+  CallLogRowRenderer,
+} from '../core/types';
 
 /**
  * API response structure
@@ -42,6 +47,19 @@ export class CallLogsComponent extends BaseComponent {
     pageSizes: [10, 20, 50, 100],
     defaultPageSize: 20,
   };
+
+  // Display options
+  private displayOptions: Required<CallLogDisplayOptions> = {
+    showDate: true,
+    showDirection: true,
+    showFrom: true,
+    showTo: true,
+    showDuration: true,
+    showStatus: true,
+  };
+
+  // Custom row renderer
+  private customRowRenderer?: CallLogRowRenderer;
 
   // Callbacks
   private _onPageChange?: (event: { offset: number; limit: number }) => void;
@@ -81,6 +99,26 @@ export class CallLogsComponent extends BaseComponent {
     if (options.defaultPageSize && this.limit === 20) {
       this.limit = options.defaultPageSize;
     }
+    if (this.isInitialized) {
+      this.render();
+    }
+  }
+
+  /**
+   * Set display options (partial override)
+   */
+  setDisplayOptions(options: CallLogDisplayOptions): void {
+    this.displayOptions = { ...this.displayOptions, ...options };
+    if (this.isInitialized) {
+      this.render();
+    }
+  }
+
+  /**
+   * Set custom row renderer for call log rows
+   */
+  setCustomRowRenderer(renderer: CallLogRowRenderer | undefined): void {
+    this.customRowRenderer = renderer;
     if (this.isInitialized) {
       this.render();
     }
@@ -240,6 +278,13 @@ export class CallLogsComponent extends BaseComponent {
     return this.t(`callLogs.statuses.${statusKey}`);
   }
 
+  /**
+   * Get icon SVG by name
+   */
+  private getIcon(name: keyof typeof this.icons): string {
+    return this.icons[name];
+  }
+
   // ============================================================================
   // Rendering
   // ============================================================================
@@ -281,10 +326,13 @@ export class CallLogsComponent extends BaseComponent {
           display: inline-block;
           width: var(--ds-spinner-size);
           height: var(--ds-spinner-size);
-          border: 3px solid var(--ds-color-border);
-          border-top-color: var(--ds-color-primary);
-          border-radius: var(--ds-border-radius-round);
+          color: var(--ds-color-primary);
           animation: spin 0.8s linear infinite;
+        }
+
+        .spinner svg {
+          width: 100%;
+          height: 100%;
         }
 
         @keyframes spin {
@@ -409,6 +457,12 @@ export class CallLogsComponent extends BaseComponent {
           cursor: not-allowed;
         }
 
+        .pagination-btn svg {
+          width: 1em;
+          height: 1em;
+          vertical-align: middle;
+        }
+
         .page-size-selector {
           display: flex;
           align-items: center;
@@ -432,7 +486,7 @@ export class CallLogsComponent extends BaseComponent {
         }
       </style>
 
-      <div class="container" role="region" aria-label="${this.t('callLogs.title')}">
+      <div class="container" part="container" role="region" aria-label="${this.t('callLogs.title')}">
         ${this.renderContent()}
       </div>
     `;
@@ -447,25 +501,31 @@ export class CallLogsComponent extends BaseComponent {
   private renderContent(): string {
     if (this.isLoading) {
       return `
-        <div class="loading" role="status" aria-live="polite">
-          <div class="spinner" aria-hidden="true"></div>
-          <p>${this.t('callLogs.loading')}</p>
+        <div class="loading" part="loading" role="status" aria-live="polite">
+          <slot name="loading">
+            <div class="spinner" part="spinner" aria-hidden="true">${this.getIcon('spinner')}</div>
+            <p>${this.t('callLogs.loading')}</p>
+          </slot>
         </div>
       `;
     }
 
     if (this.error) {
       return `
-        <div class="error" role="alert">
-          <p><strong>${this.t('common.error')}:</strong> ${this.error}</p>
+        <div class="error" part="error" role="alert">
+          <slot name="error">
+            <p><strong>${this.t('common.error')}:</strong> ${this.error}</p>
+          </slot>
         </div>
       `;
     }
 
     if (this.callLogs.length === 0) {
       return `
-        <div class="empty" role="status">
-          <p>${this.t('callLogs.empty')}</p>
+        <div class="empty" part="empty" role="status">
+          <slot name="empty">
+            <p>${this.t('callLogs.empty')}</p>
+          </slot>
         </div>
       `;
     }
@@ -477,19 +537,26 @@ export class CallLogsComponent extends BaseComponent {
    * Render the call logs table
    */
   private renderTable(): string {
+    const { showDate, showDirection, showFrom, showTo, showDuration, showStatus } = this.displayOptions;
+
     const rows = this.callLogs
-      .map(
-        (call) => `
-      <tr data-call-id="${call.id}" tabindex="0" role="row">
-        <td>${this.formatDate(call.started_at)}</td>
-        <td><span class="badge ${this.getDirectionClass(call.direction)}">${this.formatDirection(call.direction)}</span></td>
-        <td>${this.formatPhoneNumber(call.from_number)}</td>
-        <td>${this.formatPhoneNumber(call.to_number)}</td>
-        <td>${this.formatDuration(call.duration_seconds || 0)}</td>
-        <td><span class="badge ${this.getStatusClass(call.status)}">${this.formatStatus(call.status)}</span></td>
-      </tr>
-    `
-      )
+      .map((call) => {
+        // Use custom row renderer if provided
+        if (this.customRowRenderer) {
+          return `<tr data-call-id="${call.id}" tabindex="0" role="row" part="table-row">${this.customRowRenderer(call)}</tr>`;
+        }
+
+        return `
+          <tr data-call-id="${call.id}" tabindex="0" role="row" part="table-row">
+            ${showDate ? `<td part="cell cell-date">${this.formatDate(call.started_at)}</td>` : ''}
+            ${showDirection ? `<td part="cell cell-direction"><span class="badge ${this.getDirectionClass(call.direction)}" part="badge badge-direction">${this.formatDirection(call.direction)}</span></td>` : ''}
+            ${showFrom ? `<td part="cell cell-from">${this.formatPhoneNumber(call.from_number)}</td>` : ''}
+            ${showTo ? `<td part="cell cell-to">${this.formatPhoneNumber(call.to_number)}</td>` : ''}
+            ${showDuration ? `<td part="cell cell-duration">${this.formatDuration(call.duration_seconds || 0)}</td>` : ''}
+            ${showStatus ? `<td part="cell cell-status"><span class="badge ${this.getStatusClass(call.status)}" part="badge badge-status">${this.formatStatus(call.status)}</span></td>` : ''}
+          </tr>
+        `;
+      })
       .join('');
 
     const totalPages = Math.ceil(this.totalCount / this.limit);
@@ -500,30 +567,30 @@ export class CallLogsComponent extends BaseComponent {
     const hasNext = this.offset + this.limit < this.totalCount;
 
     return `
-      <div class="table-container">
-        <table role="grid" aria-label="${this.t('callLogs.title')}">
-          <thead>
+      <div class="table-container" part="table-container">
+        <table role="grid" aria-label="${this.t('callLogs.title')}" part="table">
+          <thead part="table-header">
             <tr role="row">
-              <th role="columnheader" scope="col">${this.t('callLogs.columns.date')}</th>
-              <th role="columnheader" scope="col">${this.t('callLogs.columns.direction')}</th>
-              <th role="columnheader" scope="col">${this.t('callLogs.columns.from')}</th>
-              <th role="columnheader" scope="col">${this.t('callLogs.columns.to')}</th>
-              <th role="columnheader" scope="col">${this.t('callLogs.columns.duration')}</th>
-              <th role="columnheader" scope="col">${this.t('callLogs.columns.status')}</th>
+              ${showDate ? `<th role="columnheader" scope="col" part="header-cell">${this.t('callLogs.columns.date')}</th>` : ''}
+              ${showDirection ? `<th role="columnheader" scope="col" part="header-cell">${this.t('callLogs.columns.direction')}</th>` : ''}
+              ${showFrom ? `<th role="columnheader" scope="col" part="header-cell">${this.t('callLogs.columns.from')}</th>` : ''}
+              ${showTo ? `<th role="columnheader" scope="col" part="header-cell">${this.t('callLogs.columns.to')}</th>` : ''}
+              ${showDuration ? `<th role="columnheader" scope="col" part="header-cell">${this.t('callLogs.columns.duration')}</th>` : ''}
+              ${showStatus ? `<th role="columnheader" scope="col" part="header-cell">${this.t('callLogs.columns.status')}</th>` : ''}
             </tr>
           </thead>
-          <tbody>
+          <tbody part="table-body">
             ${rows}
           </tbody>
         </table>
       </div>
-      <nav class="pagination" aria-label="Pagination">
-        <span class="pagination-info" aria-live="polite">
+      <nav class="pagination" part="pagination" aria-label="Pagination">
+        <span class="pagination-info" part="pagination-info" aria-live="polite">
           ${this.t('common.showing', { start: startItem, end: endItem, total: this.totalCount })}
         </span>
-        <div class="page-size-selector">
+        <div class="page-size-selector" part="page-size-selector">
           <label for="page-size">${this.t('common.perPage')}:</label>
-          <select id="page-size" class="page-size-select" aria-label="${this.t('common.perPage')}">
+          <select id="page-size" class="page-size-select" part="page-size-select" aria-label="${this.t('common.perPage')}">
             ${(this._paginationOptions.pageSizes || [10, 20, 50, 100])
               .map((size) => `<option value="${size}" ${this.limit === size ? 'selected' : ''}>${size}</option>`)
               .join('')}
@@ -532,12 +599,12 @@ export class CallLogsComponent extends BaseComponent {
         ${
           totalPages > 1
             ? `
-          <div class="pagination-buttons">
-            <button class="pagination-btn" id="prev-btn" ${hasPrev ? '' : 'disabled'} aria-label="${this.t('common.previous')}">
-              ← ${this.t('common.previous')}
+          <div class="pagination-buttons" part="pagination-buttons">
+            <button class="pagination-btn" part="pagination-button prev-button" id="prev-btn" ${hasPrev ? '' : 'disabled'} aria-label="${this.t('common.previous')}">
+              ${this.getIcon('chevronLeft')} ${this.t('common.previous')}
             </button>
-            <button class="pagination-btn" id="next-btn" ${hasNext ? '' : 'disabled'} aria-label="${this.t('common.next')}">
-              ${this.t('common.next')} →
+            <button class="pagination-btn" part="pagination-button next-button" id="next-btn" ${hasNext ? '' : 'disabled'} aria-label="${this.t('common.next')}">
+              ${this.t('common.next')} ${this.getIcon('chevronRight')}
             </button>
           </div>
         `

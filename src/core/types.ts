@@ -124,7 +124,175 @@ export interface VoicemailsCallbacks extends CommonComponentCallbacks {
   onVoicemailPause?: (event: { voicemailId: string }) => void;
   onVoicemailDelete?: (event: { voicemailId: string }) => void;
   onCallBack?: (event: { phoneNumber: string }) => void;
+  /**
+   * Custom delete confirmation handler. Return true to proceed with deletion.
+   * If not provided, uses built-in confirmation based on confirmBeforeDelete setting.
+   */
+  onDeleteRequest?: (voicemailId: string) => Promise<boolean>;
 }
+
+// ============================================================================
+// Icon Types
+// ============================================================================
+
+/**
+ * SVG icon as a string (raw SVG markup)
+ */
+export type IconString = string;
+
+/**
+ * Default icons used by components
+ */
+export interface ComponentIcons {
+  play?: IconString;
+  pause?: IconString;
+  phone?: IconString;
+  trash?: IconString;
+  chevronRight?: IconString;
+  chevronLeft?: IconString;
+  chevronDown?: IconString;
+  spinner?: IconString;
+  inbound?: IconString;
+  outbound?: IconString;
+}
+
+// ============================================================================
+// Display Options
+// ============================================================================
+
+/**
+ * Layout density variant
+ */
+export type LayoutVariant = 'compact' | 'comfortable' | 'default';
+
+/**
+ * Display options for Voicemails component
+ */
+export interface VoicemailDisplayOptions {
+  /**
+   * Show voicemail duration
+   * @default true
+   */
+  showDuration?: boolean;
+
+  /**
+   * Show transcription when available
+   * @default true
+   */
+  showTranscription?: boolean;
+
+  /**
+   * Show callback button
+   * @default true
+   */
+  showCallbackButton?: boolean;
+
+  /**
+   * Show delete button
+   * @default true
+   */
+  showDeleteButton?: boolean;
+
+  /**
+   * Show progress bar in expanded view
+   * @default true
+   */
+  showProgressBar?: boolean;
+
+  /**
+   * Show timestamp
+   * @default true
+   */
+  showTimestamp?: boolean;
+}
+
+/**
+ * Display options for CallLogs component
+ */
+export interface CallLogDisplayOptions {
+  /**
+   * Show date/time column
+   * @default true
+   */
+  showDate?: boolean;
+
+  /**
+   * Show direction column
+   * @default true
+   */
+  showDirection?: boolean;
+
+  /**
+   * Show from number column
+   * @default true
+   */
+  showFrom?: boolean;
+
+  /**
+   * Show to number column
+   * @default true
+   */
+  showTo?: boolean;
+
+  /**
+   * Show duration column
+   * @default true
+   */
+  showDuration?: boolean;
+
+  /**
+   * Show status column
+   * @default true
+   */
+  showStatus?: boolean;
+}
+
+/**
+ * Behavior options for Voicemails component
+ */
+export interface VoicemailBehaviorOptions {
+  /**
+   * Auto-play voicemail when expanded
+   * @default true
+   */
+  autoPlayOnExpand?: boolean;
+
+  /**
+   * Show confirmation dialog before deleting
+   * @default true
+   */
+  confirmBeforeDelete?: boolean;
+
+  /**
+   * Mark voicemail as read when played
+   * @default true
+   */
+  markAsReadOnPlay?: boolean;
+
+  /**
+   * Allow seeking in audio playback
+   * @default true
+   */
+  allowSeeking?: boolean;
+}
+
+/**
+ * Render function for custom voicemail row rendering
+ */
+export type VoicemailRowRenderer = (voicemail: {
+  id: string;
+  from_name: string;
+  from_number: string;
+  created_at: string;
+  duration_seconds: number;
+  is_read: boolean;
+  transcription?: string;
+}) => string;
+
+/**
+ * Render function for custom call log row rendering
+ */
+export type CallLogRowRenderer = (call: CallLog) => string;
 
 /**
  * Call log data structure

@@ -4,6 +4,11 @@
 
 import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenumber-js';
 import { BaseComponent } from './base-component';
+import type {
+  VoicemailDisplayOptions,
+  VoicemailBehaviorOptions,
+  VoicemailRowRenderer,
+} from '../core/types';
 
 /**
  * Voicemail data structure from API
@@ -46,12 +51,34 @@ export class VoicemailsComponent extends BaseComponent {
   private duration: number = 0;
   private progressInterval: number | null = null;
 
+  // Display options
+  private displayOptions: Required<VoicemailDisplayOptions> = {
+    showDuration: true,
+    showTranscription: true,
+    showCallbackButton: true,
+    showDeleteButton: true,
+    showProgressBar: true,
+    showTimestamp: true,
+  };
+
+  // Behavior options
+  private behaviorOptions: Required<VoicemailBehaviorOptions> = {
+    autoPlayOnExpand: true,
+    confirmBeforeDelete: true,
+    markAsReadOnPlay: true,
+    allowSeeking: true,
+  };
+
+  // Custom row renderer
+  private customRowRenderer?: VoicemailRowRenderer;
+
   // Callbacks
   private _onVoicemailSelect?: (event: { voicemailId: string }) => void;
   private _onVoicemailPlay?: (event: { voicemailId: string }) => void;
   private _onVoicemailPause?: (event: { voicemailId: string }) => void;
   private _onVoicemailDelete?: (event: { voicemailId: string }) => void;
   private _onCallBack?: (event: { phoneNumber: string }) => void;
+  private _onDeleteRequest?: (voicemailId: string) => Promise<boolean>;
 
   protected initialize(): void {
     if (this.isInitialized) return;
@@ -99,6 +126,44 @@ export class VoicemailsComponent extends BaseComponent {
    */
   setOnCallBack(callback: (event: { phoneNumber: string }) => void): void {
     this._onCallBack = callback;
+  }
+
+  /**
+   * Set custom delete confirmation handler
+   */
+  setOnDeleteRequest(callback: (voicemailId: string) => Promise<boolean>): void {
+    this._onDeleteRequest = callback;
+  }
+
+  // ============================================================================
+  // Display & Behavior Options
+  // ============================================================================
+
+  /**
+   * Set display options (partial override)
+   */
+  setDisplayOptions(options: VoicemailDisplayOptions): void {
+    this.displayOptions = { ...this.displayOptions, ...options };
+    if (this.isInitialized) {
+      this.render();
+    }
+  }
+
+  /**
+   * Set behavior options (partial override)
+   */
+  setBehaviorOptions(options: VoicemailBehaviorOptions): void {
+    this.behaviorOptions = { ...this.behaviorOptions, ...options };
+  }
+
+  /**
+   * Set custom row renderer for collapsed voicemail items
+   */
+  setCustomRowRenderer(renderer: VoicemailRowRenderer | undefined): void {
+    this.customRowRenderer = renderer;
+    if (this.isInitialized) {
+      this.render();
+    }
   }
 
   // ============================================================================
@@ -174,8 +239,10 @@ export class VoicemailsComponent extends BaseComponent {
       // Fire callback
       this._onVoicemailSelect?.({ voicemailId });
 
-      // Auto-play
-      this.togglePlayPause(voicemailId);
+      // Auto-play if enabled
+      if (this.behaviorOptions.autoPlayOnExpand) {
+        this.togglePlayPause(voicemailId);
+      }
     }
   }
 
@@ -229,7 +296,9 @@ export class VoicemailsComponent extends BaseComponent {
       audio.play();
       this.isPlaying = true;
       this._onVoicemailPlay?.({ voicemailId });
-      this.markAsRead(voicemailId);
+      if (this.behaviorOptions.markAsReadOnPlay) {
+        this.markAsRead(voicemailId);
+      }
 
       // Start progress tracking
       this.progressInterval = window.setInterval(() => {
@@ -287,7 +356,7 @@ export class VoicemailsComponent extends BaseComponent {
 
     const playBtn = this.shadowRoot.querySelector('.play-btn');
     if (playBtn) {
-      playBtn.innerHTML = this.isPlaying ? this.getPauseIcon() : this.getPlayIcon();
+      playBtn.innerHTML = this.isPlaying ? this.getIcon('pause') : this.getIcon('play');
     }
   }
 
@@ -342,7 +411,30 @@ export class VoicemailsComponent extends BaseComponent {
   // ============================================================================
 
   /**
-   * Delete voicemail
+   * Request deletion of a voicemail (handles confirmation)
+   */
+  private async requestDelete(voicemailId: string): Promise<void> {
+    // Use custom handler if provided
+    if (this._onDeleteRequest) {
+      const shouldDelete = await this._onDeleteRequest(voicemailId);
+      if (shouldDelete) {
+        await this.deleteVoicemail(voicemailId);
+      }
+      return;
+    }
+
+    // Use built-in confirmation if enabled
+    if (this.behaviorOptions.confirmBeforeDelete) {
+      if (!confirm(this.t('voicemails.deleteConfirm'))) {
+        return;
+      }
+    }
+
+    await this.deleteVoicemail(voicemailId);
+  }
+
+  /**
+   * Delete voicemail (actual deletion)
    */
   private async deleteVoicemail(voicemailId: string): Promise<void> {
     if (!this.instance || !this.userId) return;
@@ -477,39 +569,10 @@ export class VoicemailsComponent extends BaseComponent {
   }
 
   /**
-   * Get play icon SVG
+   * Get icon SVG by name
    */
-  private getPlayIcon(): string {
-    return `<svg viewBox="0 0 24 24" fill="currentColor">
-      <path d="M8 5v14l11-7z"/>
-    </svg>`;
-  }
-
-  /**
-   * Get pause icon SVG
-   */
-  private getPauseIcon(): string {
-    return `<svg viewBox="0 0 24 24" fill="currentColor">
-      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
-    </svg>`;
-  }
-
-  /**
-   * Get phone icon SVG
-   */
-  private getPhoneIcon(): string {
-    return `<svg viewBox="0 0 24 24" fill="currentColor">
-      <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
-    </svg>`;
-  }
-
-  /**
-   * Get trash icon SVG
-   */
-  private getTrashIcon(): string {
-    return `<svg viewBox="0 0 24 24" fill="currentColor">
-      <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-    </svg>`;
+  private getIcon(name: keyof typeof this.icons): string {
+    return this.icons[name];
   }
 
   // ============================================================================
@@ -557,14 +620,22 @@ export class VoicemailsComponent extends BaseComponent {
           display: inline-block;
           width: var(--ds-spinner-size);
           height: var(--ds-spinner-size);
-          border: 3px solid var(--ds-color-border);
-          border-top-color: var(--ds-color-primary);
-          border-radius: var(--ds-border-radius-round);
+          color: var(--ds-color-primary);
           animation: spin 0.8s linear infinite;
+        }
+
+        .spinner svg {
+          width: 100%;
+          height: 100%;
         }
 
         @keyframes spin {
           to { transform: rotate(360deg); }
+        }
+
+        /* No-seek progress bar */
+        .progress-row.no-seek .progress-bar {
+          cursor: default;
         }
 
         /* Voicemail List */
@@ -661,9 +732,19 @@ export class VoicemailsComponent extends BaseComponent {
 
         /* Chevron */
         .chevron {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: var(--ds-icon-size-small);
+          height: var(--ds-icon-size-small);
           color: var(--ds-color-text-secondary);
           margin-left: var(--ds-spacing-sm);
           transition: transform var(--ds-transition-duration) ease;
+        }
+
+        .chevron svg {
+          width: 100%;
+          height: 100%;
         }
 
         .voicemail-item.expanded .chevron {
@@ -852,7 +933,7 @@ export class VoicemailsComponent extends BaseComponent {
         }
       </style>
 
-      <div class="container" role="region" aria-label="${this.t('voicemails.title')}">
+      <div class="container" part="container" role="region" aria-label="${this.t('voicemails.title')}">
         ${this.renderContent()}
       </div>
     `;
@@ -866,33 +947,41 @@ export class VoicemailsComponent extends BaseComponent {
   private renderContent(): string {
     if (this.isLoading) {
       return `
-        <div class="loading" role="status" aria-live="polite">
-          <div class="spinner" aria-hidden="true"></div>
-          <p>${this.t('voicemails.loading')}</p>
+        <div class="loading" part="loading" role="status" aria-live="polite">
+          <slot name="loading">
+            <div class="spinner" part="spinner" aria-hidden="true">${this.getIcon('spinner')}</div>
+            <p>${this.t('voicemails.loading')}</p>
+          </slot>
         </div>
       `;
     }
 
     if (this.error) {
       return `
-        <div class="error" role="alert">
-          <p>${this.error}</p>
+        <div class="error" part="error" role="alert">
+          <slot name="error">
+            <p>${this.error}</p>
+          </slot>
         </div>
       `;
     }
 
     if (!this.userId) {
       return `
-        <div class="empty" role="status">
-          <p>${this.t('voicemails.noUserId')}</p>
+        <div class="empty" part="empty" role="status">
+          <slot name="empty">
+            <p>${this.t('voicemails.noUserId')}</p>
+          </slot>
         </div>
       `;
     }
 
     if (this.voicemails.length === 0) {
       return `
-        <div class="empty" role="status">
-          <p>${this.t('voicemails.empty')}</p>
+        <div class="empty" part="empty" role="status">
+          <slot name="empty">
+            <p>${this.t('voicemails.empty')}</p>
+          </slot>
         </div>
       `;
     }
@@ -910,22 +999,28 @@ export class VoicemailsComponent extends BaseComponent {
         const isUnread = !vm.is_read;
         const callerName = vm.from_name || 'Unknown';
 
+        // Use custom row renderer if provided
+        const customRow = this.customRowRenderer ? this.customRowRenderer(vm) : null;
+
         return `
           <div class="voicemail-item ${isExpanded ? 'expanded' : ''}"
+               part="voicemail-item ${isExpanded ? 'voicemail-item-expanded' : ''} ${isUnread ? 'voicemail-item-unread' : ''}"
                data-id="${vm.id}"
                role="listitem"
                tabindex="0"
                aria-expanded="${isExpanded}"
                aria-label="${callerName}, ${this.formatPhoneNumber(vm.from_number)}, ${this.formatDateShort(vm.created_at)}">
-            <div class="voicemail-row">
-              <span class="unread-dot ${isUnread ? '' : 'hidden'}" aria-hidden="true"></span>
-              <div class="row-content">
-                <span class="caller-name ${isUnread ? 'unread' : ''}">${callerName}</span>
-                <span class="phone-number-collapsed">${this.formatPhoneNumber(vm.from_number)}</span>
-                <span class="timestamp">${this.formatDateShort(vm.created_at)}</span>
-                <span class="duration">${this.formatTime(vm.duration_seconds)}</span>
-              </div>
-              <span class="chevron" aria-hidden="true">›</span>
+            <div class="voicemail-row" part="voicemail-row">
+              ${customRow !== null ? customRow : `
+                <span class="unread-dot ${isUnread ? '' : 'hidden'}" part="unread-indicator" aria-hidden="true"></span>
+                <div class="row-content" part="row-content">
+                  <span class="caller-name ${isUnread ? 'unread' : ''}" part="caller-name">${callerName}</span>
+                  <span class="phone-number-collapsed" part="phone-number">${this.formatPhoneNumber(vm.from_number)}</span>
+                  ${this.displayOptions.showTimestamp ? `<span class="timestamp" part="timestamp">${this.formatDateShort(vm.created_at)}</span>` : ''}
+                  ${this.displayOptions.showDuration ? `<span class="duration" part="duration">${this.formatTime(vm.duration_seconds)}</span>` : ''}
+                </div>
+                <span class="chevron" part="chevron" aria-hidden="true">${this.getIcon('chevronRight')}</span>
+              `}
             </div>
             ${this.renderExpandedDetail(vm)}
           </div>
@@ -933,7 +1028,7 @@ export class VoicemailsComponent extends BaseComponent {
       })
       .join('');
 
-    return `<div class="voicemail-list" role="list" aria-label="${this.t('voicemails.title')}">${items}</div>`;
+    return `<div class="voicemail-list" part="voicemail-list" role="list" aria-label="${this.t('voicemails.title')}">${items}</div>`;
   }
 
   /**
@@ -943,68 +1038,75 @@ export class VoicemailsComponent extends BaseComponent {
     const callerName = vm.from_name || 'Unknown';
     const isCurrentlyPlaying = this.isPlaying && this.audioElement?.getAttribute('data-id') === vm.id;
     const progressPercent = this.duration > 0 ? (this.currentTime / this.duration) * 100 : 0;
+    const canSeek = this.behaviorOptions.allowSeeking;
 
     return `
-      <div class="voicemail-detail" data-detail-id="${vm.id}">
+      <div class="voicemail-detail" part="voicemail-detail" data-detail-id="${vm.id}">
         <audio data-id="${vm.id}" preload="auto">
           <source src="${vm.audio_url}" type="audio/${vm.format || 'wav'}">
         </audio>
 
         <!-- Row 1: Caller ID -->
-        <div class="detail-caller">${callerName}</div>
+        <div class="detail-caller" part="detail-caller">${callerName}</div>
 
         <!-- Row 2: Phone number -->
-        <div class="detail-phone">${this.formatPhoneNumber(vm.from_number)}</div>
+        <div class="detail-phone" part="detail-phone">${this.formatPhoneNumber(vm.from_number)}</div>
 
         <!-- Row 3: Timestamp -->
-        <div class="detail-date">${this.formatDateLong(vm.created_at)}</div>
+        ${this.displayOptions.showTimestamp ? `<div class="detail-date" part="detail-date">${this.formatDateLong(vm.created_at)}</div>` : ''}
 
         <!-- Row 4: Progress bar -->
-        <div class="progress-row"
+        ${this.displayOptions.showProgressBar ? `
+        <div class="progress-row ${canSeek ? '' : 'no-seek'}" part="progress-row"
              role="slider"
              aria-label="${this.t('voicemails.progress')}"
              aria-valuemin="0"
              aria-valuemax="${this.duration || vm.duration_seconds}"
              aria-valuenow="${this.currentTime}">
-          <span class="time-current">${this.formatTime(this.currentTime)}</span>
-          <div class="progress-bar" data-action="seek">
-            <div class="progress-fill" style="width: ${progressPercent}%"></div>
-            <div class="progress-handle" style="left: ${progressPercent}%"></div>
+          <span class="time-current" part="time-current">${this.formatTime(this.currentTime)}</span>
+          <div class="progress-bar" part="progress-bar" data-action="${canSeek ? 'seek' : ''}">
+            <div class="progress-fill" part="progress-fill" style="width: ${progressPercent}%"></div>
+            ${canSeek ? `<div class="progress-handle" part="progress-handle" style="left: ${progressPercent}%"></div>` : ''}
           </div>
-          <span class="time-remaining">-${this.formatTime(this.duration - this.currentTime || vm.duration_seconds)}</span>
+          <span class="time-remaining" part="time-remaining">-${this.formatTime(this.duration - this.currentTime || vm.duration_seconds)}</span>
         </div>
+        ` : ''}
 
         <!-- Row 5: Play button (left) + Action buttons (right) -->
-        <div class="controls-row">
-          <button class="play-btn"
+        <div class="controls-row" part="controls-row">
+          <button class="play-btn" part="play-button"
                   data-action="play"
                   data-id="${vm.id}"
                   aria-label="${isCurrentlyPlaying ? this.t('common.pause') : this.t('common.play')}">
-            ${isCurrentlyPlaying ? this.getPauseIcon() : this.getPlayIcon()}
+            ${isCurrentlyPlaying ? this.getIcon('pause') : this.getIcon('play')}
           </button>
-          <div class="action-buttons">
-            <button class="action-btn call"
+          <div class="action-buttons" part="action-buttons">
+            ${this.displayOptions.showCallbackButton ? `
+            <button class="action-btn call" part="callback-button"
                     data-action="call"
                     data-number="${vm.from_number}"
                     aria-label="${this.t('common.call')}">
-              ${this.getPhoneIcon()}
+              ${this.getIcon('phone')}
               ${this.t('common.call')}
             </button>
-            <button class="action-btn delete"
+            ` : ''}
+            ${this.displayOptions.showDeleteButton ? `
+            <button class="action-btn delete" part="delete-button"
                     data-action="delete"
                     data-id="${vm.id}"
                     aria-label="${this.t('common.delete')}">
-              ${this.getTrashIcon()}
+              ${this.getIcon('trash')}
               ${this.t('common.delete')}
             </button>
+            ` : ''}
           </div>
         </div>
 
         <!-- Row 6: Transcription -->
-        ${vm.transcription ? `
-        <div class="transcription">
-          <div class="transcription-header">${this.t('voicemails.transcription')}</div>
-          <div class="transcription-text">${vm.transcription}</div>
+        ${this.displayOptions.showTranscription && vm.transcription ? `
+        <div class="transcription" part="transcription">
+          <div class="transcription-header" part="transcription-header">${this.t('voicemails.transcription')}</div>
+          <div class="transcription-text" part="transcription-text">${vm.transcription}</div>
         </div>
         ` : ''}
       </div>
@@ -1083,8 +1185,8 @@ export class VoicemailsComponent extends BaseComponent {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const id = btn.getAttribute('data-id');
-        if (id && confirm(this.t('voicemails.deleteConfirm'))) {
-          this.deleteVoicemail(id);
+        if (id) {
+          this.requestDelete(id);
         }
       });
     });
