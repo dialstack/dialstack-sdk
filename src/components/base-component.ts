@@ -10,8 +10,28 @@ import type {
   LoadError,
   ComponentIcons,
   LayoutVariant,
+  BaseComponentClasses,
 } from '../core/types';
 import { type Locale, defaultLocale } from '../locales';
+
+// ============================================================================
+// Static Base Styles (shared across all components)
+// ============================================================================
+
+/**
+ * Static base styles that don't change - applied once per component
+ */
+const BASE_STYLES = `
+  * {
+    box-sizing: border-box;
+    font-family: var(--ds-font-family);
+  }
+
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--ds-focus-ring);
+  }
+`;
 
 // ============================================================================
 // Default Icons
@@ -61,6 +81,17 @@ export abstract class BaseComponent extends getHTMLElementBase() {
 
   // Layout variant
   protected layoutVariant: LayoutVariant = 'default';
+
+  // CSS classes (can be customized)
+  protected classes: BaseComponentClasses = {};
+
+  // Cached CSS variables (only regenerated when appearance changes)
+  private _cachedCssVariables: string = '';
+  private _lastAppearanceHash: string = '';
+
+  // Mount state tracking
+  private _isMounted: boolean = false;
+  private _isDestroyed: boolean = false;
 
   // Common callbacks
   protected _onLoaderStart?: (event: LoaderStart) => void;
@@ -126,6 +157,117 @@ export abstract class BaseComponent extends getHTMLElementBase() {
   }
 
   // ============================================================================
+  // Public Lifecycle API
+  // ============================================================================
+
+  /**
+   * Mount the component to a container element
+   *
+   * @example
+   * ```typescript
+   * const element = dialstack.createComponent('voicemails');
+   * element.mount(document.getElementById('container'));
+   * ```
+   */
+  mount(container: HTMLElement): this {
+    if (this._isDestroyed) {
+      throw new Error('DialStack: Cannot mount a destroyed component');
+    }
+
+    if (this._isMounted) {
+      console.warn('DialStack: Component is already mounted');
+      return this;
+    }
+
+    container.appendChild(this);
+    this._isMounted = true;
+
+    return this;
+  }
+
+  /**
+   * Unmount the component from its container
+   * The component can be remounted later
+   *
+   * @example
+   * ```typescript
+   * element.unmount();
+   * // Later...
+   * element.mount(anotherContainer);
+   * ```
+   */
+  unmount(): this {
+    if (this._isDestroyed) {
+      throw new Error('DialStack: Cannot unmount a destroyed component');
+    }
+
+    if (!this._isMounted) {
+      console.warn('DialStack: Component is not mounted');
+      return this;
+    }
+
+    if (this.parentElement) {
+      this.parentElement.removeChild(this);
+    }
+
+    this._isMounted = false;
+    // Keep _mountContainer reference in case we want to remount to same container
+
+    return this;
+  }
+
+  /**
+   * Destroy the component and clean up all resources
+   * After calling destroy(), the component cannot be used again
+   *
+   * @example
+   * ```typescript
+   * element.destroy();
+   * // Component is now unusable
+   * ```
+   */
+  destroy(): void {
+    if (this._isDestroyed) {
+      return; // Already destroyed, no-op
+    }
+
+    // Unmount if mounted
+    if (this._isMounted) {
+      this.unmount();
+    }
+
+    // Run cleanup hook
+    this.cleanup();
+
+    // Clear shadow DOM
+    if (this.shadowRoot) {
+      this.shadowRoot.innerHTML = '';
+    }
+
+    // Clear all state
+    this.instance = null;
+    this._cachedCssVariables = '';
+    this._onLoaderStart = undefined;
+    this._onLoadError = undefined;
+    this.isInitialized = false;
+    this._isDestroyed = true;
+  }
+
+  /**
+   * Check if the component is currently mounted
+   */
+  isMounted(): boolean {
+    return this._isMounted;
+  }
+
+  /**
+   * Check if the component has been destroyed
+   */
+  isDestroyed(): boolean {
+    return this._isDestroyed;
+  }
+
+  // ============================================================================
   // Configuration Setters
   // ============================================================================
 
@@ -167,6 +309,51 @@ export abstract class BaseComponent extends getHTMLElementBase() {
     if (this.isInitialized) {
       this.render();
     }
+  }
+
+  /**
+   * Set custom CSS classes for styling integration
+   *
+   * These classes are applied to the component's container and internal elements,
+   * allowing integration with external CSS frameworks (Tailwind, Bootstrap, etc.)
+   *
+   * @example
+   * ```typescript
+   * component.setClasses({
+   *   base: 'rounded-lg border',
+   *   loading: 'animate-pulse',
+   *   error: 'border-red-500',
+   *   empty: 'text-gray-400'
+   * });
+   * ```
+   */
+  setClasses(classes: BaseComponentClasses): void {
+    this.classes = { ...this.classes, ...classes };
+    if (this.isInitialized) {
+      this.render();
+    }
+  }
+
+  /**
+   * Get combined class names for a given state
+   */
+  protected getClassNames(...states: (keyof BaseComponentClasses)[]): string {
+    const classNames: string[] = [];
+
+    // Always include base class
+    if (this.classes.base) {
+      classNames.push(this.classes.base);
+    }
+
+    // Add state-specific classes
+    for (const state of states) {
+      const className = this.classes[state];
+      if (className) {
+        classNames.push(className);
+      }
+    }
+
+    return classNames.join(' ');
   }
 
   /**
@@ -267,8 +454,38 @@ export abstract class BaseComponent extends getHTMLElementBase() {
 
   /**
    * Apply appearance styling to shadow DOM
+   * Uses caching to avoid regenerating CSS variables on every render
    */
   protected applyAppearanceStyles(): string {
+    // Create a hash of the current appearance + layout variant
+    const currentHash = this.computeAppearanceHash();
+
+    // Return cached CSS if nothing has changed
+    if (currentHash === this._lastAppearanceHash && this._cachedCssVariables) {
+      return this._cachedCssVariables + BASE_STYLES;
+    }
+
+    // Regenerate CSS variables
+    this._cachedCssVariables = this.generateCssVariables();
+    this._lastAppearanceHash = currentHash;
+
+    return this._cachedCssVariables + BASE_STYLES;
+  }
+
+  /**
+   * Compute a hash string for current appearance settings
+   * Used to detect when CSS variables need to be regenerated
+   */
+  private computeAppearanceHash(): string {
+    const vars = this.appearance?.variables || {};
+    const theme = this.appearance?.theme || 'light';
+    return `${theme}:${this.layoutVariant}:${JSON.stringify(vars)}`;
+  }
+
+  /**
+   * Generate CSS variables string based on current appearance
+   */
+  private generateCssVariables(): string {
     const vars = this.appearance?.variables || {};
     const theme = this.appearance?.theme || 'light';
     const isDark = theme === 'dark';
@@ -418,16 +635,6 @@ export abstract class BaseComponent extends getHTMLElementBase() {
 
         /* Time display */
         --ds-time-display-width: ${timeDisplayWidth};
-      }
-
-      * {
-        box-sizing: border-box;
-        font-family: var(--ds-font-family);
-      }
-
-      :focus-visible {
-        outline: none;
-        box-shadow: var(--ds-focus-ring);
       }
     `;
   }

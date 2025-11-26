@@ -15,6 +15,7 @@ import type {
   VoicemailDisplayOptions,
   VoicemailBehaviorOptions,
   VoicemailRowRenderer,
+  VoicemailsClasses,
 } from '../core/types';
 import type { Locale } from '../locales';
 
@@ -53,6 +54,23 @@ export interface VoicemailsProps {
    * Layout variant (compact, comfortable, default)
    */
   layoutVariant?: LayoutVariant;
+
+  /**
+   * Custom CSS classes for styling integration
+   *
+   * @example
+   * ```tsx
+   * <Voicemails
+   *   classes={{
+   *     base: 'rounded-lg border',
+   *     loading: 'animate-pulse',
+   *     item: 'hover:bg-gray-50',
+   *     itemUnread: 'font-bold'
+   *   }}
+   * />
+   * ```
+   */
+  classes?: VoicemailsClasses;
 
   /**
    * Display options for controlling field visibility
@@ -135,6 +153,7 @@ export const Voicemails: React.FC<VoicemailsProps> = ({
   formatting,
   icons,
   layoutVariant,
+  classes,
   displayOptions,
   behaviorOptions,
   customRowRenderer,
@@ -150,27 +169,28 @@ export const Voicemails: React.FC<VoicemailsProps> = ({
   const { dialstack } = useDialstackComponents();
   const { containerRef, componentInstance } = useCreateComponent(dialstack, 'voicemails');
 
-  // Sync data props to Web Component
-  useUpdateWithSetter(componentInstance, userId, 'setUserId');
+  // Sync data props to Web Component (type-safe callbacks)
+  useUpdateWithSetter(componentInstance, userId, (comp, val) => comp.setUserId(val));
 
   // Sync configuration props
-  useUpdateWithSetter(componentInstance, locale, 'setLocale');
-  useUpdateWithSetter(componentInstance, formatting, 'setFormatting');
-  useUpdateWithSetter(componentInstance, icons, 'setIcons');
-  useUpdateWithSetter(componentInstance, layoutVariant, 'setLayoutVariant');
-  useUpdateWithSetter(componentInstance, displayOptions, 'setDisplayOptions');
-  useUpdateWithSetter(componentInstance, behaviorOptions, 'setBehaviorOptions');
-  useUpdateWithSetter(componentInstance, customRowRenderer, 'setCustomRowRenderer');
+  useUpdateWithSetter(componentInstance, locale, (comp, val) => comp.setLocale(val));
+  useUpdateWithSetter(componentInstance, formatting, (comp, val) => comp.setFormatting(val));
+  useUpdateWithSetter(componentInstance, icons, (comp, val) => comp.setIcons(val));
+  useUpdateWithSetter(componentInstance, layoutVariant, (comp, val) => comp.setLayoutVariant(val));
+  useUpdateWithSetter(componentInstance, classes, (comp, val) => comp.setClasses(val));
+  useUpdateWithSetter(componentInstance, displayOptions, (comp, val) => comp.setDisplayOptions(val));
+  useUpdateWithSetter(componentInstance, behaviorOptions, (comp, val) => comp.setBehaviorOptions(val));
+  useUpdateWithSetter(componentInstance, customRowRenderer, (comp, val) => comp.setCustomRowRenderer(val));
 
   // Sync callbacks to Web Component
-  useUpdateWithSetter(componentInstance, onLoaderStart, 'setOnLoaderStart');
-  useUpdateWithSetter(componentInstance, onLoadError, 'setOnLoadError');
-  useUpdateWithSetter(componentInstance, onVoicemailSelect, 'setOnVoicemailSelect');
-  useUpdateWithSetter(componentInstance, onVoicemailPlay, 'setOnVoicemailPlay');
-  useUpdateWithSetter(componentInstance, onVoicemailPause, 'setOnVoicemailPause');
-  useUpdateWithSetter(componentInstance, onVoicemailDelete, 'setOnVoicemailDelete');
-  useUpdateWithSetter(componentInstance, onCallBack, 'setOnCallBack');
-  useUpdateWithSetter(componentInstance, onDeleteRequest, 'setOnDeleteRequest');
+  useUpdateWithSetter(componentInstance, onLoaderStart, (comp, val) => comp.setOnLoaderStart(val));
+  useUpdateWithSetter(componentInstance, onLoadError, (comp, val) => comp.setOnLoadError(val));
+  useUpdateWithSetter(componentInstance, onVoicemailSelect, (comp, val) => comp.setOnVoicemailSelect(val));
+  useUpdateWithSetter(componentInstance, onVoicemailPlay, (comp, val) => comp.setOnVoicemailPlay(val));
+  useUpdateWithSetter(componentInstance, onVoicemailPause, (comp, val) => comp.setOnVoicemailPause(val));
+  useUpdateWithSetter(componentInstance, onVoicemailDelete, (comp, val) => comp.setOnVoicemailDelete(val));
+  useUpdateWithSetter(componentInstance, onCallBack, (comp, val) => comp.setOnCallBack(val));
+  useUpdateWithSetter(componentInstance, onDeleteRequest, (comp, val) => comp.setOnDeleteRequest(val));
 
   return <div ref={containerRef} className={className} style={style} />;
 };

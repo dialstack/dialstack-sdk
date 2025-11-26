@@ -1,35 +1,28 @@
 /**
  * Factory function for creating React wrapper components around Web Components
  *
- * This utility reduces boilerplate when creating new React component wrappers.
- * It handles the common patterns of:
- * - Creating the web component via useCreateComponent
- * - Syncing props to setters via useUpdateWithSetter
- * - Managing className and style props
+ * @deprecated This factory is deprecated. Use the explicit type-safe pattern instead:
  *
- * @example
  * ```tsx
- * // Define the component config
- * const CallLogs = createReactComponent<CallLogsProps>({
- *   tagName: 'call-logs',
- *   displayName: 'CallLogs',
- *   propSetters: {
- *     dateRange: 'setDateRange',
- *     limit: 'setLimit',
- *     locale: 'setLocale',
- *     formatting: 'setFormatting',
- *     onLoaderStart: 'setOnLoaderStart',
- *     onLoadError: 'setOnLoadError',
- *   },
- * });
+ * // Preferred: Explicit component with type-safe callbacks
+ * export const MyComponent: React.FC<MyProps> = (props) => {
+ *   const { dialstack } = useDialstackComponents();
+ *   const { containerRef, componentInstance } = useCreateComponent(dialstack, 'my-component');
+ *
+ *   // Type-safe: TypeScript knows setMyProp exists
+ *   useUpdateWithSetter(componentInstance, props.myProp, (comp, val) => comp.setMyProp(val));
+ *
+ *   return <div ref={containerRef} />;
+ * };
  * ```
+ *
+ * The factory pattern cannot provide the same level of type safety.
  */
 
-import React from 'react';
-import type { ComponentTagName } from '../core/types';
+import React, { useEffect } from 'react';
+import type { ComponentTagName, ComponentElement } from '../core/types';
 import { useDialstackComponents } from './DialstackComponentsProvider';
 import { useCreateComponent } from './useCreateComponent';
-import { useUpdateWithSetter } from './useUpdateWithSetter';
 
 /**
  * Base props that all components support
@@ -48,6 +41,8 @@ export interface BaseComponentProps {
 
 /**
  * Configuration for creating a React component wrapper
+ *
+ * @deprecated Use explicit components with useUpdateWithSetter callback pattern
  */
 export interface ReactComponentConfig<TProps extends BaseComponentProps> {
   /**
@@ -70,7 +65,37 @@ export interface ReactComponentConfig<TProps extends BaseComponentProps> {
 }
 
 /**
+ * Internal hook to sync a prop value to a setter method by name
+ * This is the old string-based approach, kept for backward compatibility
+ *
+ * @deprecated Use useUpdateWithSetter with callback pattern instead
+ */
+function useStringBasedSetter<T extends ComponentTagName>(
+  component: ComponentElement[T] | null,
+  value: unknown,
+  setterName: string
+): void {
+  useEffect(() => {
+    if (!component || value === undefined) return;
+
+    try {
+      // Use bracket notation to access setter method dynamically
+      const setter = (component as unknown as Record<string, unknown>)[setterName];
+      if (typeof setter === 'function') {
+        (setter as (value: unknown) => void).call(component, value);
+      } else {
+        console.warn(`DialStack: Setter method "${setterName}" not found on component`);
+      }
+    } catch (error) {
+      console.error(`DialStack: Error calling ${setterName}:`, error);
+    }
+  }, [component, value, setterName]);
+}
+
+/**
  * Creates a React component wrapper for a DialStack Web Component
+ *
+ * @deprecated Use explicit components with useUpdateWithSetter callback pattern for type safety.
  *
  * This factory handles the common boilerplate of:
  * - Using the DialStack context
@@ -90,16 +115,18 @@ export const createReactComponent = <TProps extends BaseComponentProps>(
     const { dialstack } = useDialstackComponents();
     const { containerRef, componentInstance } = useCreateComponent(dialstack, tagName);
 
-    // Sync all props to their setters
+    // Sync all props to their setters using the old string-based approach
     const entries = Object.keys(propSetters) as Array<keyof typeof propSetters>;
     entries.forEach((propName) => {
       const setterName = propSetters[propName];
-      // eslint-disable-next-line react-hooks/rules-of-hooks
-      useUpdateWithSetter(
-        componentInstance,
-        (restProps as Record<string, unknown>)[propName as string],
-        setterName as string
-      );
+      if (setterName) {
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        useStringBasedSetter(
+          componentInstance,
+          (restProps as Record<string, unknown>)[propName as string],
+          setterName
+        );
+      }
     });
 
     return <div ref={containerRef} className={className} style={style} />;
@@ -112,5 +139,7 @@ export const createReactComponent = <TProps extends BaseComponentProps>(
 
 /**
  * Type helper for extracting prop types from a component config
+ *
+ * @deprecated Use explicit component typing instead
  */
 export type PropsFromConfig<T> = T extends ReactComponentConfig<infer P> ? P : never;

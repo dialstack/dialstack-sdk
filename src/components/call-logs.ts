@@ -9,6 +9,7 @@ import type {
   PaginationOptions,
   CallLogDisplayOptions,
   CallLogRowRenderer,
+  CallLogsClasses,
 } from '../core/types';
 
 /**
@@ -61,6 +62,9 @@ export class CallLogsComponent extends BaseComponent {
 
   // Custom row renderer
   private customRowRenderer?: CallLogRowRenderer;
+
+  // Override classes type for component-specific classes
+  protected override classes: CallLogsClasses = {};
 
   // Callbacks
   private _onPageChange?: (event: { offset: number; limit: number }) => void;
@@ -120,6 +124,16 @@ export class CallLogsComponent extends BaseComponent {
    */
   setCustomRowRenderer(renderer: CallLogRowRenderer | undefined): void {
     this.customRowRenderer = renderer;
+    if (this.isInitialized) {
+      this.render();
+    }
+  }
+
+  /**
+   * Set custom CSS classes for styling integration
+   */
+  override setClasses(classes: CallLogsClasses): void {
+    this.classes = { ...this.classes, ...classes };
     if (this.isInitialized) {
       this.render();
     }
@@ -529,7 +543,7 @@ export class CallLogsComponent extends BaseComponent {
         }
       </style>
 
-      <div class="container" part="container" role="region" aria-label="${this.t('callLogs.title')}">
+      <div class="container ${this.getClassNames()}" part="container" role="region" aria-label="${this.t('callLogs.title')}">
         ${this.renderContent()}
       </div>
     `;
@@ -544,7 +558,7 @@ export class CallLogsComponent extends BaseComponent {
   private renderContent(): string {
     if (this.isLoading) {
       return `
-        <div class="loading" part="loading" role="status" aria-live="polite">
+        <div class="loading ${this.classes.loading || ''}" part="loading" role="status" aria-live="polite">
           <slot name="loading">
             <div class="spinner" part="spinner" aria-hidden="true">${this.getIcon('spinner')}</div>
             <p>${this.t('callLogs.loading')}</p>
@@ -555,7 +569,7 @@ export class CallLogsComponent extends BaseComponent {
 
     if (this.error) {
       return `
-        <div class="error" part="error" role="alert">
+        <div class="error ${this.classes.error || ''}" part="error" role="alert">
           <slot name="error">
             <p><strong>${this.t('common.error')}:</strong> ${this.error}</p>
           </slot>
@@ -565,7 +579,7 @@ export class CallLogsComponent extends BaseComponent {
 
     if (this.callLogs.length === 0) {
       return `
-        <div class="empty" part="empty" role="status">
+        <div class="empty ${this.classes.empty || ''}" part="empty" role="status">
           <slot name="empty">
             <p>${this.t('callLogs.empty')}</p>
           </slot>
@@ -584,13 +598,20 @@ export class CallLogsComponent extends BaseComponent {
 
     const rows = this.callLogs
       .map((call) => {
+        // Build row classes
+        const rowClasses: string[] = [];
+        if (this.classes.row) rowClasses.push(this.classes.row);
+        if (call.direction === 'inbound' && this.classes.rowInbound) rowClasses.push(this.classes.rowInbound);
+        if (call.direction === 'outbound' && this.classes.rowOutbound) rowClasses.push(this.classes.rowOutbound);
+        const rowClassStr = rowClasses.length > 0 ? ` class="${rowClasses.join(' ')}"` : '';
+
         // Use custom row renderer if provided
         if (this.customRowRenderer) {
-          return `<tr data-call-id="${call.id}" tabindex="0" role="row" part="table-row">${this.customRowRenderer(call)}</tr>`;
+          return `<tr data-call-id="${call.id}" tabindex="0" role="row" part="table-row"${rowClassStr}>${this.customRowRenderer(call)}</tr>`;
         }
 
         return `
-          <tr data-call-id="${call.id}" tabindex="0" role="row" part="table-row">
+          <tr data-call-id="${call.id}" tabindex="0" role="row" part="table-row"${rowClassStr}>
             ${showDate ? `<td part="cell cell-date">${this.formatDate(call.started_at)}</td>` : ''}
             ${showDirection ? `<td part="cell cell-direction"><span class="badge ${this.getDirectionClass(call.direction)}" part="badge badge-direction">${this.formatDirection(call.direction)}</span></td>` : ''}
             ${showFrom ? `<td part="cell cell-from">${this.formatPhoneNumber(call.from_number)}</td>` : ''}
@@ -611,8 +632,8 @@ export class CallLogsComponent extends BaseComponent {
 
     return `
       <div class="table-container" part="table-container">
-        <table role="grid" aria-label="${this.t('callLogs.title')}" part="table">
-          <thead part="table-header">
+        <table role="grid" aria-label="${this.t('callLogs.title')}" part="table" class="${this.classes.table || ''}">
+          <thead part="table-header" class="${this.classes.header || ''}">
             <tr role="row">
               ${showDate ? `<th role="columnheader" scope="col" part="header-cell">${this.t('callLogs.columns.date')}</th>` : ''}
               ${showDirection ? `<th role="columnheader" scope="col" part="header-cell">${this.t('callLogs.columns.direction')}</th>` : ''}
@@ -627,7 +648,7 @@ export class CallLogsComponent extends BaseComponent {
           </tbody>
         </table>
       </div>
-      <nav class="pagination" part="pagination" aria-label="Pagination">
+      <nav class="pagination ${this.classes.pagination || ''}" part="pagination" aria-label="Pagination">
         <span class="pagination-info" part="pagination-info" aria-live="polite">
           ${this.t('common.showing', { start: startItem, end: endItem, total: this.totalCount })}
         </span>

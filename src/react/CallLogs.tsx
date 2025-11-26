@@ -17,6 +17,7 @@ import type {
   LayoutVariant,
   CallLogDisplayOptions,
   CallLogRowRenderer,
+  CallLogsClasses,
 } from '../core/types';
 import type { Locale } from '../locales';
 
@@ -65,6 +66,23 @@ export interface CallLogsProps {
    * Layout variant (compact, comfortable, default)
    */
   layoutVariant?: LayoutVariant;
+
+  /**
+   * Custom CSS classes for styling integration
+   *
+   * @example
+   * ```tsx
+   * <CallLogs
+   *   classes={{
+   *     base: 'rounded-lg border',
+   *     table: 'min-w-full',
+   *     row: 'hover:bg-gray-50',
+   *     rowInbound: 'text-green-600'
+   *   }}
+   * />
+   * ```
+   */
+  classes?: CallLogsClasses;
 
   /**
    * Display options for controlling column visibility
@@ -124,6 +142,7 @@ export const CallLogs: React.FC<CallLogsProps> = ({
   formatting,
   icons,
   layoutVariant,
+  classes,
   displayOptions,
   customRowRenderer,
   onLoaderStart,
@@ -134,24 +153,25 @@ export const CallLogs: React.FC<CallLogsProps> = ({
   const { dialstack } = useDialstackComponents();
   const { containerRef, componentInstance } = useCreateComponent(dialstack, 'call-logs');
 
-  // Sync data props to Web Component
-  useUpdateWithSetter(componentInstance, dateRange, 'setDateRange');
-  useUpdateWithSetter(componentInstance, limit, 'setLimit');
-  useUpdateWithSetter(componentInstance, paginationOptions, 'setPaginationOptions');
+  // Sync data props to Web Component (type-safe callbacks)
+  useUpdateWithSetter(componentInstance, dateRange, (comp, val) => comp.setDateRange(val));
+  useUpdateWithSetter(componentInstance, limit, (comp, val) => comp.setLimit(val));
+  useUpdateWithSetter(componentInstance, paginationOptions, (comp, val) => comp.setPaginationOptions(val));
 
   // Sync configuration props
-  useUpdateWithSetter(componentInstance, locale, 'setLocale');
-  useUpdateWithSetter(componentInstance, formatting, 'setFormatting');
-  useUpdateWithSetter(componentInstance, icons, 'setIcons');
-  useUpdateWithSetter(componentInstance, layoutVariant, 'setLayoutVariant');
-  useUpdateWithSetter(componentInstance, displayOptions, 'setDisplayOptions');
-  useUpdateWithSetter(componentInstance, customRowRenderer, 'setCustomRowRenderer');
+  useUpdateWithSetter(componentInstance, locale, (comp, val) => comp.setLocale(val));
+  useUpdateWithSetter(componentInstance, formatting, (comp, val) => comp.setFormatting(val));
+  useUpdateWithSetter(componentInstance, icons, (comp, val) => comp.setIcons(val));
+  useUpdateWithSetter(componentInstance, layoutVariant, (comp, val) => comp.setLayoutVariant(val));
+  useUpdateWithSetter(componentInstance, classes, (comp, val) => comp.setClasses(val));
+  useUpdateWithSetter(componentInstance, displayOptions, (comp, val) => comp.setDisplayOptions(val));
+  useUpdateWithSetter(componentInstance, customRowRenderer, (comp, val) => comp.setCustomRowRenderer(val));
 
   // Sync callbacks to Web Component
-  useUpdateWithSetter(componentInstance, onLoaderStart, 'setOnLoaderStart');
-  useUpdateWithSetter(componentInstance, onLoadError, 'setOnLoadError');
-  useUpdateWithSetter(componentInstance, onPageChange, 'setOnPageChange');
-  useUpdateWithSetter(componentInstance, onRowClick, 'setOnRowClick');
+  useUpdateWithSetter(componentInstance, onLoaderStart, (comp, val) => comp.setOnLoaderStart(val));
+  useUpdateWithSetter(componentInstance, onLoadError, (comp, val) => comp.setOnLoadError(val));
+  useUpdateWithSetter(componentInstance, onPageChange, (comp, val) => comp.setOnPageChange(val));
+  useUpdateWithSetter(componentInstance, onRowClick, (comp, val) => comp.setOnRowClick(val));
 
   return <div ref={containerRef} className={className} style={style} />;
 };

@@ -3,23 +3,31 @@
  */
 
 import React from 'react';
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, render, screen } from '@testing-library/react';
 import { useCreateComponent } from '../useCreateComponent';
 import { DialstackComponentsProvider } from '../DialstackComponentsProvider';
 import type { DialStackInstance, ComponentElement } from '../../core/types';
 
-// Mock component element
+// Mock the version constant
+declare global {
+  // eslint-disable-next-line no-var
+  var _NPM_PACKAGE_VERSION_: string;
+}
+globalThis._NPM_PACKAGE_VERSION_ = '0.0.0-test';
+
+// Create a proper mock element that behaves like a DOM element
 const createMockElement = () => {
   const element = document.createElement('div') as unknown as ComponentElement['call-logs'];
-  element.setInstance = jest.fn();
+  // Add the setInstance method that all components have
+  (element as unknown as { setInstance: jest.Mock }).setInstance = jest.fn();
   return element;
 };
 
 // Mock DialStack instance
-const createMockDialstack = (): DialStackInstance => {
-  const mockElement = createMockElement();
+const createMockDialstack = (mockElement?: ComponentElement['call-logs']): DialStackInstance => {
+  const element = mockElement ?? createMockElement();
   return {
-    create: jest.fn().mockReturnValue(mockElement),
+    create: jest.fn().mockReturnValue(element),
     update: jest.fn(),
     logout: jest.fn().mockResolvedValue(undefined),
   };
@@ -42,10 +50,6 @@ describe('useCreateComponent', () => {
   it('calls dialstack.create with correct tagName', async () => {
     const mockDialstack = createMockDialstack();
 
-    const wrapper = ({ children }: { children: React.ReactNode }) => (
-      <DialstackComponentsProvider dialstack={mockDialstack}>{children}</DialstackComponentsProvider>
-    );
-
     // Create a component that uses the hook
     const TestComponent = () => {
       const { containerRef, componentInstance } = useCreateComponent(mockDialstack, 'call-logs');
@@ -57,16 +61,14 @@ describe('useCreateComponent', () => {
       );
     };
 
-    const { findByTestId } = await import('@testing-library/react').then(({ render }) =>
-      render(
-        <DialstackComponentsProvider dialstack={mockDialstack}>
-          <TestComponent />
-        </DialstackComponentsProvider>
-      )
+    render(
+      <DialstackComponentsProvider dialstack={mockDialstack}>
+        <TestComponent />
+      </DialstackComponentsProvider>
     );
 
-    await waitFor(async () => {
-      const instance = await findByTestId('instance');
+    await waitFor(() => {
+      const instance = screen.getByTestId('instance');
       expect(instance.textContent).toBe('created');
     });
 
@@ -75,20 +77,14 @@ describe('useCreateComponent', () => {
 
   it('sets SDK version attribute on created component', async () => {
     const mockElement = createMockElement();
-    (mockElement as HTMLElement).setAttribute = jest.fn();
-
-    const mockDialstack: DialStackInstance = {
-      create: jest.fn().mockReturnValue(mockElement),
-      update: jest.fn(),
-      logout: jest.fn().mockResolvedValue(undefined),
-    };
+    const setAttributeSpy = jest.spyOn(mockElement, 'setAttribute');
+    const mockDialstack = createMockDialstack(mockElement);
 
     const TestComponent = () => {
       const { containerRef } = useCreateComponent(mockDialstack, 'call-logs');
       return <div ref={containerRef} />;
     };
 
-    const { render } = await import('@testing-library/react');
     render(
       <DialstackComponentsProvider dialstack={mockDialstack}>
         <TestComponent />
@@ -96,7 +92,7 @@ describe('useCreateComponent', () => {
     );
 
     await waitFor(() => {
-      expect((mockElement as HTMLElement).setAttribute).toHaveBeenCalledWith(
+      expect(setAttributeSpy).toHaveBeenCalledWith(
         'data-dialstack-sdk-version',
         expect.any(String)
       );
@@ -105,18 +101,13 @@ describe('useCreateComponent', () => {
 
   it('appends component to container', async () => {
     const mockElement = createMockElement();
-    const mockDialstack: DialStackInstance = {
-      create: jest.fn().mockReturnValue(mockElement),
-      update: jest.fn(),
-      logout: jest.fn().mockResolvedValue(undefined),
-    };
+    const mockDialstack = createMockDialstack(mockElement);
 
     const TestComponent = () => {
       const { containerRef } = useCreateComponent(mockDialstack, 'voicemails');
       return <div ref={containerRef} data-testid="container" />;
     };
 
-    const { render, screen } = await import('@testing-library/react');
     render(
       <DialstackComponentsProvider dialstack={mockDialstack}>
         <TestComponent />
@@ -127,5 +118,33 @@ describe('useCreateComponent', () => {
       const container = screen.getByTestId('container');
       expect(container.childNodes.length).toBeGreaterThan(0);
     });
+  });
+
+  it('removes component on unmount', async () => {
+    const mockElement = createMockElement();
+    const mockDialstack = createMockDialstack(mockElement);
+
+    const TestComponent = () => {
+      const { containerRef } = useCreateComponent(mockDialstack, 'call-logs');
+      return <div ref={containerRef} data-testid="container" />;
+    };
+
+    const { unmount } = render(
+      <DialstackComponentsProvider dialstack={mockDialstack}>
+        <TestComponent />
+      </DialstackComponentsProvider>
+    );
+
+    // Wait for component to be created
+    await waitFor(() => {
+      const container = screen.getByTestId('container');
+      expect(container.childNodes.length).toBeGreaterThan(0);
+    });
+
+    // Unmount and verify cleanup
+    unmount();
+
+    // The mock element should have been removed from its parent
+    expect(mockElement.parentNode).toBeNull();
   });
 });

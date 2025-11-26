@@ -8,6 +8,7 @@ import type {
   VoicemailDisplayOptions,
   VoicemailBehaviorOptions,
   VoicemailRowRenderer,
+  VoicemailsClasses,
 } from '../core/types';
 
 /**
@@ -44,6 +45,10 @@ export class VoicemailsComponent extends BaseComponent {
   // Expandable state
   private expandedId: string | null = null;
 
+  // Confirmation modal state
+  private showDeleteConfirm: boolean = false;
+  private pendingDeleteId: string | null = null;
+
   // Audio playback state
   private audioElement: HTMLAudioElement | null = null;
   private isPlaying: boolean = false;
@@ -72,6 +77,9 @@ export class VoicemailsComponent extends BaseComponent {
   // Custom row renderer
   private customRowRenderer?: VoicemailRowRenderer;
 
+  // Override classes type for component-specific classes
+  protected override classes: VoicemailsClasses = {};
+
   // Callbacks
   private _onVoicemailSelect?: (event: { voicemailId: string }) => void;
   private _onVoicemailPlay?: (event: { voicemailId: string }) => void;
@@ -87,6 +95,14 @@ export class VoicemailsComponent extends BaseComponent {
       this.loadData();
     }
     this.isInitialized = true;
+  }
+
+  /**
+   * Clean up resources when component is destroyed
+   */
+  protected override cleanup(): void {
+    this.stopAudio();
+    this.hideConfirmModal();
   }
 
   // ============================================================================
@@ -161,6 +177,16 @@ export class VoicemailsComponent extends BaseComponent {
    */
   setCustomRowRenderer(renderer: VoicemailRowRenderer | undefined): void {
     this.customRowRenderer = renderer;
+    if (this.isInitialized) {
+      this.render();
+    }
+  }
+
+  /**
+   * Set custom CSS classes for styling integration
+   */
+  override setClasses(classes: VoicemailsClasses): void {
+    this.classes = { ...this.classes, ...classes };
     if (this.isInitialized) {
       this.render();
     }
@@ -425,12 +451,52 @@ export class VoicemailsComponent extends BaseComponent {
 
     // Use built-in confirmation if enabled
     if (this.behaviorOptions.confirmBeforeDelete) {
-      if (!confirm(this.t('voicemails.deleteConfirm'))) {
-        return;
-      }
+      this.showConfirmModal(voicemailId);
+      return;
     }
 
     await this.deleteVoicemail(voicemailId);
+  }
+
+  /**
+   * Show the custom confirmation modal
+   */
+  private showConfirmModal(voicemailId: string): void {
+    this.pendingDeleteId = voicemailId;
+    this.showDeleteConfirm = true;
+    this.updateConfirmModalVisibility();
+  }
+
+  /**
+   * Hide the confirmation modal
+   */
+  private hideConfirmModal(): void {
+    this.showDeleteConfirm = false;
+    this.pendingDeleteId = null;
+    this.updateConfirmModalVisibility();
+  }
+
+  /**
+   * Update modal visibility without full re-render
+   */
+  private updateConfirmModalVisibility(): void {
+    if (!this.shadowRoot) return;
+
+    const modal = this.shadowRoot.querySelector('.confirm-modal-overlay') as HTMLElement;
+    if (modal) {
+      modal.classList.toggle('visible', this.showDeleteConfirm);
+      modal.setAttribute('aria-hidden', (!this.showDeleteConfirm).toString());
+    }
+  }
+
+  /**
+   * Handle confirm button click in modal
+   */
+  private async handleConfirmDelete(): Promise<void> {
+    if (this.pendingDeleteId) {
+      await this.deleteVoicemail(this.pendingDeleteId);
+    }
+    this.hideConfirmModal();
   }
 
   /**
@@ -931,10 +997,114 @@ export class VoicemailsComponent extends BaseComponent {
         audio {
           display: none;
         }
+
+        /* Confirmation Modal */
+        .confirm-modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 10000;
+          opacity: 0;
+          visibility: hidden;
+          transition: opacity var(--ds-transition-duration), visibility var(--ds-transition-duration);
+        }
+
+        .confirm-modal-overlay.visible {
+          opacity: 1;
+          visibility: visible;
+        }
+
+        .confirm-modal {
+          background: var(--ds-color-background);
+          border-radius: var(--ds-border-radius-large);
+          padding: var(--ds-spacing-xl);
+          max-width: 400px;
+          width: 90%;
+          box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+          transform: scale(0.95);
+          transition: transform var(--ds-transition-duration);
+        }
+
+        .confirm-modal-overlay.visible .confirm-modal {
+          transform: scale(1);
+        }
+
+        .confirm-modal-title {
+          font-size: var(--ds-font-size-large);
+          font-weight: var(--ds-font-weight-bold);
+          color: var(--ds-color-text);
+          margin-bottom: var(--ds-spacing-sm);
+        }
+
+        .confirm-modal-message {
+          font-size: var(--ds-font-size-base);
+          color: var(--ds-color-text-secondary);
+          margin-bottom: var(--ds-spacing-xl);
+          line-height: var(--ds-line-height);
+        }
+
+        .confirm-modal-buttons {
+          display: flex;
+          justify-content: flex-end;
+          gap: var(--ds-spacing-sm);
+        }
+
+        .confirm-modal-btn {
+          padding: var(--ds-spacing-sm) var(--ds-spacing-lg);
+          border-radius: var(--ds-border-radius);
+          font-size: var(--ds-font-size-base);
+          font-weight: var(--ds-font-weight-medium);
+          cursor: pointer;
+          transition: opacity var(--ds-transition-duration);
+          border: none;
+        }
+
+        .confirm-modal-btn:hover {
+          opacity: 0.85;
+        }
+
+        .confirm-modal-btn.cancel {
+          background: var(--ds-color-surface-subtle);
+          color: var(--ds-color-text);
+          border: 1px solid var(--ds-color-border);
+        }
+
+        .confirm-modal-btn.confirm {
+          background: var(--ds-color-danger);
+          color: white;
+        }
       </style>
 
-      <div class="container" part="container" role="region" aria-label="${this.t('voicemails.title')}">
+      <div class="container ${this.getClassNames()}" part="container" role="region" aria-label="${this.t('voicemails.title')}">
         ${this.renderContent()}
+      </div>
+
+      <!-- Confirmation Modal -->
+      <div class="confirm-modal-overlay ${this.showDeleteConfirm ? 'visible' : ''}"
+           part="confirm-modal-overlay"
+           role="dialog"
+           aria-modal="true"
+           aria-hidden="${!this.showDeleteConfirm}"
+           aria-labelledby="confirm-modal-title">
+        <div class="confirm-modal" part="confirm-modal">
+          <div class="confirm-modal-title" id="confirm-modal-title" part="confirm-modal-title">
+            ${this.t('voicemails.deleteTitle')}
+          </div>
+          <div class="confirm-modal-message" part="confirm-modal-message">
+            ${this.t('voicemails.deleteConfirm')}
+          </div>
+          <div class="confirm-modal-buttons" part="confirm-modal-buttons">
+            <button class="confirm-modal-btn cancel" part="confirm-modal-cancel" data-action="cancel-delete">
+              ${this.t('common.cancel')}
+            </button>
+            <button class="confirm-modal-btn confirm" part="confirm-modal-confirm" data-action="confirm-delete">
+              ${this.t('common.delete')}
+            </button>
+          </div>
+        </div>
       </div>
     `;
 
@@ -947,7 +1117,7 @@ export class VoicemailsComponent extends BaseComponent {
   private renderContent(): string {
     if (this.isLoading) {
       return `
-        <div class="loading" part="loading" role="status" aria-live="polite">
+        <div class="loading ${this.classes.loading || ''}" part="loading" role="status" aria-live="polite">
           <slot name="loading">
             <div class="spinner" part="spinner" aria-hidden="true">${this.getIcon('spinner')}</div>
             <p>${this.t('voicemails.loading')}</p>
@@ -958,7 +1128,7 @@ export class VoicemailsComponent extends BaseComponent {
 
     if (this.error) {
       return `
-        <div class="error" part="error" role="alert">
+        <div class="error ${this.classes.error || ''}" part="error" role="alert">
           <slot name="error">
             <p>${this.error}</p>
           </slot>
@@ -968,7 +1138,7 @@ export class VoicemailsComponent extends BaseComponent {
 
     if (!this.userId) {
       return `
-        <div class="empty" part="empty" role="status">
+        <div class="empty ${this.classes.empty || ''}" part="empty" role="status">
           <slot name="empty">
             <p>${this.t('voicemails.noUserId')}</p>
           </slot>
@@ -978,7 +1148,7 @@ export class VoicemailsComponent extends BaseComponent {
 
     if (this.voicemails.length === 0) {
       return `
-        <div class="empty" part="empty" role="status">
+        <div class="empty ${this.classes.empty || ''}" part="empty" role="status">
           <slot name="empty">
             <p>${this.t('voicemails.empty')}</p>
           </slot>
@@ -1002,8 +1172,15 @@ export class VoicemailsComponent extends BaseComponent {
         // Use custom row renderer if provided
         const customRow = this.customRowRenderer ? this.customRowRenderer(vm) : null;
 
+        // Build item classes
+        const itemClasses = ['voicemail-item'];
+        if (isExpanded) itemClasses.push('expanded');
+        if (this.classes.item) itemClasses.push(this.classes.item);
+        if (isExpanded && this.classes.itemExpanded) itemClasses.push(this.classes.itemExpanded);
+        if (isUnread && this.classes.itemUnread) itemClasses.push(this.classes.itemUnread);
+
         return `
-          <div class="voicemail-item ${isExpanded ? 'expanded' : ''}"
+          <div class="${itemClasses.join(' ')}"
                part="voicemail-item ${isExpanded ? 'voicemail-item-expanded' : ''} ${isUnread ? 'voicemail-item-unread' : ''}"
                data-id="${vm.id}"
                role="listitem"
@@ -1028,7 +1205,7 @@ export class VoicemailsComponent extends BaseComponent {
       })
       .join('');
 
-    return `<div class="voicemail-list" part="voicemail-list" role="list" aria-label="${this.t('voicemails.title')}">${items}</div>`;
+    return `<div class="voicemail-list ${this.classes.list || ''}" part="voicemail-list" role="list" aria-label="${this.t('voicemails.title')}">${items}</div>`;
   }
 
   /**
@@ -1073,14 +1250,14 @@ export class VoicemailsComponent extends BaseComponent {
         ` : ''}
 
         <!-- Row 5: Play button (left) + Action buttons (right) -->
-        <div class="controls-row" part="controls-row">
+        <div class="controls-row ${this.classes.player || ''}" part="controls-row">
           <button class="play-btn" part="play-button"
                   data-action="play"
                   data-id="${vm.id}"
                   aria-label="${isCurrentlyPlaying ? this.t('common.pause') : this.t('common.play')}">
             ${isCurrentlyPlaying ? this.getIcon('pause') : this.getIcon('play')}
           </button>
-          <div class="action-buttons" part="action-buttons">
+          <div class="action-buttons ${this.classes.actions || ''}" part="action-buttons">
             ${this.displayOptions.showCallbackButton ? `
             <button class="action-btn call" part="callback-button"
                     data-action="call"
@@ -1201,6 +1378,35 @@ export class VoicemailsComponent extends BaseComponent {
           this._onCallBack?.({ phoneNumber });
         }
       });
+    });
+
+    // Confirmation modal - Cancel button
+    const cancelBtn = this.shadowRoot.querySelector('[data-action="cancel-delete"]');
+    cancelBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.hideConfirmModal();
+    });
+
+    // Confirmation modal - Confirm button
+    const confirmBtn = this.shadowRoot.querySelector('[data-action="confirm-delete"]');
+    confirmBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.handleConfirmDelete();
+    });
+
+    // Confirmation modal - Click outside to close
+    const modalOverlay = this.shadowRoot.querySelector('.confirm-modal-overlay');
+    modalOverlay?.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) {
+        this.hideConfirmModal();
+      }
+    });
+
+    // Confirmation modal - Escape key to close
+    modalOverlay?.addEventListener('keydown', (e) => {
+      if ((e as KeyboardEvent).key === 'Escape') {
+        this.hideConfirmModal();
+      }
     });
   }
 

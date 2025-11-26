@@ -25,6 +25,9 @@
  * ```
  */
 
+// Injected at build time by Rollup
+declare const _NPM_PACKAGE_VERSION_: string;
+
 import {
   DialStackError,
   DialStackConnectionError,
@@ -302,7 +305,7 @@ export class DialStack {
   // ==========================================================================
 
   private getUserAgent(): string {
-    const parts = [`dialstack-node/0.2.2`];
+    const parts = [`dialstack-node/${_NPM_PACKAGE_VERSION_}`];
     if (this._appInfo) {
       parts.push(`${this._appInfo.name}/${this._appInfo.version || '0.0.0'}`);
     }

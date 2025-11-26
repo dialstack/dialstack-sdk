@@ -13,7 +13,7 @@ const browserPlugins = (excludeServer = true) => [
   replace({
     preventAssignment: true,
     values: {
-      _NPM_PACKAGE_VERSION_: pkg.version,
+      _NPM_PACKAGE_VERSION_: JSON.stringify(pkg.version),
     },
   }),
   resolve({
@@ -105,6 +105,12 @@ export default [
       exports: 'named',
     },
     plugins: [
+      replace({
+        preventAssignment: true,
+        values: {
+          _NPM_PACKAGE_VERSION_: JSON.stringify(pkg.version),
+        },
+      }),
       typescript({
         tsconfig: './tsconfig.json',
         sourceMap: true,
