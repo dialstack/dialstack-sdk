@@ -55,6 +55,30 @@ interface AccountSessionCreateResponse {
   expires_at: string;
 }
 
+interface UserCreateParams {
+  name?: string;
+  email?: string;
+}
+
+interface UserUpdateParams {
+  name?: string;
+  email?: string;
+}
+
+interface User {
+  id: string;
+  account_id: string;
+  name: string | null;
+  email: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface UserListResponse {
+  users: User[];
+  count: number;
+}
+
 export class DialStack {
   private _apiKey: string;
   private _apiUrl: string;
@@ -140,6 +164,53 @@ export class DialStack {
       return this._request('/v1/accounts', {
         method: 'GET',
       });
+    },
+  };
+
+  users = {
+    create: async (
+      accountId: string,
+      params?: UserCreateParams
+    ): Promise<User> => {
+      return this._request(
+        '/v1/users',
+        {
+          method: 'POST',
+          body: JSON.stringify(params || {}),
+        },
+        accountId
+      );
+    },
+
+    retrieve: async (accountId: string, userId: string): Promise<User> => {
+      return this._request(`/v1/users/${userId}`, { method: 'GET' }, accountId);
+    },
+
+    update: async (
+      accountId: string,
+      userId: string,
+      params: UserUpdateParams
+    ): Promise<User> => {
+      return this._request(
+        `/v1/users/${userId}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(params),
+        },
+        accountId
+      );
+    },
+
+    del: async (accountId: string, userId: string): Promise<void> => {
+      return this._request(
+        `/v1/users/${userId}`,
+        { method: 'DELETE' },
+        accountId
+      );
+    },
+
+    list: async (accountId: string): Promise<UserListResponse> => {
+      return this._request('/v1/users', { method: 'GET' }, accountId);
     },
   };
 
