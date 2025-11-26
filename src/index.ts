@@ -12,6 +12,14 @@ export type {
   ComponentTagName,
   AppearanceOptions,
   UpdateOptions,
+  // Callback types
+  LoaderStart,
+  LoadError,
+  CommonComponentCallbacks,
+  CallLogsCallbacks,
+  VoicemailsCallbacks,
+  CallLog,
+  FormattingOptions,
 } from './core/types';
 
 // Note: Web Components (BaseComponent, CallLogsComponent, VoicemailsComponent)
@@ -28,6 +36,10 @@ export { useCreateComponent } from './react/useCreateComponent';
 export { useUpdateWithSetter } from './react/useUpdateWithSetter';
 export { CallLogs } from './react/CallLogs';
 export { Voicemails } from './react/Voicemails';
+
+// Advanced: Component factory for creating custom wrappers
+export { createReactComponent } from './react/createReactComponent';
+export type { BaseComponentProps, ReactComponentConfig } from './react/createReactComponent';
 
 export type { DialstackComponentsProviderProps } from './react/DialstackComponentsProvider';
 export type { CallLogsProps } from './react/CallLogs';

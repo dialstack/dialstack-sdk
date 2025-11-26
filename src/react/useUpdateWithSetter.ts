@@ -5,6 +5,12 @@
 import { useEffect } from 'react';
 
 /**
+ * Type representing a Web Component with setter methods
+ * Using a looser type to allow HTMLElement subtypes
+ */
+type ComponentWithSetters = HTMLElement;
+
+/**
  * Hook that synchronizes a React prop value to a Web Component setter method
  *
  * This enables declarative React patterns (props) to control imperative
@@ -25,7 +31,7 @@ import { useEffect } from 'react';
  * ```
  */
 export function useUpdateWithSetter<T>(
-  component: any | null,
+  component: ComponentWithSetters | null,
   value: T | undefined,
   setterName: string,
   onUpdated?: (value: T) => void
@@ -34,9 +40,10 @@ export function useUpdateWithSetter<T>(
     if (!component || value === undefined) return;
 
     try {
-      const setter = component[setterName];
+      // Use bracket notation to access setter method dynamically
+      const setter = (component as unknown as Record<string, unknown>)[setterName];
       if (typeof setter === 'function') {
-        setter.call(component, value);
+        (setter as (value: T) => void).call(component, value);
         onUpdated?.(value);
       } else {
         console.warn(`DialStack: Setter method "${setterName}" not found on component`);

@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2015",
     "module": "ESNext",
-    "lib": ["ES2015", "DOM"],
+    "lib": ["ES2017", "DOM"],
     "jsx": "react",
     "declaration": true,
     "declarationMap": true,
@@ -23,5 +23,5 @@
     "isolatedModules": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx", "**/setupTests.ts", "**/__tests__/**"]
 }

@@ -212,6 +212,36 @@ Customize date and phone number formatting:
 />
 ```
 
+## Error Handling
+
+The SDK provides callbacks for handling errors gracefully:
+
+```tsx
+<CallLogs
+  onLoaderStart={({ elementTagName }) => {
+    console.log(`Loading ${elementTagName}...`);
+  }}
+  onLoadError={({ error, elementTagName }) => {
+    console.error(`Error in ${elementTagName}:`, error);
+    // Show user-friendly error message or retry logic
+  }}
+/>
+```
+
+### Provider Errors
+
+If you forget to wrap your components in a `DialstackComponentsProvider`, you'll get a helpful error message:
+
+```
+Error: Could not find DialStack context; You need to wrap your app
+in a <DialstackComponentsProvider> provider.
+See https://docs.dialstack.ai/sdk/react for setup instructions.
+```
+
+### Network Errors
+
+Components automatically handle network errors and display error states. Use the `onLoadError` callback to implement custom error handling, retry logic, or error reporting.
+
 ## Accessibility
 
 All components are built with accessibility in mind:
@@ -259,6 +289,24 @@ The SDK uses account-scoped sessions for authentication. You must:
 Sessions expire after 1 hour. Your application should handle refreshing expired sessions.
 
 **Security Note**: Only server-side API keys can create sessions. Session tokens cannot be used to create new sessions, preventing unauthorized session extension.
+
+## Browser Compatibility
+
+The SDK supports all modern browsers:
+
+| Browser | Version |
+|---------|---------|
+| Chrome | 80+ |
+| Firefox | 75+ |
+| Safari | 13.1+ |
+| Edge | 80+ |
+
+**Requirements:**
+- ES2015+ (ES6) support
+- Web Components v1 (Custom Elements, Shadow DOM)
+- Fetch API
+
+**Note:** Internet Explorer is not supported.
 
 ## Documentation
 

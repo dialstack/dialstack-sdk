@@ -88,11 +88,11 @@ export class DialStack {
     this._apiUrl = config?.apiUrl || DEFAULT_API_URL;
   }
 
-  private async _request(
+  private async _request<T = unknown>(
     path: string,
     options: RequestInit = {},
     accountId?: string
-  ): Promise<any> {
+  ): Promise<T> {
     const url = `${this._apiUrl}${path}`;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -124,10 +124,10 @@ export class DialStack {
 
     // Handle 204 No Content
     if (response.status === 204) {
-      return undefined;
+      return undefined as T;
     }
 
-    return await response.json();
+    return (await response.json()) as T;
   }
 
   accounts = {

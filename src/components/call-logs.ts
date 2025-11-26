@@ -339,8 +339,8 @@ export class CallLogsComponent extends BaseComponent {
         }
 
         .badge-voicemail {
-          background: color-mix(in srgb, #7c3aed 10%, transparent);
-          color: #7c3aed;
+          background: color-mix(in srgb, var(--ds-color-primary) 10%, transparent);
+          color: var(--ds-color-primary);
         }
 
         .badge-default {

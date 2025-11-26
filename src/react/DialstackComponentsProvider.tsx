@@ -2,8 +2,9 @@
  * React Context Provider for DialStack Components
  */
 
-import React, { createContext, useContext, ReactNode } from 'react';
-import { DialStackInstance } from '../core/types';
+import React, { createContext, useContext } from 'react';
+import type { ReactNode } from 'react';
+import type { DialStackInstance } from '../core/types';
 
 interface DialstackComponentsContextValue {
   dialstack: DialStackInstance;
@@ -65,7 +66,10 @@ export const DialstackComponentsProvider: React.FC<DialstackComponentsProviderPr
 export const useDialstackComponents = (): DialstackComponentsContextValue => {
   const context = useContext(DialstackComponentsContext);
   if (!context) {
-    throw new Error('useDialstackComponents must be used within a DialstackComponentsProvider');
+    throw new Error(
+      'Could not find DialStack context; You need to wrap your app in a <DialstackComponentsProvider> provider. ' +
+        'See https://docs.dialstack.ai/sdk/react for setup instructions.'
+    );
   }
   return context;
 };

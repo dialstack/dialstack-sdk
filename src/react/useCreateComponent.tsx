@@ -39,6 +39,13 @@ export function useCreateComponent<T extends ComponentTagName>(
     // Create component using DialStack SDK
     const component = dialstack.create(tagName);
 
+    // Set SDK version for analytics
+    try {
+      (component as HTMLElement).setAttribute('data-dialstack-sdk-version', '_NPM_PACKAGE_VERSION_');
+    } catch (e) {
+      console.log('Error setting SDK version attribute:', e);
+    }
+
     // Append to container
     containerRef.current.appendChild(component as Node);
     componentRef.current = component;
