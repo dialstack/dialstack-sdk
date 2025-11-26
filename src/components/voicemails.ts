@@ -2,6 +2,7 @@
  * Voicemails Web Component
  */
 
+import { parsePhoneNumber, type PhoneNumber } from 'libphonenumber-js';
 import { BaseComponent } from './base-component';
 
 /**
@@ -82,18 +83,33 @@ export class VoicemailsComponent extends BaseComponent {
   private async markAsRead(voicemailId: string): Promise<void> {
     if (!this.instance || !this.userId) return;
 
+    // Update local state first
+    const voicemail = this.voicemails.find((vm) => vm.id === voicemailId);
+    if (!voicemail || voicemail.is_read) return; // Already read, nothing to do
+
+    voicemail.is_read = true;
+
+    // Update DOM without re-rendering (to avoid destroying playing audio)
+    if (this.shadowRoot) {
+      const item = this.shadowRoot.querySelector(`[data-voicemail-id="${voicemailId}"].voicemail-item`);
+      if (item) {
+        item.classList.remove('unread');
+        // Update the status badge
+        const statusBadge = item.querySelector('.badge-unread');
+        if (statusBadge) {
+          statusBadge.classList.remove('badge-unread');
+          statusBadge.classList.add('badge-read');
+          statusBadge.textContent = 'Read';
+        }
+      }
+    }
+
+    // Send API request in background
     try {
       await this.instance.fetchApi(`/v1/users/${this.userId}/voicemails/${voicemailId}`, {
         method: 'PUT',
         body: JSON.stringify({ is_read: true }),
       });
-
-      // Update local state
-      const voicemail = this.voicemails.find((vm) => vm.id === voicemailId);
-      if (voicemail) {
-        voicemail.is_read = true;
-        this.render();
-      }
     } catch (err) {
       // Silent failure - log error but don't block audio playback
       console.error('Failed to mark voicemail as read:', err);
@@ -113,30 +129,41 @@ export class VoicemailsComponent extends BaseComponent {
   }
 
   /**
-   * Format timestamp as relative time or date
+   * Format timestamp to localized date/time string (matches call-logs)
    */
-  private formatTimestamp(dateString: string): string {
+  private formatDate(timestamp: string): string {
     try {
-      const date = new Date(dateString);
-      const now = new Date();
-      const diffMs = now.getTime() - date.getTime();
-      const diffMins = Math.floor(diffMs / 60000);
-      const diffHours = Math.floor(diffMs / 3600000);
-      const diffDays = Math.floor(diffMs / 86400000);
-
-      if (diffMins < 1) return 'Just now';
-      if (diffMins < 60) return `${diffMins}m ago`;
-      if (diffHours < 24) return `${diffHours}h ago`;
-      if (diffDays < 7) return `${diffDays}d ago`;
-
-      // For older, show date
-      return date.toLocaleDateString(undefined, {
+      const date = new Date(timestamp);
+      return date.toLocaleString('en-US', {
         month: 'short',
         day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZoneName: 'short',
       });
     } catch {
-      return dateString;
+      return timestamp;
     }
+  }
+
+  /**
+   * Format phone number for display using libphonenumber-js
+   */
+  private formatPhoneNumber(phone: string): string {
+    if (!phone) return '';
+
+    try {
+      const parsed: PhoneNumber | undefined = parsePhoneNumber(phone, 'US');
+      if (parsed) {
+        return parsed.formatNational();
+      }
+    } catch {
+      // If parsing fails, return original
+    }
+
+    return phone;
   }
 
   /**
@@ -182,18 +209,8 @@ export class VoicemailsComponent extends BaseComponent {
         ${styles}
 
         .container {
-          padding: calc(var(--ds-spacing-unit) * 2);
           background: var(--ds-color-background);
           color: var(--ds-color-text);
-          border: 1px solid rgba(0, 0, 0, 0.1);
-          border-radius: var(--ds-border-radius);
-        }
-
-        h3 {
-          margin: 0 0 calc(var(--ds-spacing-unit) * 2) 0;
-          color: var(--ds-color-primary);
-          font-size: 1.25rem;
-          font-weight: 600;
         }
 
         .loading,
@@ -273,7 +290,7 @@ export class VoicemailsComponent extends BaseComponent {
 
         .voicemail-header {
           display: flex;
-          align-items: baseline;
+          align-items: center;
           gap: calc(var(--ds-spacing-unit));
           margin-bottom: calc(var(--ds-spacing-unit) * 0.5);
         }
@@ -299,14 +316,31 @@ export class VoicemailsComponent extends BaseComponent {
           margin-bottom: calc(var(--ds-spacing-unit) * 0.5);
         }
 
-        .duration-badge {
+        .badge {
           display: inline-block;
           padding: 2px 8px;
           border-radius: 12px;
           font-size: 0.75rem;
           font-weight: 500;
+        }
+
+        .badge-duration {
           background: rgba(0, 0, 0, 0.05);
           color: var(--ds-color-text);
+          margin-right: calc(var(--ds-spacing-unit) * 0.5);
+        }
+
+        .badge-unread {
+          background: rgba(103, 114, 229, 0.1);
+          color: #6772E5;
+        }
+
+        .badge-read {
+          background: rgba(0, 0, 0, 0.05);
+          color: rgba(0, 0, 0, 0.5);
+        }
+
+        .badges {
           margin-bottom: calc(var(--ds-spacing-unit));
         }
 
@@ -319,19 +353,9 @@ export class VoicemailsComponent extends BaseComponent {
         audio::-webkit-media-controls-panel {
           background-color: rgba(0, 0, 0, 0.05);
         }
-
-        .unread-indicator {
-          display: inline-block;
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          background: var(--ds-color-primary);
-          margin-left: calc(var(--ds-spacing-unit) * 0.5);
-        }
       </style>
 
       <div class="container">
-        <h3>Voicemails</h3>
         ${this.renderContent()}
       </div>
     `;
@@ -393,14 +417,14 @@ export class VoicemailsComponent extends BaseComponent {
         </div>
         <div class="voicemail-content">
           <div class="voicemail-header">
-            <span class="caller-name">
-              ${vm.from_name}
-              ${vm.is_read ? '' : '<span class="unread-indicator"></span>'}
-            </span>
-            <span class="timestamp">${this.formatTimestamp(vm.created_at)}</span>
+            <span class="caller-name">${vm.from_name}</span>
+            <span class="timestamp">${this.formatDate(vm.created_at)}</span>
           </div>
-          <div class="caller-number">${vm.from_number}</div>
-          <div class="duration-badge">${this.formatDuration(vm.duration_seconds)}</div>
+          <div class="caller-number">${this.formatPhoneNumber(vm.from_number)}</div>
+          <div class="badges">
+            <span class="badge badge-duration">${this.formatDuration(vm.duration_seconds)}</span>
+            <span class="badge ${vm.is_read ? 'badge-read' : 'badge-unread'}">${vm.is_read ? 'Read' : 'Unread'}</span>
+          </div>
           <audio controls preload="metadata" data-voicemail-id="${vm.id}">
             <source src="${vm.audio_url}" type="audio/${vm.format || 'wav'}">
             Your browser does not support audio playback.
