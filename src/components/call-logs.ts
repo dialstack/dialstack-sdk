@@ -39,6 +39,7 @@ export class CallLogsComponent extends BaseComponent {
   private totalCount: number = 0;
 
   private isLoading: boolean = false;
+  private isPaginating: boolean = false; // For pagination without full loading state
   private error: string | null = null;
   private callLogs: CallLog[] = [];
 
@@ -130,8 +131,9 @@ export class CallLogsComponent extends BaseComponent {
 
   /**
    * Load call logs from API
+   * @param isPagination - If true, shows subtle loading state instead of replacing content
    */
-  private async loadData(): Promise<void> {
+  private async loadData(isPagination: boolean = false): Promise<void> {
     if (!this.instance) {
       this.error = this.t('common.error');
       this.render();
@@ -139,9 +141,17 @@ export class CallLogsComponent extends BaseComponent {
     }
 
     this._onLoaderStart?.({ elementTagName: 'dialstack-call-logs' });
-    this.isLoading = true;
-    this.error = null;
-    this.render();
+
+    // For pagination, keep current data visible with subtle loading indicator
+    // For initial load, show full loading state
+    if (isPagination && this.callLogs.length > 0) {
+      this.isPaginating = true;
+      this.updatePaginationState(); // Update UI without full re-render
+    } else {
+      this.isLoading = true;
+      this.error = null;
+      this.render();
+    }
 
     try {
       const params = new URLSearchParams({
@@ -168,8 +178,30 @@ export class CallLogsComponent extends BaseComponent {
       this.totalCount = 0;
     } finally {
       this.isLoading = false;
+      this.isPaginating = false;
       this.render();
     }
+  }
+
+  /**
+   * Update pagination UI state without full re-render (for loading indicator)
+   */
+  private updatePaginationState(): void {
+    if (!this.shadowRoot) return;
+
+    const container = this.shadowRoot.querySelector('.container');
+    if (container) {
+      container.classList.toggle('is-paginating', this.isPaginating);
+    }
+
+    // Disable pagination buttons while loading
+    const prevBtn = this.shadowRoot.getElementById('prev-btn') as HTMLButtonElement;
+    const nextBtn = this.shadowRoot.getElementById('next-btn') as HTMLButtonElement;
+    const pageSizeSelect = this.shadowRoot.getElementById('page-size') as HTMLSelectElement;
+
+    if (prevBtn) prevBtn.disabled = true;
+    if (nextBtn) nextBtn.disabled = true;
+    if (pageSizeSelect) pageSizeSelect.disabled = true;
   }
 
   // ============================================================================
@@ -308,6 +340,18 @@ export class CallLogsComponent extends BaseComponent {
           line-height: var(--ds-line-height);
         }
 
+        /* Subtle loading state during pagination */
+        .container.is-paginating .table-container {
+          opacity: 0.6;
+          pointer-events: none;
+          transition: opacity 0.15s ease;
+        }
+
+        .container.is-paginating .pagination {
+          opacity: 0.6;
+          pointer-events: none;
+        }
+
         .loading,
         .error,
         .empty {
@@ -421,7 +465,6 @@ export class CallLogsComponent extends BaseComponent {
           align-items: center;
           justify-content: space-between;
           padding-top: var(--ds-spacing-lg);
-          margin-top: var(--ds-spacing-lg);
           border-top: 1px solid var(--ds-color-border);
         }
 
@@ -671,7 +714,7 @@ export class CallLogsComponent extends BaseComponent {
     if (this.offset > 0) {
       this.offset = Math.max(0, this.offset - this.limit);
       this._onPageChange?.({ offset: this.offset, limit: this.limit });
-      this.loadData();
+      this.loadData(true); // Pagination - keep current content visible
     }
   }
 
@@ -682,7 +725,7 @@ export class CallLogsComponent extends BaseComponent {
     if (this.offset + this.limit < this.totalCount) {
       this.offset += this.limit;
       this._onPageChange?.({ offset: this.offset, limit: this.limit });
-      this.loadData();
+      this.loadData(true); // Pagination - keep current content visible
     }
   }
 
@@ -693,7 +736,7 @@ export class CallLogsComponent extends BaseComponent {
     this.limit = newLimit;
     this.offset = 0;
     this._onPageChange?.({ offset: this.offset, limit: this.limit });
-    this.loadData();
+    this.loadData(true); // Pagination - keep current content visible
   }
 
   /**
