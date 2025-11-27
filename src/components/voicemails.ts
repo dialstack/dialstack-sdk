@@ -289,29 +289,24 @@ export class VoicemailsComponent extends BaseComponent {
 
   /**
    * Toggle expand/collapse for a voicemail
-   * Uses DOM manipulation instead of re-render for smooth CSS transitions
    */
   private toggleExpand(voicemailId: string): void {
     if (!this.shadowRoot) return;
-
-    const clickedItem = this.shadowRoot.querySelector(`.voicemail-item[data-id="${voicemailId}"]`);
 
     if (this.expandedId === voicemailId) {
       // Collapse current item
       this.stopAudio();
       this.expandedId = null;
-      clickedItem?.classList.remove('expanded');
+      this.render();
     } else {
-      // Collapse previously expanded item
+      // Stop any playing audio from previously expanded item
       if (this.expandedId) {
-        const prevItem = this.shadowRoot.querySelector(`.voicemail-item[data-id="${this.expandedId}"]`);
-        prevItem?.classList.remove('expanded');
         this.stopAudio();
       }
 
       // Expand new item
       this.expandedId = voicemailId;
-      clickedItem?.classList.add('expanded');
+      this.render();
 
       // Fire callback
       this._onVoicemailSelect?.({ voicemailId });
@@ -402,7 +397,7 @@ export class VoicemailsComponent extends BaseComponent {
    * Update progress bar UI without full re-render
    */
   private updateProgressUI(): void {
-    if (!this.shadowRoot) return;
+    if (!this.shadowRoot || !this.expandedId) return;
 
     const progressFill = this.shadowRoot.querySelector('.progress-fill') as HTMLElement;
     const progressHandle = this.shadowRoot.querySelector('.progress-handle') as HTMLElement;
@@ -429,7 +424,7 @@ export class VoicemailsComponent extends BaseComponent {
    * Update play button UI without full re-render
    */
   private updatePlayButtonUI(): void {
-    if (!this.shadowRoot) return;
+    if (!this.shadowRoot || !this.expandedId) return;
 
     const playBtn = this.shadowRoot.querySelector('.play-btn');
     if (playBtn) {
@@ -870,12 +865,7 @@ export class VoicemailsComponent extends BaseComponent {
 
         /* Expanded detail section - replaces collapsed row */
         .voicemail-detail {
-          display: none;
           padding: var(--ds-spacing-lg);
-        }
-
-        .voicemail-item.expanded .voicemail-detail {
-          display: block;
         }
 
         /* Detail rows */
@@ -1250,7 +1240,7 @@ export class VoicemailsComponent extends BaseComponent {
                 <span class="chevron" part="chevron" aria-hidden="true">${this.getIcon('chevronRight')}</span>
               `}
             </div>
-            ${this.renderExpandedDetail(vm)}
+            ${isExpanded ? this.renderExpandedDetail(vm) : ''}
           </div>
         `;
       })
