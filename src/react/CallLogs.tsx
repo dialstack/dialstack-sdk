@@ -12,7 +12,6 @@ import type {
   LoadError,
   CallLog,
   FormattingOptions,
-  PaginationOptions,
   ComponentIcons,
   LayoutVariant,
   CallLogDisplayOptions,
@@ -38,14 +37,9 @@ export interface CallLogsProps {
   dateRange?: DateRange;
 
   /**
-   * Maximum number of call logs to display (default: 20)
+   * Maximum number of call logs per page (default: 20)
    */
   limit?: number;
-
-  /**
-   * Pagination options for configuring page sizes
-   */
-  paginationOptions?: PaginationOptions;
 
   /**
    * Locale for UI strings
@@ -105,11 +99,6 @@ export interface CallLogsProps {
   onLoadError?: (event: LoadError) => void;
 
   /**
-   * Callback when pagination changes
-   */
-  onPageChange?: (event: { offset: number; limit: number }) => void;
-
-  /**
    * Callback when a row is clicked
    */
   onRowClick?: (event: { callId: string; call: CallLog }) => void;
@@ -117,6 +106,9 @@ export interface CallLogsProps {
 
 /**
  * CallLogs component displays a list of call logs for the authenticated account
+ *
+ * Uses URL-based pagination with previous/next navigation. The component automatically
+ * handles pagination state internally using the API's next_page_url and previous_page_url.
  *
  * Must be used within a DialstackComponentsProvider.
  *
@@ -137,7 +129,6 @@ export const CallLogs: React.FC<CallLogsProps> = ({
   style,
   dateRange,
   limit,
-  paginationOptions,
   locale,
   formatting,
   icons,
@@ -147,7 +138,6 @@ export const CallLogs: React.FC<CallLogsProps> = ({
   customRowRenderer,
   onLoaderStart,
   onLoadError,
-  onPageChange,
   onRowClick,
 }) => {
   const { dialstack } = useDialstackComponents();
@@ -156,7 +146,6 @@ export const CallLogs: React.FC<CallLogsProps> = ({
   // Sync data props to Web Component (type-safe callbacks)
   useUpdateWithSetter(componentInstance, dateRange, (comp, val) => comp.setDateRange(val));
   useUpdateWithSetter(componentInstance, limit, (comp, val) => comp.setLimit(val));
-  useUpdateWithSetter(componentInstance, paginationOptions, (comp, val) => comp.setPaginationOptions(val));
 
   // Sync configuration props
   useUpdateWithSetter(componentInstance, locale, (comp, val) => comp.setLocale(val));
@@ -170,7 +159,6 @@ export const CallLogs: React.FC<CallLogsProps> = ({
   // Sync callbacks to Web Component
   useUpdateWithSetter(componentInstance, onLoaderStart, (comp, val) => comp.setOnLoaderStart(val));
   useUpdateWithSetter(componentInstance, onLoadError, (comp, val) => comp.setOnLoadError(val));
-  useUpdateWithSetter(componentInstance, onPageChange, (comp, val) => comp.setOnPageChange(val));
   useUpdateWithSetter(componentInstance, onRowClick, (comp, val) => comp.setOnRowClick(val));
 
   return <div ref={containerRef} className={className} style={style} />;

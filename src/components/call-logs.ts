@@ -698,6 +698,14 @@ export class CallLogsComponent extends BaseComponent {
     this.dateRange = dateRange;
     this.loadData();
   }
+
+  /**
+   * Set page size limit (for React integration)
+   */
+  setLimit(limit: number): void {
+    this.limit = limit;
+    this.loadData();
+  }
 }
 
 // Register the custom element

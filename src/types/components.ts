@@ -283,11 +283,8 @@ export interface CallLogsElement extends Omit<BaseComponentElement, 'setClasses'
   setClasses: (classes: CallLogsClasses) => void;
   setDateRange: (dateRange: { start?: string; end?: string }) => void;
   setLimit: (limit: number) => void;
-  setOffset: (offset: number) => void;
-  setPaginationOptions: (options: PaginationOptions) => void;
   setDisplayOptions: (options: CallLogDisplayOptions) => void;
   setCustomRowRenderer: (renderer: CallLogRowRenderer | undefined) => void;
-  setOnPageChange: (callback: (event: { offset: number; limit: number }) => void) => void;
   setOnRowClick: (callback: (event: { callId: string; call: CallLog }) => void) => void;
 }
 
