@@ -689,7 +689,7 @@ export class CallLogsComponent extends BaseComponent {
     if (!this.hasPrevious || !this.currentPageFirstCursor) return;
 
     // Pop the last cursor from history
-    const previousPageFirstCursor = this.pageHistory.pop();
+    this.pageHistory.pop();
 
     // Load page using ending_before
     await this.loadPage(undefined, this.currentPageFirstCursor);
