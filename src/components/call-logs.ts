@@ -6,20 +6,19 @@ import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenu
 import { BaseComponent } from './base-component';
 import type {
   CallLog,
-  PaginationOptions,
   CallLogDisplayOptions,
   CallLogRowRenderer,
   CallLogsClasses,
 } from '../core/types';
 
 /**
- * API response structure
+ * API response structure (cursor-based pagination)
  */
 interface CallLogsResponse {
-  calls: CallLog[];
-  count: number;
-  limit: number;
-  offset: number;
+  object: 'list';
+  url: string;
+  has_more: boolean;
+  data: CallLog[];
 }
 
 /**
@@ -36,19 +35,18 @@ export interface DateRange {
 export class CallLogsComponent extends BaseComponent {
   private dateRange?: DateRange;
   private limit: number = 20;
-  private offset: number = 0;
-  private totalCount: number = 0;
 
   private isLoading: boolean = false;
-  private isPaginating: boolean = false; // For pagination without full loading state
+  private isPaginating: boolean = false;
   private error: string | null = null;
   private callLogs: CallLog[] = [];
 
-  // Pagination configuration
-  private _paginationOptions: PaginationOptions = {
-    pageSizes: [10, 20, 50, 100],
-    defaultPageSize: 20,
-  };
+  // Cursor-based pagination state
+  private hasMore: boolean = false;
+  private hasPrevious: boolean = false;
+  private currentPageFirstCursor: string | null = null; // First item ID on current page
+  private currentPageLastCursor: string | null = null; // Last item ID on current page
+  private pageHistory: string[] = []; // Stack of first cursors for previous pages
 
   // Display options
   private displayOptions: Required<CallLogDisplayOptions> = {
@@ -67,7 +65,6 @@ export class CallLogsComponent extends BaseComponent {
   protected override classes: CallLogsClasses = {};
 
   // Callbacks
-  private _onPageChange?: (event: { offset: number; limit: number }) => void;
   private _onRowClick?: (event: { callId: string; call: CallLog }) => void;
 
   protected initialize(): void {
@@ -82,31 +79,10 @@ export class CallLogsComponent extends BaseComponent {
   // ============================================================================
 
   /**
-   * Set callback for page change events
-   */
-  setOnPageChange(callback: (event: { offset: number; limit: number }) => void): void {
-    this._onPageChange = callback;
-  }
-
-  /**
    * Set callback for row click events
    */
   setOnRowClick(callback: (event: { callId: string; call: CallLog }) => void): void {
     this._onRowClick = callback;
-  }
-
-  /**
-   * Set pagination options
-   */
-  setPaginationOptions(options: PaginationOptions): void {
-    this._paginationOptions = { ...this._paginationOptions, ...options };
-    // Update limit if default page size changed and limit matches old default
-    if (options.defaultPageSize && this.limit === 20) {
-      this.limit = options.defaultPageSize;
-    }
-    if (this.isInitialized) {
-      this.render();
-    }
   }
 
   /**
@@ -144,10 +120,22 @@ export class CallLogsComponent extends BaseComponent {
   // ============================================================================
 
   /**
-   * Load call logs from API
-   * @param isPagination - If true, shows subtle loading state instead of replacing content
+   * Load call logs from API (initial load - resets pagination)
    */
-  private async loadData(isPagination: boolean = false): Promise<void> {
+  private async loadData(): Promise<void> {
+    // Reset pagination state
+    this.pageHistory = [];
+    this.hasPrevious = false;
+    this.currentPageFirstCursor = null;
+    this.currentPageLastCursor = null;
+
+    await this.loadPage();
+  }
+
+  /**
+   * Load a specific page using cursors
+   */
+  private async loadPage(startingAfter?: string, endingBefore?: string): Promise<void> {
     if (!this.instance) {
       this.error = this.t('common.error');
       this.render();
@@ -156,11 +144,10 @@ export class CallLogsComponent extends BaseComponent {
 
     this._onLoaderStart?.({ elementTagName: 'dialstack-call-logs' });
 
-    // For pagination, keep current data visible with subtle loading indicator
-    // For initial load, show full loading state
-    if (isPagination && this.callLogs.length > 0) {
+    // Show loading state
+    if (this.callLogs.length > 0) {
       this.isPaginating = true;
-      this.updatePaginationState(); // Update UI without full re-render
+      this.updatePaginationState();
     } else {
       this.isLoading = true;
       this.error = null;
@@ -170,8 +157,13 @@ export class CallLogsComponent extends BaseComponent {
     try {
       const params = new URLSearchParams({
         limit: this.limit.toString(),
-        offset: this.offset.toString(),
       });
+
+      if (startingAfter) {
+        params.set('starting_after', startingAfter);
+      } else if (endingBefore) {
+        params.set('ending_before', endingBefore);
+      }
 
       if (this.dateRange?.start) {
         params.set('from', this.dateRange.start);
@@ -181,15 +173,25 @@ export class CallLogsComponent extends BaseComponent {
       }
 
       const data = await this.fetchComponentData<CallLogsResponse>(`/v1/calls?${params}`);
-      this.callLogs = data.calls || [];
-      this.totalCount = data.count || 0;
+      this.callLogs = data.data || [];
+      this.hasMore = data.has_more || false;
+
+      // Update cursors for current page
+      if (this.callLogs.length > 0) {
+        this.currentPageFirstCursor = this.callLogs[0].id;
+        this.currentPageLastCursor = this.callLogs[this.callLogs.length - 1].id;
+      } else {
+        this.currentPageFirstCursor = null;
+        this.currentPageLastCursor = null;
+      }
+
       this.error = null;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : this.t('callLogs.loading');
       this.error = errorMessage;
       this._onLoadError?.({ error: errorMessage, elementTagName: 'dialstack-call-logs' });
       this.callLogs = [];
-      this.totalCount = 0;
+      this.hasMore = false;
     } finally {
       this.isLoading = false;
       this.isPaginating = false;
@@ -211,11 +213,9 @@ export class CallLogsComponent extends BaseComponent {
     // Disable pagination buttons while loading
     const prevBtn = this.shadowRoot.getElementById('prev-btn') as HTMLButtonElement;
     const nextBtn = this.shadowRoot.getElementById('next-btn') as HTMLButtonElement;
-    const pageSizeSelect = this.shadowRoot.getElementById('page-size') as HTMLSelectElement;
 
     if (prevBtn) prevBtn.disabled = true;
     if (nextBtn) nextBtn.disabled = true;
-    if (pageSizeSelect) pageSizeSelect.disabled = true;
   }
 
   // ============================================================================
@@ -354,17 +354,6 @@ export class CallLogsComponent extends BaseComponent {
           line-height: var(--ds-line-height);
         }
 
-        /* Subtle loading state during pagination */
-        .container.is-paginating .table-container {
-          opacity: 0.6;
-          pointer-events: none;
-          transition: opacity 0.15s ease;
-        }
-
-        .container.is-paginating .pagination {
-          opacity: 0.6;
-          pointer-events: none;
-        }
 
         .loading,
         .error,
@@ -474,6 +463,18 @@ export class CallLogsComponent extends BaseComponent {
           color: var(--ds-color-text-secondary);
         }
 
+        /* Subtle loading state during pagination */
+        .container.is-paginating .table-container {
+          opacity: 0.6;
+          pointer-events: none;
+          transition: opacity 0.15s ease;
+        }
+
+        .container.is-paginating .pagination {
+          opacity: 0.6;
+          pointer-events: none;
+        }
+
         .pagination {
           display: flex;
           align-items: center;
@@ -518,28 +519,6 @@ export class CallLogsComponent extends BaseComponent {
           width: 1em;
           height: 1em;
           vertical-align: middle;
-        }
-
-        .page-size-selector {
-          display: flex;
-          align-items: center;
-          gap: var(--ds-spacing-sm);
-          font-size: var(--ds-font-size-base);
-          color: var(--ds-color-text-secondary);
-        }
-
-        .page-size-select {
-          padding: var(--ds-spacing-xs) var(--ds-spacing-sm);
-          font-size: var(--ds-font-size-base);
-          border: 1px solid var(--ds-color-border);
-          border-radius: var(--ds-border-radius);
-          background: var(--ds-color-background);
-          color: var(--ds-color-text);
-          cursor: pointer;
-        }
-
-        .page-size-select:hover {
-          border-color: var(--ds-color-border);
         }
       </style>
 
@@ -623,13 +602,6 @@ export class CallLogsComponent extends BaseComponent {
       })
       .join('');
 
-    const totalPages = Math.ceil(this.totalCount / this.limit);
-    const startItem = this.offset + 1;
-    const endItem = Math.min(this.offset + this.limit, this.totalCount);
-
-    const hasPrev = this.offset > 0;
-    const hasNext = this.offset + this.limit < this.totalCount;
-
     return `
       <div class="table-container" part="table-container">
         <table role="grid" aria-label="${this.t('callLogs.title')}" part="table" class="${this.classes.table || ''}">
@@ -649,31 +621,17 @@ export class CallLogsComponent extends BaseComponent {
         </table>
       </div>
       <nav class="pagination ${this.classes.pagination || ''}" part="pagination" aria-label="Pagination">
-        <span class="pagination-info" part="pagination-info" aria-live="polite">
-          ${this.t('common.showing', { start: startItem, end: endItem, total: this.totalCount })}
-        </span>
-        <div class="page-size-selector" part="page-size-selector">
-          <label for="page-size">${this.t('common.perPage')}:</label>
-          <select id="page-size" class="page-size-select" part="page-size-select" aria-label="${this.t('common.perPage')}">
-            ${(this._paginationOptions.pageSizes || [10, 20, 50, 100])
-              .map((size) => `<option value="${size}" ${this.limit === size ? 'selected' : ''}>${size}</option>`)
-              .join('')}
-          </select>
+        <div class="pagination-info" part="pagination-info" aria-live="polite">
+          ${this.t('common.showing')} ${this.callLogs.length} ${this.t('common.items')}
         </div>
-        ${
-          totalPages > 1
-            ? `
-          <div class="pagination-buttons" part="pagination-buttons">
-            <button class="pagination-btn" part="pagination-button prev-button" id="prev-btn" ${hasPrev ? '' : 'disabled'} aria-label="${this.t('common.previous')}">
-              ${this.getIcon('chevronLeft')} ${this.t('common.previous')}
-            </button>
-            <button class="pagination-btn" part="pagination-button next-button" id="next-btn" ${hasNext ? '' : 'disabled'} aria-label="${this.t('common.next')}">
-              ${this.t('common.next')} ${this.getIcon('chevronRight')}
-            </button>
-          </div>
-        `
-            : ''
-        }
+        <div class="pagination-buttons" part="pagination-buttons">
+          <button class="pagination-btn" part="pagination-button prev-button" id="prev-btn" ${!this.hasPrevious ? 'disabled' : ''} aria-label="${this.t('common.previous')}">
+            ${this.getIcon('chevronLeft')} ${this.t('common.previous')}
+          </button>
+          <button class="pagination-btn" part="pagination-button next-button" id="next-btn" ${!this.hasMore ? 'disabled' : ''} aria-label="${this.t('common.next')}">
+            ${this.t('common.next')} ${this.getIcon('chevronRight')}
+          </button>
+        </div>
       </nav>
     `;
   }
@@ -691,13 +649,9 @@ export class CallLogsComponent extends BaseComponent {
     // Pagination buttons
     const prevBtn = this.shadowRoot.getElementById('prev-btn');
     const nextBtn = this.shadowRoot.getElementById('next-btn');
-    const pageSizeSelect = this.shadowRoot.getElementById('page-size') as HTMLSelectElement;
 
     prevBtn?.addEventListener('click', () => this.goToPreviousPage());
     nextBtn?.addEventListener('click', () => this.goToNextPage());
-    pageSizeSelect?.addEventListener('change', () =>
-      this.changePageSize(parseInt(pageSizeSelect.value, 10))
-    );
 
     // Row click handlers
     const rows = this.shadowRoot.querySelectorAll('tbody tr[data-call-id]');
@@ -729,35 +683,35 @@ export class CallLogsComponent extends BaseComponent {
   }
 
   /**
-   * Navigate to previous page
+   * Navigate to previous page (using ending_before cursor)
    */
-  private goToPreviousPage(): void {
-    if (this.offset > 0) {
-      this.offset = Math.max(0, this.offset - this.limit);
-      this._onPageChange?.({ offset: this.offset, limit: this.limit });
-      this.loadData(true); // Pagination - keep current content visible
-    }
+  private async goToPreviousPage(): Promise<void> {
+    if (!this.hasPrevious || !this.currentPageFirstCursor) return;
+
+    // Pop the last cursor from history
+    const previousPageFirstCursor = this.pageHistory.pop();
+
+    // Load page using ending_before
+    await this.loadPage(undefined, this.currentPageFirstCursor);
+
+    // Update hasPrevious based on remaining history
+    this.hasPrevious = this.pageHistory.length > 0;
   }
 
   /**
-   * Navigate to next page
+   * Navigate to next page (using starting_after cursor)
    */
-  private goToNextPage(): void {
-    if (this.offset + this.limit < this.totalCount) {
-      this.offset += this.limit;
-      this._onPageChange?.({ offset: this.offset, limit: this.limit });
-      this.loadData(true); // Pagination - keep current content visible
-    }
-  }
+  private async goToNextPage(): Promise<void> {
+    if (!this.hasMore || !this.currentPageLastCursor) return;
 
-  /**
-   * Change page size and reload from first page
-   */
-  private changePageSize(newLimit: number): void {
-    this.limit = newLimit;
-    this.offset = 0;
-    this._onPageChange?.({ offset: this.offset, limit: this.limit });
-    this.loadData(true); // Pagination - keep current content visible
+    // Save current page's first cursor to history
+    if (this.currentPageFirstCursor) {
+      this.pageHistory.push(this.currentPageFirstCursor);
+      this.hasPrevious = true;
+    }
+
+    // Load page using starting_after
+    await this.loadPage(this.currentPageLastCursor);
   }
 
   /**
@@ -765,22 +719,6 @@ export class CallLogsComponent extends BaseComponent {
    */
   setDateRange(dateRange: DateRange): void {
     this.dateRange = dateRange;
-    this.loadData();
-  }
-
-  /**
-   * Set limit and reload data (for React integration)
-   */
-  setLimit(limit: number): void {
-    this.limit = limit;
-    this.loadData();
-  }
-
-  /**
-   * Set offset for pagination (for React integration)
-   */
-  setOffset(offset: number): void {
-    this.offset = offset;
     this.loadData();
   }
 }

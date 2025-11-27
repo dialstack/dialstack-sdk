@@ -27,10 +27,13 @@ interface Voicemail {
 }
 
 /**
- * API response structure
+ * API response structure (cursor-based pagination)
  */
 interface VoicemailsResponse {
-  voicemails: Voicemail[];
+  object: 'list';
+  url: string;
+  has_more: boolean;
+  data: Voicemail[];
 }
 
 /**
@@ -39,8 +42,11 @@ interface VoicemailsResponse {
 export class VoicemailsComponent extends BaseComponent {
   private userId: string | null = null;
   private isLoading: boolean = false;
+  private isLoadingMore: boolean = false;
   private error: string | null = null;
   private voicemails: Voicemail[] = [];
+  private hasMore: boolean = false;
+  private lastCursor: string | null = null;
 
   // Expandable state
   private expandedId: string | null = null;
@@ -197,7 +203,7 @@ export class VoicemailsComponent extends BaseComponent {
   // ============================================================================
 
   /**
-   * Load voicemails from API
+   * Load voicemails from API (initial load)
    */
   private async loadData(): Promise<void> {
     if (!this.instance) {
@@ -215,20 +221,81 @@ export class VoicemailsComponent extends BaseComponent {
     this._onLoaderStart?.({ elementTagName: 'dialstack-voicemails' });
     this.isLoading = true;
     this.error = null;
+    this.voicemails = [];
+    this.lastCursor = null;
+    this.hasMore = false;
     this.render();
 
     try {
-      const data = await this.fetchComponentData<VoicemailsResponse>(`/v1/users/${this.userId}/voicemails`);
-      this.voicemails = data.voicemails || [];
+      const params = new URLSearchParams({ limit: '20' });
+      const data = await this.fetchComponentData<VoicemailsResponse>(`/v1/users/${this.userId}/voicemails?${params}`);
+      this.voicemails = data.data || [];
+      this.hasMore = data.has_more || false;
+
+      // Set cursor to last item's ID if there are results
+      if (this.voicemails.length > 0) {
+        this.lastCursor = this.voicemails[this.voicemails.length - 1].id;
+      }
+
       this.error = null;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : this.t('voicemails.loading');
       this.error = errorMessage;
       this._onLoadError?.({ error: errorMessage, elementTagName: 'dialstack-voicemails' });
       this.voicemails = [];
+      this.hasMore = false;
     } finally {
       this.isLoading = false;
       this.render();
+    }
+  }
+
+  /**
+   * Load more voicemails (cursor-based pagination)
+   */
+  private async loadMore(): Promise<void> {
+    if (!this.instance || !this.userId || !this.hasMore || !this.lastCursor || this.isLoadingMore) {
+      return;
+    }
+
+    this.isLoadingMore = true;
+    this.updateLoadMoreState();
+
+    try {
+      const params = new URLSearchParams({
+        limit: '20',
+        starting_after: this.lastCursor,
+      });
+
+      const data = await this.fetchComponentData<VoicemailsResponse>(`/v1/users/${this.userId}/voicemails?${params}`);
+
+      // Append new results to existing list
+      this.voicemails = [...this.voicemails, ...(data.data || [])];
+      this.hasMore = data.has_more || false;
+
+      // Update cursor to last item's ID
+      if (data.data && data.data.length > 0) {
+        this.lastCursor = data.data[data.data.length - 1].id;
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : this.t('voicemails.loading');
+      this._onLoadError?.({ error: errorMessage, elementTagName: 'dialstack-voicemails' });
+    } finally {
+      this.isLoadingMore = false;
+      this.render();
+    }
+  }
+
+  /**
+   * Update load more button state without full re-render
+   */
+  private updateLoadMoreState(): void {
+    if (!this.shadowRoot) return;
+
+    const loadMoreBtn = this.shadowRoot.getElementById('load-more-btn') as HTMLButtonElement;
+    if (loadMoreBtn) {
+      loadMoreBtn.disabled = this.isLoadingMore;
+      loadMoreBtn.textContent = this.isLoadingMore ? this.t('common.loading') : this.t('common.loadMore');
     }
   }
 
@@ -1205,7 +1272,23 @@ export class VoicemailsComponent extends BaseComponent {
       })
       .join('');
 
-    return `<div class="voicemail-list ${this.classes.list || ''}" part="voicemail-list" role="list" aria-label="${this.t('voicemails.title')}">${items}</div>`;
+    return `
+      <div class="voicemail-list ${this.classes.list || ''}" part="voicemail-list" role="list" aria-label="${this.t('voicemails.title')}">
+        ${items}
+      </div>
+      ${this.hasMore ? `
+      <div class="load-more-container" part="load-more-container">
+        <button
+          id="load-more-btn"
+          class="load-more-btn"
+          part="load-more-button"
+          aria-label="${this.t('common.loadMore')}"
+          ${this.isLoadingMore ? 'disabled' : ''}>
+          ${this.isLoadingMore ? this.t('common.loading') : this.t('common.loadMore')}
+        </button>
+      </div>
+      ` : ''}
+    `;
   }
 
   /**
@@ -1299,6 +1382,10 @@ export class VoicemailsComponent extends BaseComponent {
    */
   private attachEventListeners(): void {
     if (!this.shadowRoot) return;
+
+    // Load more button
+    const loadMoreBtn = this.shadowRoot.getElementById('load-more-btn');
+    loadMoreBtn?.addEventListener('click', () => this.loadMore());
 
     // Item click to expand/collapse (works on both collapsed row and expanded detail header)
     const items = this.shadowRoot.querySelectorAll('.voicemail-item');
