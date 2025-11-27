@@ -130,8 +130,7 @@ export interface AccountUpdateParams {
 
 export interface AccountListParams {
   limit?: number;
-  starting_after?: string;
-  ending_before?: string;
+  page?: string;
 }
 
 export interface User {
@@ -155,8 +154,7 @@ export interface UserUpdateParams {
 
 export interface UserListParams {
   limit?: number;
-  starting_after?: string;
-  ending_before?: string;
+  page?: string;
 }
 
 export interface AccountSessionCreateParams {
@@ -174,8 +172,11 @@ export interface AccountSessionCreateResponse {
 }
 
 interface ListResponse<T> {
+  object: string;
+  url: string;
+  next_page_url: string | null;
+  previous_page_url: string | null;
   data: T[];
-  has_more: boolean;
 }
 
 // ============================================================================
@@ -187,9 +188,9 @@ export interface PaginatedList<T> extends Promise<ListResponse<T>> {
   autoPagingToArray(options?: { limit?: number }): Promise<T[]>;
 }
 
-function createPaginatedList<T extends { id: string }>(
+function createPaginatedList<T>(
   firstPagePromise: Promise<ListResponse<T>>,
-  fetchNextPage: (startingAfter: string) => Promise<ListResponse<T>>
+  fetchNextPage: (url: string) => Promise<ListResponse<T>>
 ): PaginatedList<T> {
   const paginatedList = firstPagePromise as PaginatedList<T>;
 
@@ -200,9 +201,8 @@ function createPaginatedList<T extends { id: string }>(
       yield item;
     }
 
-    while (response.has_more && response.data.length > 0) {
-      const lastId = response.data[response.data.length - 1].id;
-      response = await fetchNextPage(lastId);
+    while (response.next_page_url) {
+      response = await fetchNextPage(response.next_page_url);
       for (const item of response.data) {
         yield item;
       }
@@ -522,18 +522,13 @@ export class DialStack {
     list: (params?: AccountListParams, options?: RequestOptions): PaginatedList<Account> => {
       const queryParams = new URLSearchParams();
       if (params?.limit) queryParams.set('limit', String(params.limit));
-      if (params?.starting_after) queryParams.set('starting_after', params.starting_after);
-      if (params?.ending_before) queryParams.set('ending_before', params.ending_before);
+      if (params?.page) queryParams.set('page', params.page);
 
       const query = queryParams.toString();
       const path = `/v1/accounts${query ? `?${query}` : ''}`;
 
-      const fetchPage = (startingAfter?: string): Promise<ListResponse<Account>> => {
-        const pageParams = new URLSearchParams();
-        if (params?.limit) pageParams.set('limit', String(params.limit));
-        if (startingAfter) pageParams.set('starting_after', startingAfter);
-        const pagePath = `/v1/accounts?${pageParams.toString()}`;
-        return this._request('GET', pagePath, undefined, options);
+      const fetchPage = (url: string): Promise<ListResponse<Account>> => {
+        return this._request('GET', url, undefined, options);
       };
 
       return createPaginatedList(
@@ -596,18 +591,13 @@ export class DialStack {
     ): PaginatedList<User> => {
       const queryParams = new URLSearchParams();
       if (params?.limit) queryParams.set('limit', String(params.limit));
-      if (params?.starting_after) queryParams.set('starting_after', params.starting_after);
-      if (params?.ending_before) queryParams.set('ending_before', params.ending_before);
+      if (params?.page) queryParams.set('page', params.page);
 
       const query = queryParams.toString();
       const path = `/v1/users${query ? `?${query}` : ''}`;
 
-      const fetchPage = (startingAfter?: string): Promise<ListResponse<User>> => {
-        const pageParams = new URLSearchParams();
-        if (params?.limit) pageParams.set('limit', String(params.limit));
-        if (startingAfter) pageParams.set('starting_after', startingAfter);
-        const pagePath = `/v1/users?${pageParams.toString()}`;
-        return this._request('GET', pagePath, undefined, { ...options, accountId });
+      const fetchPage = (url: string): Promise<ListResponse<User>> => {
+        return this._request('GET', url, undefined, { ...options, accountId });
       };
 
       return createPaginatedList(

@@ -12,12 +12,13 @@ import type {
 } from '../core/types';
 
 /**
- * API response structure (cursor-based pagination)
+ * API response structure (URL-based pagination)
  */
 interface CallLogsResponse {
   object: 'list';
   url: string;
-  has_more: boolean;
+  next_page_url: string | null;
+  previous_page_url: string | null;
   data: CallLog[];
 }
 
@@ -41,12 +42,9 @@ export class CallLogsComponent extends BaseComponent {
   private error: string | null = null;
   private callLogs: CallLog[] = [];
 
-  // Cursor-based pagination state
-  private hasMore: boolean = false;
-  private hasPrevious: boolean = false;
-  private currentPageFirstCursor: string | null = null; // First item ID on current page
-  private currentPageLastCursor: string | null = null; // Last item ID on current page
-  private pageHistory: string[] = []; // Stack of first cursors for previous pages
+  // URL-based pagination state
+  private nextPageUrl: string | null = null;
+  private previousPageUrl: string | null = null;
 
   // Display options
   private displayOptions: Required<CallLogDisplayOptions> = {
@@ -124,18 +122,16 @@ export class CallLogsComponent extends BaseComponent {
    */
   private async loadData(): Promise<void> {
     // Reset pagination state
-    this.pageHistory = [];
-    this.hasPrevious = false;
-    this.currentPageFirstCursor = null;
-    this.currentPageLastCursor = null;
+    this.nextPageUrl = null;
+    this.previousPageUrl = null;
 
     await this.loadPage();
   }
 
   /**
-   * Load a specific page using cursors
+   * Load a specific page using URL
    */
-  private async loadPage(startingAfter?: string, endingBefore?: string): Promise<void> {
+  private async loadPage(pageUrl?: string): Promise<void> {
     if (!this.instance) {
       this.error = this.t('common.error');
       this.render();
@@ -155,35 +151,31 @@ export class CallLogsComponent extends BaseComponent {
     }
 
     try {
-      const params = new URLSearchParams({
-        limit: this.limit.toString(),
-      });
+      let url: string;
 
-      if (startingAfter) {
-        params.set('starting_after', startingAfter);
-      } else if (endingBefore) {
-        params.set('ending_before', endingBefore);
-      }
-
-      if (this.dateRange?.start) {
-        params.set('from', this.dateRange.start);
-      }
-      if (this.dateRange?.end) {
-        params.set('to', this.dateRange.end);
-      }
-
-      const data = await this.fetchComponentData<CallLogsResponse>(`/v1/calls?${params}`);
-      this.callLogs = data.data || [];
-      this.hasMore = data.has_more || false;
-
-      // Update cursors for current page
-      if (this.callLogs.length > 0) {
-        this.currentPageFirstCursor = this.callLogs[0].id;
-        this.currentPageLastCursor = this.callLogs[this.callLogs.length - 1].id;
+      if (pageUrl) {
+        // Use provided page URL directly
+        url = pageUrl;
       } else {
-        this.currentPageFirstCursor = null;
-        this.currentPageLastCursor = null;
+        // Initial page: build URL with filters
+        const params = new URLSearchParams({
+          limit: this.limit.toString(),
+        });
+
+        if (this.dateRange?.start) {
+          params.set('from', this.dateRange.start);
+        }
+        if (this.dateRange?.end) {
+          params.set('to', this.dateRange.end);
+        }
+
+        url = `/v1/calls?${params}`;
       }
+
+      const data = await this.fetchComponentData<CallLogsResponse>(url);
+      this.callLogs = data.data || [];
+      this.nextPageUrl = data.next_page_url;
+      this.previousPageUrl = data.previous_page_url;
 
       this.error = null;
     } catch (err) {
@@ -191,7 +183,8 @@ export class CallLogsComponent extends BaseComponent {
       this.error = errorMessage;
       this._onLoadError?.({ error: errorMessage, elementTagName: 'dialstack-call-logs' });
       this.callLogs = [];
-      this.hasMore = false;
+      this.nextPageUrl = null;
+      this.previousPageUrl = null;
     } finally {
       this.isLoading = false;
       this.isPaginating = false;
@@ -625,10 +618,10 @@ export class CallLogsComponent extends BaseComponent {
           ${this.t('common.showing')} ${this.callLogs.length} ${this.t('common.items')}
         </div>
         <div class="pagination-buttons" part="pagination-buttons">
-          <button class="pagination-btn" part="pagination-button prev-button" id="prev-btn" ${!this.hasPrevious ? 'disabled' : ''} aria-label="${this.t('common.previous')}">
+          <button class="pagination-btn" part="pagination-button prev-button" id="prev-btn" ${!this.previousPageUrl ? 'disabled' : ''} aria-label="${this.t('common.previous')}">
             ${this.getIcon('chevronLeft')} ${this.t('common.previous')}
           </button>
-          <button class="pagination-btn" part="pagination-button next-button" id="next-btn" ${!this.hasMore ? 'disabled' : ''} aria-label="${this.t('common.next')}">
+          <button class="pagination-btn" part="pagination-button next-button" id="next-btn" ${!this.nextPageUrl ? 'disabled' : ''} aria-label="${this.t('common.next')}">
             ${this.t('common.next')} ${this.getIcon('chevronRight')}
           </button>
         </div>
@@ -683,35 +676,19 @@ export class CallLogsComponent extends BaseComponent {
   }
 
   /**
-   * Navigate to previous page (using ending_before cursor)
+   * Navigate to previous page using URL
    */
   private async goToPreviousPage(): Promise<void> {
-    if (!this.hasPrevious || !this.currentPageFirstCursor) return;
-
-    // Pop the last cursor from history
-    this.pageHistory.pop();
-
-    // Load page using ending_before
-    await this.loadPage(undefined, this.currentPageFirstCursor);
-
-    // Update hasPrevious based on remaining history
-    this.hasPrevious = this.pageHistory.length > 0;
+    if (!this.previousPageUrl) return;
+    await this.loadPage(this.previousPageUrl);
   }
 
   /**
-   * Navigate to next page (using starting_after cursor)
+   * Navigate to next page using URL
    */
   private async goToNextPage(): Promise<void> {
-    if (!this.hasMore || !this.currentPageLastCursor) return;
-
-    // Save current page's first cursor to history
-    if (this.currentPageFirstCursor) {
-      this.pageHistory.push(this.currentPageFirstCursor);
-      this.hasPrevious = true;
-    }
-
-    // Load page using starting_after
-    await this.loadPage(this.currentPageLastCursor);
+    if (!this.nextPageUrl) return;
+    await this.loadPage(this.nextPageUrl);
   }
 
   /**

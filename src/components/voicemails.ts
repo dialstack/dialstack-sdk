@@ -27,12 +27,13 @@ interface Voicemail {
 }
 
 /**
- * API response structure (cursor-based pagination)
+ * API response structure (URL-based pagination)
  */
 interface VoicemailsResponse {
   object: 'list';
   url: string;
-  has_more: boolean;
+  next_page_url: string | null;
+  previous_page_url: string | null;
   data: Voicemail[];
 }
 
@@ -45,8 +46,7 @@ export class VoicemailsComponent extends BaseComponent {
   private isLoadingMore: boolean = false;
   private error: string | null = null;
   private voicemails: Voicemail[] = [];
-  private hasMore: boolean = false;
-  private lastCursor: string | null = null;
+  private nextPageUrl: string | null = null;
 
   // Expandable state
   private expandedId: string | null = null;
@@ -222,20 +222,14 @@ export class VoicemailsComponent extends BaseComponent {
     this.isLoading = true;
     this.error = null;
     this.voicemails = [];
-    this.lastCursor = null;
-    this.hasMore = false;
+    this.nextPageUrl = null;
     this.render();
 
     try {
       const params = new URLSearchParams({ limit: '20' });
       const data = await this.fetchComponentData<VoicemailsResponse>(`/v1/users/${this.userId}/voicemails?${params}`);
       this.voicemails = data.data || [];
-      this.hasMore = data.has_more || false;
-
-      // Set cursor to last item's ID if there are results
-      if (this.voicemails.length > 0) {
-        this.lastCursor = this.voicemails[this.voicemails.length - 1].id;
-      }
+      this.nextPageUrl = data.next_page_url;
 
       this.error = null;
     } catch (err) {
@@ -243,7 +237,7 @@ export class VoicemailsComponent extends BaseComponent {
       this.error = errorMessage;
       this._onLoadError?.({ error: errorMessage, elementTagName: 'dialstack-voicemails' });
       this.voicemails = [];
-      this.hasMore = false;
+      this.nextPageUrl = null;
     } finally {
       this.isLoading = false;
       this.render();
@@ -251,10 +245,10 @@ export class VoicemailsComponent extends BaseComponent {
   }
 
   /**
-   * Load more voicemails (cursor-based pagination)
+   * Load more voicemails using URL
    */
   private async loadMore(): Promise<void> {
-    if (!this.instance || !this.userId || !this.hasMore || !this.lastCursor || this.isLoadingMore) {
+    if (!this.instance || !this.nextPageUrl || this.isLoadingMore) {
       return;
     }
 
@@ -262,21 +256,11 @@ export class VoicemailsComponent extends BaseComponent {
     this.updateLoadMoreState();
 
     try {
-      const params = new URLSearchParams({
-        limit: '20',
-        starting_after: this.lastCursor,
-      });
-
-      const data = await this.fetchComponentData<VoicemailsResponse>(`/v1/users/${this.userId}/voicemails?${params}`);
+      const data = await this.fetchComponentData<VoicemailsResponse>(this.nextPageUrl);
 
       // Append new results to existing list
       this.voicemails = [...this.voicemails, ...(data.data || [])];
-      this.hasMore = data.has_more || false;
-
-      // Update cursor to last item's ID
-      if (data.data && data.data.length > 0) {
-        this.lastCursor = data.data[data.data.length - 1].id;
-      }
+      this.nextPageUrl = data.next_page_url;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : this.t('voicemails.loading');
       this._onLoadError?.({ error: errorMessage, elementTagName: 'dialstack-voicemails' });
@@ -1276,7 +1260,7 @@ export class VoicemailsComponent extends BaseComponent {
       <div class="voicemail-list ${this.classes.list || ''}" part="voicemail-list" role="list" aria-label="${this.t('voicemails.title')}">
         ${items}
       </div>
-      ${this.hasMore ? `
+      ${this.nextPageUrl ? `
       <div class="load-more-container" part="load-more-container">
         <button
           id="load-more-btn"
