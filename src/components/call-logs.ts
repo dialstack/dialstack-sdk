@@ -35,7 +35,7 @@ export interface DateRange {
  */
 export class CallLogsComponent extends BaseComponent {
   private dateRange?: DateRange;
-  private limit: number = 20;
+  private limit: number = 10;
 
   private isLoading: boolean = false;
   private isPaginating: boolean = false;
@@ -45,6 +45,11 @@ export class CallLogsComponent extends BaseComponent {
   // URL-based pagination state
   private nextPageUrl: string | null = null;
   private previousPageUrl: string | null = null;
+
+  // Track total and position for pagination display
+  private estimatedTotal: number | null = null; // null = unknown, number = known count
+  private hasMoreThan100: boolean = false;
+  private currentOffset: number = 0; // Estimated position in result set
 
   // Display options
   private displayOptions: Required<CallLogDisplayOptions> = {
@@ -121,17 +126,71 @@ export class CallLogsComponent extends BaseComponent {
    * Load call logs from API (initial load - resets pagination)
    */
   private async loadData(): Promise<void> {
+    if (!this.instance) {
+      this.error = this.t('common.error');
+      this.render();
+      return;
+    }
+
     // Reset pagination state
     this.nextPageUrl = null;
     this.previousPageUrl = null;
+    this.estimatedTotal = null;
+    this.hasMoreThan100 = false;
+    this.currentOffset = 0;
 
-    await this.loadPage();
+    this.isLoading = true;
+    this.error = null;
+    this.render();
+
+    try {
+      // First, fetch with limit=100 to estimate total count
+      const estimateParams = new URLSearchParams({ limit: '100' });
+      if (this.dateRange?.start) estimateParams.set('from', this.dateRange.start);
+      if (this.dateRange?.end) estimateParams.set('to', this.dateRange.end);
+
+      const estimateData = await this.fetchComponentData<CallLogsResponse>(`/v1/calls?${estimateParams}`);
+
+      // Determine total count
+      const itemCount = estimateData.data?.length || 0;
+      if (itemCount === 100 && estimateData.next_page_url) {
+        // More than 100 items
+        this.hasMoreThan100 = true;
+        this.estimatedTotal = null;
+      } else {
+        // Exact count (less than 100)
+        this.hasMoreThan100 = false;
+        this.estimatedTotal = itemCount;
+      }
+
+      // Now fetch the actual first page with normal limit
+      const params = new URLSearchParams({ limit: this.limit.toString() });
+      if (this.dateRange?.start) params.set('from', this.dateRange.start);
+      if (this.dateRange?.end) params.set('to', this.dateRange.end);
+
+      const pageData = await this.fetchComponentData<CallLogsResponse>(`/v1/calls?${params}`);
+      this.callLogs = pageData.data || [];
+      this.nextPageUrl = pageData.next_page_url;
+      this.previousPageUrl = pageData.previous_page_url;
+
+      this.error = null;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : this.t('callLogs.loading');
+      this.error = errorMessage;
+      this._onLoadError?.({ error: errorMessage, elementTagName: 'dialstack-call-logs' });
+      this.callLogs = [];
+      this.nextPageUrl = null;
+      this.previousPageUrl = null;
+    } finally {
+      this.isLoading = false;
+      this.render();
+    }
   }
 
   /**
    * Load a specific page using URL
    */
-  private async loadPage(pageUrl?: string): Promise<void> {
+  private async loadPage(pageUrl: string): Promise<void> {
     if (!this.instance) {
       this.error = this.t('common.error');
       this.render();
@@ -140,39 +199,13 @@ export class CallLogsComponent extends BaseComponent {
 
     this._onLoaderStart?.({ elementTagName: 'dialstack-call-logs' });
 
-    // Show loading state
-    if (this.callLogs.length > 0) {
-      this.isPaginating = true;
-      this.updatePaginationState();
-    } else {
-      this.isLoading = true;
-      this.error = null;
-      this.render();
-    }
+    // Show pagination loading state
+    this.isPaginating = true;
+    this.updatePaginationState();
 
     try {
-      let url: string;
+      const data = await this.fetchComponentData<CallLogsResponse>(pageUrl);
 
-      if (pageUrl) {
-        // Use provided page URL directly
-        url = pageUrl;
-      } else {
-        // Initial page: build URL with filters
-        const params = new URLSearchParams({
-          limit: this.limit.toString(),
-        });
-
-        if (this.dateRange?.start) {
-          params.set('from', this.dateRange.start);
-        }
-        if (this.dateRange?.end) {
-          params.set('to', this.dateRange.end);
-        }
-
-        url = `/v1/calls?${params}`;
-      }
-
-      const data = await this.fetchComponentData<CallLogsResponse>(url);
       this.callLogs = data.data || [];
       this.nextPageUrl = data.next_page_url;
       this.previousPageUrl = data.previous_page_url;
@@ -186,7 +219,6 @@ export class CallLogsComponent extends BaseComponent {
       this.nextPageUrl = null;
       this.previousPageUrl = null;
     } finally {
-      this.isLoading = false;
       this.isPaginating = false;
       this.render();
     }
@@ -563,6 +595,29 @@ export class CallLogsComponent extends BaseComponent {
   }
 
   /**
+   * Get pagination info text showing current page
+   */
+  private getPaginationInfoText(): string {
+    if (this.callLogs.length === 0) {
+      return this.t('common.noItems');
+    }
+
+    // Calculate range for current page
+    const start = this.currentOffset + 1;
+    const end = this.currentOffset + this.callLogs.length;
+
+    // Show total count or "100+" if there are more than 100 items
+    if (this.hasMoreThan100) {
+      return `${start}-${end} of 100+`;
+    } else if (this.estimatedTotal !== null) {
+      return `${start}-${end} of ${this.estimatedTotal}`;
+    } else {
+      // Fallback to showing just the count
+      return `${this.callLogs.length} ${this.t('common.items')}`;
+    }
+  }
+
+  /**
    * Render the call logs table
    */
   private renderTable(): string {
@@ -615,7 +670,7 @@ export class CallLogsComponent extends BaseComponent {
       </div>
       <nav class="pagination ${this.classes.pagination || ''}" part="pagination" aria-label="Pagination">
         <div class="pagination-info" part="pagination-info" aria-live="polite">
-          ${this.t('common.showing')} ${this.callLogs.length} ${this.t('common.items')}
+          ${this.getPaginationInfoText()}
         </div>
         <div class="pagination-buttons" part="pagination-buttons">
           <button class="pagination-btn" part="pagination-button prev-button" id="prev-btn" ${!this.previousPageUrl ? 'disabled' : ''} aria-label="${this.t('common.previous')}">
@@ -680,6 +735,7 @@ export class CallLogsComponent extends BaseComponent {
    */
   private async goToPreviousPage(): Promise<void> {
     if (!this.previousPageUrl) return;
+    this.currentOffset = Math.max(0, this.currentOffset - this.limit);
     await this.loadPage(this.previousPageUrl);
   }
 
@@ -688,6 +744,7 @@ export class CallLogsComponent extends BaseComponent {
    */
   private async goToNextPage(): Promise<void> {
     if (!this.nextPageUrl) return;
+    this.currentOffset += this.limit;
     await this.loadPage(this.nextPageUrl);
   }
 
