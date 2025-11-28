@@ -157,6 +157,19 @@ export interface UserListParams {
   page?: string;
 }
 
+export interface PhoneNumber {
+  id: string;
+  phone_number: string;
+  status: 'active' | 'inactive' | 'pending';
+  created_at: string;
+}
+
+export interface PhoneNumberListParams {
+  limit?: number;
+  page?: string;
+  status?: 'active' | 'inactive' | 'pending';
+}
+
 export interface AccountSessionCreateParams {
   account: string;
   /** Components to enable for this session */
@@ -597,6 +610,31 @@ export class DialStack {
       const path = `/v1/users${query ? `?${query}` : ''}`;
 
       const fetchPage = (url: string): Promise<ListResponse<User>> => {
+        return this._request('GET', url, undefined, { ...options, accountId });
+      };
+
+      return createPaginatedList(
+        this._request('GET', path, undefined, { ...options, accountId }),
+        fetchPage
+      );
+    },
+  };
+
+  phoneNumbers = {
+    list: (
+      accountId: string,
+      params?: PhoneNumberListParams,
+      options?: RequestOptions
+    ): PaginatedList<PhoneNumber> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
+      if (params?.status) queryParams.set('status', params.status);
+
+      const query = queryParams.toString();
+      const path = `/v1/phone-numbers${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<PhoneNumber>> => {
         return this._request('GET', url, undefined, { ...options, accountId });
       };
 

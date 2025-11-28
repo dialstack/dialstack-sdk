@@ -78,6 +78,9 @@ export async function loadDialstackAndInitialize(
     logout: async () => {
       await instance.logout();
     },
+    fetchApi: (path, options) => {
+      return instance.fetchApi(path, options);
+    },
   };
 
   return wrapper;

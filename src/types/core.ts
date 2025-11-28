@@ -111,6 +111,21 @@ export interface DialStackInstance {
    * ```
    */
   logout(): Promise<void>;
+
+  /**
+   * Make an authenticated API request to the DialStack API
+   *
+   * @param path - API path (e.g., '/v1/phone-numbers')
+   * @param options - Optional fetch options
+   * @returns Promise resolving to the Response
+   *
+   * @example
+   * ```typescript
+   * const response = await dialstack.fetchApi('/v1/phone-numbers?limit=1');
+   * const data = await response.json();
+   * ```
+   */
+  fetchApi(path: string, options?: RequestInit): Promise<Response>;
 }
 
 /**
@@ -141,9 +156,4 @@ export interface DialStackInstanceImpl extends DialStackInstance {
    * Get current appearance options
    */
   getAppearance(): AppearanceOptions | undefined;
-
-  /**
-   * Make authenticated API request
-   */
-  fetchApi(path: string, options?: RequestInit): Promise<Response>;
 }
