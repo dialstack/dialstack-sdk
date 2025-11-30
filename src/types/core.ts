@@ -4,6 +4,7 @@
 
 import type { AppearanceOptions, UpdateOptions } from './appearance';
 import type { ComponentTagName, ComponentElement } from './components';
+import type { CallEventMap, CallEventHandler } from './callbacks';
 
 /**
  * Client secret response from fetchClientSecret
@@ -126,6 +127,40 @@ export interface DialStackInstance {
    * ```
    */
   fetchApi(path: string, options?: RequestInit): Promise<Response>;
+
+  /**
+   * Subscribe to real-time call events
+   *
+   * @param event - The event type to listen for
+   * @param handler - Callback function called when the event occurs
+   *
+   * @example
+   * ```typescript
+   * dialstack.on('call.incoming', (call) => {
+   *   console.log('Incoming call from:', call.from_number);
+   * });
+   * ```
+   */
+  on<K extends keyof CallEventMap>(
+    event: K,
+    handler: CallEventHandler<CallEventMap[K]>
+  ): void;
+
+  /**
+   * Unsubscribe from real-time call events
+   *
+   * @param event - The event type to stop listening for
+   * @param handler - The callback to remove (if omitted, removes all handlers for this event)
+   *
+   * @example
+   * ```typescript
+   * dialstack.off('call.incoming', myHandler);
+   * ```
+   */
+  off<K extends keyof CallEventMap>(
+    event: K,
+    handler?: CallEventHandler<CallEventMap[K]>
+  ): void;
 }
 
 /**

@@ -31,6 +31,11 @@ export type {
   CommonComponentCallbacks,
   VoicemailsCallbacks,
   CallLogsCallbacks,
+  // Real-time call events
+  IncomingCallEvent,
+  CallEventType,
+  CallEventMap,
+  CallEventHandler,
 } from './callbacks';
 
 // Component types

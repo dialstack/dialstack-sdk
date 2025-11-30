@@ -11,6 +11,9 @@ import type {
   ComponentTagName,
   ComponentElement,
   ClientSecretResponse,
+  CallEventMap,
+  CallEventHandler,
+  IncomingCallEvent,
 } from './types';
 
 const DEFAULT_API_URL = 'https://api.dialstack.ai';
@@ -31,6 +34,12 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   private sessionPromise: Promise<SessionData> | null = null;
   private refreshTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private components: Set<HTMLElement> = new Set();
+
+  // Event handling
+  private eventListeners: Map<keyof CallEventMap, Set<CallEventHandler<unknown>>> = new Map();
+  private eventStreamController: AbortController | null = null;
+  private reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempts = 0;
 
   constructor(params: DialStackInitParams) {
     this.publishableKey = params.publishableKey;
@@ -230,6 +239,215 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   }
 
   /**
+   * Subscribe to call events
+   */
+  on<K extends keyof CallEventMap>(
+    event: K,
+    handler: CallEventHandler<CallEventMap[K]>
+  ): void {
+    if (!this.eventListeners.has(event)) {
+      this.eventListeners.set(event, new Set());
+    }
+    this.eventListeners.get(event)!.add(handler as CallEventHandler<unknown>);
+
+    // Lazy connect: start SSE on first listener
+    if (!this.eventStreamController) {
+      this.connectEventStream();
+    }
+  }
+
+  /**
+   * Unsubscribe from call events
+   */
+  off<K extends keyof CallEventMap>(
+    event: K,
+    handler?: CallEventHandler<CallEventMap[K]>
+  ): void {
+    const listeners = this.eventListeners.get(event);
+    if (!listeners) return;
+
+    if (handler) {
+      listeners.delete(handler as CallEventHandler<unknown>);
+    } else {
+      listeners.clear();
+    }
+
+    // Disconnect SSE if no listeners remain
+    if (this.hasNoListeners()) {
+      this.disconnectEventStream();
+    }
+  }
+
+  /**
+   * Check if there are any event listeners
+   */
+  private hasNoListeners(): boolean {
+    for (const listeners of this.eventListeners.values()) {
+      if (listeners.size > 0) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Emit an event to all registered handlers
+   */
+  private emit<K extends keyof CallEventMap>(event: K, data: CallEventMap[K]): void {
+    const listeners = this.eventListeners.get(event);
+    if (!listeners) return;
+
+    listeners.forEach((handler) => {
+      try {
+        handler(data);
+      } catch (error) {
+        console.error(`DialStack: Error in ${event} handler:`, error);
+      }
+    });
+  }
+
+  /**
+   * Connect to SSE endpoint for real-time events using fetch + ReadableStream
+   * This allows proper Authorization headers (EventSource doesn't support custom headers)
+   */
+  private async connectEventStream(): Promise<void> {
+    // Cancel any pending reconnect
+    if (this.reconnectTimeoutId) {
+      clearTimeout(this.reconnectTimeoutId);
+      this.reconnectTimeoutId = null;
+    }
+
+    try {
+      const clientSecret = await this.getClientSecret();
+      const url = `${this.apiUrl}/v1/events`;
+
+      this.eventStreamController = new AbortController();
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${clientSecret}`,
+          Accept: 'text/event-stream',
+        },
+        signal: this.eventStreamController.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`SSE connection failed: ${response.status}`);
+      }
+
+      // Reset reconnect attempts on successful connection
+      this.reconnectAttempts = 0;
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      // Read the stream until done or aborted
+      let done = false;
+      while (!done) {
+        const result = await reader.read();
+        done = result.done;
+        const value = result.value;
+
+        if (done) {
+          // Stream closed by server, reconnect
+          this.scheduleReconnect();
+          continue;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Process complete events (separated by double newlines)
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || ''; // Keep incomplete event in buffer
+
+        for (const eventText of events) {
+          this.parseAndEmitEvent(eventText);
+        }
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        // Intentional disconnect, don't reconnect
+        return;
+      }
+      console.error('DialStack: SSE connection error:', error);
+      this.scheduleReconnect();
+    }
+  }
+
+  /**
+   * Parse SSE event text and emit to listeners
+   */
+  private parseAndEmitEvent(eventText: string): void {
+    const lines = eventText.split('\n');
+    let eventType = '';
+    let data = '';
+
+    for (const line of lines) {
+      if (line.startsWith('event: ')) {
+        eventType = line.slice(7);
+      } else if (line.startsWith('data: ')) {
+        data = line.slice(6);
+      }
+    }
+
+    if (eventType === 'call.incoming' && data) {
+      try {
+        const rawData = JSON.parse(data);
+        const event: IncomingCallEvent = {
+          from_number: rawData.from_number,
+          from_name: rawData.from_name ?? null,
+          to_number: rawData.to_number,
+          timestamp: new Date(rawData.timestamp),
+        };
+        this.emit('call.incoming', event);
+      } catch (error) {
+        console.error('DialStack: Failed to parse call.incoming event:', error);
+      }
+    }
+    // Ignore 'connected' and other events
+  }
+
+  /**
+   * Schedule reconnection with exponential backoff
+   */
+  private scheduleReconnect(): void {
+    if (this.hasNoListeners()) {
+      // No listeners, don't reconnect
+      return;
+    }
+
+    // Exponential backoff: 1s, 2s, 4s, 8s, max 30s
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+    this.reconnectAttempts++;
+
+    console.log(`DialStack: Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
+
+    this.reconnectTimeoutId = setTimeout(() => {
+      this.connectEventStream();
+    }, delay);
+  }
+
+  /**
+   * Disconnect event stream
+   */
+  private disconnectEventStream(): void {
+    if (this.reconnectTimeoutId) {
+      clearTimeout(this.reconnectTimeoutId);
+      this.reconnectTimeoutId = null;
+    }
+
+    if (this.eventStreamController) {
+      this.eventStreamController.abort();
+      this.eventStreamController = null;
+    }
+
+    this.reconnectAttempts = 0;
+  }
+
+  /**
    * Log out and clean up
    */
   async logout(): Promise<void> {
@@ -242,6 +460,10 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       clearTimeout(this.refreshTimeoutId);
       this.refreshTimeoutId = null;
     }
+
+    // Disconnect SSE and clear event listeners
+    this.disconnectEventStream();
+    this.eventListeners.clear();
 
     // Dispatch logout event to all components
     this.components.forEach((component) => {

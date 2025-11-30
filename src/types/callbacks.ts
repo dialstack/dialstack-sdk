@@ -50,3 +50,38 @@ export interface CallLogsCallbacks extends CommonComponentCallbacks {
   onPageChange?: (event: { offset: number; limit: number }) => void;
   onRowClick?: (event: { callId: string; call: CallLog }) => void;
 }
+
+// ============================================================================
+// Real-time Call Events (SSE)
+// ============================================================================
+
+/**
+ * Event fired when a call starts ringing
+ */
+export interface IncomingCallEvent {
+  /** Caller phone number */
+  from_number: string;
+  /** Caller ID name (if available) */
+  from_name: string | null;
+  /** Called phone number (DID) */
+  to_number: string;
+  /** When the call started ringing */
+  timestamp: Date;
+}
+
+/**
+ * Call event type names for on()/off() methods
+ */
+export type CallEventType = 'call.incoming';
+
+/**
+ * Map of call event types to their event data
+ */
+export interface CallEventMap {
+  'call.incoming': IncomingCallEvent;
+}
+
+/**
+ * Event handler function type
+ */
+export type CallEventHandler<T> = (event: T) => void;
