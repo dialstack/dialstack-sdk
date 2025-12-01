@@ -81,6 +81,12 @@ export async function loadDialstackAndInitialize(
     fetchApi: (path, options) => {
       return instance.fetchApi(path, options);
     },
+    on: (event, handler) => {
+      instance.on(event, handler);
+    },
+    off: (event, handler) => {
+      instance.off(event, handler);
+    },
   };
 
   return wrapper;

@@ -22,6 +22,11 @@ export type {
   CallLog,
   FormattingOptions,
   PaginationOptions,
+  // Real-time call events
+  IncomingCallEvent,
+  CallEventType,
+  CallEventMap,
+  CallEventHandler,
   // Icon types
   IconString,
   ComponentIcons,
