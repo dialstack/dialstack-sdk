@@ -312,7 +312,14 @@ export class CallLogsComponent extends BaseComponent {
    * Get color class for call direction
    */
   private getDirectionClass(direction: string): string {
-    return direction === 'inbound' ? 'badge-inbound' : 'badge-outbound';
+    switch (direction) {
+      case 'inbound':
+        return 'badge-inbound';
+      case 'internal':
+        return 'badge-internal';
+      default:
+        return 'badge-outbound';
+    }
   }
 
   /**
@@ -461,6 +468,11 @@ export class CallLogsComponent extends BaseComponent {
         .badge-outbound {
           background: color-mix(in srgb, var(--ds-color-primary) 10%, transparent);
           color: var(--ds-color-primary);
+        }
+
+        .badge-internal {
+          background: var(--ds-color-surface-subtle);
+          color: var(--ds-color-text-secondary);
         }
 
         .badge-answered {
