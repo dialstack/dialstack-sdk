@@ -10,16 +10,6 @@ describe('SDK Exports', () => {
     expect(typeof SDK.loadDialstackAndInitialize).toBe('function');
   });
 
-  it('exports initialize function', () => {
-    expect(SDK.initialize).toBeDefined();
-    expect(typeof SDK.initialize).toBe('function');
-  });
-
-  it('exports getInstance function', () => {
-    expect(SDK.getInstance).toBeDefined();
-    expect(typeof SDK.getInstance).toBe('function');
-  });
-
   it('exports DialstackComponentsProvider component', () => {
     expect(SDK.DialstackComponentsProvider).toBeDefined();
   });
@@ -60,11 +50,7 @@ describe('SDK Exports', () => {
       'useUpdateWithSetter',
     ];
 
-    const functionExports = [
-      'loadDialstackAndInitialize',
-      'initialize',
-      'getInstance',
-    ];
+    const functionExports = ['loadDialstackAndInitialize'];
 
     it('all React component exports start with uppercase letter', () => {
       const allStartWithUppercase = reactComponentExports.every(

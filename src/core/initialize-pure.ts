@@ -10,7 +10,7 @@
  * Note: You must ensure components are registered before using dialstack.create()
  */
 
-import type { DialStackInstance, DialStackInitParams } from './types';
+import type { DialStackInstance, DialStackInitParams } from '../types';
 import { DialStackInstanceImplClass } from './instance';
 
 // NOTE: Unlike initialize.ts, we do NOT import components here
@@ -81,6 +81,9 @@ export async function loadDialstackAndInitialize(
     fetchApi: (path, options) => {
       return instance.fetchApi(path, options);
     },
+    initiateCall: (userId, dialString) => {
+      return instance.initiateCall(userId, dialString);
+    },
     on: (event, handler) => {
       instance.on(event, handler);
     },
@@ -119,26 +122,3 @@ export function registerComponents(): void {
   import('../components/voicemails');
 }
 
-/**
- * Legacy support: Backwards-compatible initialization methods
- * (Deprecated - use loadDialstackAndInitialize instead)
- */
-
-let legacyInstance: DialStackInstance | null = null;
-
-/**
- * @deprecated Use loadDialstackAndInitialize() instead
- */
-export async function initialize(
-  initParams: DialStackInitParams
-): Promise<DialStackInstance> {
-  legacyInstance = await loadDialstackAndInitialize(initParams);
-  return legacyInstance;
-}
-
-/**
- * @deprecated Use the instance returned by loadDialstackAndInitialize() instead
- */
-export function getInstance(): DialStackInstance | null {
-  return legacyInstance;
-}

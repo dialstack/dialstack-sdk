@@ -9,7 +9,7 @@ import type {
   VoicemailBehaviorOptions,
   VoicemailRowRenderer,
   VoicemailsClasses,
-} from '../core/types';
+} from '../types';
 
 /**
  * Voicemail data structure from API
@@ -566,6 +566,21 @@ export class VoicemailsComponent extends BaseComponent {
       this.render();
     } catch (err) {
       console.error('Failed to delete voicemail:', err);
+    }
+  }
+
+  /**
+   * Initiate a call to a phone number
+   */
+  private async initiateCall(phoneNumber: string): Promise<void> {
+    if (!this.instance || !this.userId) return;
+
+    try {
+      await this.instance.initiateCall(this.userId, phoneNumber);
+      // Fire callback after successful initiation
+      this._onCallBack?.({ phoneNumber });
+    } catch (err) {
+      console.error('Failed to initiate call:', err);
     }
   }
 
@@ -1436,7 +1451,7 @@ export class VoicemailsComponent extends BaseComponent {
         e.stopPropagation();
         const phoneNumber = btn.getAttribute('data-number');
         if (phoneNumber) {
-          this._onCallBack?.({ phoneNumber });
+          this.initiateCall(phoneNumber);
         }
       });
     });

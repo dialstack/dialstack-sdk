@@ -52,4 +52,20 @@ export const en = {
       voicemail: 'Voicemail',
     },
   },
+  callHistory: {
+    title: 'Call History',
+    loading: 'Loading call history...',
+    empty: 'No call history',
+    noPhoneNumber: 'Please set a phone number to load call history',
+    error: 'Unable to load call history',
+    clickToCall: 'Click to call',
+    relativeTime: {
+      justNow: 'Just now',
+      minuteAgo: '1 min ago',
+      minutesAgo: '{count} min ago',
+      hourAgo: '1 hour ago',
+      hoursAgo: '{count} hours ago',
+      yesterday: 'Yesterday',
+    },
+  },
 };

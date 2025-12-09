@@ -13,12 +13,7 @@
  */
 
 // Core exports (pure - no component auto-registration)
-export {
-  loadDialstackAndInitialize,
-  initialize,
-  getInstance,
-  registerComponents,
-} from './core/initialize-pure';
+export { loadDialstackAndInitialize, registerComponents } from './core/initialize-pure';
 
 export type {
   DialStackInitParams,
@@ -53,7 +48,7 @@ export type {
   // Custom render types
   VoicemailRowRenderer,
   CallLogRowRenderer,
-} from './core/types';
+} from './types';
 
 // Default icons (can be used to customize or extend)
 export { defaultIcons } from './components/base-component';
@@ -67,10 +62,6 @@ export { useCreateComponent } from './react/useCreateComponent';
 export { useUpdateWithSetter } from './react/useUpdateWithSetter';
 export { CallLogs } from './react/CallLogs';
 export { Voicemails } from './react/Voicemails';
-
-// Advanced: Component factory for creating custom wrappers
-export { createReactComponent } from './react/createReactComponent';
-export type { BaseComponentProps, ReactComponentConfig } from './react/createReactComponent';
 
 export type { DialstackComponentsProviderProps } from './react/DialstackComponentsProvider';
 export type { CallLogsProps } from './react/CallLogs';

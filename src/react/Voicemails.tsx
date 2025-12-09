@@ -16,7 +16,7 @@ import type {
   VoicemailBehaviorOptions,
   VoicemailRowRenderer,
   VoicemailsClasses,
-} from '../core/types';
+} from '../types';
 import type { Locale } from '../locales';
 
 export interface VoicemailsProps {

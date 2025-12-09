@@ -653,9 +653,4 @@ export class DialStack {
       return this._request('POST', '/v1/account_sessions', params, options);
     },
   };
-
-  /**
-   * @deprecated Use `accountSessions` instead
-   */
-  sessions = this.accountSessions;
 }

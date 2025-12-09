@@ -5,7 +5,7 @@
  */
 
 // Core exports
-export { loadDialstackAndInitialize, initialize, getInstance } from './core/initialize';
+export { loadDialstackAndInitialize } from './core/initialize';
 export type {
   DialStackInitParams,
   DialStackInstance,
@@ -36,10 +36,13 @@ export type {
   VoicemailDisplayOptions,
   VoicemailBehaviorOptions,
   CallLogDisplayOptions,
+  CallHistoryDisplayOptions,
+  // CSS class types
+  CallHistoryClasses,
   // Custom render types
   VoicemailRowRenderer,
   CallLogRowRenderer,
-} from './core/types';
+} from './types';
 
 // Default icons (can be used to customize or extend)
 export { defaultIcons } from './components/base-component';
@@ -58,14 +61,12 @@ export { useCreateComponent } from './react/useCreateComponent';
 export { useUpdateWithSetter } from './react/useUpdateWithSetter';
 export { CallLogs } from './react/CallLogs';
 export { Voicemails } from './react/Voicemails';
-
-// Advanced: Component factory for creating custom wrappers
-export { createReactComponent } from './react/createReactComponent';
-export type { BaseComponentProps, ReactComponentConfig } from './react/createReactComponent';
+export { CallHistory } from './react/CallHistory';
 
 export type { DialstackComponentsProviderProps } from './react/DialstackComponentsProvider';
 export type { CallLogsProps } from './react/CallLogs';
 export type { VoicemailsProps } from './react/Voicemails';
+export type { CallHistoryProps } from './react/CallHistory';
 
 // Type-only re-exports (safe for SSR)
 export type { DateRange } from './components/call-logs';

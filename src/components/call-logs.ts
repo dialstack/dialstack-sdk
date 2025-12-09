@@ -9,7 +9,7 @@ import type {
   CallLogDisplayOptions,
   CallLogRowRenderer,
   CallLogsClasses,
-} from '../core/types';
+} from '../types';
 
 /**
  * API response structure (URL-based pagination)

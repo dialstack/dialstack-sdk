@@ -129,6 +129,19 @@ export interface DialStackInstance {
   fetchApi(path: string, options?: RequestInit): Promise<Response>;
 
   /**
+   * Initiate an outbound call from a user to a phone number
+   *
+   * @param userId - The user initiating the call
+   * @param dialString - The phone number or SIP URI to dial
+   *
+   * @example
+   * ```typescript
+   * await dialstack.initiateCall('user_01abc...', '+15551234567');
+   * ```
+   */
+  initiateCall(userId: string, dialString: string): Promise<void>;
+
+  /**
    * Subscribe to real-time call events
    *
    * @param event - The event type to listen for

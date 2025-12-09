@@ -39,3 +39,7 @@ coverage/
 .npm
 .yarn-integrity
 *.tgz
+
+# Yalc (local package testing)
+.yalc/
+yalc.lock

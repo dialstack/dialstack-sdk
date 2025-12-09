@@ -14,7 +14,7 @@ import type {
   CallEventMap,
   CallEventHandler,
   IncomingCallEvent,
-} from './types';
+} from '../types';
 
 const DEFAULT_API_URL = 'https://api.dialstack.ai';
 const DEFAULT_SESSION_DURATION_MS = 60 * 60 * 1000; // 1 hour default
@@ -74,7 +74,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     expiresAt: Date;
   } {
     if (typeof response === 'string') {
-      // Legacy format: just a string, use default expiry
+      // Simple format: just the client secret string, use default expiry
       return {
         clientSecret: response,
         expiresAt: new Date(Date.now() + DEFAULT_SESSION_DURATION_MS),
@@ -201,6 +201,20 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       ...options,
       headers,
     });
+  }
+
+  /**
+   * Initiate an outbound call
+   */
+  async initiateCall(userId: string, dialString: string): Promise<void> {
+    const response = await this.fetchApi('/v1/calls', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, dial_string: dialString }),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to initiate call: ${response.status} ${errorText}`);
+    }
   }
 
   /**

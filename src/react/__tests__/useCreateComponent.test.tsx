@@ -6,7 +6,7 @@ import React from 'react';
 import { renderHook, waitFor, render, screen } from '@testing-library/react';
 import { useCreateComponent } from '../useCreateComponent';
 import { DialstackComponentsProvider } from '../DialstackComponentsProvider';
-import type { DialStackInstance, ComponentElement } from '../../core/types';
+import type { DialStackInstance, ComponentElement } from '../../types';
 
 // Mock the version constant
 declare global {

@@ -9,7 +9,7 @@ import {
   DialstackComponentsProvider,
   useDialstackComponents,
 } from '../DialstackComponentsProvider';
-import type { DialStackInstance } from '../../core/types';
+import type { DialStackInstance } from '../../types';
 
 // Mock DialStack instance
 const createMockDialstack = (): DialStackInstance => ({

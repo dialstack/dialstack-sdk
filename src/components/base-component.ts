@@ -11,7 +11,7 @@ import type {
   ComponentIcons,
   LayoutVariant,
   BaseComponentClasses,
-} from '../core/types';
+} from '../types';
 import { type Locale, defaultLocale } from '../locales';
 
 // ============================================================================
@@ -52,6 +52,8 @@ export const defaultIcons: Required<ComponentIcons> = {
   spinner: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg>`,
   inbound: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 5.41L18.59 4 7 15.59V9H5v10h10v-2H8.41z"/></svg>`,
   outbound: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 5v2h6.59L4 18.59 5.41 20 17 8.41V15h2V5z"/></svg>`,
+  voicemail: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.5 6C15.46 6 13 8.46 13 11.5c0 1.33.47 2.55 1.26 3.5H9.74c.79-.95 1.26-2.17 1.26-3.5C11 8.46 8.54 6 5.5 6S0 8.46 0 11.5 2.46 17 5.5 17h13c3.04 0 5.5-2.46 5.5-5.5S21.54 6 18.5 6zm-13 9C3.57 15 2 13.43 2 11.5S3.57 8 5.5 8 9 9.57 9 11.5 7.43 15 5.5 15zm13 0c-1.93 0-3.5-1.57-3.5-3.5S16.57 8 18.5 8 22 9.57 22 11.5 20.43 15 18.5 15z"/></svg>`,
+  sparkle: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.5 2l2.25 4.5L16 9.5l-4.25 3L9.5 17l-2.25-4.5L3 9.5l4.25-3L9.5 2zm9 10l1.125 2.25L22 15.5l-2.375 1.25L18.5 19l-1.125-2.25L15 15.5l2.375-1.25L18.5 12z"/></svg>`,
 };
 
 /**

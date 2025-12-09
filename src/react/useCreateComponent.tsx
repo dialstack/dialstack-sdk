@@ -3,7 +3,7 @@
  */
 
 import { useLayoutEffect, useRef, useState } from 'react';
-import type { ComponentTagName, ComponentElement, DialStackInstance } from '../core/types';
+import type { ComponentTagName, ComponentElement, DialStackInstance } from '../types';
 
 // Injected at build time by Rollup
 declare const _NPM_PACKAGE_VERSION_: string;

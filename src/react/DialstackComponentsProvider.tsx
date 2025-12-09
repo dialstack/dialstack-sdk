@@ -4,7 +4,7 @@
 
 import React, { createContext, useContext } from 'react';
 import type { ReactNode } from 'react';
-import type { DialStackInstance } from '../core/types';
+import type { DialStackInstance } from '../types';
 
 interface DialstackComponentsContextValue {
   dialstack: DialStackInstance;

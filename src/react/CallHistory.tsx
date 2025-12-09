@@ -1,26 +1,34 @@
 /**
- * React wrapper for CallLogs Web Component
+ * React wrapper for CallHistory Web Component
  */
 
 import React from 'react';
 import { useDialstackComponents } from './DialstackComponentsProvider';
 import { useCreateComponent } from './useCreateComponent';
 import { useUpdateWithSetter } from './useUpdateWithSetter';
-import type { DateRange } from '../components/call-logs';
 import type {
   LoaderStart,
   LoadError,
-  CallLog,
   FormattingOptions,
   ComponentIcons,
   LayoutVariant,
-  CallLogDisplayOptions,
-  CallLogRowRenderer,
-  CallLogsClasses,
+  CallHistoryDisplayOptions,
+  CallHistoryClasses,
 } from '../types';
 import type { Locale } from '../locales';
 
-export interface CallLogsProps {
+export interface CallHistoryProps {
+  /**
+   * Phone number to fetch call history for (E.164 format, required)
+   */
+  phoneNumber: string;
+
+  /**
+   * Maximum number of calls to display
+   * @default 5
+   */
+  limit?: number;
+
   /**
    * Optional CSS class name
    */
@@ -32,22 +40,12 @@ export interface CallLogsProps {
   style?: React.CSSProperties;
 
   /**
-   * Date range filter for call logs
-   */
-  dateRange?: DateRange;
-
-  /**
-   * Maximum number of call logs per page (default: 20)
-   */
-  limit?: number;
-
-  /**
    * Locale for UI strings
    */
   locale?: Locale;
 
   /**
-   * Formatting options for dates and phone numbers
+   * Formatting options for dates
    */
   formatting?: FormattingOptions;
 
@@ -66,27 +64,21 @@ export interface CallLogsProps {
    *
    * @example
    * ```tsx
-   * <CallLogs
+   * <CallHistory
    *   classes={{
-   *     base: 'rounded-lg border',
-   *     table: 'min-w-full',
-   *     row: 'hover:bg-gray-50',
-   *     rowInbound: 'text-green-600'
+   *     base: 'rounded-lg',
+   *     item: 'hover:bg-gray-50',
+   *     itemMissed: 'bg-red-50'
    *   }}
    * />
    * ```
    */
-  classes?: CallLogsClasses;
+  classes?: CallHistoryClasses;
 
   /**
-   * Display options for controlling column visibility
+   * Display options for controlling field visibility
    */
-  displayOptions?: CallLogDisplayOptions;
-
-  /**
-   * Custom row renderer for call log rows
-   */
-  customRowRenderer?: CallLogRowRenderer;
+  displayOptions?: CallHistoryDisplayOptions;
 
   /**
    * Callback when component starts loading
@@ -94,57 +86,45 @@ export interface CallLogsProps {
   onLoaderStart?: (event: LoaderStart) => void;
 
   /**
-   * Callback when there's an error loading call logs
+   * Callback when there's an error loading call history
    */
   onLoadError?: (event: LoadError) => void;
-
-  /**
-   * Callback when a row is clicked
-   */
-  onRowClick?: (event: { callId: string; call: CallLog }) => void;
 }
 
 /**
- * CallLogs component displays a list of call logs for the authenticated account
- *
- * Uses URL-based pagination with previous/next navigation. The component automatically
- * handles pagination state internally using the API's next_page_url and previous_page_url.
+ * CallHistory component displays recent calls for a specific phone number
  *
  * Must be used within a DialstackComponentsProvider.
  *
  * @example
  * ```tsx
  * <DialstackComponentsProvider dialstack={dialstack}>
- *   <CallLogs
- *     dateRange={{ start: '2025-01-01', end: '2025-01-31' }}
- *     limit={50}
- *     onLoadError={(e) => console.error(e.error)}
- *     onRowClick={(e) => console.log('Selected call:', e.callId)}
+ *   <CallHistory
+ *     phoneNumber="+14155551234"
+ *     limit={5}
  *   />
  * </DialstackComponentsProvider>
  * ```
  */
-export const CallLogs: React.FC<CallLogsProps> = ({
+export const CallHistory: React.FC<CallHistoryProps> = ({
+  phoneNumber,
+  limit,
   className,
   style,
-  dateRange,
-  limit,
   locale,
   formatting,
   icons,
   layoutVariant,
   classes,
   displayOptions,
-  customRowRenderer,
   onLoaderStart,
   onLoadError,
-  onRowClick,
 }) => {
   const { dialstack } = useDialstackComponents();
-  const { containerRef, componentInstance } = useCreateComponent(dialstack, 'call-logs');
+  const { containerRef, componentInstance } = useCreateComponent(dialstack, 'call-history');
 
-  // Sync data props to Web Component (type-safe callbacks)
-  useUpdateWithSetter(componentInstance, dateRange, (comp, val) => comp.setDateRange(val));
+  // Sync data props to Web Component
+  useUpdateWithSetter(componentInstance, phoneNumber, (comp, val) => comp.setPhoneNumber(val));
   useUpdateWithSetter(componentInstance, limit, (comp, val) => comp.setLimit(val));
 
   // Sync configuration props
@@ -154,12 +134,10 @@ export const CallLogs: React.FC<CallLogsProps> = ({
   useUpdateWithSetter(componentInstance, layoutVariant, (comp, val) => comp.setLayoutVariant(val));
   useUpdateWithSetter(componentInstance, classes, (comp, val) => comp.setClasses(val));
   useUpdateWithSetter(componentInstance, displayOptions, (comp, val) => comp.setDisplayOptions(val));
-  useUpdateWithSetter(componentInstance, customRowRenderer, (comp, val) => comp.setCustomRowRenderer(val));
 
   // Sync callbacks to Web Component
   useUpdateWithSetter(componentInstance, onLoaderStart, (comp, val) => comp.setOnLoaderStart(val));
   useUpdateWithSetter(componentInstance, onLoadError, (comp, val) => comp.setOnLoadError(val));
-  useUpdateWithSetter(componentInstance, onRowClick, (comp, val) => comp.setOnRowClick(val));
 
   return <div ref={containerRef} className={className} style={style} />;
 };

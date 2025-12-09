@@ -9,6 +9,7 @@ import type {
   BaseComponentClasses,
   VoicemailsClasses,
   CallLogsClasses,
+  CallHistoryClasses,
 } from './appearance';
 import type { LoaderStart, LoadError } from './callbacks';
 import type { DialStackInstanceImpl } from './core';
@@ -97,6 +98,29 @@ export interface CallLogDisplayOptions {
    * @default true
    */
   showStatus?: boolean;
+}
+
+/**
+ * Display options for CallHistory component
+ */
+export interface CallHistoryDisplayOptions {
+  /**
+   * Show call duration
+   * @default true
+   */
+  showDuration?: boolean;
+
+  /**
+   * Show relative time (e.g., "2 min ago", "Yesterday")
+   * @default true
+   */
+  showRelativeTime?: boolean;
+
+  /**
+   * Show direction icon (inbound/outbound/missed)
+   * @default true
+   */
+  showDirectionIcon?: boolean;
 }
 
 // ============================================================================
@@ -289,9 +313,19 @@ export interface CallLogsElement extends Omit<BaseComponentElement, 'setClasses'
 }
 
 /**
+ * CallHistory component element interface
+ */
+export interface CallHistoryElement extends Omit<BaseComponentElement, 'setClasses'> {
+  setClasses: (classes: CallHistoryClasses) => void;
+  setPhoneNumber: (phoneNumber: string) => void;
+  setLimit: (limit: number) => void;
+  setDisplayOptions: (options: CallHistoryDisplayOptions) => void;
+}
+
+/**
  * Component tag names for embedded components
  */
-export type ComponentTagName = 'call-logs' | 'voicemails';
+export type ComponentTagName = 'call-logs' | 'voicemails' | 'call-history';
 
 /**
  * Web Component element types mapped by tag name
@@ -299,4 +333,5 @@ export type ComponentTagName = 'call-logs' | 'voicemails';
 export interface ComponentElement {
   'call-logs': CallLogsElement;
   'voicemails': VoicemailsElement;
+  'call-history': CallHistoryElement;
 }

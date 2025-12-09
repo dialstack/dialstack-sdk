@@ -22,6 +22,7 @@ export type {
   BaseComponentClasses,
   VoicemailsClasses,
   CallLogsClasses,
+  CallHistoryClasses,
 } from './appearance';
 
 // Callbacks and events
@@ -43,6 +44,7 @@ export type {
   // Display options
   VoicemailDisplayOptions,
   CallLogDisplayOptions,
+  CallHistoryDisplayOptions,
   // Behavior options
   VoicemailBehaviorOptions,
   // Row renderers
@@ -58,6 +60,7 @@ export type {
   BaseComponentElement,
   VoicemailsElement,
   CallLogsElement,
+  CallHistoryElement,
   ComponentTagName,
   ComponentElement,
 } from './components';

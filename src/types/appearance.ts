@@ -127,6 +127,8 @@ export interface ComponentIcons {
   spinner?: IconString;
   inbound?: IconString;
   outbound?: IconString;
+  voicemail?: IconString;
+  sparkle?: IconString;
 }
 
 // ============================================================================
@@ -256,4 +258,63 @@ export interface CallLogsClasses extends BaseComponentClasses {
    * @default 'dialstack-call-logs-pagination'
    */
   pagination?: string;
+}
+
+/**
+ * CSS class names for CallHistory component
+ */
+export interface CallHistoryClasses extends BaseComponentClasses {
+  /**
+   * Class for the call history list container
+   * @default 'dialstack-call-history-list'
+   */
+  list?: string;
+
+  /**
+   * Class for each call history item
+   * @default 'dialstack-call-history-item'
+   */
+  item?: string;
+
+  /**
+   * Class for inbound call items
+   * @default 'dialstack-call-history-item--inbound'
+   */
+  itemInbound?: string;
+
+  /**
+   * Class for outbound call items
+   * @default 'dialstack-call-history-item--outbound'
+   */
+  itemOutbound?: string;
+
+  /**
+   * Class for missed call items
+   * @default 'dialstack-call-history-item--missed'
+   */
+  itemMissed?: string;
+
+  /**
+   * Class for voicemail call items
+   * @default 'dialstack-call-history-item--voicemail'
+   */
+  itemVoicemail?: string;
+
+  /**
+   * Class for direction icon
+   * @default 'dialstack-call-history-icon'
+   */
+  icon?: string;
+
+  /**
+   * Class for time display
+   * @default 'dialstack-call-history-time'
+   */
+  time?: string;
+
+  /**
+   * Class for duration display
+   * @default 'dialstack-call-history-duration'
+   */
+  duration?: string;
 }
