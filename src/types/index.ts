@@ -52,6 +52,8 @@ export type {
   CallLogRowRenderer,
   // Data models
   CallLog,
+  TranscriptStatus,
+  Transcript,
   // Configuration
   PaginationOptions,
   FormattingOptions,

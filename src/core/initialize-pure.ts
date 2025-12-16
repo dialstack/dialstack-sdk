@@ -84,6 +84,9 @@ export async function loadDialstackAndInitialize(
     initiateCall: (userId, dialString) => {
       return instance.initiateCall(userId, dialString);
     },
+    getTranscript: (callId) => {
+      return instance.getTranscript(callId);
+    },
     on: (event, handler) => {
       instance.on(event, handler);
     },

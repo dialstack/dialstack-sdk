@@ -184,6 +184,15 @@ export interface AccountSessionCreateResponse {
   expires_at: string;
 }
 
+// Transcript types
+export type TranscriptStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+export interface Transcript {
+  call_id: string;
+  status: TranscriptStatus;
+  text: string | null;
+}
+
 interface ListResponse<T> {
   object: string;
   url: string;
@@ -651,6 +660,20 @@ export class DialStack {
       options?: RequestOptions
     ): Promise<AccountSessionCreateResponse> => {
       return this._request('POST', '/v1/account_sessions', params, options);
+    },
+  };
+
+  calls = {
+    retrieveTranscript: (
+      callId: string,
+      options?: RequestOptions
+    ): Promise<Transcript> => {
+      return this._request(
+        'GET',
+        `/v1/calls/${callId}/transcript`,
+        undefined,
+        options
+      );
     },
   };
 }

@@ -3,7 +3,7 @@
  */
 
 import type { AppearanceOptions, UpdateOptions } from './appearance';
-import type { ComponentTagName, ComponentElement } from './components';
+import type { ComponentTagName, ComponentElement, Transcript } from './components';
 import type { CallEventMap, CallEventHandler } from './callbacks';
 
 /**
@@ -140,6 +140,22 @@ export interface DialStackInstance {
    * ```
    */
   initiateCall(userId: string, dialString: string): Promise<void>;
+
+  /**
+   * Retrieve the transcript for a call
+   *
+   * @param callId - The ID of the call to get transcript for
+   * @returns Promise resolving to the transcript object
+   *
+   * @example
+   * ```typescript
+   * const transcript = await dialstack.getTranscript('cdr_01abc...');
+   * if (transcript.status === 'completed') {
+   *   console.log(transcript.text);
+   * }
+   * ```
+   */
+  getTranscript(callId: string): Promise<Transcript>;
 
   /**
    * Subscribe to real-time call events

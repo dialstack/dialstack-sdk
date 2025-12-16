@@ -200,6 +200,20 @@ export interface CallLog {
   status: 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
 }
 
+/**
+ * Transcript status indicating processing state
+ */
+export type TranscriptStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+/**
+ * Call transcript data
+ */
+export interface Transcript {
+  call_id: string;
+  status: TranscriptStatus;
+  text: string | null;
+}
+
 // ============================================================================
 // Configuration Options
 // ============================================================================

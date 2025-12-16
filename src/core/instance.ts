@@ -14,6 +14,7 @@ import type {
   CallEventMap,
   CallEventHandler,
   IncomingCallEvent,
+  Transcript,
 } from '../types';
 
 const DEFAULT_API_URL = 'https://api.dialstack.ai';
@@ -215,6 +216,18 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       const errorText = await response.text();
       throw new Error(`Failed to initiate call: ${response.status} ${errorText}`);
     }
+  }
+
+  /**
+   * Retrieve the transcript for a call
+   */
+  async getTranscript(callId: string): Promise<Transcript> {
+    const response = await this.fetchApi(`/v1/calls/${callId}/transcript`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get transcript: ${response.status} ${errorText}`);
+    }
+    return response.json();
   }
 
   /**
