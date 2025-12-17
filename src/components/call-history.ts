@@ -257,19 +257,6 @@ export class CallHistoryComponent extends BaseComponent {
     return call.status === 'completed' || call.status === 'voicemail';
   }
 
-  /**
-   * Get placeholder AI summary text based on call type
-   */
-  private getPlaceholderSummary(call: CallLog): string {
-    if (call.status === 'voicemail') {
-      return 'Needs to move Thursday 2pm to Friday. Has a work conflict. Prefers morning slots.';
-    }
-    if (call.direction === 'inbound') {
-      return 'Asked about neck pain treatment options. Interested in starting next week. Will call back to confirm.';
-    }
-    return 'Reviewed x-rays, spine alignment improving. Reduced visits to biweekly. Next appointment March 15.';
-  }
-
   // ============================================================================
   // Rendering
   // ============================================================================
@@ -420,7 +407,7 @@ export class CallHistoryComponent extends BaseComponent {
   }
 
   private renderSummary(call: CallLog): string {
-    const summary = this.getPlaceholderSummary(call);
+    const summary = call.summary ?? this.t('callHistory.summaryNotAvailable');
     return `
       <div class="call-history-summary">
         <div class="call-history-summary-badge">
@@ -504,74 +491,71 @@ export class CallHistoryComponent extends BaseComponent {
 
       /* Inbound - green */
       .call-history-item--inbound .call-history-icon {
-        background: rgba(48, 164, 108, 0.12);
+        background: color-mix(in srgb, var(--ds-color-success) 12%, transparent);
         color: var(--ds-color-success);
       }
 
       /* Outbound - blue/primary */
       .call-history-item--outbound .call-history-icon {
-        background: rgba(103, 114, 229, 0.12);
+        background: color-mix(in srgb, var(--ds-color-primary) 12%, transparent);
         color: var(--ds-color-primary);
       }
 
       /* Missed - red */
       .call-history-item--missed .call-history-icon {
-        background: rgba(229, 72, 77, 0.12);
+        background: color-mix(in srgb, var(--ds-color-danger) 12%, transparent);
         color: var(--ds-color-danger);
       }
 
-      /* Voicemail - purple */
+      /* Voicemail */
       .call-history-item--voicemail .call-history-icon {
-        background: rgba(139, 92, 246, 0.12);
-        color: #8b5cf6;
+        background: color-mix(in srgb, var(--ds-color-primary) 12%, transparent);
+        color: var(--ds-color-primary);
       }
 
       /* AI Summary */
       .call-history-summary {
         margin-left: calc(28px + var(--ds-spacing-md));
-        padding: var(--ds-spacing-sm) var(--ds-spacing-md);
-        background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(59, 130, 246, 0.08) 100%);
-        border-radius: var(--ds-border-radius);
-        border: 1px solid rgba(139, 92, 246, 0.15);
+        margin-top: var(--ds-spacing-xs);
       }
 
       .call-history-summary-badge {
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        margin-bottom: var(--ds-spacing-xs);
+        margin-bottom: 2px;
       }
 
       .call-history-summary-icon {
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 14px;
-        height: 14px;
-        color: #8b5cf6;
+        width: 12px;
+        height: 12px;
+        color: var(--ds-color-primary);
       }
 
       .call-history-summary-icon svg {
-        width: 12px;
-        height: 12px;
+        width: 10px;
+        height: 10px;
       }
 
       .call-history-summary-label {
-        font-size: 10px;
+        font-size: 9px;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        background: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
+        color: var(--ds-color-primary);
       }
 
       .call-history-summary-text {
         margin: 0;
         font-size: var(--ds-font-size-small);
-        line-height: 1.5;
-        color: var(--ds-color-text-secondary);
+        line-height: 1.4;
+        color: var(--ds-color-text);
+        hyphens: auto;
+        -webkit-hyphens: auto;
+        overflow-wrap: break-word;
       }
 
       /* Time */

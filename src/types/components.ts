@@ -198,6 +198,7 @@ export interface CallLog {
   ended_at?: string;
   duration_seconds?: number;
   status: 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
+  summary?: string | null;
 }
 
 /**

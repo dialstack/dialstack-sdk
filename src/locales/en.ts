@@ -59,6 +59,7 @@ export const en = {
     noPhoneNumber: 'Please set a phone number to load call history',
     error: 'Unable to load call history',
     clickToCall: 'Click to call',
+    summaryNotAvailable: 'Summary not available',
     relativeTime: {
       justNow: 'Just now',
       minuteAgo: '1 min ago',
