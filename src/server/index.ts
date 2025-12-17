@@ -28,6 +28,7 @@
 // Injected at build time by Rollup
 declare const _NPM_PACKAGE_VERSION_: string;
 
+import * as crypto from 'crypto';
 import {
   DialStackError,
   DialStackConnectionError,
@@ -191,6 +192,58 @@ export interface Transcript {
   call_id: string;
   status: TranscriptStatus;
   text: string | null;
+}
+
+// Voice App types
+export interface VoiceApp {
+  id: string;
+  name: string;
+  url: string;
+  status: 'active' | 'inactive';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VoiceAppCreateParams {
+  name: string;
+  url: string;
+}
+
+export interface VoiceAppUpdateParams {
+  name?: string;
+  url?: string;
+  status?: 'active' | 'inactive';
+}
+
+export interface VoiceAppListParams {
+  limit?: number;
+  page?: string;
+}
+
+// Call Control types
+export interface AttachAction {
+  type: 'attach';
+  url: string;
+}
+
+export interface TransferAction {
+  type: 'transfer';
+  extension: string;
+}
+
+export type CallAction = AttachAction | TransferAction;
+
+export interface CallUpdateParams {
+  actions: CallAction[];
+}
+
+// Webhook types
+export interface WebhookEvent {
+  call_id: string;
+  account_id: string;
+  from_number: string;
+  from_name: string | null;
+  to_number: string;
 }
 
 interface ListResponse<T> {
@@ -664,6 +717,18 @@ export class DialStack {
   };
 
   calls = {
+    update: (
+      accountId: string,
+      callId: string,
+      params: CallUpdateParams,
+      options?: RequestOptions
+    ): Promise<void> => {
+      return this._request('POST', `/v1/calls/${callId}`, params, {
+        ...options,
+        accountId,
+      });
+    },
+
     retrieveTranscript: (
       callId: string,
       options?: RequestOptions
@@ -676,4 +741,158 @@ export class DialStack {
       );
     },
   };
+
+  voiceApps = {
+    create: (
+      accountId: string,
+      params: VoiceAppCreateParams,
+      options?: RequestOptions
+    ): Promise<VoiceApp> => {
+      return this._request('POST', '/v1/voice_apps', params, {
+        ...options,
+        accountId,
+      });
+    },
+
+    retrieve: (
+      accountId: string,
+      voiceAppId: string,
+      options?: RequestOptions
+    ): Promise<VoiceApp> => {
+      return this._request('GET', `/v1/voice_apps/${voiceAppId}`, undefined, {
+        ...options,
+        accountId,
+      });
+    },
+
+    update: (
+      accountId: string,
+      voiceAppId: string,
+      params: VoiceAppUpdateParams,
+      options?: RequestOptions
+    ): Promise<VoiceApp> => {
+      return this._request('POST', `/v1/voice_apps/${voiceAppId}`, params, {
+        ...options,
+        accountId,
+      });
+    },
+
+    del: (
+      accountId: string,
+      voiceAppId: string,
+      options?: RequestOptions
+    ): Promise<void> => {
+      return this._request('DELETE', `/v1/voice_apps/${voiceAppId}`, undefined, {
+        ...options,
+        accountId,
+      });
+    },
+
+    list: (
+      accountId: string,
+      params?: VoiceAppListParams,
+      options?: RequestOptions
+    ): PaginatedList<VoiceApp> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
+
+      const query = queryParams.toString();
+      const path = `/v1/voice_apps${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<VoiceApp>> => {
+        return this._request('GET', url, undefined, { ...options, accountId });
+      };
+
+      return createPaginatedList(
+        this._request('GET', path, undefined, { ...options, accountId }),
+        fetchPage
+      );
+    },
+  };
+
+  // ==========================================================================
+  // Webhooks
+  // ==========================================================================
+
+  /**
+   * Verify webhook signature and construct event
+   *
+   * @example
+   * ```typescript
+   * const event = dialstack.webhooks.constructEvent(
+   *   req.body,                    // Raw request body as string
+   *   req.headers['x-dialstack-signature'],
+   *   process.env.DIALSTACK_API_KEY
+   * );
+   * ```
+   */
+  static webhooks = {
+    constructEvent: (
+      payload: string | Buffer,
+      signature: string,
+      secret: string,
+      tolerance: number = 300
+    ): WebhookEvent => {
+      const payloadString =
+        typeof payload === 'string' ? payload : payload.toString('utf8');
+
+      // Parse signature header: t=timestamp,v1=signature
+      const parts = signature.split(',');
+      const timestampPart = parts.find((p) => p.startsWith('t='));
+      const signaturePart = parts.find((p) => p.startsWith('v1='));
+
+      if (!timestampPart || !signaturePart) {
+        throw new DialStackError('Invalid signature format', {
+          statusCode: 400,
+          type: 'invalid_request_error',
+        });
+      }
+
+      const timestamp = parseInt(timestampPart.substring(2), 10);
+      const expectedSignature = signaturePart.substring(3);
+
+      // Check timestamp tolerance
+      const now = Math.floor(Date.now() / 1000);
+      if (Math.abs(now - timestamp) > tolerance) {
+        throw new DialStackError('Webhook timestamp outside tolerance', {
+          statusCode: 400,
+          type: 'invalid_request_error',
+        });
+      }
+
+      // Compute expected signature
+      const signedPayload = `${timestamp}.${payloadString}`;
+      const computedSignature = crypto
+        .createHmac('sha256', secret)
+        .update(signedPayload)
+        .digest('hex');
+
+      // Constant-time comparison
+      if (
+        !crypto.timingSafeEqual(
+          Buffer.from(computedSignature),
+          Buffer.from(expectedSignature)
+        )
+      ) {
+        throw new DialStackError('Webhook signature verification failed', {
+          statusCode: 400,
+          type: 'invalid_request_error',
+        });
+      }
+
+      return JSON.parse(payloadString) as WebhookEvent;
+    },
+  };
 }
+
+// Re-export MediaStream for WebSocket handling
+export { MediaStream } from './media-stream';
+export type {
+  WebSocketLike,
+  AudioFormat,
+  MediaStreamBeginEvent,
+  MediaStreamAudioEvent,
+  MediaStreamMessage,
+  MediaStreamEvents,
+} from './media-stream';
