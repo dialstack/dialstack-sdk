@@ -200,6 +200,7 @@ export interface VoiceApp {
   name: string;
   url: string;
   status: 'active' | 'inactive';
+  secret: string;
   created_at: string;
   updated_at: string;
 }
