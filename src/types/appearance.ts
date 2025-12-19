@@ -129,6 +129,7 @@ export interface ComponentIcons {
   outbound?: IconString;
   voicemail?: IconString;
   sparkle?: IconString;
+  document?: IconString;
 }
 
 // ============================================================================

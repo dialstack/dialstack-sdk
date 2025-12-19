@@ -54,6 +54,7 @@ export type {
   CallLog,
   TranscriptStatus,
   Transcript,
+  VoicemailTranscript,
   // Configuration
   PaginationOptions,
   FormattingOptions,

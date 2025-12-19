@@ -3,7 +3,7 @@
  */
 
 import type { AppearanceOptions, UpdateOptions } from './appearance';
-import type { ComponentTagName, ComponentElement, Transcript } from './components';
+import type { ComponentTagName, ComponentElement, Transcript, VoicemailTranscript } from './components';
 import type { CallEventMap, CallEventHandler } from './callbacks';
 
 /**
@@ -156,6 +156,23 @@ export interface DialStackInstance {
    * ```
    */
   getTranscript(callId: string): Promise<Transcript>;
+
+  /**
+   * Retrieve the transcript for a voicemail
+   *
+   * @param userId - The ID of the user who owns the voicemail
+   * @param voicemailId - The ID of the voicemail to get transcript for
+   * @returns Promise resolving to the voicemail transcript object
+   *
+   * @example
+   * ```typescript
+   * const transcript = await dialstack.getVoicemailTranscript('user_01abc...', 'vm_01xyz...');
+   * if (transcript.status === 'completed') {
+   *   console.log(transcript.text);
+   * }
+   * ```
+   */
+  getVoicemailTranscript(userId: string, voicemailId: string): Promise<VoicemailTranscript>;
 
   /**
    * Subscribe to real-time call events

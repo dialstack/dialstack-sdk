@@ -87,6 +87,9 @@ export async function loadDialstackAndInitialize(
     getTranscript: (callId) => {
       return instance.getTranscript(callId);
     },
+    getVoicemailTranscript: (userId, voicemailId) => {
+      return instance.getVoicemailTranscript(userId, voicemailId);
+    },
     on: (event, handler) => {
       instance.on(event, handler);
     },

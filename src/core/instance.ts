@@ -15,6 +15,7 @@ import type {
   CallEventHandler,
   IncomingCallEvent,
   Transcript,
+  VoicemailTranscript,
 } from '../types';
 
 const DEFAULT_API_URL = 'https://api.dialstack.ai';
@@ -226,6 +227,18 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Failed to get transcript: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Retrieve the transcript for a voicemail
+   */
+  async getVoicemailTranscript(userId: string, voicemailId: string): Promise<VoicemailTranscript> {
+    const response = await this.fetchApi(`/v1/users/${userId}/voicemails/${voicemailId}/transcript`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get voicemail transcript: ${response.status} ${errorText}`);
     }
     return response.json();
   }

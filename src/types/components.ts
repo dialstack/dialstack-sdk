@@ -171,6 +171,7 @@ export type VoicemailRowRenderer = (voicemail: {
   duration_seconds: number;
   is_read: boolean;
   transcription?: string;
+  summary?: string;
 }) => string;
 
 /**
@@ -211,6 +212,15 @@ export type TranscriptStatus = 'pending' | 'processing' | 'completed' | 'failed'
  */
 export interface Transcript {
   call_id: string;
+  status: TranscriptStatus;
+  text: string | null;
+}
+
+/**
+ * Voicemail transcript data
+ */
+export interface VoicemailTranscript {
+  voicemail_id: string;
   status: TranscriptStatus;
   text: string | null;
 }

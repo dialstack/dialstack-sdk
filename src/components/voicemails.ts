@@ -11,6 +11,8 @@ import type {
   VoicemailsClasses,
 } from '../types';
 
+import type { TranscriptStatus } from '../types';
+
 /**
  * Voicemail data structure from API
  */
@@ -24,6 +26,7 @@ interface Voicemail {
   audio_url: string;
   format?: string;
   transcription?: string;
+  summary?: string;
 }
 
 /**
@@ -61,6 +64,10 @@ export class VoicemailsComponent extends BaseComponent {
   private currentTime: number = 0;
   private duration: number = 0;
   private progressInterval: number | null = null;
+
+  // Transcript state
+  private transcriptCache: Map<string, { status: TranscriptStatus; text: string | null }> = new Map();
+  private loadingTranscript: Set<string> = new Set();
 
   // Display options
   private displayOptions: Required<VoicemailDisplayOptions> = {
@@ -223,6 +230,8 @@ export class VoicemailsComponent extends BaseComponent {
     this.error = null;
     this.voicemails = [];
     this.nextPageUrl = null;
+    this.transcriptCache.clear();
+    this.loadingTranscript.clear();
     this.render();
 
     try {
@@ -315,7 +324,87 @@ export class VoicemailsComponent extends BaseComponent {
       if (this.behaviorOptions.autoPlayOnExpand) {
         this.togglePlayPause(voicemailId);
       }
+
+      // Fetch transcript if not cached
+      if (!this.transcriptCache.has(voicemailId)) {
+        this.fetchTranscript(voicemailId);
+      }
     }
+  }
+
+  /**
+   * Fetch transcript for a voicemail
+   */
+  private async fetchTranscript(voicemailId: string): Promise<void> {
+    if (!this.instance || !this.userId || this.loadingTranscript.has(voicemailId)) return;
+
+    this.loadingTranscript.add(voicemailId);
+    this.updateTranscriptUI();
+
+    try {
+      const transcript = await this.instance.getVoicemailTranscript(this.userId, voicemailId);
+      this.transcriptCache.set(voicemailId, { status: transcript.status, text: transcript.text });
+    } catch {
+      this.transcriptCache.set(voicemailId, { status: 'failed', text: null });
+    } finally {
+      this.loadingTranscript.delete(voicemailId);
+      this.updateTranscriptUI();
+    }
+  }
+
+  /**
+   * Update transcript UI without full re-render
+   */
+  private updateTranscriptUI(): void {
+    if (!this.shadowRoot || !this.expandedId) return;
+    const transcriptSection = this.shadowRoot.querySelector('.transcript-section');
+    if (transcriptSection) {
+      transcriptSection.innerHTML = this.renderTranscriptContent(this.expandedId);
+    }
+  }
+
+  /**
+   * Render transcript content based on loading/cache state
+   */
+  private renderTranscriptContent(voicemailId: string): string {
+    if (this.loadingTranscript.has(voicemailId)) {
+      return `
+        <div class="transcript-loading" part="transcript-loading">
+          <span class="spinner-small" aria-hidden="true">${this.getIcon('spinner')}</span>
+          ${this.t('voicemails.transcriptLoading')}
+        </div>
+      `;
+    }
+
+    const cached = this.transcriptCache.get(voicemailId);
+    if (!cached) {
+      return '';
+    }
+
+    if (cached.status === 'completed' && cached.text) {
+      return `
+        <div class="transcript-header" part="transcript-header">
+          ${this.getIcon('document')}
+          ${this.t('voicemails.transcript')}
+        </div>
+        <div class="transcript-text" part="transcript-text">${cached.text}</div>
+      `;
+    }
+
+    if (cached.status === 'pending' || cached.status === 'processing') {
+      return `
+        <div class="transcript-pending" part="transcript-pending">
+          ${this.t('voicemails.transcriptLoading')}
+        </div>
+      `;
+    }
+
+    // Failed or no text
+    return `
+      <div class="transcript-unavailable" part="transcript-unavailable">
+        ${this.t('voicemails.transcriptNotAvailable')}
+      </div>
+    `;
   }
 
   // ============================================================================
@@ -1029,24 +1118,106 @@ export class VoicemailsComponent extends BaseComponent {
           color: white;
         }
 
-        /* Transcription */
-        .transcription {
-          padding: var(--ds-spacing-md);
-          background: var(--ds-color-surface-subtle);
-          border-radius: var(--ds-border-radius);
+        /* Summary preview in collapsed row */
+        .summary-preview {
+          font-size: var(--ds-font-size-small);
+          color: var(--ds-color-text-secondary);
+          grid-column: 1 / -1;
+          grid-row: 3;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 100%;
         }
 
-        .transcription-header {
+        /* Transcription container - unified box for summary + transcript */
+        .transcription-container {
+          background: var(--ds-color-surface-subtle);
+          border-radius: var(--ds-border-radius);
+          overflow: hidden;
+        }
+
+        /* Summary section in expanded view */
+        .summary {
+          padding: var(--ds-spacing-md);
+          border-bottom: 1px solid var(--ds-color-border);
+        }
+
+        .summary-header {
+          display: flex;
+          align-items: center;
+          gap: var(--ds-spacing-xs);
           font-size: var(--ds-font-size-small);
           font-weight: var(--ds-font-weight-bold);
-          color: var(--ds-color-text-secondary);
+          color: var(--ds-color-primary);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
           margin-bottom: var(--ds-spacing-sm);
         }
 
-        .transcription-text {
+        .summary-header svg {
+          width: var(--ds-font-size-base);
+          height: var(--ds-font-size-base);
+        }
+
+        .summary-text {
           font-size: var(--ds-font-size-base);
           line-height: var(--ds-line-height);
           color: var(--ds-color-text);
+          font-weight: var(--ds-font-weight-medium);
+        }
+
+        /* Transcript section in expanded view */
+        .transcript-section {
+          padding: var(--ds-spacing-md);
+        }
+
+        .transcript-header {
+          display: flex;
+          align-items: center;
+          gap: var(--ds-spacing-xs);
+          font-size: var(--ds-font-size-small);
+          font-weight: var(--ds-font-weight-bold);
+          color: var(--ds-color-text-secondary);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          margin-bottom: var(--ds-spacing-sm);
+        }
+
+        .transcript-header svg {
+          width: var(--ds-font-size-base);
+          height: var(--ds-font-size-base);
+        }
+
+        .transcript-text {
+          font-size: var(--ds-font-size-small);
+          line-height: var(--ds-line-height);
+          color: var(--ds-color-text-secondary);
+          font-style: italic;
+        }
+
+        .transcript-loading,
+        .transcript-pending,
+        .transcript-unavailable {
+          font-size: var(--ds-font-size-small);
+          color: var(--ds-color-text-secondary);
+          display: flex;
+          align-items: center;
+          gap: var(--ds-spacing-sm);
+          font-style: italic;
+        }
+
+        .spinner-small {
+          display: inline-block;
+          width: var(--ds-font-size-base);
+          height: var(--ds-font-size-base);
+          color: var(--ds-color-primary);
+          animation: spin 0.8s linear infinite;
+        }
+
+        .spinner-small svg {
+          width: 100%;
+          height: 100%;
         }
 
         /* Hidden audio element */
@@ -1249,6 +1420,7 @@ export class VoicemailsComponent extends BaseComponent {
                 <div class="row-content" part="row-content">
                   <span class="caller-name ${isUnread ? 'unread' : ''}" part="caller-name">${callerName}</span>
                   <span class="phone-number-collapsed" part="phone-number">${this.formatPhoneNumber(vm.from_number)}</span>
+                  ${vm.summary ? `<span class="summary-preview" part="summary-preview">${vm.summary}</span>` : ''}
                   ${this.displayOptions.showTimestamp ? `<span class="timestamp" part="timestamp">${this.formatDateShort(vm.created_at)}</span>` : ''}
                   ${this.displayOptions.showDuration ? `<span class="duration" part="duration">${this.formatTime(vm.duration_seconds)}</span>` : ''}
                 </div>
@@ -1351,11 +1523,23 @@ export class VoicemailsComponent extends BaseComponent {
           </div>
         </div>
 
-        <!-- Row 6: Transcription -->
-        ${this.displayOptions.showTranscription && vm.transcription ? `
-        <div class="transcription" part="transcription">
-          <div class="transcription-header" part="transcription-header">${this.t('voicemails.transcription')}</div>
-          <div class="transcription-text" part="transcription-text">${vm.transcription}</div>
+        <!-- Row 6: Summary + Transcript in unified container -->
+        ${(vm.summary || this.displayOptions.showTranscription) ? `
+        <div class="transcription-container" part="transcription-container">
+          ${vm.summary ? `
+          <div class="summary" part="summary">
+            <div class="summary-header" part="summary-header">
+              ${this.getIcon('sparkle')}
+              ${this.t('voicemails.summary')}
+            </div>
+            <div class="summary-text" part="summary-text">${vm.summary}</div>
+          </div>
+          ` : ''}
+          ${this.displayOptions.showTranscription ? `
+          <div class="transcript-section" part="transcript-section">
+            ${this.renderTranscriptContent(vm.id)}
+          </div>
+          ` : ''}
         </div>
         ` : ''}
       </div>
