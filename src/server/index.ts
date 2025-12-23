@@ -247,6 +247,70 @@ export interface WebhookEvent {
   to_number: string;
 }
 
+// Appointments Webhook types
+export interface AvailabilitySearchWebhook {
+  account_id: string;
+  query: {
+    filter: {
+      start_at_range: {
+        start_at: string;
+        end_at: string;
+      };
+    };
+  };
+}
+
+export interface AvailabilitySlot {
+  start_at: string;
+  duration_minutes: number;
+}
+
+export interface AvailabilitySearchResponse {
+  availabilities: AvailabilitySlot[];
+}
+
+export type BookingStatus = 'pending' | 'accepted' | 'cancelled' | 'declined' | 'no_show';
+
+export interface CreateBookingWebhook {
+  account_id: string;
+  idempotency_key: string;
+  booking: {
+    start_at: string;
+    duration_minutes: number;
+    customer: {
+      phone: string;
+      name: string;
+      email?: string;
+    };
+    notes?: string;
+  };
+}
+
+export interface BookingResponse {
+  booking: {
+    id: string;
+    status: BookingStatus;
+    start_at: string;
+    end_at: string;
+    customer?: {
+      phone: string;
+      name: string;
+    };
+    location?: {
+      name: string;
+      address: string;
+    };
+    created_at?: string;
+  };
+}
+
+export interface WebhookErrorResponse {
+  error: {
+    code: string;
+    message: string;
+  };
+}
+
 interface ListResponse<T> {
   object: string;
   url: string;
@@ -821,20 +885,28 @@ export class DialStack {
    *
    * @example
    * ```typescript
-   * const event = dialstack.webhooks.constructEvent(
-   *   req.body,                    // Raw request body as string
+   * // For call webhooks
+   * const event = DialStack.webhooks.constructEvent(
+   *   req.body,
    *   req.headers['x-dialstack-signature'],
-   *   process.env.DIALSTACK_API_KEY
+   *   process.env.DIALSTACK_WEBHOOK_SECRET
+   * );
+   *
+   * // For appointments webhooks (with type parameter)
+   * const event = DialStack.webhooks.constructEvent<AvailabilitySearchWebhook>(
+   *   req.body,
+   *   req.headers['x-dialstack-signature'],
+   *   process.env.DIALSTACK_WEBHOOK_SECRET
    * );
    * ```
    */
   static webhooks = {
-    constructEvent: (
+    constructEvent: <T = WebhookEvent>(
       payload: string | Buffer,
       signature: string,
       secret: string,
       tolerance: number = 300
-    ): WebhookEvent => {
+    ): T => {
       const payloadString =
         typeof payload === 'string' ? payload : payload.toString('utf8');
 
@@ -882,7 +954,7 @@ export class DialStack {
         });
       }
 
-      return JSON.parse(payloadString) as WebhookEvent;
+      return JSON.parse(payloadString) as T;
     },
   };
 }
