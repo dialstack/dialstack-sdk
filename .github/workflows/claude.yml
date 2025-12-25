@@ -33,7 +33,7 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           use_bedrock: "true"
-          claude_args: "--model anthropic.claude-sonnet-4-5-20250929-v1:0"
+          claude_args: "--model us.anthropic.claude-sonnet-4-5-20250929-v1:0"
           prompt: |
             REPO: ${{ github.repository }}
             PR: #${{ github.event.pull_request.number }}
@@ -68,4 +68,4 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           use_bedrock: "true"
-          claude_args: "--model anthropic.claude-sonnet-4-5-20250929-v1:0"
+          claude_args: "--model us.anthropic.claude-sonnet-4-5-20250929-v1:0"
