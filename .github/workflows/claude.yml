@@ -27,7 +27,7 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::857119675513:role/github-actions
+          role-to-assume: arn:aws:iam::857119675513:role/github-claude
           aws-region: us-east-1
 
       - uses: anthropics/claude-code-action@v1
@@ -63,7 +63,7 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::857119675513:role/github-actions
+          role-to-assume: arn:aws:iam::857119675513:role/github-claude
           aws-region: us-east-1
 
       - uses: anthropics/claude-code-action@v1
