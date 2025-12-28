@@ -1,0 +1,35 @@
+# Dependabot Auto-Merge
+#
+# Uses pull_request_target to run in base branch context with full permissions.
+# This is safe for Dependabot PRs since they come from a trusted source.
+name: Dependabot auto-merge
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  dependabot:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      # --auto flag ensures GitHub waits for all required status checks to pass
+      # before merging. If checks fail, the PR remains open for manual review.
+      - name: Enable auto-merge for patch updates
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        run: |
+          if ! gh pr merge --auto --merge "$PR_URL"; then
+            echo "::warning::Failed to enable auto-merge. PR may have conflicts or auto-merge may be disabled."
+          fi
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
