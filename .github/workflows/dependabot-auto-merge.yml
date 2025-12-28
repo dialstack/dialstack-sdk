@@ -16,9 +16,14 @@ jobs:
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
+      # --auto flag ensures GitHub waits for all required status checks to pass
+      # before merging. If checks fail, the PR remains open for manual review.
       - name: Enable auto-merge for patch updates
         if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
-        run: gh pr merge --auto --merge "$PR_URL"
+        run: |
+          if ! gh pr merge --auto --merge "$PR_URL"; then
+            echo "::warning::Failed to enable auto-merge. PR may have conflicts or auto-merge may be disabled."
+          fi
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
