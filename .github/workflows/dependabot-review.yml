@@ -1,0 +1,63 @@
+name: Dependabot Claude review
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    outputs:
+      update-type: ${{ steps.metadata.outputs.update-type }}
+      dependency-names: ${{ steps.metadata.outputs.dependency-names }}
+      previous-version: ${{ steps.metadata.outputs.previous-version }}
+      new-version: ${{ steps.metadata.outputs.new-version }}
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+  review:
+    needs: metadata
+    runs-on: ubuntu-latest
+    if: needs.metadata.outputs.update-type != 'version-update:semver-patch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::857119675513:role/github-claude
+          aws-region: us-east-1
+
+      - name: Claude review and auto-approve
+        uses: anthropics/claude-code-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          use_bedrock: "true"
+          prompt: |
+            Review this Dependabot dependency update:
+
+            - Dependency: ${{ needs.metadata.outputs.dependency-names }}
+            - Update type: ${{ needs.metadata.outputs.update-type }}
+            - From: ${{ needs.metadata.outputs.previous-version }}
+            - To: ${{ needs.metadata.outputs.new-version }}
+
+            Please:
+            1. Fetch and review the changelog for breaking changes
+            2. Check if any code in this repo uses deprecated APIs
+            3. Assess risk level (low/medium/high)
+
+            Decision rules:
+            - MINOR updates with NO breaking changes and LOW risk: approve the PR with `gh pr review --approve` and enable auto-merge with `gh pr merge --auto --merge`
+            - MINOR updates with breaking changes OR medium risk: comment with findings, do NOT approve
+            - MAJOR updates: always comment with detailed analysis, do NOT approve (human review required)
+
+            Always leave a comment explaining your analysis.
