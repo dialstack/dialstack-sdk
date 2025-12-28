@@ -25,7 +25,7 @@ jobs:
         with:
           fetch-depth: 1
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: arn:aws:iam::857119675513:role/github-claude
           aws-region: us-east-1
@@ -64,7 +64,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: arn:aws:iam::857119675513:role/github-claude
           aws-region: us-east-1
