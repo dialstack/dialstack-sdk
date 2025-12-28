@@ -1,5 +1,9 @@
+# Dependabot Auto-Merge
+#
+# Uses pull_request_target to run in base branch context with full permissions.
+# This is safe for Dependabot PRs since they come from a trusted source.
 name: Dependabot auto-merge
-on: pull_request
+on: pull_request_target
 
 permissions:
   contents: write

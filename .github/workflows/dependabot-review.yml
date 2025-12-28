@@ -1,6 +1,10 @@
+# Dependabot Claude Review
+#
+# Uses pull_request_target to run in base branch context with full permissions.
+# This is safe for Dependabot PRs since they come from a trusted source.
 name: Dependabot Claude review
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize]
 
 permissions:
