@@ -12,7 +12,11 @@ updates:
       - "dependencies"
     commit-message:
       prefix: "chore(deps):"
+    rebase-strategy: "auto"
     groups:
+      production-dependencies:
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
       dev-dependencies:
         dependency-type: "development"
         update-types: ["minor", "patch"]
@@ -29,3 +33,7 @@ updates:
       - "dependencies"
     commit-message:
       prefix: "chore(deps):"
+    rebase-strategy: "auto"
+    groups:
+      github-actions:
+        update-types: ["minor", "patch"]

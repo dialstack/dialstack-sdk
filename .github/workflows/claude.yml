@@ -11,6 +11,7 @@ on:
     types: [opened, synchronize]
 
 permissions:
+  actions: read
   contents: read
   pull-requests: write
   issues: write
@@ -18,40 +19,41 @@ permissions:
 
 jobs:
   review:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.type != 'Bot'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::857119675513:role/github-claude
-          aws-region: us-east-1
-
       - uses: anthropics/claude-code-action@v1
         with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           track_progress: true
-          use_bedrock: "true"
+          show_full_output: true
           claude_args: |
-            --model us.anthropic.claude-sonnet-4-5-20250929-v1:0
+            --model claude-sonnet-4-5
+            --max-turns 20
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
 
-            Please review this pull request with a focus on:
+            Review this pull request focusing on:
             - Code quality and best practices
             - Potential bugs or issues
             - Security implications
             - Performance considerations
 
-            Note: The PR branch is already checked out in the current working directory.
+            The PR branch is already checked out. To view changes:
+            - `gh pr diff ${{ github.event.pull_request.number }}` - see the full diff
+            - `gh pr view ${{ github.event.pull_request.number }}` - see PR description
 
-            Use `gh pr comment` for top-level feedback.
-            Use `mcp__github_inline_comment__create_inline_comment` to highlight specific code issues.
-            Only post GitHub comments - don't submit review text as messages.
+            To provide feedback:
+            - `gh pr comment ${{ github.event.pull_request.number }} --body "..."` - top-level comment
+            - `mcp__github_inline_comment__create_inline_comment` - inline code comments
+
+            Do NOT use git commands. Only post GitHub comments.
 
   interactive:
     if: |
@@ -60,18 +62,14 @@ jobs:
       (github.event_name == 'issues' && github.event.action == 'assigned' && github.event.assignee.login == 'claude[bot]')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::857119675513:role/github-claude
-          aws-region: us-east-1
-
       - uses: anthropics/claude-code-action@v1
         with:
-          use_bedrock: "true"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: |
-            --model us.anthropic.claude-sonnet-4-5-20250929-v1:0
+            --model claude-sonnet-4-5
+            --max-turns 5
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
