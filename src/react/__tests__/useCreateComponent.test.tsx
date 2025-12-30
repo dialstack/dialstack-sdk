@@ -44,7 +44,8 @@ describe('useCreateComponent', () => {
     const { result } = renderHook(() => useCreateComponent(mockDialstack, 'call-logs'), { wrapper });
 
     expect(result.current.containerRef).toBeDefined();
-    expect(result.current.containerRef.current).toBeNull(); // null before mount
+    expect(typeof result.current.containerRef).toBe('function'); // callback ref
+    expect(result.current.componentInstance).toBeNull(); // null before mount
   });
 
   it('calls dialstack.create with correct tagName', async () => {
