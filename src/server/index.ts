@@ -349,9 +349,7 @@ function createPaginatedList<T>(
     }
   };
 
-  paginatedList.autoPagingToArray = async function (options?: {
-    limit?: number;
-  }): Promise<T[]> {
+  paginatedList.autoPagingToArray = async function (options?: { limit?: number }): Promise<T[]> {
     const limit = options?.limit ?? 10000;
     const results: T[] = [];
 
@@ -378,7 +376,10 @@ export class DialStack {
   private readonly _timeout: number;
   private readonly _maxNetworkRetries: number;
   private readonly _appInfo?: AppInfo;
-  private readonly _eventListeners: Map<EventType, Set<EventCallback<RequestEvent | ResponseEvent>>>;
+  private readonly _eventListeners: Map<
+    EventType,
+    Set<EventCallback<RequestEvent | ResponseEvent>>
+  >;
 
   constructor(apiKey: string | undefined, config?: DialStackConfig) {
     if (!apiKey) {
@@ -530,38 +531,26 @@ export class DialStack {
         lastError = error as Error;
 
         // Abort errors (timeout) - retry
-        if (
-          error instanceof Error &&
-          error.name === 'AbortError' &&
-          attempt < maxRetries
-        ) {
+        if (error instanceof Error && error.name === 'AbortError' && attempt < maxRetries) {
           await this.sleep(this.getRetryDelay(attempt));
           continue;
         }
 
         // Network errors - retry
-        if (
-          error instanceof TypeError &&
-          error.message.includes('fetch') &&
-          attempt < maxRetries
-        ) {
+        if (error instanceof TypeError && error.message.includes('fetch') && attempt < maxRetries) {
           await this.sleep(this.getRetryDelay(attempt));
           continue;
         }
 
         // Other errors - throw
-        throw new DialStackConnectionError(
-          `Network error: ${(error as Error).message}`,
-          { cause: error as Error }
-        );
+        throw new DialStackConnectionError(`Network error: ${(error as Error).message}`, {
+          cause: error as Error,
+        });
       }
     }
 
     if (!response) {
-      throw (
-        lastError ||
-        new DialStackConnectionError('Request failed after retries')
-      );
+      throw lastError || new DialStackConnectionError('Request failed after retries');
     }
 
     const elapsed = Date.now() - requestStartTime;
@@ -590,19 +579,16 @@ export class DialStack {
         // Use statusText if we can't parse error
       }
 
-      const error = DialStackError.generate(
-        errorMessage,
-        response.status,
-        rawError,
-        requestId
-      );
+      const error = DialStackError.generate(errorMessage, response.status, rawError, requestId);
 
       // Add retry-after for rate limit errors
       if (error instanceof DialStackRateLimitError) {
         const retryAfter = response.headers.get('Retry-After');
         if (retryAfter) {
-          (error as DialStackRateLimitError & { retryAfter: number }).retryAfter =
-            parseInt(retryAfter, 10);
+          (error as DialStackRateLimitError & { retryAfter: number }).retryAfter = parseInt(
+            retryAfter,
+            10
+          );
         }
       }
 
@@ -619,10 +605,7 @@ export class DialStack {
 
   private getRetryDelay(attempt: number): number {
     // Exponential backoff with jitter
-    const delay = Math.min(
-      INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt),
-      MAX_RETRY_DELAY_MS
-    );
+    const delay = Math.min(INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt), MAX_RETRY_DELAY_MS);
     // Add jitter (0-25% of delay)
     return delay + Math.random() * delay * 0.25;
   }
@@ -636,10 +619,7 @@ export class DialStack {
   // ==========================================================================
 
   accounts = {
-    create: (
-      params?: AccountCreateParams,
-      options?: RequestOptions
-    ): Promise<Account> => {
+    create: (params?: AccountCreateParams, options?: RequestOptions): Promise<Account> => {
       return this._request('POST', '/v1/accounts', params || {}, options);
     },
 
@@ -652,7 +632,7 @@ export class DialStack {
       params: AccountUpdateParams,
       options?: RequestOptions
     ): Promise<Account> => {
-      return this._request('PUT', `/v1/accounts/${accountId}`, params, options);
+      return this._request('POST', `/v1/accounts/${accountId}`, params, options);
     },
 
     del: (accountId: string, options?: RequestOptions): Promise<void> => {
@@ -671,10 +651,7 @@ export class DialStack {
         return this._request('GET', url, undefined, options);
       };
 
-      return createPaginatedList(
-        this._request('GET', path, undefined, options),
-        fetchPage
-      );
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
     },
   };
 
@@ -690,11 +667,7 @@ export class DialStack {
       });
     },
 
-    retrieve: (
-      accountId: string,
-      userId: string,
-      options?: RequestOptions
-    ): Promise<User> => {
+    retrieve: (accountId: string, userId: string, options?: RequestOptions): Promise<User> => {
       return this._request('GET', `/v1/users/${userId}`, undefined, {
         ...options,
         accountId,
@@ -707,17 +680,13 @@ export class DialStack {
       params: UserUpdateParams,
       options?: RequestOptions
     ): Promise<User> => {
-      return this._request('PUT', `/v1/users/${userId}`, params, {
+      return this._request('POST', `/v1/users/${userId}`, params, {
         ...options,
         accountId,
       });
     },
 
-    del: (
-      accountId: string,
-      userId: string,
-      options?: RequestOptions
-    ): Promise<void> => {
+    del: (accountId: string, userId: string, options?: RequestOptions): Promise<void> => {
       return this._request('DELETE', `/v1/users/${userId}`, undefined, {
         ...options,
         accountId,
@@ -794,16 +763,8 @@ export class DialStack {
       });
     },
 
-    retrieveTranscript: (
-      callId: string,
-      options?: RequestOptions
-    ): Promise<Transcript> => {
-      return this._request(
-        'GET',
-        `/v1/calls/${callId}/transcript`,
-        undefined,
-        options
-      );
+    retrieveTranscript: (callId: string, options?: RequestOptions): Promise<Transcript> => {
+      return this._request('GET', `/v1/calls/${callId}/transcript`, undefined, options);
     },
   };
 
@@ -842,11 +803,7 @@ export class DialStack {
       });
     },
 
-    del: (
-      accountId: string,
-      voiceAppId: string,
-      options?: RequestOptions
-    ): Promise<void> => {
+    del: (accountId: string, voiceAppId: string, options?: RequestOptions): Promise<void> => {
       return this._request('DELETE', `/v1/voice_apps/${voiceAppId}`, undefined, {
         ...options,
         accountId,
@@ -907,8 +864,7 @@ export class DialStack {
       secret: string,
       tolerance: number = 300
     ): T => {
-      const payloadString =
-        typeof payload === 'string' ? payload : payload.toString('utf8');
+      const payloadString = typeof payload === 'string' ? payload : payload.toString('utf8');
 
       // Parse signature header: t=timestamp,v1=signature
       const parts = signature.split(',');
@@ -942,12 +898,7 @@ export class DialStack {
         .digest('hex');
 
       // Constant-time comparison
-      if (
-        !crypto.timingSafeEqual(
-          Buffer.from(computedSignature),
-          Buffer.from(expectedSignature)
-        )
-      ) {
+      if (!crypto.timingSafeEqual(Buffer.from(computedSignature), Buffer.from(expectedSignature))) {
         throw new DialStackError('Webhook signature verification failed', {
           statusCode: 400,
           type: 'invalid_request_error',
