@@ -67,8 +67,7 @@ describe('useUpdateWithSetter', () => {
     } as unknown as HTMLElement & { setUserId: (val: string) => void };
 
     const { rerender } = renderHook(
-      ({ value }) =>
-        useUpdateWithSetter(mockComponent, value, (comp, val) => comp.setUserId(val)),
+      ({ value }) => useUpdateWithSetter(mockComponent, value, (comp, val) => comp.setUserId(val)),
       { initialProps: { value: 'user-123' as string | undefined } }
     );
 

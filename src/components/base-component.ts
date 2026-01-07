@@ -558,7 +558,8 @@ export abstract class BaseComponent extends getHTMLElementBase() {
     const timeDisplayWidth = vars.timeDisplayWidth || '36px';
 
     // Layout variant spacing multipliers
-    const layoutMultiplier = this.layoutVariant === 'compact' ? 0.75 : this.layoutVariant === 'comfortable' ? 1.25 : 1;
+    const layoutMultiplier =
+      this.layoutVariant === 'compact' ? 0.75 : this.layoutVariant === 'comfortable' ? 1.25 : 1;
     const layoutSpacingXs = `${Math.round(4 * layoutMultiplier)}px`;
     const layoutSpacingSm = `${Math.round(8 * layoutMultiplier)}px`;
     const layoutSpacingMd = `${Math.round(12 * layoutMultiplier)}px`;

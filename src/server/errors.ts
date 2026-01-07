@@ -111,10 +111,7 @@ export class DialStackError extends Error {
  * API key is invalid, expired, or missing
  */
 export class DialStackAuthenticationError extends DialStackError {
-  constructor(
-    message: string,
-    options: ConstructorParameters<typeof DialStackError>[1]
-  ) {
+  constructor(message: string, options: ConstructorParameters<typeof DialStackError>[1]) {
     super(message, { ...options, type: 'authentication_error' });
     this.name = 'DialStackAuthenticationError';
   }
@@ -125,10 +122,7 @@ export class DialStackAuthenticationError extends DialStackError {
  * API key doesn't have permission for this resource
  */
 export class DialStackPermissionError extends DialStackError {
-  constructor(
-    message: string,
-    options: ConstructorParameters<typeof DialStackError>[1]
-  ) {
+  constructor(message: string, options: ConstructorParameters<typeof DialStackError>[1]) {
     super(message, options);
     this.name = 'DialStackPermissionError';
   }
@@ -138,10 +132,7 @@ export class DialStackPermissionError extends DialStackError {
  * Resource not found (404)
  */
 export class DialStackNotFoundError extends DialStackError {
-  constructor(
-    message: string,
-    options: ConstructorParameters<typeof DialStackError>[1]
-  ) {
+  constructor(message: string, options: ConstructorParameters<typeof DialStackError>[1]) {
     super(message, { ...options, type: 'not_found_error' });
     this.name = 'DialStackNotFoundError';
   }
@@ -152,10 +143,7 @@ export class DialStackNotFoundError extends DialStackError {
  * Resource already exists or state conflict
  */
 export class DialStackConflictError extends DialStackError {
-  constructor(
-    message: string,
-    options: ConstructorParameters<typeof DialStackError>[1]
-  ) {
+  constructor(message: string, options: ConstructorParameters<typeof DialStackError>[1]) {
     super(message, { ...options, type: 'conflict_error' });
     this.name = 'DialStackConflictError';
   }
@@ -166,10 +154,7 @@ export class DialStackConflictError extends DialStackError {
  * Request body validation failed
  */
 export class DialStackValidationError extends DialStackError {
-  constructor(
-    message: string,
-    options: ConstructorParameters<typeof DialStackError>[1]
-  ) {
+  constructor(message: string, options: ConstructorParameters<typeof DialStackError>[1]) {
     super(message, { ...options, type: 'validation_error' });
     this.name = 'DialStackValidationError';
   }
@@ -180,10 +165,7 @@ export class DialStackValidationError extends DialStackError {
  * Request parameters are invalid
  */
 export class DialStackInvalidRequestError extends DialStackError {
-  constructor(
-    message: string,
-    options: ConstructorParameters<typeof DialStackError>[1]
-  ) {
+  constructor(message: string, options: ConstructorParameters<typeof DialStackError>[1]) {
     super(message, { ...options, type: 'invalid_request_error' });
     this.name = 'DialStackInvalidRequestError';
   }
@@ -212,10 +194,7 @@ export class DialStackRateLimitError extends DialStackError {
  * Server-side error
  */
 export class DialStackAPIError extends DialStackError {
-  constructor(
-    message: string,
-    options: ConstructorParameters<typeof DialStackError>[1]
-  ) {
+  constructor(message: string, options: ConstructorParameters<typeof DialStackError>[1]) {
     super(message, { ...options, type: 'api_error' });
     this.name = 'DialStackAPIError';
   }

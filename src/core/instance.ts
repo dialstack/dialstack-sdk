@@ -235,7 +235,9 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
    * Retrieve the transcript for a voicemail
    */
   async getVoicemailTranscript(userId: string, voicemailId: string): Promise<VoicemailTranscript> {
-    const response = await this.fetchApi(`/v1/users/${userId}/voicemails/${voicemailId}/transcript`);
+    const response = await this.fetchApi(
+      `/v1/users/${userId}/voicemails/${voicemailId}/transcript`
+    );
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Failed to get voicemail transcript: ${response.status} ${errorText}`);
@@ -281,10 +283,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   /**
    * Subscribe to call events
    */
-  on<K extends keyof CallEventMap>(
-    event: K,
-    handler: CallEventHandler<CallEventMap[K]>
-  ): void {
+  on<K extends keyof CallEventMap>(event: K, handler: CallEventHandler<CallEventMap[K]>): void {
     if (!this.eventListeners.has(event)) {
       this.eventListeners.set(event, new Set());
     }
@@ -299,10 +298,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   /**
    * Unsubscribe from call events
    */
-  off<K extends keyof CallEventMap>(
-    event: K,
-    handler?: CallEventHandler<CallEventMap[K]>
-  ): void {
+  off<K extends keyof CallEventMap>(event: K, handler?: CallEventHandler<CallEventMap[K]>): void {
     const listeners = this.eventListeners.get(event);
     if (!listeners) return;
 

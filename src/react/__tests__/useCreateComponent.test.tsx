@@ -38,10 +38,14 @@ describe('useCreateComponent', () => {
     const mockDialstack = createMockDialstack();
 
     const wrapper = ({ children }: { children: React.ReactNode }) => (
-      <DialstackComponentsProvider dialstack={mockDialstack}>{children}</DialstackComponentsProvider>
+      <DialstackComponentsProvider dialstack={mockDialstack}>
+        {children}
+      </DialstackComponentsProvider>
     );
 
-    const { result } = renderHook(() => useCreateComponent(mockDialstack, 'call-logs'), { wrapper });
+    const { result } = renderHook(() => useCreateComponent(mockDialstack, 'call-logs'), {
+      wrapper,
+    });
 
     expect(result.current.containerRef).toBeDefined();
     expect(typeof result.current.containerRef).toBe('function'); // callback ref

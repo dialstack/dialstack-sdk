@@ -179,24 +179,15 @@ export class MediaStream extends EventEmitter {
   }
 
   // Type-safe event emitter overrides
-  on<K extends keyof MediaStreamEvents>(
-    event: K,
-    listener: MediaStreamEvents[K]
-  ): this {
+  on<K extends keyof MediaStreamEvents>(event: K, listener: MediaStreamEvents[K]): this {
     return super.on(event, listener);
   }
 
-  once<K extends keyof MediaStreamEvents>(
-    event: K,
-    listener: MediaStreamEvents[K]
-  ): this {
+  once<K extends keyof MediaStreamEvents>(event: K, listener: MediaStreamEvents[K]): this {
     return super.once(event, listener);
   }
 
-  off<K extends keyof MediaStreamEvents>(
-    event: K,
-    listener: MediaStreamEvents[K]
-  ): this {
+  off<K extends keyof MediaStreamEvents>(event: K, listener: MediaStreamEvents[K]): this {
     return super.off(event, listener);
   }
 

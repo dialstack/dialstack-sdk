@@ -129,10 +129,7 @@ export class CallHistoryComponent extends BaseComponent {
       ]);
 
       // Merge, dedupe, sort by started_at desc, and limit
-      this.calls = this.mergeAndSort(
-        [...fromResponse.data, ...toResponse.data],
-        this.limit
-      );
+      this.calls = this.mergeAndSort([...fromResponse.data, ...toResponse.data], this.limit);
     } catch (err) {
       this.error = err instanceof Error ? err.message : this.t('callHistory.error');
       if (this._onLoadError) {
@@ -389,17 +386,29 @@ export class CallHistoryComponent extends BaseComponent {
         role="listitem"
       >
         <div class="call-history-item-header">
-          ${this.displayOptions.showDirectionIcon ? `
+          ${
+            this.displayOptions.showDirectionIcon
+              ? `
             <div class="call-history-icon ${iconClass}">
               ${this.getDirectionIcon(call, isMissed, voicemail)}
             </div>
-          ` : ''}
-          ${this.displayOptions.showRelativeTime ? `
+          `
+              : ''
+          }
+          ${
+            this.displayOptions.showRelativeTime
+              ? `
             <span class="call-history-time ${timeClass}">${relativeTime}</span>
-          ` : ''}
-          ${this.displayOptions.showDuration ? `
+          `
+              : ''
+          }
+          ${
+            this.displayOptions.showDuration
+              ? `
             <span class="call-history-duration ${durationClass}">${duration}</span>
-          ` : ''}
+          `
+              : ''
+          }
         </div>
         ${showSummary ? this.renderSummary(call) : ''}
       </div>

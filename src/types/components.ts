@@ -357,6 +357,6 @@ export type ComponentTagName = 'call-logs' | 'voicemails' | 'call-history';
  */
 export interface ComponentElement {
   'call-logs': CallLogsElement;
-  'voicemails': VoicemailsElement;
+  voicemails: VoicemailsElement;
   'call-history': CallHistoryElement;
 }

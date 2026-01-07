@@ -38,38 +38,24 @@ describe('SDK Exports', () => {
   });
 
   describe('Naming conventions', () => {
-    const reactComponentExports = [
-      'DialstackComponentsProvider',
-      'CallLogs',
-      'Voicemails',
-    ];
+    const reactComponentExports = ['DialstackComponentsProvider', 'CallLogs', 'Voicemails'];
 
-    const hookExports = [
-      'useDialstackComponents',
-      'useCreateComponent',
-      'useUpdateWithSetter',
-    ];
+    const hookExports = ['useDialstackComponents', 'useCreateComponent', 'useUpdateWithSetter'];
 
     const functionExports = ['loadDialstackAndInitialize'];
 
     it('all React component exports start with uppercase letter', () => {
-      const allStartWithUppercase = reactComponentExports.every(
-        (name) => /^[A-Z]/.test(name)
-      );
+      const allStartWithUppercase = reactComponentExports.every((name) => /^[A-Z]/.test(name));
       expect(allStartWithUppercase).toBe(true);
     });
 
     it('all hook exports start with "use"', () => {
-      const allStartWithUse = hookExports.every(
-        (name) => name.startsWith('use')
-      );
+      const allStartWithUse = hookExports.every((name) => name.startsWith('use'));
       expect(allStartWithUse).toBe(true);
     });
 
     it('all function exports start with lowercase letter', () => {
-      const allStartWithLowercase = functionExports.every(
-        (name) => /^[a-z]/.test(name)
-      );
+      const allStartWithLowercase = functionExports.every((name) => /^[a-z]/.test(name));
       expect(allStartWithLowercase).toBe(true);
     });
 

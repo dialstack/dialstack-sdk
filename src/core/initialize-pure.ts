@@ -127,4 +127,3 @@ export function registerComponents(): void {
   import('../components/call-logs');
   import('../components/voicemails');
 }
-

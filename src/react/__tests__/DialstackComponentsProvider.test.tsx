@@ -79,7 +79,9 @@ describe('useDialstackComponents', () => {
     const mockDialstack = createMockDialstack();
 
     const wrapper = ({ children }: { children: React.ReactNode }) => (
-      <DialstackComponentsProvider dialstack={mockDialstack}>{children}</DialstackComponentsProvider>
+      <DialstackComponentsProvider dialstack={mockDialstack}>
+        {children}
+      </DialstackComponentsProvider>
     );
 
     const { result } = renderHook(() => useDialstackComponents(), { wrapper });

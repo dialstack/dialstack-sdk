@@ -3,7 +3,12 @@
  */
 
 import type { AppearanceOptions, UpdateOptions } from './appearance';
-import type { ComponentTagName, ComponentElement, Transcript, VoicemailTranscript } from './components';
+import type {
+  ComponentTagName,
+  ComponentElement,
+  Transcript,
+  VoicemailTranscript,
+} from './components';
 import type { CallEventMap, CallEventHandler } from './callbacks';
 
 /**
@@ -187,10 +192,7 @@ export interface DialStackInstance {
    * });
    * ```
    */
-  on<K extends keyof CallEventMap>(
-    event: K,
-    handler: CallEventHandler<CallEventMap[K]>
-  ): void;
+  on<K extends keyof CallEventMap>(event: K, handler: CallEventHandler<CallEventMap[K]>): void;
 
   /**
    * Unsubscribe from real-time call events
@@ -203,10 +205,7 @@ export interface DialStackInstance {
    * dialstack.off('call.incoming', myHandler);
    * ```
    */
-  off<K extends keyof CallEventMap>(
-    event: K,
-    handler?: CallEventHandler<CallEventMap[K]>
-  ): void;
+  off<K extends keyof CallEventMap>(event: K, handler?: CallEventHandler<CallEventMap[K]>): void;
 }
 
 /**

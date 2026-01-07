@@ -66,7 +66,8 @@ export class VoicemailsComponent extends BaseComponent {
   private progressInterval: number | null = null;
 
   // Transcript state
-  private transcriptCache: Map<string, { status: TranscriptStatus; text: string | null }> = new Map();
+  private transcriptCache: Map<string, { status: TranscriptStatus; text: string | null }> =
+    new Map();
   private loadingTranscript: Set<string> = new Set();
 
   // Display options
@@ -236,7 +237,9 @@ export class VoicemailsComponent extends BaseComponent {
 
     try {
       const params = new URLSearchParams({ limit: '20' });
-      const data = await this.fetchComponentData<VoicemailsResponse>(`/v1/users/${this.userId}/voicemails?${params}`);
+      const data = await this.fetchComponentData<VoicemailsResponse>(
+        `/v1/users/${this.userId}/voicemails?${params}`
+      );
       this.voicemails = data.data || [];
       this.nextPageUrl = data.next_page_url;
 
@@ -288,7 +291,9 @@ export class VoicemailsComponent extends BaseComponent {
     const loadMoreBtn = this.shadowRoot.getElementById('load-more-btn') as HTMLButtonElement;
     if (loadMoreBtn) {
       loadMoreBtn.disabled = this.isLoadingMore;
-      loadMoreBtn.textContent = this.isLoadingMore ? this.t('common.loading') : this.t('common.loadMore');
+      loadMoreBtn.textContent = this.isLoadingMore
+        ? this.t('common.loading')
+        : this.t('common.loadMore');
     }
   }
 
@@ -435,7 +440,9 @@ export class VoicemailsComponent extends BaseComponent {
   private togglePlayPause(voicemailId: string): void {
     if (!this.shadowRoot) return;
 
-    const audio = this.shadowRoot.querySelector(`audio[data-id="${voicemailId}"]`) as HTMLAudioElement;
+    const audio = this.shadowRoot.querySelector(
+      `audio[data-id="${voicemailId}"]`
+    ) as HTMLAudioElement;
     if (!audio) return;
 
     if (this.isPlaying && this.audioElement === audio) {
@@ -1415,7 +1422,10 @@ export class VoicemailsComponent extends BaseComponent {
                aria-expanded="${isExpanded}"
                aria-label="${callerName}, ${this.formatPhoneNumber(vm.from_number)}, ${this.formatDateShort(vm.created_at)}">
             <div class="voicemail-row" part="voicemail-row">
-              ${customRow !== null ? customRow : `
+              ${
+                customRow !== null
+                  ? customRow
+                  : `
                 <span class="unread-dot ${isUnread ? '' : 'hidden'}" part="unread-indicator" aria-hidden="true"></span>
                 <div class="row-content" part="row-content">
                   <span class="caller-name ${isUnread ? 'unread' : ''}" part="caller-name">${callerName}</span>
@@ -1425,7 +1435,8 @@ export class VoicemailsComponent extends BaseComponent {
                   ${this.displayOptions.showDuration ? `<span class="duration" part="duration">${this.formatTime(vm.duration_seconds)}</span>` : ''}
                 </div>
                 <span class="chevron" part="chevron" aria-hidden="true">${this.getIcon('chevronRight')}</span>
-              `}
+              `
+              }
             </div>
             ${isExpanded ? this.renderExpandedDetail(vm) : ''}
           </div>
@@ -1437,7 +1448,9 @@ export class VoicemailsComponent extends BaseComponent {
       <div class="voicemail-list ${this.classes.list || ''}" part="voicemail-list" role="list" aria-label="${this.t('voicemails.title')}">
         ${items}
       </div>
-      ${this.nextPageUrl ? `
+      ${
+        this.nextPageUrl
+          ? `
       <div class="load-more-container" part="load-more-container">
         <button
           id="load-more-btn"
@@ -1448,7 +1461,9 @@ export class VoicemailsComponent extends BaseComponent {
           ${this.isLoadingMore ? this.t('common.loading') : this.t('common.loadMore')}
         </button>
       </div>
-      ` : ''}
+      `
+          : ''
+      }
     `;
   }
 
@@ -1457,7 +1472,8 @@ export class VoicemailsComponent extends BaseComponent {
    */
   private renderExpandedDetail(vm: Voicemail): string {
     const callerName = vm.from_name || 'Unknown';
-    const isCurrentlyPlaying = this.isPlaying && this.audioElement?.getAttribute('data-id') === vm.id;
+    const isCurrentlyPlaying =
+      this.isPlaying && this.audioElement?.getAttribute('data-id') === vm.id;
     const progressPercent = this.duration > 0 ? (this.currentTime / this.duration) * 100 : 0;
     const canSeek = this.behaviorOptions.allowSeeking;
 
@@ -1477,7 +1493,9 @@ export class VoicemailsComponent extends BaseComponent {
         ${this.displayOptions.showTimestamp ? `<div class="detail-date" part="detail-date">${this.formatDateLong(vm.created_at)}</div>` : ''}
 
         <!-- Row 4: Progress bar -->
-        ${this.displayOptions.showProgressBar ? `
+        ${
+          this.displayOptions.showProgressBar
+            ? `
         <div class="progress-row ${canSeek ? '' : 'no-seek'}" part="progress-row"
              role="slider"
              aria-label="${this.t('voicemails.progress')}"
@@ -1491,7 +1509,9 @@ export class VoicemailsComponent extends BaseComponent {
           </div>
           <span class="time-remaining" part="time-remaining">-${this.formatTime(this.duration - this.currentTime || vm.duration_seconds)}</span>
         </div>
-        ` : ''}
+        `
+            : ''
+        }
 
         <!-- Row 5: Play button (left) + Action buttons (right) -->
         <div class="controls-row ${this.classes.player || ''}" part="controls-row">
@@ -1502,7 +1522,9 @@ export class VoicemailsComponent extends BaseComponent {
             ${isCurrentlyPlaying ? this.getIcon('pause') : this.getIcon('play')}
           </button>
           <div class="action-buttons ${this.classes.actions || ''}" part="action-buttons">
-            ${this.displayOptions.showCallbackButton ? `
+            ${
+              this.displayOptions.showCallbackButton
+                ? `
             <button class="action-btn call" part="callback-button"
                     data-action="call"
                     data-number="${vm.from_number}"
@@ -1510,8 +1532,12 @@ export class VoicemailsComponent extends BaseComponent {
               ${this.getIcon('phone')}
               ${this.t('common.call')}
             </button>
-            ` : ''}
-            ${this.displayOptions.showDeleteButton ? `
+            `
+                : ''
+            }
+            ${
+              this.displayOptions.showDeleteButton
+                ? `
             <button class="action-btn delete" part="delete-button"
                     data-action="delete"
                     data-id="${vm.id}"
@@ -1519,14 +1545,20 @@ export class VoicemailsComponent extends BaseComponent {
               ${this.getIcon('trash')}
               ${this.t('common.delete')}
             </button>
-            ` : ''}
+            `
+                : ''
+            }
           </div>
         </div>
 
         <!-- Row 6: Summary + Transcript in unified container -->
-        ${(vm.summary || this.displayOptions.showTranscription) ? `
+        ${
+          vm.summary || this.displayOptions.showTranscription
+            ? `
         <div class="transcription-container" part="transcription-container">
-          ${vm.summary ? `
+          ${
+            vm.summary
+              ? `
           <div class="summary" part="summary">
             <div class="summary-header" part="summary-header">
               ${this.getIcon('sparkle')}
@@ -1534,14 +1566,22 @@ export class VoicemailsComponent extends BaseComponent {
             </div>
             <div class="summary-text" part="summary-text">${vm.summary}</div>
           </div>
-          ` : ''}
-          ${this.displayOptions.showTranscription ? `
+          `
+              : ''
+          }
+          ${
+            this.displayOptions.showTranscription
+              ? `
           <div class="transcript-section" part="transcript-section">
             ${this.renderTranscriptContent(vm.id)}
           </div>
-          ` : ''}
+          `
+              : ''
+          }
         </div>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
     `;
   }
@@ -1567,7 +1607,12 @@ export class VoicemailsComponent extends BaseComponent {
       item.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
         // Don't toggle if clicking on buttons or interactive elements
-        if (target.closest('button') || target.closest('.progress-row') || target.closest('.transcription')) return;
+        if (
+          target.closest('button') ||
+          target.closest('.progress-row') ||
+          target.closest('.transcription')
+        )
+          return;
 
         const id = item.getAttribute('data-id');
         // Only expand, don't collapse when clicking on already expanded item

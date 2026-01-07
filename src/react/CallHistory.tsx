@@ -133,7 +133,9 @@ export const CallHistory: React.FC<CallHistoryProps> = ({
   useUpdateWithSetter(componentInstance, icons, (comp, val) => comp.setIcons(val));
   useUpdateWithSetter(componentInstance, layoutVariant, (comp, val) => comp.setLayoutVariant(val));
   useUpdateWithSetter(componentInstance, classes, (comp, val) => comp.setClasses(val));
-  useUpdateWithSetter(componentInstance, displayOptions, (comp, val) => comp.setDisplayOptions(val));
+  useUpdateWithSetter(componentInstance, displayOptions, (comp, val) =>
+    comp.setDisplayOptions(val)
+  );
 
   // Sync callbacks to Web Component
   useUpdateWithSetter(componentInstance, onLoaderStart, (comp, val) => comp.setOnLoaderStart(val));

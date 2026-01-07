@@ -4,12 +4,7 @@
 
 import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenumber-js';
 import { BaseComponent } from './base-component';
-import type {
-  CallLog,
-  CallLogDisplayOptions,
-  CallLogRowRenderer,
-  CallLogsClasses,
-} from '../types';
+import type { CallLog, CallLogDisplayOptions, CallLogRowRenderer, CallLogsClasses } from '../types';
 
 /**
  * API response structure (URL-based pagination)
@@ -149,7 +144,9 @@ export class CallLogsComponent extends BaseComponent {
       if (this.dateRange?.start) estimateParams.set('from', this.dateRange.start);
       if (this.dateRange?.end) estimateParams.set('to', this.dateRange.end);
 
-      const estimateData = await this.fetchComponentData<CallLogsResponse>(`/v1/calls?${estimateParams}`);
+      const estimateData = await this.fetchComponentData<CallLogsResponse>(
+        `/v1/calls?${estimateParams}`
+      );
 
       // Determine total count
       const itemCount = estimateData.data?.length || 0;
@@ -633,15 +630,18 @@ export class CallLogsComponent extends BaseComponent {
    * Render the call logs table
    */
   private renderTable(): string {
-    const { showDate, showDirection, showFrom, showTo, showDuration, showStatus } = this.displayOptions;
+    const { showDate, showDirection, showFrom, showTo, showDuration, showStatus } =
+      this.displayOptions;
 
     const rows = this.callLogs
       .map((call) => {
         // Build row classes
         const rowClasses: string[] = [];
         if (this.classes.row) rowClasses.push(this.classes.row);
-        if (call.direction === 'inbound' && this.classes.rowInbound) rowClasses.push(this.classes.rowInbound);
-        if (call.direction === 'outbound' && this.classes.rowOutbound) rowClasses.push(this.classes.rowOutbound);
+        if (call.direction === 'inbound' && this.classes.rowInbound)
+          rowClasses.push(this.classes.rowInbound);
+        if (call.direction === 'outbound' && this.classes.rowOutbound)
+          rowClasses.push(this.classes.rowOutbound);
         const rowClassStr = rowClasses.length > 0 ? ` class="${rowClasses.join(' ')}"` : '';
 
         // Use custom row renderer if provided
