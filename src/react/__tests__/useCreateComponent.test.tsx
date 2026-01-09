@@ -10,7 +10,6 @@ import type { DialStackInstance, ComponentElement } from '../../types';
 
 // Mock the version constant
 declare global {
-  // eslint-disable-next-line no-var
   var _NPM_PACKAGE_VERSION_: string;
 }
 globalThis._NPM_PACKAGE_VERSION_ = '0.0.0-test';
