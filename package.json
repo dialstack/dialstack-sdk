@@ -55,6 +55,7 @@
     "lint:fix": "eslint src --fix",
     "format": "prettier --write src",
     "format:check": "prettier --check src",
+    "precommit": "npm run format && npm run lint && npm run typecheck",
     "test": "jest",
     "test:watch": "jest --watch",
     "prepublishOnly": "npm run clean && npm run lint && npm run typecheck && npm run test && npm run build"
