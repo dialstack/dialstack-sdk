@@ -300,6 +300,7 @@ export interface BookingResponse {
       name: string;
       address: string;
     };
+    notes?: string;
     created_at?: string;
   };
 }
