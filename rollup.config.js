@@ -47,7 +47,7 @@ export default [
   // Browser SDK (with side effects - auto-registers components)
   {
     input: 'src/index.ts',
-    external: ['react', 'react-dom'],
+    external: ['react', 'react-dom', /\.css$/],
     output: [
       {
         file: 'dist/sdk.cjs',
@@ -76,7 +76,7 @@ export default [
   // Pure SDK (no side effects - for SSR/testing)
   {
     input: 'src/pure.ts',
-    external: ['react', 'react-dom'],
+    external: ['react', 'react-dom', /\.css$/],
     output: [
       {
         file: 'dist/pure.cjs',

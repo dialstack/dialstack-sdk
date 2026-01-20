@@ -221,6 +221,88 @@ export interface VoiceAppListParams {
   page?: string;
 }
 
+// Schedule types
+export interface TimeRange {
+  /** Day of week (0=Sunday, 6=Saturday) */
+  day: number;
+  /** Start time in HH:MM format */
+  start: string;
+  /** End time in HH:MM format */
+  end: string;
+}
+
+export interface DateRange {
+  /** Start date in YYYY-MM-DD format */
+  start: string;
+  /** End date in YYYY-MM-DD format */
+  end: string;
+}
+
+export interface Schedule {
+  id: string;
+  account_id: string;
+  name: string;
+  timezone: string;
+  ranges: TimeRange[];
+  holidays: DateRange[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScheduleCreateParams {
+  name: string;
+  timezone?: string;
+  ranges: TimeRange[];
+  holidays?: DateRange[];
+}
+
+export interface ScheduleListParams {
+  limit?: number;
+  page?: string;
+}
+
+// Dial Plan types
+export interface DialPlanNode {
+  id: string;
+  type: 'schedule' | 'internal_dial';
+  position?: { x: number; y: number };
+  config: ScheduleNodeConfig | InternalDialNodeConfig;
+}
+
+export interface ScheduleNodeConfig {
+  schedule_id: string;
+  open?: string;
+  closed?: string;
+  holiday?: string;
+}
+
+export interface InternalDialNodeConfig {
+  target_id: string;
+  timeout?: number;
+  next?: string;
+}
+
+export interface DialPlan {
+  id: string;
+  account_id: string;
+  name: string;
+  entry_node: string;
+  nodes: DialPlanNode[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DialPlanCreateParams {
+  name: string;
+  entry_node: string;
+  nodes: DialPlanNode[];
+}
+
+export interface DialPlanListParams {
+  limit?: number;
+  page?: string;
+}
+
 // Call Control types
 export interface AttachAction {
   type: 'attach';
@@ -824,6 +906,98 @@ export class DialStack {
       const path = `/v1/voice_apps${query ? `?${query}` : ''}`;
 
       const fetchPage = (url: string): Promise<ListResponse<VoiceApp>> => {
+        return this._request('GET', url, undefined, { ...options, accountId });
+      };
+
+      return createPaginatedList(
+        this._request('GET', path, undefined, { ...options, accountId }),
+        fetchPage
+      );
+    },
+  };
+
+  schedules = {
+    create: (
+      accountId: string,
+      params: ScheduleCreateParams,
+      options?: RequestOptions
+    ): Promise<Schedule> => {
+      return this._request('POST', '/v1/schedules', params, {
+        ...options,
+        accountId,
+      });
+    },
+
+    retrieve: (
+      accountId: string,
+      scheduleId: string,
+      options?: RequestOptions
+    ): Promise<Schedule> => {
+      return this._request('GET', `/v1/schedules/${scheduleId}`, undefined, {
+        ...options,
+        accountId,
+      });
+    },
+
+    list: (
+      accountId: string,
+      params?: ScheduleListParams,
+      options?: RequestOptions
+    ): PaginatedList<Schedule> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
+
+      const query = queryParams.toString();
+      const path = `/v1/schedules${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<Schedule>> => {
+        return this._request('GET', url, undefined, { ...options, accountId });
+      };
+
+      return createPaginatedList(
+        this._request('GET', path, undefined, { ...options, accountId }),
+        fetchPage
+      );
+    },
+  };
+
+  dialPlans = {
+    create: (
+      accountId: string,
+      params: DialPlanCreateParams,
+      options?: RequestOptions
+    ): Promise<DialPlan> => {
+      return this._request('POST', '/v1/dialplans', params, {
+        ...options,
+        accountId,
+      });
+    },
+
+    retrieve: (
+      accountId: string,
+      dialPlanId: string,
+      options?: RequestOptions
+    ): Promise<DialPlan> => {
+      return this._request('GET', `/v1/dialplans/${dialPlanId}`, undefined, {
+        ...options,
+        accountId,
+      });
+    },
+
+    list: (
+      accountId: string,
+      params?: DialPlanListParams,
+      options?: RequestOptions
+    ): PaginatedList<DialPlan> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
+
+      const query = queryParams.toString();
+      const path = `/v1/dialplans${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<DialPlan>> => {
         return this._request('GET', url, undefined, { ...options, accountId });
       };
 

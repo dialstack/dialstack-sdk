@@ -76,3 +76,22 @@ export type {
   SessionData,
   DialStackInstanceImpl,
 } from './core';
+
+// Dial plan types
+export type {
+  ScheduleNodeConfig,
+  InternalDialNodeConfig,
+  DialPlanNodeType,
+  ScheduleNode,
+  InternalDialNode,
+  DialPlanNode,
+  DialPlan,
+  DialPlanViewerProps,
+  GraphNodeType,
+  StartNodeData,
+  ScheduleNodeData,
+  InternalDialNodeData,
+  GraphNodeData,
+  ScheduleExitType,
+  InternalDialExitType,
+} from './dial-plan';

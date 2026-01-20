@@ -73,4 +73,23 @@ export const en = {
       yesterday: 'Yesterday',
     },
   },
+  dialPlan: {
+    title: 'Dial Plan',
+    loading: 'Loading dial plan...',
+    error: 'Failed to load dial plan',
+    empty: 'No dial plan found',
+    nodeTypes: {
+      start: 'Start',
+      schedule: 'Schedule',
+      internalDial: 'Dial',
+      voicemail: 'Voicemail',
+    },
+    exits: {
+      open: 'Open',
+      closed: 'Closed',
+      holiday: 'Holiday',
+      next: 'No Answer',
+      timeout: 'Timeout',
+    },
+  },
 };
