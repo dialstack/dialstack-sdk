@@ -42,6 +42,7 @@ export const en = {
       to: 'To',
       duration: 'Duration',
       status: 'Status',
+      quality: 'MOS',
     },
     directions: {
       inbound: 'Inbound',
@@ -54,6 +55,13 @@ export const en = {
       busy: 'Busy',
       failed: 'Failed',
       voicemail: 'Voicemail',
+    },
+    quality: {
+      good: 'Good',
+      fair: 'Fair',
+      poor: 'Poor',
+      unavailable: 'N/A',
+      unavailableTooltip: 'No quality data available',
     },
   },
   callHistory: {

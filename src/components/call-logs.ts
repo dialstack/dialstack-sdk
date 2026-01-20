@@ -54,6 +54,7 @@ export class CallLogsComponent extends BaseComponent {
     showTo: true,
     showDuration: true,
     showStatus: true,
+    showQuality: true,
   };
 
   // Custom row renderer
@@ -339,6 +340,34 @@ export class CallLogsComponent extends BaseComponent {
   }
 
   /**
+   * Get color class for MOS quality score
+   */
+  private getMosClass(mos: number | null | undefined): string {
+    if (mos == null) return 'badge-quality-unavailable';
+    if (mos >= 4.0) return 'badge-quality-good';
+    if (mos >= 3.0) return 'badge-quality-fair';
+    return 'badge-quality-poor';
+  }
+
+  /**
+   * Get quality tooltip for MOS score
+   */
+  private getMosTooltip(mos: number | null | undefined): string {
+    if (mos == null) return this.t('callLogs.quality.unavailableTooltip');
+    if (mos >= 4.0) return this.t('callLogs.quality.good');
+    if (mos >= 3.0) return this.t('callLogs.quality.fair');
+    return this.t('callLogs.quality.poor');
+  }
+
+  /**
+   * Format MOS value for display
+   */
+  private formatMos(mos: number | null | undefined): string {
+    if (mos == null) return this.t('callLogs.quality.unavailable');
+    return mos.toFixed(1);
+  }
+
+  /**
    * Format direction for display using i18n
    */
   private formatDirection(direction: 'inbound' | 'outbound' | 'internal'): string {
@@ -497,6 +526,26 @@ export class CallLogsComponent extends BaseComponent {
           color: var(--ds-color-text-secondary);
         }
 
+        .badge-quality-good {
+          background: color-mix(in srgb, var(--ds-color-success) 10%, transparent);
+          color: var(--ds-color-success);
+        }
+
+        .badge-quality-fair {
+          background: color-mix(in srgb, var(--ds-color-warning) 10%, transparent);
+          color: var(--ds-color-warning);
+        }
+
+        .badge-quality-poor {
+          background: color-mix(in srgb, var(--ds-color-danger) 10%, transparent);
+          color: var(--ds-color-danger);
+        }
+
+        .badge-quality-unavailable {
+          background: var(--ds-color-surface-subtle);
+          color: var(--ds-color-text-secondary);
+        }
+
         /* Subtle loading state during pagination */
         .container.is-paginating .table-container {
           opacity: 0.6;
@@ -630,7 +679,7 @@ export class CallLogsComponent extends BaseComponent {
    * Render the call logs table
    */
   private renderTable(): string {
-    const { showDate, showDirection, showFrom, showTo, showDuration, showStatus } =
+    const { showDate, showDirection, showFrom, showTo, showDuration, showStatus, showQuality } =
       this.displayOptions;
 
     const rows = this.callLogs
@@ -657,6 +706,7 @@ export class CallLogsComponent extends BaseComponent {
             ${showTo ? `<td part="cell cell-to">${this.formatPhoneNumber(call.to_number)}</td>` : ''}
             ${showDuration ? `<td part="cell cell-duration">${this.formatDuration(call.duration_seconds || 0)}</td>` : ''}
             ${showStatus ? `<td part="cell cell-status"><span class="badge ${this.getStatusClass(call.status)}" part="badge badge-status">${this.formatStatus(call.status)}</span></td>` : ''}
+            ${showQuality ? `<td part="cell cell-quality"><span class="badge ${this.getMosClass(call.mos)}" part="badge badge-quality" title="${this.getMosTooltip(call.mos)}">${this.formatMos(call.mos)}</span></td>` : ''}
           </tr>
         `;
       })
@@ -673,6 +723,7 @@ export class CallLogsComponent extends BaseComponent {
               ${showTo ? `<th role="columnheader" scope="col" part="header-cell">${this.t('callLogs.columns.to')}</th>` : ''}
               ${showDuration ? `<th role="columnheader" scope="col" part="header-cell">${this.t('callLogs.columns.duration')}</th>` : ''}
               ${showStatus ? `<th role="columnheader" scope="col" part="header-cell">${this.t('callLogs.columns.status')}</th>` : ''}
+              ${showQuality ? `<th role="columnheader" scope="col" part="header-cell">${this.t('callLogs.columns.quality')}</th>` : ''}
             </tr>
           </thead>
           <tbody part="table-body">

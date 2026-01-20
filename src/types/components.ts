@@ -98,6 +98,12 @@ export interface CallLogDisplayOptions {
    * @default true
    */
   showStatus?: boolean;
+
+  /**
+   * Show quality (MOS) column
+   * @default true
+   */
+  showQuality?: boolean;
 }
 
 /**
@@ -200,6 +206,18 @@ export interface CallLog {
   duration_seconds?: number;
   status: 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
   summary?: string | null;
+
+  // Quality metrics
+  mos?: number | null;
+  rtp_jitter_ms?: number | null;
+  rtp_jitter_min_ms?: number | null;
+  rtp_jitter_max_ms?: number | null;
+  rtp_packet_loss_pct?: number | null;
+  rtp_rtt_ms?: number | null;
+  rtp_rtt_min_ms?: number | null;
+  rtp_rtt_max_ms?: number | null;
+  rtp_rx_count?: number | null;
+  rtp_tx_count?: number | null;
 }
 
 /**
