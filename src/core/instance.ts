@@ -16,6 +16,8 @@ import type {
   IncomingCallEvent,
   Transcript,
   VoicemailTranscript,
+  Extension,
+  ExtensionListResponse,
 } from '../types';
 
 const DEFAULT_API_URL = 'https://api.dialstack.ai';
@@ -243,6 +245,42 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       throw new Error(`Failed to get voicemail transcript: ${response.status} ${errorText}`);
     }
     return response.json();
+  }
+
+  /**
+   * List extensions, optionally filtered by target ID
+   */
+  async listExtensions(options?: {
+    target?: string;
+    limit?: number;
+    starting_after?: string;
+    ending_before?: string;
+  }): Promise<Extension[]> {
+    const params = new URLSearchParams();
+    if (options?.target) {
+      params.set('target', options.target);
+    }
+    if (options?.limit) {
+      params.set('limit', String(options.limit));
+    }
+    if (options?.starting_after) {
+      params.set('starting_after', options.starting_after);
+    }
+    if (options?.ending_before) {
+      params.set('ending_before', options.ending_before);
+    }
+
+    const queryString = params.toString();
+    const path = queryString ? `/v1/extensions?${queryString}` : '/v1/extensions';
+
+    const response = await this.fetchApi(path);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to list extensions: ${response.status} ${errorText}`);
+    }
+
+    const data: ExtensionListResponse = await response.json();
+    return data.data;
   }
 
   /**

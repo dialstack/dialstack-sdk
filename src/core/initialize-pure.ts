@@ -96,6 +96,9 @@ export async function loadDialstackAndInitialize(
     off: (event, handler) => {
       instance.off(event, handler);
     },
+    listExtensions: (options) => {
+      return instance.listExtensions(options);
+    },
   };
 
   return wrapper;

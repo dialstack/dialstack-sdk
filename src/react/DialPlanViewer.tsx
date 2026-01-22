@@ -61,9 +61,15 @@ interface User {
   email?: string;
 }
 
+interface Extension {
+  number: string;
+  target: string;
+}
+
 interface ResourceMaps {
   schedules: Map<string, Schedule>;
   users: Map<string, User>;
+  extensions: Map<string, Extension>; // Map of target ID -> Extension
 }
 
 // Custom node types for React Flow
@@ -107,6 +113,7 @@ export const DialPlanViewer: React.FC<DialPlanViewerProps> = ({
   const [resourceMaps, setResourceMaps] = useState<ResourceMaps>({
     schedules: new Map(),
     users: new Map(),
+    extensions: new Map(),
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -178,9 +185,20 @@ export const DialPlanViewer: React.FC<DialPlanViewerProps> = ({
           return null;
         });
 
-        const [schedules, users] = await Promise.all([
+        // Fetch extensions for each user ID (target filter)
+        const extensionPromises = Array.from(userIds).map(async (id) => {
+          try {
+            const extensions = await dialstack.listExtensions({ target: id, limit: 1 });
+            return extensions.length > 0 ? extensions[0] : null;
+          } catch {
+            return null;
+          }
+        });
+
+        const [schedules, users, extensions] = await Promise.all([
           Promise.all(schedulePromises),
           Promise.all(userPromises),
+          Promise.all(extensionPromises),
         ]);
 
         if (cancelled) return;
@@ -188,6 +206,7 @@ export const DialPlanViewer: React.FC<DialPlanViewerProps> = ({
         // Build lookup maps
         const scheduleMap = new Map<string, Schedule>();
         const userMap = new Map<string, User>();
+        const extensionMap = new Map<string, Extension>();
 
         for (const schedule of schedules) {
           if (schedule) {
@@ -201,9 +220,15 @@ export const DialPlanViewer: React.FC<DialPlanViewerProps> = ({
           }
         }
 
+        for (const extension of extensions) {
+          if (extension) {
+            extensionMap.set(extension.target, extension);
+          }
+        }
+
         if (!cancelled) {
           setDialPlan(data);
-          setResourceMaps({ schedules: scheduleMap, users: userMap });
+          setResourceMaps({ schedules: scheduleMap, users: userMap, extensions: extensionMap });
           setIsLoading(false);
           onLoaderEndRef.current?.(data);
         }
@@ -254,11 +279,21 @@ export const DialPlanViewer: React.FC<DialPlanViewerProps> = ({
       } else if (node.type === 'internalDial') {
         const data = node.data as InternalDialNodeData;
         const user = resourceMaps.users.get(data.targetId);
+        const extension = resourceMaps.extensions.get(data.targetId);
+
+        // Format name as "extension: name" if extension exists
+        let targetName = user?.name || user?.email;
+        if (extension && targetName) {
+          targetName = `${extension.number}: ${targetName}`;
+        } else if (extension) {
+          targetName = extension.number;
+        }
+
         return {
           ...node,
           data: {
             ...data,
-            targetName: user?.name || user?.email,
+            targetName,
             targetType: 'User',
             locale,
           },

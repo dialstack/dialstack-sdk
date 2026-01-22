@@ -69,7 +69,9 @@ export const InternalDialNode = memo(function InternalDialNode({
         <div className="ds-dial-plan-node__icon">{isVoicemail ? voicemailIcon : phoneIcon}</div>
         <span className="ds-dial-plan-node__type-label">
           {isVoicemail ? voicemailLabel : data.targetType || data.label}
-          {!isVoicemail && data.timeout !== undefined && ` (${data.timeout}s)`}
+          {!isVoicemail && data.timeout !== undefined && (
+            <span style={{ textTransform: 'none' }}> ({data.timeout}s)</span>
+          )}
         </span>
         {data.targetName && <span className="ds-dial-plan-node__name">{data.targetName}</span>}
       </div>

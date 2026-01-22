@@ -94,4 +94,8 @@ export type {
   GraphNodeData,
   ScheduleExitType,
   InternalDialExitType,
+  // Extension types
+  ExtensionStatus,
+  Extension,
+  ExtensionListResponse,
 } from './dial-plan';

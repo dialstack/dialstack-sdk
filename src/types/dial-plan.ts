@@ -193,3 +193,39 @@ export type ScheduleExitType = 'open' | 'closed' | 'holiday';
 
 /** Edge labels for internal dial exits */
 export type InternalDialExitType = 'next' | 'timeout';
+
+// ============================================================================
+// Extension Types
+// ============================================================================
+
+/**
+ * Extension status
+ */
+export type ExtensionStatus = 'active' | 'inactive';
+
+/**
+ * An extension maps a short dial code to a target (user, dial plan, or voice app).
+ */
+export interface Extension {
+  /** The extension number (dial code) */
+  number: string;
+  /** The target ID (user, dial plan, or voice app) */
+  target: string;
+  /** Extension status */
+  status: ExtensionStatus;
+  /** ISO timestamp of when the extension was created */
+  created_at: string;
+  /** ISO timestamp of when the extension was last updated */
+  updated_at: string;
+}
+
+/**
+ * Paginated list response for extensions
+ */
+export interface ExtensionListResponse {
+  object: 'list';
+  url: string;
+  next_page_url: string | null;
+  previous_page_url: string | null;
+  data: Extension[];
+}

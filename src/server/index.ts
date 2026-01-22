@@ -117,16 +117,30 @@ type EventCallback<T> = (event: T) => void;
 export interface Account {
   id: string;
   email: string | null;
+  config: AccountConfig;
   created_at: string;
   updated_at: string;
 }
 
+export interface AccountConfig {
+  /** ISO 3166-1 alpha-2 country code (default: "US") */
+  region?: string;
+  /** Number of digits for extension numbers, 3-6 (default: 4) */
+  extension_length?: number;
+  /** Whether calls are recorded and transcribed (default: true) */
+  transcription_enabled?: boolean;
+  /** IANA timezone (default: "UTC") */
+  timezone?: string;
+}
+
 export interface AccountCreateParams {
   email?: string;
+  config?: AccountConfig;
 }
 
 export interface AccountUpdateParams {
   email?: string;
+  config?: AccountConfig;
 }
 
 export interface AccountListParams {
@@ -301,6 +315,33 @@ export interface DialPlanCreateParams {
 export interface DialPlanListParams {
   limit?: number;
   page?: string;
+}
+
+// Extension types
+export type ExtensionStatus = 'active' | 'inactive';
+
+export interface Extension {
+  number: string;
+  target: string;
+  status: ExtensionStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExtensionCreateParams {
+  number: string;
+  target: string;
+}
+
+export interface ExtensionUpdateParams {
+  target?: string;
+}
+
+export interface ExtensionListParams {
+  limit?: number;
+  target?: string;
+  starting_after?: string;
+  ending_before?: string;
 }
 
 // Call Control types
@@ -998,6 +1039,69 @@ export class DialStack {
       const path = `/v1/dialplans${query ? `?${query}` : ''}`;
 
       const fetchPage = (url: string): Promise<ListResponse<DialPlan>> => {
+        return this._request('GET', url, undefined, { ...options, accountId });
+      };
+
+      return createPaginatedList(
+        this._request('GET', path, undefined, { ...options, accountId }),
+        fetchPage
+      );
+    },
+  };
+
+  extensions = {
+    create: (
+      accountId: string,
+      params: ExtensionCreateParams,
+      options?: RequestOptions
+    ): Promise<Extension> => {
+      return this._request('POST', '/v1/extensions', params, {
+        ...options,
+        accountId,
+      });
+    },
+
+    retrieve: (accountId: string, number: string, options?: RequestOptions): Promise<Extension> => {
+      return this._request('GET', `/v1/extensions/${number}`, undefined, {
+        ...options,
+        accountId,
+      });
+    },
+
+    update: (
+      accountId: string,
+      number: string,
+      params: ExtensionUpdateParams,
+      options?: RequestOptions
+    ): Promise<Extension> => {
+      return this._request('POST', `/v1/extensions/${number}`, params, {
+        ...options,
+        accountId,
+      });
+    },
+
+    del: (accountId: string, number: string, options?: RequestOptions): Promise<void> => {
+      return this._request('DELETE', `/v1/extensions/${number}`, undefined, {
+        ...options,
+        accountId,
+      });
+    },
+
+    list: (
+      accountId: string,
+      params?: ExtensionListParams,
+      options?: RequestOptions
+    ): PaginatedList<Extension> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.target) queryParams.set('target', params.target);
+      if (params?.starting_after) queryParams.set('starting_after', params.starting_after);
+      if (params?.ending_before) queryParams.set('ending_before', params.ending_before);
+
+      const query = queryParams.toString();
+      const path = `/v1/extensions${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<Extension>> => {
         return this._request('GET', url, undefined, { ...options, accountId });
       };
 

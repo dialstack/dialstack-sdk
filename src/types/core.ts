@@ -10,6 +10,7 @@ import type {
   VoicemailTranscript,
 } from './components';
 import type { CallEventMap, CallEventHandler } from './callbacks';
+import type { Extension } from './dial-plan';
 
 /**
  * Client secret response from fetchClientSecret
@@ -206,6 +207,23 @@ export interface DialStackInstance {
    * ```
    */
   off<K extends keyof CallEventMap>(event: K, handler?: CallEventHandler<CallEventMap[K]>): void;
+
+  /**
+   * List extensions, optionally filtered by target ID
+   *
+   * @param options - Optional filter options
+   * @returns Promise resolving to an array of extensions
+   *
+   * @example
+   * ```typescript
+   * // List all extensions
+   * const extensions = await dialstack.listExtensions();
+   *
+   * // List extensions for a specific user
+   * const userExtensions = await dialstack.listExtensions({ target: 'user_01abc...' });
+   * ```
+   */
+  listExtensions(options?: { target?: string; limit?: number }): Promise<Extension[]>;
 }
 
 /**
