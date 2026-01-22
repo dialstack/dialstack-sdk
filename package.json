@@ -103,6 +103,6 @@
   "dependencies": {
     "@xyflow/react": "^12.10.0",
     "dagre": "^0.8.5",
-    "libphonenumber-js": "^1.12.29"
+    "libphonenumber-js": "^1.12.35"
   }
 }
