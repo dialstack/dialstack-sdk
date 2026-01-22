@@ -190,6 +190,26 @@ export type CallLogRowRenderer = (call: CallLog) => string;
 // ============================================================================
 
 /**
+ * RTP quality metrics for a single call leg (PSTN or endpoint)
+ */
+export interface QualityMetricLeg {
+  leg: 'pstn' | 'endpoint';
+  endpoint_id?: string | null;
+  jitter_ms?: number | null;
+  jitter_min_ms?: number | null;
+  jitter_max_ms?: number | null;
+  jitter_stddev_ms?: number | null;
+  packet_loss_pct?: number | null;
+  rtt_ms?: number | null;
+  rtt_min_ms?: number | null;
+  rtt_max_ms?: number | null;
+  rtt_stddev_ms?: number | null;
+  rx_count?: number | null;
+  tx_count?: number | null;
+  mos?: number | null;
+}
+
+/**
  * Call log data structure
  */
 export interface CallLog {
@@ -207,17 +227,8 @@ export interface CallLog {
   status: 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
   summary?: string | null;
 
-  // Quality metrics
-  mos?: number | null;
-  rtp_jitter_ms?: number | null;
-  rtp_jitter_min_ms?: number | null;
-  rtp_jitter_max_ms?: number | null;
-  rtp_packet_loss_pct?: number | null;
-  rtp_rtt_ms?: number | null;
-  rtp_rtt_min_ms?: number | null;
-  rtp_rtt_max_ms?: number | null;
-  rtp_rx_count?: number | null;
-  rtp_tx_count?: number | null;
+  // Per-leg quality metrics
+  quality_metrics?: QualityMetricLeg[];
 }
 
 /**

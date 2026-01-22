@@ -368,6 +368,26 @@ export class CallLogsComponent extends BaseComponent {
   }
 
   /**
+   * Get the worst (minimum) MOS score across all call legs.
+   * Returns the minimum MOS to highlight the weakest link in call quality.
+   */
+  private getWorstMos(call: CallLog): number | null | undefined {
+    if (!call.quality_metrics || call.quality_metrics.length === 0) {
+      return undefined;
+    }
+
+    const mosValues = call.quality_metrics
+      .map((m) => m.mos)
+      .filter((mos): mos is number => mos != null);
+
+    if (mosValues.length === 0) {
+      return null;
+    }
+
+    return Math.min(...mosValues);
+  }
+
+  /**
    * Format direction for display using i18n
    */
   private formatDirection(direction: 'inbound' | 'outbound' | 'internal'): string {
@@ -698,6 +718,9 @@ export class CallLogsComponent extends BaseComponent {
           return `<tr data-call-id="${call.id}" tabindex="0" role="row" part="table-row"${rowClassStr}>${this.customRowRenderer(call)}</tr>`;
         }
 
+        // Pre-compute MOS once for quality column (used in class, tooltip, and value)
+        const mos = showQuality ? this.getWorstMos(call) : undefined;
+
         return `
           <tr data-call-id="${call.id}" tabindex="0" role="row" part="table-row"${rowClassStr}>
             ${showDate ? `<td part="cell cell-date">${this.formatDate(call.started_at)}</td>` : ''}
@@ -706,7 +729,7 @@ export class CallLogsComponent extends BaseComponent {
             ${showTo ? `<td part="cell cell-to">${this.formatPhoneNumber(call.to_number)}</td>` : ''}
             ${showDuration ? `<td part="cell cell-duration">${this.formatDuration(call.duration_seconds || 0)}</td>` : ''}
             ${showStatus ? `<td part="cell cell-status"><span class="badge ${this.getStatusClass(call.status)}" part="badge badge-status">${this.formatStatus(call.status)}</span></td>` : ''}
-            ${showQuality ? `<td part="cell cell-quality"><span class="badge ${this.getMosClass(call.mos)}" part="badge badge-quality" title="${this.getMosTooltip(call.mos)}">${this.formatMos(call.mos)}</span></td>` : ''}
+            ${showQuality ? `<td part="cell cell-quality"><span class="badge ${this.getMosClass(mos)}" part="badge badge-quality" title="${this.getMosTooltip(mos)}">${this.formatMos(mos)}</span></td>` : ''}
           </tr>
         `;
       })
