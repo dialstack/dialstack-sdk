@@ -86,14 +86,14 @@ export interface RequestOptions {
   timeout?: number;
   /** Max retries override for this request */
   maxNetworkRetries?: number;
-  /** Account ID for multi-tenant requests */
-  accountId?: string;
+  /** Account ID for multi-tenant requests (passed as DialStack-Account header) */
+  dialstackAccount?: string;
 }
 
 export interface RequestEvent {
   method: string;
   path: string;
-  accountId?: string;
+  dialstackAccount?: string;
   idempotencyKey?: string;
   requestStartTime: number;
 }
@@ -103,7 +103,7 @@ export interface ResponseEvent {
   path: string;
   statusCode: number;
   requestId?: string;
-  accountId?: string;
+  dialstackAccount?: string;
   elapsed: number;
 }
 
@@ -342,6 +342,48 @@ export interface ExtensionListParams {
   target?: string;
   starting_after?: string;
   ending_before?: string;
+}
+
+// Ring Group types
+export interface RingGroup {
+  id: string;
+  account_id: string;
+  name: string;
+  timeout_seconds: number;
+  ignore_forwarding: boolean;
+  members: RingGroupMember[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RingGroupMember {
+  id: string;
+  ring_group_id: string;
+  extension: string | null;
+  phone_number: string | null;
+  created_at: string;
+}
+
+export interface RingGroupCreateParams {
+  name: string;
+  timeout_seconds?: number;
+  ignore_forwarding?: boolean;
+}
+
+export interface RingGroupUpdateParams {
+  name?: string;
+  timeout_seconds?: number;
+  ignore_forwarding?: boolean;
+}
+
+export interface RingGroupListParams {
+  limit?: number;
+  page?: string;
+}
+
+export interface RingGroupAddMemberParams {
+  extension?: string;
+  phone_number?: string;
 }
 
 // Call Control types
@@ -597,8 +639,8 @@ export class DialStack {
       headers['Idempotency-Key'] = options.idempotencyKey;
     }
 
-    if (options?.accountId) {
-      headers['DialStack-Account'] = options.accountId;
+    if (options?.dialstackAccount) {
+      headers['DialStack-Account'] = options.dialstackAccount;
     }
 
     const requestStartTime = Date.now();
@@ -607,7 +649,7 @@ export class DialStack {
     this.emit('request', {
       method,
       path,
-      accountId: options?.accountId,
+      dialstackAccount: options?.dialstackAccount,
       idempotencyKey: options?.idempotencyKey,
       requestStartTime,
     });
@@ -686,7 +728,7 @@ export class DialStack {
       path,
       statusCode: response.status,
       requestId,
-      accountId: options?.accountId,
+      dialstackAccount: options?.dialstackAccount,
       elapsed,
     });
 
@@ -781,46 +823,37 @@ export class DialStack {
 
   users = {
     create: (
-      accountId: string,
-      params?: UserCreateParams,
-      options?: RequestOptions
+      params: UserCreateParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
     ): Promise<User> => {
-      return this._request('POST', '/v1/users', params || {}, {
-        ...options,
-        accountId,
-      });
+      return this._request('POST', '/v1/users', params || {}, options);
     },
 
-    retrieve: (accountId: string, userId: string, options?: RequestOptions): Promise<User> => {
-      return this._request('GET', `/v1/users/${userId}`, undefined, {
-        ...options,
-        accountId,
-      });
+    retrieve: (
+      userId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<User> => {
+      return this._request('GET', `/v1/users/${userId}`, undefined, options);
     },
 
     update: (
-      accountId: string,
       userId: string,
       params: UserUpdateParams,
-      options?: RequestOptions
+      options: RequestOptions & { dialstackAccount: string }
     ): Promise<User> => {
-      return this._request('POST', `/v1/users/${userId}`, params, {
-        ...options,
-        accountId,
-      });
+      return this._request('POST', `/v1/users/${userId}`, params, options);
     },
 
-    del: (accountId: string, userId: string, options?: RequestOptions): Promise<void> => {
-      return this._request('DELETE', `/v1/users/${userId}`, undefined, {
-        ...options,
-        accountId,
-      });
+    del: (
+      userId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request('DELETE', `/v1/users/${userId}`, undefined, options);
     },
 
     list: (
-      accountId: string,
-      params?: UserListParams,
-      options?: RequestOptions
+      params: UserListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
     ): PaginatedList<User> => {
       const queryParams = new URLSearchParams();
       if (params?.limit) queryParams.set('limit', String(params.limit));
@@ -830,21 +863,17 @@ export class DialStack {
       const path = `/v1/users${query ? `?${query}` : ''}`;
 
       const fetchPage = (url: string): Promise<ListResponse<User>> => {
-        return this._request('GET', url, undefined, { ...options, accountId });
+        return this._request('GET', url, undefined, options);
       };
 
-      return createPaginatedList(
-        this._request('GET', path, undefined, { ...options, accountId }),
-        fetchPage
-      );
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
     },
   };
 
   phoneNumbers = {
     list: (
-      accountId: string,
-      params?: PhoneNumberListParams,
-      options?: RequestOptions
+      params: PhoneNumberListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
     ): PaginatedList<PhoneNumber> => {
       const queryParams = new URLSearchParams();
       if (params?.limit) queryParams.set('limit', String(params.limit));
@@ -855,13 +884,10 @@ export class DialStack {
       const path = `/v1/phone-numbers${query ? `?${query}` : ''}`;
 
       const fetchPage = (url: string): Promise<ListResponse<PhoneNumber>> => {
-        return this._request('GET', url, undefined, { ...options, accountId });
+        return this._request('GET', url, undefined, options);
       };
 
-      return createPaginatedList(
-        this._request('GET', path, undefined, { ...options, accountId }),
-        fetchPage
-      );
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
     },
   };
 
@@ -876,15 +902,11 @@ export class DialStack {
 
   calls = {
     update: (
-      accountId: string,
       callId: string,
       params: CallUpdateParams,
-      options?: RequestOptions
+      options: RequestOptions & { dialstackAccount: string }
     ): Promise<void> => {
-      return this._request('POST', `/v1/calls/${callId}`, params, {
-        ...options,
-        accountId,
-      });
+      return this._request('POST', `/v1/calls/${callId}`, params, options);
     },
 
     retrieveTranscript: (callId: string, options?: RequestOptions): Promise<Transcript> => {
@@ -894,50 +916,37 @@ export class DialStack {
 
   voiceApps = {
     create: (
-      accountId: string,
       params: VoiceAppCreateParams,
-      options?: RequestOptions
+      options: RequestOptions & { dialstackAccount: string }
     ): Promise<VoiceApp> => {
-      return this._request('POST', '/v1/voice_apps', params, {
-        ...options,
-        accountId,
-      });
+      return this._request('POST', '/v1/voice_apps', params, options);
     },
 
     retrieve: (
-      accountId: string,
       voiceAppId: string,
-      options?: RequestOptions
+      options: RequestOptions & { dialstackAccount: string }
     ): Promise<VoiceApp> => {
-      return this._request('GET', `/v1/voice_apps/${voiceAppId}`, undefined, {
-        ...options,
-        accountId,
-      });
+      return this._request('GET', `/v1/voice_apps/${voiceAppId}`, undefined, options);
     },
 
     update: (
-      accountId: string,
       voiceAppId: string,
       params: VoiceAppUpdateParams,
-      options?: RequestOptions
+      options: RequestOptions & { dialstackAccount: string }
     ): Promise<VoiceApp> => {
-      return this._request('POST', `/v1/voice_apps/${voiceAppId}`, params, {
-        ...options,
-        accountId,
-      });
+      return this._request('POST', `/v1/voice_apps/${voiceAppId}`, params, options);
     },
 
-    del: (accountId: string, voiceAppId: string, options?: RequestOptions): Promise<void> => {
-      return this._request('DELETE', `/v1/voice_apps/${voiceAppId}`, undefined, {
-        ...options,
-        accountId,
-      });
+    del: (
+      voiceAppId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request('DELETE', `/v1/voice_apps/${voiceAppId}`, undefined, options);
     },
 
     list: (
-      accountId: string,
-      params?: VoiceAppListParams,
-      options?: RequestOptions
+      params: VoiceAppListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
     ): PaginatedList<VoiceApp> => {
       const queryParams = new URLSearchParams();
       if (params?.limit) queryParams.set('limit', String(params.limit));
@@ -947,43 +956,31 @@ export class DialStack {
       const path = `/v1/voice_apps${query ? `?${query}` : ''}`;
 
       const fetchPage = (url: string): Promise<ListResponse<VoiceApp>> => {
-        return this._request('GET', url, undefined, { ...options, accountId });
+        return this._request('GET', url, undefined, options);
       };
 
-      return createPaginatedList(
-        this._request('GET', path, undefined, { ...options, accountId }),
-        fetchPage
-      );
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
     },
   };
 
   schedules = {
     create: (
-      accountId: string,
       params: ScheduleCreateParams,
-      options?: RequestOptions
+      options: RequestOptions & { dialstackAccount: string }
     ): Promise<Schedule> => {
-      return this._request('POST', '/v1/schedules', params, {
-        ...options,
-        accountId,
-      });
+      return this._request('POST', '/v1/schedules', params, options);
     },
 
     retrieve: (
-      accountId: string,
       scheduleId: string,
-      options?: RequestOptions
+      options: RequestOptions & { dialstackAccount: string }
     ): Promise<Schedule> => {
-      return this._request('GET', `/v1/schedules/${scheduleId}`, undefined, {
-        ...options,
-        accountId,
-      });
+      return this._request('GET', `/v1/schedules/${scheduleId}`, undefined, options);
     },
 
     list: (
-      accountId: string,
-      params?: ScheduleListParams,
-      options?: RequestOptions
+      params: ScheduleListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
     ): PaginatedList<Schedule> => {
       const queryParams = new URLSearchParams();
       if (params?.limit) queryParams.set('limit', String(params.limit));
@@ -993,43 +990,31 @@ export class DialStack {
       const path = `/v1/schedules${query ? `?${query}` : ''}`;
 
       const fetchPage = (url: string): Promise<ListResponse<Schedule>> => {
-        return this._request('GET', url, undefined, { ...options, accountId });
+        return this._request('GET', url, undefined, options);
       };
 
-      return createPaginatedList(
-        this._request('GET', path, undefined, { ...options, accountId }),
-        fetchPage
-      );
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
     },
   };
 
   dialPlans = {
     create: (
-      accountId: string,
       params: DialPlanCreateParams,
-      options?: RequestOptions
+      options: RequestOptions & { dialstackAccount: string }
     ): Promise<DialPlan> => {
-      return this._request('POST', '/v1/dialplans', params, {
-        ...options,
-        accountId,
-      });
+      return this._request('POST', '/v1/dialplans', params, options);
     },
 
     retrieve: (
-      accountId: string,
       dialPlanId: string,
-      options?: RequestOptions
+      options: RequestOptions & { dialstackAccount: string }
     ): Promise<DialPlan> => {
-      return this._request('GET', `/v1/dialplans/${dialPlanId}`, undefined, {
-        ...options,
-        accountId,
-      });
+      return this._request('GET', `/v1/dialplans/${dialPlanId}`, undefined, options);
     },
 
     list: (
-      accountId: string,
-      params?: DialPlanListParams,
-      options?: RequestOptions
+      params: DialPlanListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
     ): PaginatedList<DialPlan> => {
       const queryParams = new URLSearchParams();
       if (params?.limit) queryParams.set('limit', String(params.limit));
@@ -1039,58 +1024,46 @@ export class DialStack {
       const path = `/v1/dialplans${query ? `?${query}` : ''}`;
 
       const fetchPage = (url: string): Promise<ListResponse<DialPlan>> => {
-        return this._request('GET', url, undefined, { ...options, accountId });
+        return this._request('GET', url, undefined, options);
       };
 
-      return createPaginatedList(
-        this._request('GET', path, undefined, { ...options, accountId }),
-        fetchPage
-      );
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
     },
   };
 
   extensions = {
     create: (
-      accountId: string,
       params: ExtensionCreateParams,
-      options?: RequestOptions
+      options: RequestOptions & { dialstackAccount: string }
     ): Promise<Extension> => {
-      return this._request('POST', '/v1/extensions', params, {
-        ...options,
-        accountId,
-      });
+      return this._request('POST', '/v1/extensions', params, options);
     },
 
-    retrieve: (accountId: string, number: string, options?: RequestOptions): Promise<Extension> => {
-      return this._request('GET', `/v1/extensions/${number}`, undefined, {
-        ...options,
-        accountId,
-      });
+    retrieve: (
+      number: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<Extension> => {
+      return this._request('GET', `/v1/extensions/${number}`, undefined, options);
     },
 
     update: (
-      accountId: string,
       number: string,
       params: ExtensionUpdateParams,
-      options?: RequestOptions
+      options: RequestOptions & { dialstackAccount: string }
     ): Promise<Extension> => {
-      return this._request('POST', `/v1/extensions/${number}`, params, {
-        ...options,
-        accountId,
-      });
+      return this._request('POST', `/v1/extensions/${number}`, params, options);
     },
 
-    del: (accountId: string, number: string, options?: RequestOptions): Promise<void> => {
-      return this._request('DELETE', `/v1/extensions/${number}`, undefined, {
-        ...options,
-        accountId,
-      });
+    del: (
+      number: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request('DELETE', `/v1/extensions/${number}`, undefined, options);
     },
 
     list: (
-      accountId: string,
-      params?: ExtensionListParams,
-      options?: RequestOptions
+      params: ExtensionListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
     ): PaginatedList<Extension> => {
       const queryParams = new URLSearchParams();
       if (params?.limit) queryParams.set('limit', String(params.limit));
@@ -1102,12 +1075,79 @@ export class DialStack {
       const path = `/v1/extensions${query ? `?${query}` : ''}`;
 
       const fetchPage = (url: string): Promise<ListResponse<Extension>> => {
-        return this._request('GET', url, undefined, { ...options, accountId });
+        return this._request('GET', url, undefined, options);
       };
 
-      return createPaginatedList(
-        this._request('GET', path, undefined, { ...options, accountId }),
-        fetchPage
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+  };
+
+  ringGroups = {
+    create: (
+      params: RingGroupCreateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<RingGroup> => {
+      return this._request('POST', '/v1/ring_groups', params, options);
+    },
+
+    retrieve: (
+      ringGroupId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<RingGroup> => {
+      return this._request('GET', `/v1/ring_groups/${ringGroupId}`, undefined, options);
+    },
+
+    update: (
+      ringGroupId: string,
+      params: RingGroupUpdateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<RingGroup> => {
+      return this._request('POST', `/v1/ring_groups/${ringGroupId}`, params, options);
+    },
+
+    del: (
+      ringGroupId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request('DELETE', `/v1/ring_groups/${ringGroupId}`, undefined, options);
+    },
+
+    list: (
+      params: RingGroupListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
+    ): PaginatedList<RingGroup> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
+
+      const query = queryParams.toString();
+      const path = `/v1/ring_groups${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<RingGroup>> => {
+        return this._request('GET', url, undefined, options);
+      };
+
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+
+    addMember: (
+      ringGroupId: string,
+      params: RingGroupAddMemberParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<RingGroupMember> => {
+      return this._request('POST', `/v1/ring_groups/${ringGroupId}/members`, params, options);
+    },
+
+    removeMember: (
+      ringGroupId: string,
+      memberId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request(
+        'DELETE',
+        `/v1/ring_groups/${ringGroupId}/members/${memberId}`,
+        undefined,
+        options
       );
     },
   };
