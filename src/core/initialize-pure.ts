@@ -99,6 +99,67 @@ export async function loadDialstackAndInitialize(
     listExtensions: (options) => {
       return instance.listExtensions(options);
     },
+    // Device methods
+    createDevice: (data) => {
+      return instance.createDevice(data);
+    },
+    getDevice: (id) => {
+      return instance.getDevice(id);
+    },
+    listDevices: (options) => {
+      return instance.listDevices(options);
+    },
+    updateDevice: (id, data) => {
+      return instance.updateDevice(id, data);
+    },
+    deleteDevice: (id) => {
+      return instance.deleteDevice(id);
+    },
+    listProvisioningEvents: (deviceId, options) => {
+      return instance.listProvisioningEvents(deviceId, options);
+    },
+    // DECT base methods
+    createDECTBase: (data) => {
+      return instance.createDECTBase(data);
+    },
+    getDECTBase: (id) => {
+      return instance.getDECTBase(id);
+    },
+    listDECTBases: (options) => {
+      return instance.listDECTBases(options);
+    },
+    updateDECTBase: (id, data) => {
+      return instance.updateDECTBase(id, data);
+    },
+    deleteDECTBase: (id) => {
+      return instance.deleteDECTBase(id);
+    },
+    // DECT handset methods
+    createDECTHandset: (baseId, data) => {
+      return instance.createDECTHandset(baseId, data);
+    },
+    getDECTHandset: (baseId, handsetId) => {
+      return instance.getDECTHandset(baseId, handsetId);
+    },
+    listDECTHandsets: (baseId) => {
+      return instance.listDECTHandsets(baseId);
+    },
+    updateDECTHandset: (baseId, handsetId, data) => {
+      return instance.updateDECTHandset(baseId, handsetId, data);
+    },
+    deleteDECTHandset: (baseId, handsetId) => {
+      return instance.deleteDECTHandset(baseId, handsetId);
+    },
+    // DECT extension methods
+    createDECTExtension: (baseId, handsetId, data) => {
+      return instance.createDECTExtension(baseId, handsetId, data);
+    },
+    listDECTExtensions: (baseId, handsetId) => {
+      return instance.listDECTExtensions(baseId, handsetId);
+    },
+    deleteDECTExtension: (baseId, handsetId, extensionId) => {
+      return instance.deleteDECTExtension(baseId, handsetId, extensionId);
+    },
   };
 
   return wrapper;

@@ -100,3 +100,54 @@ export type {
   Extension,
   ExtensionListResponse,
 } from './dial-plan';
+
+// Provisioning configuration types
+export type {
+  // Line key types
+  LineKeyType,
+  LineKey,
+  // Audio types
+  JitterBufferMode,
+  JitterBuffer,
+  AudioSettings,
+  // Display types
+  TimeFormat,
+  DateFormat,
+  BacklightLevel,
+  DisplaySettings,
+  // Regional types
+  RegionalSettings,
+  // Network types
+  NetworkSettings,
+  // Feature types
+  FeatureSettings,
+  // Top-level types
+  AbstractSettings,
+  DeviceSettings,
+} from './provisioning';
+
+// Device types
+export type {
+  DeviceStatus,
+  DeviceLine,
+  ProvisionedDevice,
+  CreateDeviceRequest,
+  UpdateDeviceRequest,
+  DeviceListOptions,
+  ProvisioningEvent,
+  ProvisioningEventListOptions,
+} from './device';
+
+// DECT types
+export type {
+  MulticellRole,
+  DECTBase,
+  HandsetStatus,
+  DECTHandset,
+  DECTExtension,
+  CreateDECTBaseRequest,
+  UpdateDECTBaseRequest,
+  CreateDECTHandsetRequest,
+  UpdateDECTHandsetRequest,
+  CreateDECTExtensionRequest,
+} from './dect';

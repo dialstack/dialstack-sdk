@@ -79,6 +79,33 @@ export type {
   DialPlanViewerProps,
 } from './types/dial-plan';
 
+// Provisioning types
+export type {
+  DeviceSettings,
+  AbstractSettings,
+  DeviceStatus,
+  ProvisionedDevice,
+  CreateDeviceRequest,
+  UpdateDeviceRequest,
+  DeviceListOptions,
+  ProvisioningEvent,
+  ProvisioningEventListOptions,
+} from './types';
+
+// DECT types
+export type {
+  MulticellRole,
+  DECTBase,
+  HandsetStatus,
+  DECTHandset,
+  DECTExtension,
+  CreateDECTBaseRequest,
+  UpdateDECTBaseRequest,
+  CreateDECTHandsetRequest,
+  UpdateDECTHandsetRequest,
+  CreateDECTExtensionRequest,
+} from './types';
+
 // Type-only re-exports (safe for SSR)
 export type { DateRange } from './components/call-logs';
 

@@ -18,6 +18,20 @@ import type {
   VoicemailTranscript,
   Extension,
   ExtensionListResponse,
+  ProvisionedDevice,
+  CreateDeviceRequest,
+  UpdateDeviceRequest,
+  DeviceListOptions,
+  ProvisioningEvent,
+  ProvisioningEventListOptions,
+  DECTBase,
+  DECTHandset,
+  DECTExtension,
+  CreateDECTBaseRequest,
+  UpdateDECTBaseRequest,
+  CreateDECTHandsetRequest,
+  UpdateDECTHandsetRequest,
+  CreateDECTExtensionRequest,
 } from '../types';
 
 const DEFAULT_API_URL = 'https://api.dialstack.ai';
@@ -546,5 +560,353 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
 
     // Clear components list
     this.components.clear();
+  }
+
+  // ===========================================================================
+  // Device Methods
+  // ===========================================================================
+
+  /**
+   * Create a new provisioned device
+   */
+  async createDevice(data: CreateDeviceRequest): Promise<ProvisionedDevice> {
+    const response = await this.fetchApi('/v1/devices', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create device: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Get a device by ID
+   */
+  async getDevice(id: string): Promise<ProvisionedDevice> {
+    const response = await this.fetchApi(`/v1/devices/${id}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get device: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * List all devices
+   */
+  async listDevices(options?: DeviceListOptions): Promise<ProvisionedDevice[]> {
+    const params = new URLSearchParams();
+    if (options?.limit) {
+      params.set('limit', options.limit.toString());
+    }
+    if (options?.starting_after) {
+      params.set('starting_after', options.starting_after);
+    }
+    if (options?.ending_before) {
+      params.set('ending_before', options.ending_before);
+    }
+
+    const queryString = params.toString();
+    const path = queryString ? `/v1/devices?${queryString}` : '/v1/devices';
+
+    const response = await this.fetchApi(path);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to list devices: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data.data;
+  }
+
+  /**
+   * Update a device
+   */
+  async updateDevice(id: string, data: UpdateDeviceRequest): Promise<ProvisionedDevice> {
+    const response = await this.fetchApi(`/v1/devices/${id}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to update device: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Delete a device
+   */
+  async deleteDevice(id: string): Promise<void> {
+    const response = await this.fetchApi(`/v1/devices/${id}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to delete device: ${response.status} ${errorText}`);
+    }
+  }
+
+  /**
+   * List provisioning events for a device
+   */
+  async listProvisioningEvents(
+    deviceId: string,
+    options?: ProvisioningEventListOptions
+  ): Promise<ProvisioningEvent[]> {
+    const params = new URLSearchParams();
+    if (options?.limit) {
+      params.set('limit', options.limit.toString());
+    }
+    if (options?.starting_after) {
+      params.set('starting_after', options.starting_after);
+    }
+    if (options?.ending_before) {
+      params.set('ending_before', options.ending_before);
+    }
+    if (options?.from) {
+      params.set('from', options.from);
+    }
+    if (options?.to) {
+      params.set('to', options.to);
+    }
+
+    const queryString = params.toString();
+    const path = queryString
+      ? `/v1/devices/${deviceId}/events?${queryString}`
+      : `/v1/devices/${deviceId}/events`;
+
+    const response = await this.fetchApi(path);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to list provisioning events: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data.data;
+  }
+
+  // ===========================================================================
+  // DECT Base Methods
+  // ===========================================================================
+
+  /**
+   * Create a new DECT base station
+   */
+  async createDECTBase(data: CreateDECTBaseRequest): Promise<DECTBase> {
+    const response = await this.fetchApi('/v1/dect-bases', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create DECT base: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Get a DECT base by ID
+   */
+  async getDECTBase(id: string): Promise<DECTBase> {
+    const response = await this.fetchApi(`/v1/dect-bases/${id}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get DECT base: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * List all DECT bases
+   */
+  async listDECTBases(options?: DeviceListOptions): Promise<DECTBase[]> {
+    const params = new URLSearchParams();
+    if (options?.limit) {
+      params.set('limit', options.limit.toString());
+    }
+    if (options?.starting_after) {
+      params.set('starting_after', options.starting_after);
+    }
+    if (options?.ending_before) {
+      params.set('ending_before', options.ending_before);
+    }
+
+    const queryString = params.toString();
+    const path = queryString ? `/v1/dect-bases?${queryString}` : '/v1/dect-bases';
+
+    const response = await this.fetchApi(path);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to list DECT bases: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data.data;
+  }
+
+  /**
+   * Update a DECT base
+   */
+  async updateDECTBase(id: string, data: UpdateDECTBaseRequest): Promise<DECTBase> {
+    const response = await this.fetchApi(`/v1/dect-bases/${id}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to update DECT base: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Delete a DECT base
+   */
+  async deleteDECTBase(id: string): Promise<void> {
+    const response = await this.fetchApi(`/v1/dect-bases/${id}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to delete DECT base: ${response.status} ${errorText}`);
+    }
+  }
+
+  // ===========================================================================
+  // DECT Handset Methods
+  // ===========================================================================
+
+  /**
+   * Create a new DECT handset on a base station
+   */
+  async createDECTHandset(baseId: string, data: CreateDECTHandsetRequest): Promise<DECTHandset> {
+    const response = await this.fetchApi(`/v1/dect-bases/${baseId}/handsets`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create DECT handset: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Get a DECT handset by ID
+   */
+  async getDECTHandset(baseId: string, handsetId: string): Promise<DECTHandset> {
+    const response = await this.fetchApi(`/v1/dect-bases/${baseId}/handsets/${handsetId}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get DECT handset: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * List all handsets for a DECT base
+   */
+  async listDECTHandsets(baseId: string): Promise<DECTHandset[]> {
+    const response = await this.fetchApi(`/v1/dect-bases/${baseId}/handsets`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to list DECT handsets: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data.data;
+  }
+
+  /**
+   * Update a DECT handset
+   */
+  async updateDECTHandset(
+    baseId: string,
+    handsetId: string,
+    data: UpdateDECTHandsetRequest
+  ): Promise<DECTHandset> {
+    const response = await this.fetchApi(`/v1/dect-bases/${baseId}/handsets/${handsetId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to update DECT handset: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Delete a DECT handset
+   */
+  async deleteDECTHandset(baseId: string, handsetId: string): Promise<void> {
+    const response = await this.fetchApi(`/v1/dect-bases/${baseId}/handsets/${handsetId}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to delete DECT handset: ${response.status} ${errorText}`);
+    }
+  }
+
+  // ===========================================================================
+  // DECT Extension Methods
+  // ===========================================================================
+
+  /**
+   * Create a DECT extension (assign a SIP line to a handset)
+   */
+  async createDECTExtension(
+    baseId: string,
+    handsetId: string,
+    data: CreateDECTExtensionRequest
+  ): Promise<DECTExtension> {
+    const response = await this.fetchApi(
+      `/v1/dect-bases/${baseId}/handsets/${handsetId}/extensions`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create DECT extension: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * List all extensions for a DECT handset
+   */
+  async listDECTExtensions(baseId: string, handsetId: string): Promise<DECTExtension[]> {
+    const response = await this.fetchApi(
+      `/v1/dect-bases/${baseId}/handsets/${handsetId}/extensions`
+    );
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to list DECT extensions: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data.data;
+  }
+
+  /**
+   * Delete a DECT extension
+   */
+  async deleteDECTExtension(baseId: string, handsetId: string, extensionId: string): Promise<void> {
+    const response = await this.fetchApi(
+      `/v1/dect-bases/${baseId}/handsets/${handsetId}/extensions/${extensionId}`,
+      {
+        method: 'DELETE',
+      }
+    );
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to delete DECT extension: ${response.status} ${errorText}`);
+    }
   }
 }

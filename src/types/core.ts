@@ -11,6 +11,24 @@ import type {
 } from './components';
 import type { CallEventMap, CallEventHandler } from './callbacks';
 import type { Extension } from './dial-plan';
+import type {
+  ProvisionedDevice,
+  CreateDeviceRequest,
+  UpdateDeviceRequest,
+  DeviceListOptions,
+  ProvisioningEvent,
+  ProvisioningEventListOptions,
+} from './device';
+import type {
+  DECTBase,
+  DECTHandset,
+  DECTExtension,
+  CreateDECTBaseRequest,
+  UpdateDECTBaseRequest,
+  CreateDECTHandsetRequest,
+  UpdateDECTHandsetRequest,
+  CreateDECTExtensionRequest,
+} from './dect';
 
 /**
  * Client secret response from fetchClientSecret
@@ -224,6 +242,219 @@ export interface DialStackInstance {
    * ```
    */
   listExtensions(options?: { target?: string; limit?: number }): Promise<Extension[]>;
+
+  // ===========================================================================
+  // Device Methods
+  // ===========================================================================
+
+  /**
+   * Create a new provisioned device
+   *
+   * @param data - Device creation data
+   * @returns Promise resolving to the created device
+   *
+   * @example
+   * ```typescript
+   * const device = await dialstack.createDevice({
+   *   mac_address: '00:04:13:aa:bb:cc',
+   *   model: 'D785',
+   * });
+   * ```
+   */
+  createDevice(data: CreateDeviceRequest): Promise<ProvisionedDevice>;
+
+  /**
+   * Get a device by ID
+   *
+   * @param id - Device ID (e.g., 'dev_01abc...')
+   * @returns Promise resolving to the device
+   */
+  getDevice(id: string): Promise<ProvisionedDevice>;
+
+  /**
+   * List all devices
+   *
+   * @param options - Optional pagination options
+   * @returns Promise resolving to an array of devices
+   */
+  listDevices(options?: DeviceListOptions): Promise<ProvisionedDevice[]>;
+
+  /**
+   * Update a device
+   *
+   * @param id - Device ID
+   * @param data - Update data
+   * @returns Promise resolving to the updated device
+   */
+  updateDevice(id: string, data: UpdateDeviceRequest): Promise<ProvisionedDevice>;
+
+  /**
+   * Delete a device
+   *
+   * @param id - Device ID
+   */
+  deleteDevice(id: string): Promise<void>;
+
+  /**
+   * List provisioning events for a device
+   *
+   * @param deviceId - Device ID
+   * @param options - Optional pagination and filter options
+   * @returns Promise resolving to an array of provisioning events
+   */
+  listProvisioningEvents(
+    deviceId: string,
+    options?: ProvisioningEventListOptions
+  ): Promise<ProvisioningEvent[]>;
+
+  // ===========================================================================
+  // DECT Base Methods
+  // ===========================================================================
+
+  /**
+   * Create a new DECT base station
+   *
+   * @param data - DECT base creation data
+   * @returns Promise resolving to the created base
+   *
+   * @example
+   * ```typescript
+   * const base = await dialstack.createDECTBase({
+   *   mac_address: '00:04:13:aa:bb:cc',
+   *   model: 'M700',
+   * });
+   * ```
+   */
+  createDECTBase(data: CreateDECTBaseRequest): Promise<DECTBase>;
+
+  /**
+   * Get a DECT base by ID
+   *
+   * @param id - DECT base ID (e.g., 'dectb_01abc...')
+   * @returns Promise resolving to the base
+   */
+  getDECTBase(id: string): Promise<DECTBase>;
+
+  /**
+   * List all DECT bases
+   *
+   * @param options - Optional pagination options
+   * @returns Promise resolving to an array of bases
+   */
+  listDECTBases(options?: DeviceListOptions): Promise<DECTBase[]>;
+
+  /**
+   * Update a DECT base
+   *
+   * @param id - DECT base ID
+   * @param data - Update data
+   * @returns Promise resolving to the updated base
+   */
+  updateDECTBase(id: string, data: UpdateDECTBaseRequest): Promise<DECTBase>;
+
+  /**
+   * Delete a DECT base
+   *
+   * @param id - DECT base ID
+   */
+  deleteDECTBase(id: string): Promise<void>;
+
+  // ===========================================================================
+  // DECT Handset Methods
+  // ===========================================================================
+
+  /**
+   * Create a new DECT handset on a base station
+   *
+   * @param baseId - DECT base ID
+   * @param data - Handset creation data
+   * @returns Promise resolving to the created handset
+   */
+  createDECTHandset(baseId: string, data: CreateDECTHandsetRequest): Promise<DECTHandset>;
+
+  /**
+   * Get a DECT handset by ID
+   *
+   * @param baseId - DECT base ID
+   * @param handsetId - Handset ID (e.g., 'decth_01abc...')
+   * @returns Promise resolving to the handset
+   */
+  getDECTHandset(baseId: string, handsetId: string): Promise<DECTHandset>;
+
+  /**
+   * List all handsets for a DECT base
+   *
+   * @param baseId - DECT base ID
+   * @returns Promise resolving to an array of handsets
+   */
+  listDECTHandsets(baseId: string): Promise<DECTHandset[]>;
+
+  /**
+   * Update a DECT handset
+   *
+   * @param baseId - DECT base ID
+   * @param handsetId - Handset ID
+   * @param data - Update data
+   * @returns Promise resolving to the updated handset
+   */
+  updateDECTHandset(
+    baseId: string,
+    handsetId: string,
+    data: UpdateDECTHandsetRequest
+  ): Promise<DECTHandset>;
+
+  /**
+   * Delete a DECT handset
+   *
+   * @param baseId - DECT base ID
+   * @param handsetId - Handset ID
+   */
+  deleteDECTHandset(baseId: string, handsetId: string): Promise<void>;
+
+  // ===========================================================================
+  // DECT Extension Methods
+  // ===========================================================================
+
+  /**
+   * Create a DECT extension (assign a SIP line to a handset)
+   *
+   * @param baseId - DECT base ID
+   * @param handsetId - Handset ID
+   * @param data - Extension creation data
+   * @returns Promise resolving to the created extension
+   *
+   * @example
+   * ```typescript
+   * const extension = await dialstack.createDECTExtension(
+   *   'dectb_01abc...',
+   *   'decth_01xyz...',
+   *   { endpoint_id: 'ep_01def...', display_name: 'Line 1' }
+   * );
+   * ```
+   */
+  createDECTExtension(
+    baseId: string,
+    handsetId: string,
+    data: CreateDECTExtensionRequest
+  ): Promise<DECTExtension>;
+
+  /**
+   * List all extensions for a DECT handset
+   *
+   * @param baseId - DECT base ID
+   * @param handsetId - Handset ID
+   * @returns Promise resolving to an array of extensions
+   */
+  listDECTExtensions(baseId: string, handsetId: string): Promise<DECTExtension[]>;
+
+  /**
+   * Delete a DECT extension
+   *
+   * @param baseId - DECT base ID
+   * @param handsetId - Handset ID
+   * @param extensionId - Extension ID
+   */
+  deleteDECTExtension(baseId: string, handsetId: string, extensionId: string): Promise<void>;
 }
 
 /**
