@@ -18,6 +18,9 @@ import type {
   VoicemailTranscript,
   Extension,
   ExtensionListResponse,
+  SearchAvailableNumbersOptions,
+  AvailablePhoneNumber,
+  NumberOrder,
   ProvisionedDevice,
   CreateDeviceRequest,
   UpdateDeviceRequest,
@@ -295,6 +298,60 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
 
     const data: ExtensionListResponse = await response.json();
     return data.data;
+  }
+
+  // ===========================================================================
+  // Phone Number Ordering Methods
+  // ===========================================================================
+
+  /**
+   * Search for available phone numbers to purchase
+   */
+  async searchAvailableNumbers(
+    options: SearchAvailableNumbersOptions
+  ): Promise<AvailablePhoneNumber[]> {
+    const params = new URLSearchParams();
+    if (options.areaCode) params.set('area_code', options.areaCode);
+    if (options.city) params.set('city', options.city);
+    if (options.state) params.set('state', options.state);
+    if (options.zip) params.set('zip', options.zip);
+    if (options.quantity) params.set('quantity', String(options.quantity));
+
+    const response = await this.fetchApi(`/v1/available-phone-numbers?${params}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to search available numbers: ${response.status} ${errorText}`);
+    }
+
+    const body = await response.json();
+    return body.data;
+  }
+
+  /**
+   * Create a phone number order
+   */
+  async createPhoneNumberOrder(phoneNumbers: string[]): Promise<NumberOrder> {
+    const response = await this.fetchApi('/v1/phone-number-orders', {
+      method: 'POST',
+      body: JSON.stringify({ phone_numbers: phoneNumbers }),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create phone number order: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Get the current status of a phone number order
+   */
+  async getPhoneNumberOrder(orderId: string): Promise<NumberOrder> {
+    const response = await this.fetchApi(`/v1/phone-number-orders/${orderId}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get phone number order: ${response.status} ${errorText}`);
+    }
+    return response.json();
   }
 
   /**

@@ -12,6 +12,11 @@ import type {
 import type { CallEventMap, CallEventHandler } from './callbacks';
 import type { Extension } from './dial-plan';
 import type {
+  AvailablePhoneNumber,
+  NumberOrder,
+  SearchAvailableNumbersOptions,
+} from './phone-number-ordering';
+import type {
   ProvisionedDevice,
   CreateDeviceRequest,
   UpdateDeviceRequest,
@@ -242,6 +247,49 @@ export interface DialStackInstance {
    * ```
    */
   listExtensions(options?: { target?: string; limit?: number }): Promise<Extension[]>;
+
+  // ===========================================================================
+  // Phone Number Ordering Methods
+  // ===========================================================================
+
+  /**
+   * Search for available phone numbers to purchase
+   *
+   * @param options - Search criteria (at least one of areaCode, zip, or city+state is required)
+   * @returns Promise resolving to an array of available phone numbers
+   *
+   * @example
+   * ```typescript
+   * const numbers = await dialstack.searchAvailableNumbers({ areaCode: '212', quantity: 5 });
+   * ```
+   */
+  searchAvailableNumbers(options: SearchAvailableNumbersOptions): Promise<AvailablePhoneNumber[]>;
+
+  /**
+   * Create a phone number order to purchase one or more numbers
+   *
+   * @param phoneNumbers - Array of E.164 phone numbers to order
+   * @returns Promise resolving to the created order
+   *
+   * @example
+   * ```typescript
+   * const order = await dialstack.createPhoneNumberOrder(['+12125551001']);
+   * ```
+   */
+  createPhoneNumberOrder(phoneNumbers: string[]): Promise<NumberOrder>;
+
+  /**
+   * Get the current status of a phone number order
+   *
+   * @param orderId - The order ID
+   * @returns Promise resolving to the order
+   *
+   * @example
+   * ```typescript
+   * const order = await dialstack.getPhoneNumberOrder('ord_abc123');
+   * ```
+   */
+  getPhoneNumberOrder(orderId: string): Promise<NumberOrder>;
 
   // ===========================================================================
   // Device Methods

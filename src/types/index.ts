@@ -69,6 +69,15 @@ export type {
   ComponentElement,
 } from './components';
 
+// Phone number ordering types
+export type {
+  SearchAvailableNumbersOptions,
+  AvailablePhoneNumber,
+  NumberOrder,
+  PhoneNumberOrderingClasses,
+  PhoneNumberOrderingElement,
+} from './phone-number-ordering';
+
 // Core SDK types
 export type {
   ClientSecretResponse,

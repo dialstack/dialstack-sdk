@@ -39,6 +39,10 @@ export type {
   CallHistoryDisplayOptions,
   // CSS class types
   CallHistoryClasses,
+  PhoneNumberOrderingClasses,
+  // Phone number ordering types
+  AvailablePhoneNumber,
+  NumberOrder,
   // Custom render types
   VoicemailRowRenderer,
   CallLogRowRenderer,
@@ -63,11 +67,13 @@ export { CallLogs } from './react/CallLogs';
 export { Voicemails } from './react/Voicemails';
 export { CallHistory } from './react/CallHistory';
 export { DialPlanViewer } from './react/DialPlanViewer';
+export { PhoneNumberOrdering } from './react/PhoneNumberOrdering';
 
 export type { DialstackComponentsProviderProps } from './react/DialstackComponentsProvider';
 export type { CallLogsProps } from './react/CallLogs';
 export type { VoicemailsProps } from './react/Voicemails';
 export type { CallHistoryProps } from './react/CallHistory';
+export type { PhoneNumberOrderingProps } from './react/PhoneNumberOrdering';
 export type {
   DialPlan,
   DialPlanNode,

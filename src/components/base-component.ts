@@ -338,6 +338,19 @@ export abstract class BaseComponent extends getHTMLElementBase() {
   }
 
   /**
+   * Escape HTML special characters to prevent XSS when interpolating
+   * server-provided strings into innerHTML templates.
+   */
+  protected escapeHtml(str: string): string {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  /**
    * Get combined class names for a given state
    */
   protected getClassNames(...states: (keyof BaseComponentClasses)[]): string {

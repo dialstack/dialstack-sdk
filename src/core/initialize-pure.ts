@@ -99,6 +99,16 @@ export async function loadDialstackAndInitialize(
     listExtensions: (options) => {
       return instance.listExtensions(options);
     },
+    // Phone number ordering methods
+    searchAvailableNumbers: (options) => {
+      return instance.searchAvailableNumbers(options);
+    },
+    createPhoneNumberOrder: (phoneNumbers) => {
+      return instance.createPhoneNumberOrder(phoneNumbers);
+    },
+    getPhoneNumberOrder: (orderId) => {
+      return instance.getPhoneNumberOrder(orderId);
+    },
     // Device methods
     createDevice: (data) => {
       return instance.createDevice(data);
@@ -190,4 +200,5 @@ export function registerComponents(): void {
   // Dynamically import components to trigger registration
   import('../components/call-logs');
   import('../components/voicemails');
+  import('../components/phone-number-ordering');
 }

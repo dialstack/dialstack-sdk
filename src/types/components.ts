@@ -11,6 +11,7 @@ import type {
   CallLogsClasses,
   CallHistoryClasses,
 } from './appearance';
+import type { PhoneNumberOrderingElement } from './phone-number-ordering';
 import type { LoaderStart, LoadError } from './callbacks';
 import type { DialStackInstanceImpl } from './core';
 
@@ -379,7 +380,11 @@ export interface CallHistoryElement extends Omit<BaseComponentElement, 'setClass
 /**
  * Component tag names for embedded components
  */
-export type ComponentTagName = 'call-logs' | 'voicemails' | 'call-history';
+export type ComponentTagName =
+  | 'call-logs'
+  | 'voicemails'
+  | 'call-history'
+  | 'phone-number-ordering';
 
 /**
  * Web Component element types mapped by tag name
@@ -388,4 +393,5 @@ export interface ComponentElement {
   'call-logs': CallLogsElement;
   voicemails: VoicemailsElement;
   'call-history': CallHistoryElement;
+  'phone-number-ordering': PhoneNumberOrderingElement;
 }
