@@ -102,7 +102,7 @@ export const en = {
       stateLabel: 'State',
       zipLabel: 'ZIP Code',
       zipPlaceholder: 'e.g. 10001',
-      numberOfResults: 'Number of results',
+      numberOfResults: 'Quantity to display',
       search: 'Search',
     },
     results: {
