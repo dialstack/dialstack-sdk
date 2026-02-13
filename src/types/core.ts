@@ -255,7 +255,7 @@ export interface DialStackInstance {
   /**
    * Search for available phone numbers to purchase
    *
-   * @param options - Search criteria (at least one of areaCode, zip, or city+state is required)
+   * @param options - Search criteria (at least one of areaCode, state, zip, npaNxx, or city+state is required)
    * @returns Promise resolving to an array of available phone numbers
    *
    * @example
