@@ -91,13 +91,14 @@ export const en = {
     },
     search: {
       title: 'Search Available Numbers',
+      subtitle: 'Find available phone numbers by entering an area code, city, state, or ZIP code.',
       searchType: 'Search by',
       areaCode: 'Area Code',
       cityState: 'City & State',
       zip: 'ZIP Code',
       areaCodeLabel: 'Area Code',
       areaCodePlaceholder: 'e.g. 212',
-      cityLabel: 'City',
+      cityLabel: 'City (optional)',
       cityPlaceholder: 'e.g. New York',
       stateLabel: 'State',
       zipLabel: 'ZIP Code',
@@ -110,6 +111,7 @@ export const en = {
       phoneNumber: 'Phone Number',
       city: 'City',
       state: 'State',
+      selectAll: 'Select all',
       selected: '{count} selected',
       noResults: 'No numbers available for this search',
       continue: 'Continue',
@@ -145,6 +147,8 @@ export const en = {
       descriptionPartialOne: 'Some numbers could not be fulfilled by the carrier.',
       descriptionPartialOther: 'Some numbers could not be fulfilled by the carrier.',
       checking: 'Checking order status...',
+      assignmentHint:
+        'Numbers added to your inventory still need to be assigned to an extension or dial plan before they can receive calls.',
       orderMore: 'Order More Numbers',
     },
     error: {

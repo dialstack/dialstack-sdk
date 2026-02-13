@@ -443,7 +443,7 @@ const COMPONENT_STYLES = `
     letter-spacing: 0.02em;
   }
 
-  /* ── Checkbox (display-only, row click handles toggle) ── */
+  /* ── Checkbox (row checkboxes are display-only, row click handles toggle) ── */
   .checkbox-visual {
     display: inline-flex;
     align-items: center;
@@ -454,6 +454,10 @@ const COMPONENT_STYLES = `
     border-radius: var(--ds-border-radius-small);
     background: var(--ds-color-background);
     transition: all var(--ds-transition-duration);
+    cursor: pointer;
+  }
+
+  .results-table td .checkbox-visual {
     pointer-events: none;
   }
 
@@ -660,6 +664,15 @@ const COMPONENT_STYLES = `
     to { transform: rotate(360deg); }
   }
 
+  .center-hint {
+    font-size: var(--ds-font-size-small);
+    color: var(--ds-color-text-secondary);
+    max-width: 360px;
+    margin: var(--ds-layout-spacing-sm) auto 0;
+    text-align: center;
+    opacity: 0.8;
+  }
+
   .empty-state {
     padding: var(--ds-spacing-xl);
     text-align: center;
@@ -743,6 +756,11 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
   // ============================================================================
   // Data Operations
   // ============================================================================
+
+  private canSearch(): boolean {
+    if (this.searchType === 'city_state') return this.searchState.trim() !== '';
+    return this.searchValue.trim() !== '';
+  }
 
   private async searchNumbers(): Promise<void> {
     if (!this.instance) return;
@@ -1013,6 +1031,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     return `
       <div class="card ${this.classes.searchForm || ''}" part="search-form">
         <h2 class="section-title">${this.t('phoneNumberOrdering.search.title')}</h2>
+        <p class="section-subtitle">${this.t('phoneNumberOrdering.search.subtitle')}</p>
 
         <div class="segmented-control" role="radiogroup" aria-label="${this.t('phoneNumberOrdering.search.searchType')}">
           ${segmentBtn('area_code', this.t('phoneNumberOrdering.search.areaCode'))}
@@ -1067,7 +1086,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
               data-field="quantity" />
           </div>
           <div class="form-group">
-            <button class="btn btn-primary" data-action="search" ${this.isSearching ? 'disabled' : ''}>
+            <button class="btn btn-primary" data-action="search" ${this.isSearching || !this.canSearch() ? 'disabled' : ''}>
               ${this.t('phoneNumberOrdering.search.search')}
             </button>
           </div>
@@ -1093,6 +1112,10 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
         </div>
       `;
     }
+
+    const allSelected =
+      this.availableNumbers.length > 0 &&
+      this.selectedNumbers.size === this.availableNumbers.length;
 
     const rows = this.availableNumbers
       .map((num) => {
@@ -1125,7 +1148,12 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
           <table class="results-table" role="grid">
             <thead>
               <tr>
-                <th scope="col"></th>
+                <th scope="col">
+                  <span class="checkbox-visual ${allSelected ? 'checked' : ''}"
+                    data-action="select-all"
+                    role="checkbox" aria-checked="${allSelected}"
+                    aria-label="${this.t('phoneNumberOrdering.results.selectAll')}">${CHECK_SVG}</span>
+                </th>
                 <th scope="col">${this.t('phoneNumberOrdering.results.phoneNumber')}</th>
                 <th scope="col">${this.t('phoneNumberOrdering.results.city')}</th>
                 <th scope="col">${this.t('phoneNumberOrdering.results.state')}</th>
@@ -1221,6 +1249,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
           <div class="center-title">${this.t(titleKey)}</div>
           <div class="center-detail">${this.t(descKey)}</div>
           ${pollingIndicator}
+          ${status === 'complete' ? `<div class="center-hint">${this.t('phoneNumberOrdering.complete.assignmentHint')}</div>` : ''}
 
           <div class="center-btn">
             <button class="btn btn-primary" data-action="order-more">
@@ -1252,6 +1281,12 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
   // ============================================================================
   // Event Handling
   // ============================================================================
+
+  /** Update the search button's disabled state without a full re-render. */
+  private updateSearchButton(): void {
+    const btn = this.shadowRoot?.querySelector<HTMLButtonElement>('[data-action="search"]');
+    if (btn) btn.disabled = this.isSearching || !this.canSearch();
+  }
 
   /** Targeted DOM update for search type switching — avoids full re-render to preserve focus. */
   private updateSearchTypeUI(newType: SearchType): void {
@@ -1292,6 +1327,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
           if (type && type !== this.searchType) {
             this.searchType = type;
             this.updateSearchTypeUI(type);
+            this.updateSearchButton();
           }
           break;
         }
@@ -1308,6 +1344,15 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
             }
             this.render();
           }
+          break;
+        }
+        case 'select-all': {
+          if (this.selectedNumbers.size === this.availableNumbers.length) {
+            this.selectedNumbers = new Set();
+          } else {
+            this.selectedNumbers = new Set(this.availableNumbers.map((n) => n.phone_number));
+          }
+          this.render();
           break;
         }
         case 'continue':
@@ -1346,7 +1391,10 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
 
     const bindInput = (id: string, handler: (value: string) => void): void => {
       const el = this.shadowRoot!.getElementById(id) as HTMLInputElement | null;
-      el?.addEventListener('input', (e) => handler((e.target as HTMLInputElement).value));
+      el?.addEventListener('input', (e) => {
+        handler((e.target as HTMLInputElement).value);
+        this.updateSearchButton();
+      });
     };
 
     bindInput('search-area-code', (v) => {
@@ -1366,6 +1414,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     const stateSelect = this.shadowRoot.getElementById('search-state') as HTMLSelectElement | null;
     stateSelect?.addEventListener('change', (e) => {
       this.searchState = (e.target as HTMLSelectElement).value;
+      this.updateSearchButton();
     });
   }
 }
