@@ -78,6 +78,24 @@ export type {
   PhoneNumberOrderingElement,
 } from './phone-number-ordering';
 
+// Number porting types
+export type {
+  PortOrderAddress,
+  PortOrderSubscriber,
+  PortCarrier,
+  PortRejection,
+  PortDocumentMeta,
+  PortApproval,
+  ApprovePortOrderRequest,
+  PortOrderStatus,
+  PortOrderDetails,
+  PortOrder,
+  CreatePortOrderRequest,
+  PortableNumber,
+  NonPortableNumber,
+  PortEligibilityResult,
+} from './number-porting';
+
 // Core SDK types
 export type {
   ClientSecretResponse,

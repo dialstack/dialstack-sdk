@@ -35,6 +35,10 @@ import type {
   CreateDECTHandsetRequest,
   UpdateDECTHandsetRequest,
   CreateDECTExtensionRequest,
+  PortOrder,
+  CreatePortOrderRequest,
+  ApprovePortOrderRequest,
+  PortEligibilityResult,
 } from '../types';
 
 const DEFAULT_API_URL = 'https://api.dialstack.ai';
@@ -743,6 +747,95 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
 
     const data = await response.json();
     return data.data;
+  }
+
+  // ===========================================================================
+  // Number Porting Methods
+  // ===========================================================================
+
+  /**
+   * Check port-in eligibility for phone numbers
+   */
+  async checkPortEligibility(phoneNumbers: string[]): Promise<PortEligibilityResult> {
+    const response = await this.fetchApi('/v1/port-in-eligibility', {
+      method: 'POST',
+      body: JSON.stringify({ phone_numbers: phoneNumbers }),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to check port eligibility: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Create a new port order in draft status
+   */
+  async createPortOrder(request: CreatePortOrderRequest): Promise<PortOrder> {
+    const response = await this.fetchApi('/v1/port-orders', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create port order: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Get the current status of a port order
+   */
+  async getPortOrder(orderId: string): Promise<PortOrder> {
+    const response = await this.fetchApi(`/v1/port-orders/${orderId}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get port order: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Approve a port order with the customer's electronic signature
+   */
+  async approvePortOrder(orderId: string, request: ApprovePortOrderRequest): Promise<PortOrder> {
+    const response = await this.fetchApi(`/v1/port-orders/${orderId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to approve port order: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Submit a port order to the carrier
+   */
+  async submitPortOrder(orderId: string): Promise<PortOrder> {
+    const response = await this.fetchApi(`/v1/port-orders/${orderId}/submit`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to submit port order: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Cancel a port order
+   */
+  async cancelPortOrder(orderId: string): Promise<PortOrder> {
+    const response = await this.fetchApi(`/v1/port-orders/${orderId}/cancel`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to cancel port order: ${response.status} ${errorText}`);
+    }
+    return response.json();
   }
 
   // ===========================================================================

@@ -128,6 +128,25 @@ export async function loadDialstackAndInitialize(
     listProvisioningEvents: (deviceId, options) => {
       return instance.listProvisioningEvents(deviceId, options);
     },
+    // Number porting methods
+    checkPortEligibility: (phoneNumbers) => {
+      return instance.checkPortEligibility(phoneNumbers);
+    },
+    createPortOrder: (request) => {
+      return instance.createPortOrder(request);
+    },
+    getPortOrder: (orderId) => {
+      return instance.getPortOrder(orderId);
+    },
+    approvePortOrder: (orderId, request) => {
+      return instance.approvePortOrder(orderId, request);
+    },
+    submitPortOrder: (orderId) => {
+      return instance.submitPortOrder(orderId);
+    },
+    cancelPortOrder: (orderId) => {
+      return instance.cancelPortOrder(orderId);
+    },
     // DECT base methods
     createDECTBase: (data) => {
       return instance.createDECTBase(data);

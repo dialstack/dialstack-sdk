@@ -25,6 +25,12 @@ import type {
   ProvisioningEventListOptions,
 } from './device';
 import type {
+  PortOrder,
+  CreatePortOrderRequest,
+  ApprovePortOrderRequest,
+  PortEligibilityResult,
+} from './number-porting';
+import type {
   DECTBase,
   DECTHandset,
   DECTExtension,
@@ -354,6 +360,92 @@ export interface DialStackInstance {
     deviceId: string,
     options?: ProvisioningEventListOptions
   ): Promise<ProvisioningEvent[]>;
+
+  // ===========================================================================
+  // Number Porting Methods
+  // ===========================================================================
+
+  /**
+   * Check port-in eligibility for one or more phone numbers
+   *
+   * @param phoneNumbers - Array of E.164 phone numbers to check
+   * @returns Promise resolving to eligibility results
+   *
+   * @example
+   * ```typescript
+   * const result = await dialstack.checkPortEligibility(['+15551234567']);
+   * console.log(result.portable_numbers);
+   * ```
+   */
+  checkPortEligibility(phoneNumbers: string[]): Promise<PortEligibilityResult>;
+
+  /**
+   * Create a new port order in draft status
+   *
+   * @param request - Port order details including subscriber info and phone numbers
+   * @returns Promise resolving to the created port order
+   *
+   * @example
+   * ```typescript
+   * const order = await dialstack.createPortOrder({
+   *   phone_numbers: ['+15551234567'],
+   *   subscriber: {
+   *     btn: '+15551234567',
+   *     business_name: 'Doe Enterprises',
+   *     approver_name: 'John Doe',
+   *     address: { house_number: '123', street_name: 'Main St', city: 'Anytown', state: 'NY', zip: '10001' },
+   *   },
+   *   requested_foc_date: '2026-03-01',
+   * });
+   * ```
+   */
+  createPortOrder(request: CreatePortOrderRequest): Promise<PortOrder>;
+
+  /**
+   * Get the current status of a port order
+   *
+   * @param orderId - The port order ID
+   * @returns Promise resolving to the port order
+   */
+  getPortOrder(orderId: string): Promise<PortOrder>;
+
+  /**
+   * Approve a port order with the customer's electronic signature
+   *
+   * The order must be in draft status and have subscriber details.
+   * After approval, the order can be submitted.
+   *
+   * @param orderId - The port order ID (must be in draft status)
+   * @param request - The approval details (signature and IP)
+   * @returns Promise resolving to the updated port order
+   *
+   * @example
+   * ```typescript
+   * const order = await dialstack.approvePortOrder('port_01abc...', {
+   *   signature: 'Jane Smith',
+   *   ip: '203.0.113.42',
+   * });
+   * ```
+   */
+  approvePortOrder(orderId: string, request: ApprovePortOrderRequest): Promise<PortOrder>;
+
+  /**
+   * Submit a port order to the carrier for processing
+   *
+   * The order must be approved before submission.
+   *
+   * @param orderId - The port order ID (must be in approved status)
+   * @returns Promise resolving to the updated port order
+   */
+  submitPortOrder(orderId: string): Promise<PortOrder>;
+
+  /**
+   * Cancel a port order
+   *
+   * @param orderId - The port order ID
+   * @returns Promise resolving to the updated port order
+   */
+  cancelPortOrder(orderId: string): Promise<PortOrder>;
 
   // ===========================================================================
   // DECT Base Methods
