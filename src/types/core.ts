@@ -30,6 +30,7 @@ import type {
   ApprovePortOrderRequest,
   PortEligibilityResult,
 } from './number-porting';
+import type { PaginatedResponse, DIDItem } from './phone-numbers';
 import type {
   DECTBase,
   DECTHandset,
@@ -253,6 +254,44 @@ export interface DialStackInstance {
    * ```
    */
   listExtensions(options?: { target?: string; limit?: number }): Promise<Extension[]>;
+
+  // ===========================================================================
+  // Phone Number List Methods
+  // ===========================================================================
+
+  /**
+   * List phone numbers (DIDs) for the account
+   *
+   * @param options - Optional filter/pagination options
+   * @returns Promise resolving to a paginated list of DIDs
+   */
+  listPhoneNumbers(options?: {
+    limit?: number;
+    status?: string;
+  }): Promise<PaginatedResponse<DIDItem>>;
+
+  /**
+   * List phone number orders for the account
+   *
+   * @param options - Optional filter/pagination options
+   * @returns Promise resolving to a paginated list of number orders
+   */
+  listNumberOrders(options?: {
+    limit?: number;
+    status?: string;
+    order_type?: string;
+  }): Promise<PaginatedResponse<NumberOrder>>;
+
+  /**
+   * List port orders for the account
+   *
+   * @param options - Optional filter/pagination options
+   * @returns Promise resolving to a paginated list of port orders
+   */
+  listPortOrders(options?: {
+    limit?: number;
+    status?: string;
+  }): Promise<PaginatedResponse<PortOrder>>;
 
   // ===========================================================================
   // Phone Number Ordering Methods

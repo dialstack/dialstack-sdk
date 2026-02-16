@@ -4,6 +4,7 @@
 
 import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenumber-js';
 import { BaseComponent } from './base-component';
+import { segmentedControlStyles } from './shared-styles';
 import type {
   AvailablePhoneNumber,
   NumberOrder,
@@ -182,39 +183,10 @@ const COMPONENT_STYLES = `
   }
 
   /* ── Segmented Control ── */
-  .segmented-control {
-    display: flex;
-    background: var(--ds-color-surface-subtle);
-    border: 1px solid var(--ds-color-border);
-    border-radius: var(--ds-border-radius);
-    padding: 3px;
-    gap: 2px;
-    margin-bottom: var(--ds-layout-spacing-md);
-  }
+  ${segmentedControlStyles}
 
   .segment-btn {
     flex: 1;
-    padding: var(--ds-spacing-sm) var(--ds-spacing-md);
-    font-size: var(--ds-font-size-small);
-    font-family: var(--ds-font-family);
-    font-weight: var(--ds-font-weight-medium);
-    color: var(--ds-color-text-secondary);
-    background: transparent;
-    border: none;
-    border-radius: var(--ds-border-radius-small);
-    cursor: pointer;
-    transition: all var(--ds-transition-duration);
-    text-align: center;
-  }
-
-  .segment-btn:hover:not(.active) {
-    color: var(--ds-color-text);
-  }
-
-  .segment-btn.active {
-    background: var(--ds-color-background);
-    color: var(--ds-color-text);
-    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
   }
 
   /* ── Search Fields Stack (all variants overlaid, only active visible) ── */

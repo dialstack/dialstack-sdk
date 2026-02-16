@@ -96,6 +96,17 @@ export type {
   PortEligibilityResult,
 } from './number-porting';
 
+// Phone numbers types
+export type {
+  PaginatedResponse,
+  DIDItem,
+  PhoneNumberStatus,
+  PhoneNumberItem,
+  PhoneNumbersClasses,
+  PhoneNumbersDisplayOptions,
+  PhoneNumbersElement,
+} from './phone-numbers';
+
 // Core SDK types
 export type {
   ClientSecretResponse,

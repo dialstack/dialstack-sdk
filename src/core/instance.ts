@@ -21,6 +21,8 @@ import type {
   SearchAvailableNumbersOptions,
   AvailablePhoneNumber,
   NumberOrder,
+  PaginatedResponse,
+  DIDItem,
   ProvisionedDevice,
   CreateDeviceRequest,
   UpdateDeviceRequest,
@@ -302,6 +304,78 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
 
     const data: ExtensionListResponse = await response.json();
     return data.data;
+  }
+
+  // ===========================================================================
+  // Phone Number List Methods
+  // ===========================================================================
+
+  /**
+   * List phone numbers (DIDs) for the account
+   */
+  async listPhoneNumbers(options?: {
+    limit?: number;
+    status?: string;
+  }): Promise<PaginatedResponse<DIDItem>> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.set('limit', String(options.limit));
+    if (options?.status) params.set('status', options.status);
+
+    const queryString = params.toString();
+    const path = queryString ? `/v1/phone-numbers?${queryString}` : '/v1/phone-numbers';
+
+    const response = await this.fetchApi(path);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to list phone numbers: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * List phone number orders for the account
+   */
+  async listNumberOrders(options?: {
+    limit?: number;
+    status?: string;
+    order_type?: string;
+  }): Promise<PaginatedResponse<NumberOrder>> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.set('limit', String(options.limit));
+    if (options?.status) params.set('status', options.status);
+    if (options?.order_type) params.set('order_type', options.order_type);
+
+    const queryString = params.toString();
+    const path = queryString ? `/v1/phone-number-orders?${queryString}` : '/v1/phone-number-orders';
+
+    const response = await this.fetchApi(path);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to list number orders: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * List port orders for the account
+   */
+  async listPortOrders(options?: {
+    limit?: number;
+    status?: string;
+  }): Promise<PaginatedResponse<PortOrder>> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.set('limit', String(options.limit));
+    if (options?.status) params.set('status', options.status);
+
+    const queryString = params.toString();
+    const path = queryString ? `/v1/port-orders?${queryString}` : '/v1/port-orders';
+
+    const response = await this.fetchApi(path);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to list port orders: ${response.status} ${errorText}`);
+    }
+    return response.json();
   }
 
   // ===========================================================================

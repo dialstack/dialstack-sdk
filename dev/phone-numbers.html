@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phone Numbers Component - Dev Harness</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 0 20px;
+      background: #fafafa;
+    }
+    h1 { font-size: 1.4rem; margin-bottom: 8px; }
+    .hint { color: #666; font-size: 0.85rem; margin-bottom: 20px; }
+    code { background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 0.8rem; }
+    #container {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .controls label { font-size: 0.85rem; color: #555; }
+    .controls select {
+      padding: 4px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+  </style>
+  <script>
+    window.process = { env: { NODE_ENV: 'development' } };
+    // Ensure UMD takes the browser/global path (not CommonJS)
+    // by deleting any globals that look like a module environment
+    delete window.exports;
+    delete window.module;
+    delete window.define;
+  </script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+</head>
+<body>
+  <h1>dialstack-phone-numbers</h1>
+  <p class="hint">Uses local API at <code>localhost:8080</code>. Start with <code>./api/local-setup/start.sh</code></p>
+
+  <div class="controls">
+    <div>
+      <label>Theme</label><br>
+      <select id="theme">
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+    </div>
+    <div>
+      <label>Limit</label><br>
+      <select id="limit">
+        <option value="5">5</option>
+        <option value="10" selected>10</option>
+        <option value="25">25</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="container"></div>
+
+  <script src="../dist/sdk.umd.js"></script>
+  <script>
+    // Local dev credentials (from api/local-setup/CLAUDE.md)
+    const API_URL = 'http://localhost:8080';
+    const SECRET_KEY = 'sk_live_localdev';
+    const ACCOUNT_HEADER = 'acct_01kh23q5myfq3anrpqxtxrae1h';
+
+    // Monkey-patch fetch to inject the DialStack-Account header for local dev.
+    const originalFetch = window.fetch;
+    window.fetch = function(url, options) {
+      if (typeof url === 'string' && url.startsWith(API_URL)) {
+        options = options || {};
+        const headers = new Headers(options.headers);
+        headers.set('DialStack-Account', ACCOUNT_HEADER);
+        options.headers = headers;
+      }
+      return originalFetch.call(this, url, options);
+    };
+
+    (async () => {
+      const dialstack = await DialStack.loadDialstackAndInitialize({
+        publishableKey: 'pk_test_localdev',
+        apiUrl: API_URL,
+        fetchClientSecret: async () => {
+          return { clientSecret: SECRET_KEY, expiresAt: new Date(Date.now() + 3600000).toISOString() };
+        },
+      });
+
+      const component = dialstack.create('phone-numbers');
+      component.setLimit(10);
+      component.setOnRowClick((e) => {
+        console.log('Row clicked:', e.phoneNumber, e.item);
+      });
+
+      document.getElementById('container').appendChild(component);
+
+      // Controls
+      document.getElementById('theme').addEventListener('change', (e) => {
+        dialstack.update({ appearance: { theme: e.target.value } });
+      });
+
+      document.getElementById('limit').addEventListener('change', (e) => {
+        component.setLimit(Number(e.target.value));
+      });
+    })();
+  </script>
+</body>
+</html>
