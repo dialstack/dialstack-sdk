@@ -32,8 +32,6 @@ export type MulticellRole = 'single' | 'data_master' | 'secondary';
 export interface DECTBase {
   /** TypeID with `dectb_` prefix */
   id: string;
-  /** TypeID of the owning account */
-  account_id: string;
   /** Hardware MAC address (e.g., "00:04:13:aa:bb:cc") */
   mac_address: string;
   /** Detected vendor (e.g., "snom") */

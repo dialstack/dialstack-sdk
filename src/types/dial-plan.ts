@@ -85,8 +85,6 @@ export type DialPlanNode = ScheduleNode | InternalDialNode;
 export interface DialPlan {
   /** Unique identifier for the dial plan */
   id: string;
-  /** Account that owns this dial plan */
-  account_id: string;
   /** Human-readable name for the dial plan */
   name: string;
   /** ID of the first node to execute when a call enters this dial plan */

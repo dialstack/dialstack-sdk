@@ -35,7 +35,6 @@ describe('DECT Types', () => {
     it('allows full base object', () => {
       const base: DECTBase = {
         id: 'dectb_01h455vb4pex5vsknk084sn02t',
-        account_id: 'acct_01h455vb4pex5vsknk084sn02t',
         mac_address: '00:04:13:12:34:56',
         vendor: 'snom',
         model: 'M500',
@@ -58,7 +57,6 @@ describe('DECT Types', () => {
     it('allows optional fields to be undefined', () => {
       const base: DECTBase = {
         id: 'dectb_01h455vb4pex5vsknk084sn02t',
-        account_id: 'acct_01h455vb4pex5vsknk084sn02t',
         mac_address: '00:04:13:12:34:56',
         vendor: 'snom',
         status: 'pending-sync',

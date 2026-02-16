@@ -13,7 +13,6 @@ import type { DialPlan } from '../../types/dial-plan';
 describe('dial-plan-graph', () => {
   const sampleDialPlan: DialPlan = {
     id: 'dp_test',
-    account_id: 'acc_test',
     name: 'Test Dial Plan',
     entry_node: 'check_hours',
     created_at: '2025-01-01T00:00:00Z',

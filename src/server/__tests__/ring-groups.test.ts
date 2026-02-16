@@ -17,7 +17,6 @@ describe('Ring Groups', () => {
     it('creates a ring group with required params', async () => {
       const mockResponse = {
         id: 'rg_123',
-        account_id: 'acct_test123',
         name: 'Sales Team',
         timeout_seconds: 20,
         ignore_forwarding: false,
@@ -49,7 +48,6 @@ describe('Ring Groups', () => {
     it('creates a ring group with all optional params', async () => {
       const mockResponse = {
         id: 'rg_123',
-        account_id: 'acct_test123',
         name: 'Support Team',
         timeout_seconds: 45,
         ignore_forwarding: true,

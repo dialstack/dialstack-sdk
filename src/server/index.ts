@@ -150,7 +150,6 @@ export interface AccountListParams {
 
 export interface User {
   id: string;
-  account_id: string;
   name: string | null;
   email: string | null;
   created_at: string;
@@ -254,7 +253,6 @@ export interface DateRange {
 
 export interface Schedule {
   id: string;
-  account_id: string;
   name: string;
   timezone: string;
   ranges: TimeRange[];
@@ -298,7 +296,6 @@ export interface InternalDialNodeConfig {
 
 export interface DialPlan {
   id: string;
-  account_id: string;
   name: string;
   entry_node: string;
   nodes: DialPlanNode[];
@@ -347,7 +344,6 @@ export interface ExtensionListParams {
 // Ring Group types
 export interface RingGroup {
   id: string;
-  account_id: string;
   name: string;
   timeout_seconds: number;
   ignore_forwarding: boolean;
