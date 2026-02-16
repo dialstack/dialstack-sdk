@@ -358,8 +358,8 @@ export class CallHistoryComponent extends BaseComponent {
     const duration = this.formatDuration(call.duration_seconds);
 
     // Determine item class based on call type
-    let itemTypeClass = '';
-    let customTypeClass = '';
+    let itemTypeClass: string;
+    let customTypeClass: string;
     if (voicemail) {
       itemTypeClass = 'call-history-item--voicemail';
       customTypeClass = this.classes.itemVoicemail || '';
