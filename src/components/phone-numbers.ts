@@ -19,7 +19,7 @@ import type {
 /**
  * PhoneNumbers component displays a unified list of all phone numbers
  */
-type SortColumn = 'phone_number' | 'status' | 'outbound' | 'notes' | 'last_updated';
+type SortColumn = 'phone_number' | 'status' | 'caller_id' | 'outbound' | 'notes' | 'last_updated';
 type SortDirection = 'asc' | 'desc';
 type StatusFilter = 'all' | 'active' | 'porting' | 'orders' | 'issues' | 'released' | 'inactive';
 
@@ -53,6 +53,7 @@ export class PhoneNumbersComponent extends BaseComponent {
   private displayOptions: Required<PhoneNumbersDisplayOptions> = {
     showStatus: true,
     showOutbound: true,
+    showCallerID: true,
     showNotes: true,
     showLastUpdated: true,
   };
@@ -186,6 +187,7 @@ export class PhoneNumbersComponent extends BaseComponent {
         phone_number: did.phone_number,
         status: did.status as PhoneNumberStatus,
         outbound_enabled: did.outbound_enabled,
+        caller_id_name: did.caller_id_name,
         source: 'did',
         created_at: did.created_at,
         updated_at: did.updated_at,
@@ -467,6 +469,8 @@ export class PhoneNumbersComponent extends BaseComponent {
         return this.formatPhoneNumber(item.phone_number);
       case 'status':
         return this.t(this.getStatusLocaleKey(item.status));
+      case 'caller_id':
+        return item.caller_id_name || '';
       case 'outbound':
         if (item.outbound_enabled === true) return 'a';
         if (item.outbound_enabled === false) return 'b';
@@ -799,7 +803,8 @@ export class PhoneNumbersComponent extends BaseComponent {
   }
 
   private renderTable(): string {
-    const { showStatus, showOutbound, showNotes, showLastUpdated } = this.displayOptions;
+    const { showStatus, showCallerID, showOutbound, showNotes, showLastUpdated } =
+      this.displayOptions;
     const items = this.pageItems;
 
     const rows = items
@@ -814,6 +819,7 @@ export class PhoneNumbersComponent extends BaseComponent {
           <tr data-phone="${this.escapeHtml(item.phone_number)}" tabindex="0" role="row" part="table-row"${rowClass}>
             <td part="cell cell-phone-number">${this.escapeHtml(this.formatPhoneNumber(item.phone_number))}</td>
             ${showStatus ? `<td part="cell cell-status"><span class="badge ${this.getStatusBadgeClass(item.status)} ${badgeClass}" part="badge badge-status">${this.t(this.getStatusLocaleKey(item.status))}</span></td>` : ''}
+            ${showCallerID ? `<td part="cell cell-caller-id">${this.escapeHtml(item.caller_id_name || '')}</td>` : ''}
             ${showOutbound ? `<td part="cell cell-outbound">${item.outbound_enabled === true ? this.t('phoneNumbers.outbound.enabled') : item.outbound_enabled === false ? this.t('phoneNumbers.outbound.disabled') : ''}</td>` : ''}
             ${showNotes ? `<td part="cell cell-notes">${this.escapeHtml(item.notes)}</td>` : ''}
             ${showLastUpdated ? `<td part="cell cell-last-updated">${this.formatRelativeDate(item.updated_at)}</td>` : ''}
@@ -834,6 +840,7 @@ export class PhoneNumbersComponent extends BaseComponent {
             <tr role="row">
               <th role="columnheader" scope="col" part="header-cell" class="sortable" data-sort="phone_number" aria-sort="${this.getAriaSort('phone_number')}">${this.t('phoneNumbers.columns.phoneNumber')}&nbsp;${this.getSortIndicator('phone_number')}</th>
               ${showStatus ? `<th role="columnheader" scope="col" part="header-cell" class="sortable" data-sort="status" aria-sort="${this.getAriaSort('status')}">${this.t('phoneNumbers.columns.status')}&nbsp;${this.getSortIndicator('status')}</th>` : ''}
+              ${showCallerID ? `<th role="columnheader" scope="col" part="header-cell" class="sortable" data-sort="caller_id" aria-sort="${this.getAriaSort('caller_id')}">${this.t('phoneNumbers.columns.callerID')}&nbsp;${this.getSortIndicator('caller_id')}</th>` : ''}
               ${showOutbound ? `<th role="columnheader" scope="col" part="header-cell" class="sortable" data-sort="outbound" aria-sort="${this.getAriaSort('outbound')}">${this.t('phoneNumbers.columns.outbound')}&nbsp;${this.getSortIndicator('outbound')}</th>` : ''}
               ${showNotes ? `<th role="columnheader" scope="col" part="header-cell" class="sortable" data-sort="notes" aria-sort="${this.getAriaSort('notes')}">${this.t('phoneNumbers.columns.notes')}&nbsp;${this.getSortIndicator('notes')}</th>` : ''}
               ${showLastUpdated ? `<th role="columnheader" scope="col" part="header-cell" class="sortable" data-sort="last_updated" aria-sort="${this.getAriaSort('last_updated')}">${this.t('phoneNumbers.columns.lastUpdated')}&nbsp;${this.getSortIndicator('last_updated')}</th>` : ''}

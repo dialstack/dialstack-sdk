@@ -306,6 +306,18 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     return data.data;
   }
 
+  /**
+   * Get the caller ID name for a phone number
+   */
+  async getCallerID(phoneNumberId: string): Promise<{ caller_id_name: string | null }> {
+    const response = await this.fetchApi(`/v1/phone-numbers/${phoneNumberId}/caller-id`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get caller ID: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
   // ===========================================================================
   // Phone Number List Methods
   // ===========================================================================

@@ -180,6 +180,7 @@ export const en = {
     columns: {
       phoneNumber: 'Phone Number',
       status: 'Status',
+      callerID: 'Caller ID',
       outbound: 'Outbound',
       notes: 'Notes',
       lastUpdated: 'Last Updated',

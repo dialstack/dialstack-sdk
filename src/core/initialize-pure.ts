@@ -99,6 +99,9 @@ export async function loadDialstackAndInitialize(
     listExtensions: (options) => {
       return instance.listExtensions(options);
     },
+    getCallerID: (phoneNumberId) => {
+      return instance.getCallerID(phoneNumberId);
+    },
     // Phone number list methods
     listPhoneNumbers: (options) => {
       return instance.listPhoneNumbers(options);

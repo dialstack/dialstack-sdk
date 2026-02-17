@@ -24,6 +24,7 @@ export interface DIDItem {
   phone_number: string;
   status: 'active' | 'inactive' | 'released';
   outbound_enabled: boolean;
+  caller_id_name?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -50,6 +51,7 @@ export interface PhoneNumberItem {
   phone_number: string;
   status: PhoneNumberStatus;
   outbound_enabled: boolean | null;
+  caller_id_name?: string | null;
   source: 'did' | 'number_order' | 'port_order';
   created_at: string;
   updated_at: string;
@@ -89,6 +91,12 @@ export interface PhoneNumbersDisplayOptions {
    * @default true
    */
   showNotes?: boolean;
+
+  /**
+   * Show the caller ID column
+   * @default true
+   */
+  showCallerID?: boolean;
 
   /**
    * Show the last updated column

@@ -255,6 +255,20 @@ export interface DialStackInstance {
    */
   listExtensions(options?: { target?: string; limit?: number }): Promise<Extension[]>;
 
+  /**
+   * Get the caller ID name for a phone number
+   *
+   * @param phoneNumberId - The phone number ID (e.g., 'did_01abc...')
+   * @returns Promise resolving to the caller ID name (or null if not set)
+   *
+   * @example
+   * ```typescript
+   * const result = await dialstack.getCallerID('did_01abc...');
+   * console.log(result.caller_id_name); // 'ACME Corp' or null
+   * ```
+   */
+  getCallerID(phoneNumberId: string): Promise<{ caller_id_name: string | null }>;
+
   // ===========================================================================
   // Phone Number List Methods
   // ===========================================================================
