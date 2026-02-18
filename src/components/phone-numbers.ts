@@ -186,6 +186,8 @@ export class PhoneNumbersComponent extends BaseComponent {
       map.set(did.phone_number, {
         phone_number: did.phone_number,
         status: did.status as PhoneNumberStatus,
+        number_class: did.number_class,
+        expires_at: did.expires_at,
         outbound_enabled: did.outbound_enabled,
         caller_id_name: did.caller_id_name,
         source: 'did',
@@ -427,6 +429,10 @@ export class PhoneNumbersComponent extends BaseComponent {
     }
   }
 
+  private isTemporaryNumber(item: PhoneNumberItem): boolean {
+    return item.source === 'did' && item.number_class === 'temporary';
+  }
+
   private getIcon(name: keyof typeof this.icons): string {
     return this.icons[name];
   }
@@ -661,6 +667,13 @@ export class PhoneNumbersComponent extends BaseComponent {
           font-weight: var(--ds-font-weight-medium);
         }
 
+        .status-badges {
+          display: inline-flex;
+          align-items: center;
+          gap: var(--ds-spacing-xs);
+          flex-wrap: wrap;
+        }
+
         .badge-active {
           background: color-mix(in srgb, var(--ds-color-success) 10%, transparent);
           color: var(--ds-color-success);
@@ -689,6 +702,11 @@ export class PhoneNumbersComponent extends BaseComponent {
         .badge-default {
           background: var(--ds-color-surface-subtle);
           color: var(--ds-color-text-secondary);
+        }
+
+        .badge-temporary {
+          background: color-mix(in srgb, var(--ds-color-warning) 12%, transparent);
+          color: var(--ds-color-warning);
         }
 
         .pagination {
@@ -814,11 +832,14 @@ export class PhoneNumbersComponent extends BaseComponent {
           .join(' ');
         const rowClass = classes ? ` class="${classes}"` : '';
         const badgeClass = this.classes.statusBadge || '';
+        const temporaryBadge = this.isTemporaryNumber(item)
+          ? `<span class="badge badge-temporary ${badgeClass}" part="badge badge-temporary">${this.t('phoneNumbers.badges.temporary')}</span>`
+          : '';
 
         return `
           <tr data-phone="${this.escapeHtml(item.phone_number)}" tabindex="0" role="row" part="table-row"${rowClass}>
             <td part="cell cell-phone-number">${this.escapeHtml(this.formatPhoneNumber(item.phone_number))}</td>
-            ${showStatus ? `<td part="cell cell-status"><span class="badge ${this.getStatusBadgeClass(item.status)} ${badgeClass}" part="badge badge-status">${this.t(this.getStatusLocaleKey(item.status))}</span></td>` : ''}
+            ${showStatus ? `<td part="cell cell-status"><div class="status-badges"><span class="badge ${this.getStatusBadgeClass(item.status)} ${badgeClass}" part="badge badge-status">${this.t(this.getStatusLocaleKey(item.status))}</span>${temporaryBadge}</div></td>` : ''}
             ${showCallerID ? `<td part="cell cell-caller-id">${this.escapeHtml(item.caller_id_name || '')}</td>` : ''}
             ${showOutbound ? `<td part="cell cell-outbound">${item.outbound_enabled === true ? this.t('phoneNumbers.outbound.enabled') : item.outbound_enabled === false ? this.t('phoneNumbers.outbound.disabled') : ''}</td>` : ''}
             ${showNotes ? `<td part="cell cell-notes">${this.escapeHtml(item.notes)}</td>` : ''}

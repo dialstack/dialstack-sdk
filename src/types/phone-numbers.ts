@@ -23,6 +23,8 @@ export interface DIDItem {
   id: string;
   phone_number: string;
   status: 'active' | 'inactive' | 'released';
+  number_class?: 'account_owned' | 'temporary';
+  expires_at?: string | null;
   outbound_enabled: boolean;
   caller_id_name?: string | null;
   created_at: string;
@@ -50,6 +52,8 @@ export type PhoneNumberStatus =
 export interface PhoneNumberItem {
   phone_number: string;
   status: PhoneNumberStatus;
+  number_class?: 'account_owned' | 'temporary';
+  expires_at?: string | null;
   outbound_enabled: boolean | null;
   caller_id_name?: string | null;
   source: 'did' | 'number_order' | 'port_order';

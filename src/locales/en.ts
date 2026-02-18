@@ -197,6 +197,9 @@ export const en = {
       portingException: 'Port Issue',
       portingFoc: 'Port Scheduled',
     },
+    badges: {
+      temporary: 'Temporary',
+    },
     outbound: {
       enabled: 'Enabled',
       disabled: 'Disabled',
