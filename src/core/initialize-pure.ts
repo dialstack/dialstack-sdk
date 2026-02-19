@@ -102,6 +102,9 @@ export async function loadDialstackAndInitialize(
     getCallerID: (phoneNumberId) => {
       return instance.getCallerID(phoneNumberId);
     },
+    resolveRoutingTarget: (target) => {
+      return instance.resolveRoutingTarget(target);
+    },
     // Phone number list methods
     listPhoneNumbers: (options) => {
       return instance.listPhoneNumbers(options);

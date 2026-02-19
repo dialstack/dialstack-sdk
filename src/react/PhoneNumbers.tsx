@@ -10,7 +10,6 @@ import type {
   LoaderStart,
   LoadError,
   PhoneNumberItem,
-  PhoneNumbersDisplayOptions,
   PhoneNumbersClasses,
   FormattingOptions,
   ComponentIcons,
@@ -60,11 +59,6 @@ export interface PhoneNumbersProps {
   classes?: PhoneNumbersClasses;
 
   /**
-   * Display options for controlling column visibility
-   */
-  displayOptions?: PhoneNumbersDisplayOptions;
-
-  /**
    * Callback when component starts loading
    */
   onLoaderStart?: (event: LoaderStart) => void;
@@ -106,7 +100,6 @@ export const PhoneNumbers: React.FC<PhoneNumbersProps> = ({
   icons,
   layoutVariant,
   classes,
-  displayOptions,
   onLoaderStart,
   onLoadError,
   onRowClick,
@@ -123,9 +116,6 @@ export const PhoneNumbers: React.FC<PhoneNumbersProps> = ({
   useUpdateWithSetter(componentInstance, icons, (comp, val) => comp.setIcons(val));
   useUpdateWithSetter(componentInstance, layoutVariant, (comp, val) => comp.setLayoutVariant(val));
   useUpdateWithSetter(componentInstance, classes, (comp, val) => comp.setClasses(val));
-  useUpdateWithSetter(componentInstance, displayOptions, (comp, val) =>
-    comp.setDisplayOptions(val)
-  );
 
   // Sync callbacks to Web Component
   useUpdateWithSetter(componentInstance, onLoaderStart, (comp, val) => comp.setOnLoaderStart(val));

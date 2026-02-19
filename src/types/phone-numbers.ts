@@ -27,6 +27,7 @@ export interface DIDItem {
   expires_at?: string | null;
   outbound_enabled: boolean;
   caller_id_name?: string | null;
+  routing_target?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -56,10 +57,12 @@ export interface PhoneNumberItem {
   expires_at?: string | null;
   outbound_enabled: boolean | null;
   caller_id_name?: string | null;
+  routing_target?: string | null;
+  carrier?: string;
+  transfer_date?: string;
   source: 'did' | 'number_order' | 'port_order';
   created_at: string;
   updated_at: string;
-  notes: string;
   order_id?: string;
   port_order_id?: string;
 }
@@ -75,47 +78,11 @@ export interface PhoneNumbersClasses extends BaseComponentClasses {
 }
 
 /**
- * Display options for the PhoneNumbers component
- */
-export interface PhoneNumbersDisplayOptions {
-  /**
-   * Show the status column
-   * @default true
-   */
-  showStatus?: boolean;
-
-  /**
-   * Show the outbound column
-   * @default true
-   */
-  showOutbound?: boolean;
-
-  /**
-   * Show the notes column
-   * @default true
-   */
-  showNotes?: boolean;
-
-  /**
-   * Show the caller ID column
-   * @default true
-   */
-  showCallerID?: boolean;
-
-  /**
-   * Show the last updated column
-   * @default true
-   */
-  showLastUpdated?: boolean;
-}
-
-/**
  * PhoneNumbers component element interface
  */
 export interface PhoneNumbersElement extends Omit<BaseComponentElement, 'setClasses'> {
   setClasses: (classes: PhoneNumbersClasses) => void;
   setLimit: (limit: number) => void;
-  setDisplayOptions: (options: PhoneNumbersDisplayOptions) => void;
   setOnRowClick: (
     callback: (event: { phoneNumber: string; item: PhoneNumberItem }) => void
   ) => void;

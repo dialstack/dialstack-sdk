@@ -103,7 +103,6 @@ export type {
   PhoneNumberStatus,
   PhoneNumberItem,
   PhoneNumbersClasses,
-  PhoneNumbersDisplayOptions,
   PhoneNumbersElement,
 } from './phone-numbers';
 

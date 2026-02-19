@@ -66,6 +66,14 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   private eventListeners: Map<keyof CallEventMap, Set<CallEventHandler<unknown>>> = new Map();
   private eventStreamController: AbortController | null = null;
   private reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private routingTargetCache = new Map<
+    string,
+    Promise<{
+      id: string;
+      name: string | null;
+      type: 'user' | 'dial_plan' | 'voice_app' | 'ring_group';
+    } | null>
+  >();
   private reconnectAttempts = 0;
 
   constructor(params: DialStackInitParams) {
@@ -316,6 +324,54 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       throw new Error(`Failed to get caller ID: ${response.status} ${errorText}`);
     }
     return response.json();
+  }
+
+  /**
+   * Resolve a routing target TypeID to its type and display name
+   */
+  async resolveRoutingTarget(target: string): Promise<{
+    id: string;
+    name: string | null;
+    type: 'user' | 'dial_plan' | 'voice_app' | 'ring_group';
+  } | null> {
+    const cached = this.routingTargetCache.get(target);
+    if (cached) return cached;
+
+    const promise = this._fetchRoutingTarget(target);
+    this.routingTargetCache.set(target, promise);
+    return promise;
+  }
+
+  private async _fetchRoutingTarget(target: string): Promise<{
+    id: string;
+    name: string | null;
+    type: 'user' | 'dial_plan' | 'voice_app' | 'ring_group';
+  } | null> {
+    const prefixMap: Record<
+      string,
+      { path: string; type: 'user' | 'dial_plan' | 'voice_app' | 'ring_group' }
+    > = {
+      user: { path: '/v1/users', type: 'user' },
+      dp: { path: '/v1/dialplans', type: 'dial_plan' },
+      va: { path: '/v1/voice_apps', type: 'voice_app' },
+      rg: { path: '/v1/ring_groups', type: 'ring_group' },
+    };
+
+    const lastUnderscore = target.lastIndexOf('_');
+    if (lastUnderscore < 1) return null;
+
+    const prefix = target.substring(0, lastUnderscore);
+    const config = prefixMap[prefix];
+    if (!config) return null;
+
+    try {
+      const response = await this.fetchApi(`${config.path}/${target}`);
+      if (!response.ok) return null;
+      const data = await response.json();
+      return { id: target, name: data.name ?? null, type: config.type };
+    } catch {
+      return null;
+    }
   }
 
   // ===========================================================================

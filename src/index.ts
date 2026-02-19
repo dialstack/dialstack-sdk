@@ -49,7 +49,6 @@ export type {
   PhoneNumberStatus,
   PhoneNumberItem,
   PhoneNumbersClasses,
-  PhoneNumbersDisplayOptions,
   // Custom render types
   VoicemailRowRenderer,
   CallLogRowRenderer,

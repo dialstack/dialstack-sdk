@@ -269,6 +269,18 @@ export interface DialStackInstance {
    */
   getCallerID(phoneNumberId: string): Promise<{ caller_id_name: string | null }>;
 
+  /**
+   * Resolve a routing target TypeID to its type and display name
+   *
+   * @param target - TypeID string (e.g. 'user_xxx', 'dp_xxx', 'va_xxx', 'rg_xxx')
+   * @returns Promise resolving to the resolved target, or null if not found
+   */
+  resolveRoutingTarget(target: string): Promise<{
+    id: string;
+    name: string | null;
+    type: 'user' | 'dial_plan' | 'voice_app' | 'ring_group';
+  } | null>;
+
   // ===========================================================================
   // Phone Number List Methods
   // ===========================================================================

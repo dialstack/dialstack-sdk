@@ -5,10 +5,11 @@
 import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenumber-js';
 import { BaseComponent } from './base-component';
 import { segmentedControlStyles } from './shared-styles';
+import './routing-target';
+import type { RoutingTargetComponent } from './routing-target';
 import type {
   PhoneNumberItem,
   PhoneNumberStatus,
-  PhoneNumbersDisplayOptions,
   PhoneNumbersClasses,
   PaginatedResponse,
   DIDItem,
@@ -19,17 +20,49 @@ import type {
 /**
  * PhoneNumbers component displays a unified list of all phone numbers
  */
-type SortColumn = 'phone_number' | 'status' | 'caller_id' | 'outbound' | 'notes' | 'last_updated';
+type SortColumn =
+  | 'phone_number'
+  | 'status'
+  | 'caller_id'
+  | 'outbound'
+  | 'routing_target'
+  | 'carrier'
+  | 'transfer_date'
+  | 'cancelled_date';
 type SortDirection = 'asc' | 'desc';
-type StatusFilter = 'all' | 'active' | 'porting' | 'orders' | 'issues' | 'released' | 'inactive';
+type StatusFilter = 'active' | 'in_progress' | 'cancelled';
 
-const STATUS_FILTER_MAP: Record<Exclude<StatusFilter, 'all'>, PhoneNumberStatus[]> = {
+const STATUS_FILTER_MAP: Record<StatusFilter, PhoneNumberStatus[]> = {
   active: ['active'],
-  porting: ['porting_draft', 'porting_approved', 'porting_submitted', 'porting_foc'],
-  orders: ['ordering'],
-  issues: ['order_failed', 'porting_exception'],
-  released: ['released'],
-  inactive: ['inactive'],
+  in_progress: [
+    'ordering',
+    'order_failed',
+    'porting_draft',
+    'porting_approved',
+    'porting_submitted',
+    'porting_foc',
+    'porting_exception',
+  ],
+  cancelled: ['released', 'inactive'],
+};
+
+const ISSUE_STATUSES: PhoneNumberStatus[] = ['order_failed', 'porting_exception'];
+
+/** Columns visible per tab */
+type ColumnId =
+  | 'phone_number'
+  | 'status'
+  | 'caller_id'
+  | 'outbound'
+  | 'routing_target'
+  | 'carrier'
+  | 'transfer_date'
+  | 'cancelled_date';
+
+const TAB_COLUMNS: Record<StatusFilter, ColumnId[]> = {
+  active: ['phone_number', 'caller_id', 'outbound', 'routing_target'],
+  in_progress: ['phone_number', 'status', 'carrier', 'transfer_date'],
+  cancelled: ['phone_number', 'cancelled_date'],
 };
 
 export class PhoneNumbersComponent extends BaseComponent {
@@ -43,20 +76,14 @@ export class PhoneNumbersComponent extends BaseComponent {
   private currentPage: number = 0;
 
   // Filtering
-  private activeFilter: StatusFilter = 'all';
+  private activeFilter: StatusFilter = 'active';
 
   // Sorting
   private sortColumn: SortColumn = 'phone_number';
   private sortDirection: SortDirection = 'asc';
 
-  // Display options
-  private displayOptions: Required<PhoneNumbersDisplayOptions> = {
-    showStatus: true,
-    showOutbound: true,
-    showCallerID: true,
-    showNotes: true,
-    showLastUpdated: true,
-  };
+  // Resolved routing target names for sorting (target TypeID → display name)
+  private resolvedTargetNames = new Map<string, string>();
 
   // Override classes type for component-specific classes
   protected override classes: PhoneNumbersClasses = {};
@@ -77,13 +104,6 @@ export class PhoneNumbersComponent extends BaseComponent {
 
   setOnRowClick(callback: (event: { phoneNumber: string; item: PhoneNumberItem }) => void): void {
     this._onRowClick = callback;
-  }
-
-  setDisplayOptions(options: PhoneNumbersDisplayOptions): void {
-    this.displayOptions = { ...this.displayOptions, ...options };
-    if (this.isInitialized) {
-      this.render();
-    }
   }
 
   override setClasses(classes: PhoneNumbersClasses): void {
@@ -139,6 +159,10 @@ export class PhoneNumbersComponent extends BaseComponent {
 
       // Merge into unified list
       this.allItems = this.mergePhoneNumbers(dids, orders, ports);
+
+      // Pre-resolve routing target names for sorting
+      await this.resolveAllRoutingTargets();
+
       this.error = null;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : this.t('common.error');
@@ -172,7 +196,10 @@ export class PhoneNumbersComponent extends BaseComponent {
   }
 
   /**
-   * Merge DIDs, number orders, and port orders into a unified list
+   * Merge DIDs, number orders, and port orders into a unified list.
+   *
+   * Inactive DIDs that have a corresponding non-complete/non-cancelled port order
+   * are excluded — the port order entry in "In Progress" is the correct representation.
    */
   private mergePhoneNumbers(
     dids: DIDItem[],
@@ -181,8 +208,23 @@ export class PhoneNumbersComponent extends BaseComponent {
   ): PhoneNumberItem[] {
     const map = new Map<string, PhoneNumberItem>();
 
-    // Add DIDs first (they take precedence)
+    // Build a set of phone numbers that have an active (non-complete/non-cancelled) port order
+    const activePortNumbers = new Set<string>();
+    for (const port of ports) {
+      if (port.status !== 'complete' && port.status !== 'cancelled') {
+        for (const num of port.details.phone_numbers) {
+          activePortNumbers.add(num);
+        }
+      }
+    }
+
+    // Add DIDs first (they take precedence for non-inactive numbers)
     for (const did of dids) {
+      // Skip inactive DIDs that have an in-progress port order
+      if (did.status === 'inactive' && activePortNumbers.has(did.phone_number)) {
+        continue;
+      }
+
       map.set(did.phone_number, {
         phone_number: did.phone_number,
         status: did.status as PhoneNumberStatus,
@@ -190,10 +232,10 @@ export class PhoneNumbersComponent extends BaseComponent {
         expires_at: did.expires_at,
         outbound_enabled: did.outbound_enabled,
         caller_id_name: did.caller_id_name,
+        routing_target: did.routing_target,
         source: 'did',
         created_at: did.created_at,
         updated_at: did.updated_at,
-        notes: '',
       });
     }
 
@@ -214,13 +256,12 @@ export class PhoneNumbersComponent extends BaseComponent {
           source: 'number_order',
           created_at: order.created_at,
           updated_at: order.updated_at,
-          notes: this.buildOrderNotes(order, num),
           order_id: order.id,
         });
       }
     }
 
-    // Add numbers from non-complete port orders not already in map
+    // Add numbers from non-complete/non-cancelled port orders not already in map
     for (const port of ports) {
       if (port.status === 'complete' || port.status === 'cancelled') continue;
 
@@ -241,10 +282,11 @@ export class PhoneNumbersComponent extends BaseComponent {
           phone_number: num,
           status: portStatus,
           outbound_enabled: null,
+          carrier: port.details.losing_carrier?.name,
+          transfer_date: port.details.actual_foc_date || port.details.requested_foc_date,
           source: 'port_order',
           created_at: port.created_at,
           updated_at: port.updated_at,
-          notes: this.buildPortNotes(port),
           port_order_id: port.id,
         });
       }
@@ -252,6 +294,31 @@ export class PhoneNumbersComponent extends BaseComponent {
 
     // Sort by phone number ascending
     return Array.from(map.values()).sort((a, b) => a.phone_number.localeCompare(b.phone_number));
+  }
+
+  /**
+   * Pre-resolve all unique routing targets so sort can use display names.
+   * Also pre-warms the instance-level cache for the routing-target sub-components.
+   */
+  private async resolveAllRoutingTargets(): Promise<void> {
+    if (!this.instance) return;
+
+    const targets = new Set<string>();
+    for (const item of this.allItems) {
+      if (item.routing_target) targets.add(item.routing_target);
+    }
+
+    const entries = await Promise.all(
+      [...targets].map(async (target) => {
+        const result = await this.instance!.resolveRoutingTarget(target);
+        return [target, result?.name ?? ''] as const;
+      })
+    );
+
+    this.resolvedTargetNames.clear();
+    for (const [target, name] of entries) {
+      this.resolvedTargetNames.set(target, name);
+    }
   }
 
   // ============================================================================
@@ -272,120 +339,15 @@ export class PhoneNumbersComponent extends BaseComponent {
     return phone;
   }
 
-  private buildOrderNotes(order: NumberOrder, phoneNumber: string): string {
-    const parts: string[] = [];
-    if (order.failed_numbers.includes(phoneNumber)) {
-      parts.push(order.error_message || this.t('phoneNumbers.notes.orderFailed'));
-    } else {
-      parts.push(this.t('phoneNumbers.notes.activatingByCarrier'));
-    }
-    parts.push(
-      this.t('phoneNumbers.notes.submittedOn', { date: this.formatShortDate(order.created_at) })
-    );
-    return parts.join(' · ');
-  }
-
-  private buildPortNotes(port: PortOrder): string {
-    const parts: string[] = [];
-
-    if (port.details.losing_carrier?.name) {
-      parts.push(
-        this.t('phoneNumbers.notes.transferringFrom', { carrier: port.details.losing_carrier.name })
-      );
-    }
-
-    if (port.status === 'foc' && port.details.actual_foc_date) {
-      parts.push(
-        this.t('phoneNumbers.notes.transfersOn', {
-          date: this.formatShortDate(port.details.actual_foc_date),
-        })
-      );
-    } else if (port.status === 'draft') {
-      const missing = this.getMissingPortFields(port);
-      if (missing.length > 0) {
-        parts.push(this.t('phoneNumbers.notes.missing', { fields: missing.join(', ') }));
-      } else {
-        parts.push(this.t('phoneNumbers.notes.readyForApproval'));
-      }
-    } else if (port.status === 'submitted') {
-      parts.push(this.t('phoneNumbers.notes.waitingForConfirmation'));
-      if (port.submitted_at) {
-        parts.push(
-          this.t('phoneNumbers.notes.submittedOn', {
-            date: this.formatShortDate(port.submitted_at),
-          })
-        );
-      }
-    } else if (port.status === 'approved') {
-      parts.push(this.t('phoneNumbers.notes.readyToSubmit'));
-    } else if (port.status === 'exception') {
-      if (port.details.rejection?.message) {
-        parts.push(port.details.rejection.message);
-      }
-      if (port.submitted_at) {
-        parts.push(
-          this.t('phoneNumbers.notes.submittedOn', {
-            date: this.formatShortDate(port.submitted_at),
-          })
-        );
-      }
-    } else if (port.details.requested_foc_date) {
-      parts.push(
-        this.t('phoneNumbers.notes.requestedFor', {
-          date: this.formatShortDate(port.details.requested_foc_date),
-        })
-      );
-    }
-
-    return parts.join(' · ');
-  }
-
-  private getMissingPortFields(port: PortOrder): string[] {
-    const missing: string[] = [];
-    if (!port.details.subscriber) {
-      missing.push(this.t('phoneNumbers.notes.missingAccountHolder'));
-    }
-    if (!port.details.requested_foc_date) {
-      missing.push(this.t('phoneNumbers.notes.missingTransferDate'));
-    }
-    return missing;
-  }
-
   private formatShortDate(dateStr: string): string {
     try {
       const date = new Date(dateStr);
       const locale = this.formatting.dateLocale || 'en-US';
-      const use24Hour = this.formatting.use24HourTime ?? false;
-      const options: Intl.DateTimeFormatOptions = {
+      return date.toLocaleDateString(locale, {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: !use24Hour,
-      };
-      return date.toLocaleString(locale, options);
-    } catch {
-      return dateStr;
-    }
-  }
-
-  private formatRelativeDate(dateStr: string): string {
-    try {
-      const date = new Date(dateStr);
-      const now = new Date();
-      const diffMs = now.getTime() - date.getTime();
-      const diffMins = Math.floor(diffMs / 60000);
-      const diffHours = Math.floor(diffMs / 3600000);
-      const diffDays = Math.floor(diffMs / 86400000);
-
-      if (diffMins < 1) return 'Just now';
-      if (diffMins < 60) return `${diffMins}m ago`;
-      if (diffHours < 24) return `${diffHours}h ago`;
-      if (diffDays < 7) return `${diffDays}d ago`;
-
-      const locale = this.formatting.dateLocale || 'en-US';
-      return date.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' });
+      });
     } catch {
       return dateStr;
     }
@@ -415,11 +377,12 @@ export class PhoneNumbersComponent extends BaseComponent {
         return 'badge-inactive';
       case 'released':
         return 'badge-released';
+      case 'porting_approved':
+        return 'badge-active';
       case 'ordering':
       case 'porting_draft':
       case 'porting_submitted':
       case 'porting_foc':
-      case 'porting_approved':
         return 'badge-info';
       case 'order_failed':
       case 'porting_exception':
@@ -453,7 +416,6 @@ export class PhoneNumbersComponent extends BaseComponent {
   }
 
   private get filteredItems(): PhoneNumberItem[] {
-    if (this.activeFilter === 'all') return this.allItems;
     const allowed = STATUS_FILTER_MAP[this.activeFilter];
     return this.allItems.filter((item) => allowed.includes(item.status));
   }
@@ -481,10 +443,14 @@ export class PhoneNumbersComponent extends BaseComponent {
         if (item.outbound_enabled === true) return 'a';
         if (item.outbound_enabled === false) return 'b';
         return 'c';
-      case 'notes':
-        return item.notes;
-      case 'last_updated':
-        return item.updated_at;
+      case 'routing_target':
+        return item.routing_target ? (this.resolvedTargetNames.get(item.routing_target) ?? '') : '';
+      case 'carrier':
+        return item.carrier || '';
+      case 'transfer_date':
+        return item.transfer_date || '';
+      case 'cancelled_date':
+        return item.updated_at || '';
     }
   }
 
@@ -518,18 +484,16 @@ export class PhoneNumbersComponent extends BaseComponent {
   // Rendering
   // ============================================================================
 
+  // Renders the component using Shadow DOM innerHTML — all dynamic content
+  // is escaped via escapeHtml() inherited from BaseComponent.
+  // This follows the same trusted template pattern as all other SDK components.
   protected render(): void {
     if (!this.shadowRoot) return;
 
     const styles = this.applyAppearanceStyles();
 
-    // Build the full component HTML using safe string construction.
-    // All dynamic values are either from trusted locale strings or escaped via escapeHtml().
     const html = this.buildComponentHtml(styles);
 
-    // Use Shadow DOM innerHTML — this is an internal render of trusted template strings,
-    // following the same pattern as CallLogsComponent and other SDK components.
-    // All user-controlled data (phone numbers, error messages) is escaped via escapeHtml().
     this.shadowRoot.innerHTML = html;
 
     this.attachEventListeners();
@@ -550,7 +514,7 @@ export class PhoneNumbersComponent extends BaseComponent {
   private getComponentStyles(): string {
     return `
         .container {
-          background: var(--ds-color-background);
+          background: transparent;
           color: var(--ds-color-text);
           font-size: var(--ds-font-size-base);
           line-height: var(--ds-line-height);
@@ -704,6 +668,11 @@ export class PhoneNumbersComponent extends BaseComponent {
           color: var(--ds-color-text-secondary);
         }
 
+        .text-muted {
+          color: var(--ds-color-text-secondary);
+          font-style: italic;
+        }
+
         .badge-temporary {
           background: color-mix(in srgb, var(--ds-color-warning) 12%, transparent);
           color: var(--ds-color-warning);
@@ -793,25 +762,15 @@ export class PhoneNumbersComponent extends BaseComponent {
   }
 
   private renderFilterTabs(): string {
-    const filters: StatusFilter[] = [
-      'all',
-      'active',
-      'porting',
-      'orders',
-      'issues',
-      'released',
-      'inactive',
-    ];
-    const issueCount = this.allItems.filter((item) =>
-      STATUS_FILTER_MAP.issues.includes(item.status)
-    ).length;
+    const filters: StatusFilter[] = ['active', 'in_progress', 'cancelled'];
+    const issueCount = this.allItems.filter((item) => ISSUE_STATUSES.includes(item.status)).length;
     const tabs = filters
       .map((filter) => {
         const active = this.activeFilter === filter ? ' active' : '';
         const label = this.t(`phoneNumbers.filters.${filter}`);
         const badge =
-          filter === 'issues' && issueCount > 0
-            ? ` <span class="badge-count" aria-label="${issueCount} ${label}">${issueCount}</span>`
+          filter === 'in_progress' && issueCount > 0
+            ? ` <span class="badge-count" aria-label="${issueCount} issues">${issueCount}</span>`
             : '';
         return `<button class="segment-btn${active}" part="filter-tab" data-filter="${filter}" aria-pressed="${this.activeFilter === filter}">${label}${badge}</button>`;
       })
@@ -820,10 +779,68 @@ export class PhoneNumbersComponent extends BaseComponent {
     return `<div class="segmented-control" part="filter-tabs" role="toolbar" aria-label="${this.t('phoneNumbers.filterLabel')}">${tabs}</div>`;
   }
 
+  private getColumnLabel(col: ColumnId): string {
+    const labelMap: Record<ColumnId, string> = {
+      phone_number: 'phoneNumbers.columns.phoneNumber',
+      status: 'phoneNumbers.columns.status',
+      caller_id: 'phoneNumbers.columns.callerID',
+      outbound: 'phoneNumbers.columns.outbound',
+      routing_target: 'phoneNumbers.columns.routingTarget',
+      carrier: 'phoneNumbers.columns.carrier',
+      transfer_date: 'phoneNumbers.columns.transferDate',
+      cancelled_date: 'phoneNumbers.columns.cancelledDate',
+    };
+    return this.t(labelMap[col]);
+  }
+
+  private getColumnSortKey(col: ColumnId): SortColumn {
+    return col === 'caller_id' ? 'caller_id' : (col as SortColumn);
+  }
+
+  private renderCellContent(item: PhoneNumberItem, col: ColumnId): string {
+    const badgeClass = this.classes.statusBadge || '';
+    switch (col) {
+      case 'phone_number':
+        return this.escapeHtml(this.formatPhoneNumber(item.phone_number));
+      case 'status': {
+        const temporaryBadge = this.isTemporaryNumber(item)
+          ? `<span class="badge badge-temporary ${badgeClass}" part="badge badge-temporary">${this.t('phoneNumbers.badges.temporary')}</span>`
+          : '';
+        return `<div class="status-badges"><span class="badge ${this.getStatusBadgeClass(item.status)} ${badgeClass}" part="badge badge-status">${this.t(this.getStatusLocaleKey(item.status))}</span>${temporaryBadge}</div>`;
+      }
+      case 'caller_id':
+        return item.caller_id_name
+          ? this.escapeHtml(item.caller_id_name)
+          : `<span class="text-muted">${this.t('phoneNumbers.routingTarget.notSet')}</span>`;
+      case 'outbound':
+        return item.outbound_enabled === true
+          ? this.t('phoneNumbers.outbound.enabled')
+          : item.outbound_enabled === false
+            ? this.t('phoneNumbers.outbound.disabled')
+            : '';
+      case 'routing_target':
+        return item.routing_target
+          ? `<dialstack-routing-target target="${this.escapeHtml(item.routing_target)}"></dialstack-routing-target>`
+          : `<span class="text-muted">${this.t('phoneNumbers.routingTarget.notSet')}</span>`;
+      case 'carrier':
+        return this.escapeHtml(item.carrier || '');
+      case 'transfer_date':
+        return item.transfer_date ? this.formatShortDate(item.transfer_date) : '';
+      case 'cancelled_date':
+        return item.updated_at ? this.formatShortDate(item.updated_at) : '';
+    }
+  }
+
   private renderTable(): string {
-    const { showStatus, showCallerID, showOutbound, showNotes, showLastUpdated } =
-      this.displayOptions;
+    const columns = TAB_COLUMNS[this.activeFilter];
     const items = this.pageItems;
+
+    const headerCells = columns
+      .map((col) => {
+        const sortKey = this.getColumnSortKey(col);
+        return `<th role="columnheader" scope="col" part="header-cell" class="sortable" data-sort="${sortKey}" aria-sort="${this.getAriaSort(sortKey)}">${this.getColumnLabel(col)}&nbsp;${this.getSortIndicator(sortKey)}</th>`;
+      })
+      .join('');
 
     const rows = items
       .map((item) => {
@@ -831,21 +848,12 @@ export class PhoneNumbersComponent extends BaseComponent {
           .filter(Boolean)
           .join(' ');
         const rowClass = classes ? ` class="${classes}"` : '';
-        const badgeClass = this.classes.statusBadge || '';
-        const temporaryBadge = this.isTemporaryNumber(item)
-          ? `<span class="badge badge-temporary ${badgeClass}" part="badge badge-temporary">${this.t('phoneNumbers.badges.temporary')}</span>`
-          : '';
 
-        return `
-          <tr data-phone="${this.escapeHtml(item.phone_number)}" tabindex="0" role="row" part="table-row"${rowClass}>
-            <td part="cell cell-phone-number">${this.escapeHtml(this.formatPhoneNumber(item.phone_number))}</td>
-            ${showStatus ? `<td part="cell cell-status"><div class="status-badges"><span class="badge ${this.getStatusBadgeClass(item.status)} ${badgeClass}" part="badge badge-status">${this.t(this.getStatusLocaleKey(item.status))}</span>${temporaryBadge}</div></td>` : ''}
-            ${showCallerID ? `<td part="cell cell-caller-id">${this.escapeHtml(item.caller_id_name || '')}</td>` : ''}
-            ${showOutbound ? `<td part="cell cell-outbound">${item.outbound_enabled === true ? this.t('phoneNumbers.outbound.enabled') : item.outbound_enabled === false ? this.t('phoneNumbers.outbound.disabled') : ''}</td>` : ''}
-            ${showNotes ? `<td part="cell cell-notes">${this.escapeHtml(item.notes)}</td>` : ''}
-            ${showLastUpdated ? `<td part="cell cell-last-updated">${this.formatRelativeDate(item.updated_at)}</td>` : ''}
-          </tr>
-        `;
+        const cells = columns
+          .map((col) => `<td part="cell cell-${col}">${this.renderCellContent(item, col)}</td>`)
+          .join('');
+
+        return `<tr data-phone="${this.escapeHtml(item.phone_number)}" tabindex="0" role="row" part="table-row"${rowClass}>${cells}</tr>`;
       })
       .join('');
 
@@ -858,14 +866,7 @@ export class PhoneNumbersComponent extends BaseComponent {
       <div class="table-container" part="table-container">
         <table role="grid" aria-label="${this.t('phoneNumbers.title')}" part="table" class="${this.classes.table || ''}">
           <thead part="table-header">
-            <tr role="row">
-              <th role="columnheader" scope="col" part="header-cell" class="sortable" data-sort="phone_number" aria-sort="${this.getAriaSort('phone_number')}">${this.t('phoneNumbers.columns.phoneNumber')}&nbsp;${this.getSortIndicator('phone_number')}</th>
-              ${showStatus ? `<th role="columnheader" scope="col" part="header-cell" class="sortable" data-sort="status" aria-sort="${this.getAriaSort('status')}">${this.t('phoneNumbers.columns.status')}&nbsp;${this.getSortIndicator('status')}</th>` : ''}
-              ${showCallerID ? `<th role="columnheader" scope="col" part="header-cell" class="sortable" data-sort="caller_id" aria-sort="${this.getAriaSort('caller_id')}">${this.t('phoneNumbers.columns.callerID')}&nbsp;${this.getSortIndicator('caller_id')}</th>` : ''}
-              ${showOutbound ? `<th role="columnheader" scope="col" part="header-cell" class="sortable" data-sort="outbound" aria-sort="${this.getAriaSort('outbound')}">${this.t('phoneNumbers.columns.outbound')}&nbsp;${this.getSortIndicator('outbound')}</th>` : ''}
-              ${showNotes ? `<th role="columnheader" scope="col" part="header-cell" class="sortable" data-sort="notes" aria-sort="${this.getAriaSort('notes')}">${this.t('phoneNumbers.columns.notes')}&nbsp;${this.getSortIndicator('notes')}</th>` : ''}
-              ${showLastUpdated ? `<th role="columnheader" scope="col" part="header-cell" class="sortable" data-sort="last_updated" aria-sort="${this.getAriaSort('last_updated')}">${this.t('phoneNumbers.columns.lastUpdated')}&nbsp;${this.getSortIndicator('last_updated')}</th>` : ''}
-            </tr>
+            <tr role="row">${headerCells}</tr>
           </thead>
           <tbody part="table-body">
             ${rows}
@@ -902,6 +903,8 @@ export class PhoneNumbersComponent extends BaseComponent {
       tab.addEventListener('click', () => {
         this.activeFilter = filter;
         this.currentPage = 0;
+        this.sortColumn = 'phone_number';
+        this.sortDirection = 'asc';
         this.render();
       });
     });
@@ -929,6 +932,14 @@ export class PhoneNumbersComponent extends BaseComponent {
         this.render();
       }
     });
+
+    // Pass the SDK instance to routing-target elements rendered inside shadow DOM
+    if (this.instance) {
+      const targets = this.shadowRoot.querySelectorAll('dialstack-routing-target');
+      targets.forEach((el) => {
+        (el as RoutingTargetComponent).setInstance(this.instance!);
+      });
+    }
 
     const rows = this.shadowRoot.querySelectorAll('tbody tr[data-phone]');
     rows.forEach((row) => {
