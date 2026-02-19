@@ -120,6 +120,19 @@ export type {
   CreateDECTExtensionRequest,
 } from './types';
 
+// Number porting types
+export type {
+  ApprovePortOrderRequest,
+  PortOrderStatus as SDKPortOrderStatus,
+  PortOrderDetails as SDKPortOrderDetails,
+  PortOrder as SDKPortOrder,
+  CreatePortOrderRequest as SDKCreatePortOrderRequest,
+  PortApproval,
+  PortEligibilityResult,
+  PortableNumber,
+  NonPortableNumber,
+} from './types';
+
 // Type-only re-exports (safe for SSR)
 export type { DateRange } from './components/call-logs';
 

@@ -844,7 +844,8 @@ export class PhoneNumbersComponent extends BaseComponent {
 
     const rows = items
       .map((item) => {
-        const classes = [this.classes.row, this._onRowClick ? 'clickable' : '']
+        const hasDetail = !!(item.port_order_id || item.order_id);
+        const classes = [this.classes.row, this._onRowClick && hasDetail ? 'clickable' : '']
           .filter(Boolean)
           .join(' ');
         const rowClass = classes ? ` class="${classes}"` : '';
