@@ -19,6 +19,11 @@ describe('SDK Exports', () => {
     expect(typeof SDK.useDialstackComponents).toBe('function');
   });
 
+  it('exports useDialstack hook', () => {
+    expect(SDK.useDialstack).toBeDefined();
+    expect(typeof SDK.useDialstack).toBe('function');
+  });
+
   it('exports useCreateComponent hook', () => {
     expect(SDK.useCreateComponent).toBeDefined();
     expect(typeof SDK.useCreateComponent).toBe('function');
@@ -40,7 +45,12 @@ describe('SDK Exports', () => {
   describe('Naming conventions', () => {
     const reactComponentExports = ['DialstackComponentsProvider', 'CallLogs', 'Voicemails'];
 
-    const hookExports = ['useDialstackComponents', 'useCreateComponent', 'useUpdateWithSetter'];
+    const hookExports = [
+      'useDialstackComponents',
+      'useDialstack',
+      'useCreateComponent',
+      'useUpdateWithSetter',
+    ];
 
     const functionExports = ['loadDialstackAndInitialize'];
 

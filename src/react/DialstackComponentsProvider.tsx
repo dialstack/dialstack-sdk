@@ -73,3 +73,13 @@ export const useDialstackComponents = (): DialstackComponentsContextValue => {
   }
   return context;
 };
+
+/**
+ * Hook to access the DialStack instance directly
+ *
+ * @throws {Error} If used outside of DialstackComponentsProvider
+ */
+export const useDialstack = (): DialStackInstance => {
+  const { dialstack } = useDialstackComponents();
+  return dialstack;
+};

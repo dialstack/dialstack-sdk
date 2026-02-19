@@ -70,6 +70,7 @@ export { defaultIcons } from './components/base-component';
 export {
   DialstackComponentsProvider,
   useDialstackComponents,
+  useDialstack,
 } from './react/DialstackComponentsProvider';
 export { useCreateComponent } from './react/useCreateComponent';
 export { useUpdateWithSetter } from './react/useUpdateWithSetter';
