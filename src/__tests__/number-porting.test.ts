@@ -280,41 +280,64 @@ describe('Number Porting Types', () => {
   });
 
   describe('PortEligibilityResult', () => {
-    it('allows portable numbers', () => {
+    it('allows portable numbers with full carrier info', () => {
       const portable: PortableNumber = {
         phone_number: '+19195551234',
-        portable: true,
-        losing_carrier: 'AT&T',
+        losing_carrier_name: 'AT&T',
+        losing_carrier_spid: '6214',
+        is_wireless: false,
+        account_number_required: true,
       };
-      expect(portable.portable).toBe(true);
-      expect(portable.losing_carrier).toBe('AT&T');
+      expect(portable.losing_carrier_name).toBe('AT&T');
+      expect(portable.is_wireless).toBe(false);
     });
 
-    it('allows portable number without carrier', () => {
+    it('allows portable number without optional carrier fields', () => {
       const portable: PortableNumber = {
         phone_number: '+19195551234',
-        portable: true,
+        is_wireless: true,
+        account_number_required: false,
       };
-      expect(portable.losing_carrier).toBeUndefined();
+      expect(portable.losing_carrier_name).toBeUndefined();
+      expect(portable.losing_carrier_spid).toBeUndefined();
     });
 
-    it('allows non-portable numbers', () => {
+    it('allows non-portable numbers with location info', () => {
       const nonPortable: NonPortableNumber = {
         phone_number: '+18005551234',
-        portable: false,
-        reason: 'Toll-free numbers are not supported',
+        rate_center: 'WASHINGTON',
+        city: 'Washington',
+        state: 'DC',
       };
-      expect(nonPortable.portable).toBe(false);
-      expect(nonPortable.reason).toContain('Toll-free');
+      expect(nonPortable.rate_center).toBe('WASHINGTON');
+      expect(nonPortable.city).toBe('Washington');
+    });
+
+    it('allows non-portable number without optional fields', () => {
+      const nonPortable: NonPortableNumber = {
+        phone_number: '+18005551234',
+      };
+      expect(nonPortable.rate_center).toBeUndefined();
     });
 
     it('allows full eligibility result', () => {
       const result: PortEligibilityResult = {
         portable_numbers: [
-          { phone_number: '+19195551234', portable: true, losing_carrier: 'AT&T' },
+          {
+            phone_number: '+19195551234',
+            losing_carrier_name: 'AT&T',
+            losing_carrier_spid: '6214',
+            is_wireless: false,
+            account_number_required: true,
+          },
         ],
         non_portable_numbers: [
-          { phone_number: '+18005551234', portable: false, reason: 'Toll-free not supported' },
+          {
+            phone_number: '+18005551234',
+            rate_center: 'TOLLFREE',
+            city: 'Washington',
+            state: 'DC',
+          },
         ],
       };
       expect(result.portable_numbers).toHaveLength(1);
@@ -375,7 +398,6 @@ describe('Number Porting Instance Methods', () => {
 
     const result = await instance.approvePortOrder('port_abc123', {
       signature: 'Jane Smith',
-      ip: '203.0.113.42',
     });
     expect(result.status).toBe('approved');
 
@@ -390,7 +412,7 @@ describe('Number Porting Instance Methods', () => {
     );
 
     await expect(
-      instance.approvePortOrder('port_abc123', { signature: 'Jane Smith', ip: '203.0.113.42' })
+      instance.approvePortOrder('port_abc123', { signature: 'Jane Smith' })
     ).rejects.toThrow('Failed to approve port order');
   });
 
@@ -484,13 +506,11 @@ describe('Number Porting Instance Methods', () => {
   });
 
   describe('ApprovePortOrderRequest', () => {
-    it('requires signature and ip', () => {
+    it('requires signature', () => {
       const req: ApprovePortOrderRequest = {
         signature: 'Jane Smith',
-        ip: '203.0.113.42',
       };
       expect(req.signature).toBe('Jane Smith');
-      expect(req.ip).toBe('203.0.113.42');
     });
   });
 });

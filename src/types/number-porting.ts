@@ -88,14 +88,17 @@ export interface CreatePortOrderRequest {
 
 export interface PortableNumber {
   phone_number: string;
-  portable: true;
-  losing_carrier?: string;
+  losing_carrier_name?: string;
+  losing_carrier_spid?: string;
+  is_wireless: boolean;
+  account_number_required: boolean;
 }
 
 export interface NonPortableNumber {
   phone_number: string;
-  portable: false;
-  reason?: string;
+  rate_center?: string;
+  city?: string;
+  state?: string;
 }
 
 export interface PortEligibilityResult {
