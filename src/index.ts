@@ -49,6 +49,10 @@ export type {
   PhoneNumberStatus,
   PhoneNumberItem,
   PhoneNumbersClasses,
+  // Account onboarding types
+  AccountOnboardingStep,
+  OnboardingCollectionOptions,
+  AccountOnboardingClasses,
   // Custom render types
   VoicemailRowRenderer,
   CallLogRowRenderer,
@@ -75,6 +79,7 @@ export { CallHistory } from './react/CallHistory';
 export { DialPlanViewer } from './react/DialPlanViewer';
 export { PhoneNumberOrdering } from './react/PhoneNumberOrdering';
 export { PhoneNumbers } from './react/PhoneNumbers';
+export { AccountOnboarding } from './react/AccountOnboarding';
 
 export type { DialstackComponentsProviderProps } from './react/DialstackComponentsProvider';
 export type { CallLogsProps } from './react/CallLogs';
@@ -82,6 +87,7 @@ export type { VoicemailsProps } from './react/Voicemails';
 export type { CallHistoryProps } from './react/CallHistory';
 export type { PhoneNumberOrderingProps } from './react/PhoneNumberOrdering';
 export type { PhoneNumbersProps } from './react/PhoneNumbers';
+export type { AccountOnboardingProps } from './react/AccountOnboarding';
 export type {
   DialPlan,
   DialPlanNode,

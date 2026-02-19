@@ -212,6 +212,57 @@ export const en = {
       ringGroup: 'Ring Group',
     },
   },
+  accountOnboarding: {
+    title: 'Account Onboarding',
+    breadcrumbAriaLabel: 'Onboarding progress',
+    loading: 'Loading...',
+    error: {
+      title: 'Unable to Load',
+      description: 'Something went wrong loading the onboarding wizard.',
+      retry: 'Try Again',
+    },
+    steps: {
+      account: 'Account',
+      numbers: 'Numbers',
+      hardware: 'Hardware',
+      complete: 'Complete',
+    },
+    account: {
+      title: 'Account Setup',
+      subtitle: 'Configure your account details and dial plan.',
+      placeholder:
+        'This step is under construction. Account creation and dial plan configuration will appear here.',
+    },
+    numbers: {
+      title: 'Telephone Numbers',
+      subtitle: 'Port existing numbers or order new ones.',
+      placeholder: 'This step is under construction. Number porting and ordering will appear here.',
+    },
+    hardware: {
+      title: 'Hardware Assignment',
+      subtitle: 'Assign phones and devices to your team.',
+      placeholder:
+        'This step is under construction. Hardware provisioning and assignment will appear here.',
+    },
+    complete: {
+      title: 'Setup Complete',
+      subtitle: 'Your account is ready to go.',
+      placeholder:
+        'This step is under construction. A summary of the completed onboarding will appear here.',
+    },
+    nav: {
+      next: 'Next',
+      back: 'Back',
+      exit: 'Finish',
+    },
+    legal: {
+      prefix: 'By continuing, you agree to the',
+      and: 'and',
+      termsOfService: 'Terms of Service',
+      recipientTerms: 'Recipient Terms of Service',
+      privacyPolicy: 'Privacy Policy',
+    },
+  },
   dialPlan: {
     title: 'Dial Plan',
     loading: 'Loading dial plan...',

@@ -106,6 +106,14 @@ export type {
   PhoneNumbersElement,
 } from './phone-numbers';
 
+// Account onboarding types
+export type {
+  AccountOnboardingStep,
+  OnboardingCollectionOptions,
+  AccountOnboardingClasses,
+  AccountOnboardingElement,
+} from './account-onboarding';
+
 // Core SDK types
 export type {
   ClientSecretResponse,
