@@ -57,6 +57,14 @@ export type PortOrderStatus =
   | 'complete'
   | 'cancelled';
 
+export interface PortNumberEligibility {
+  phone_number: string;
+  losing_carrier_name?: string;
+  losing_carrier_spid?: string;
+  is_wireless: boolean;
+  account_number_required: boolean;
+}
+
 export interface PortOrderDetails {
   phone_numbers: string[];
   subscriber?: PortOrderSubscriber | null;
@@ -64,6 +72,7 @@ export interface PortOrderDetails {
   requested_foc_time?: string | null;
   actual_foc_date?: string | null;
   losing_carrier?: PortCarrier | null;
+  eligibility?: PortNumberEligibility[] | null;
   rejection?: PortRejection | null;
   approval?: PortApproval | null;
   loa?: PortDocumentMeta | null;
