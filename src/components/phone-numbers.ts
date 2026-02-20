@@ -4,7 +4,7 @@
 
 import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenumber-js';
 import { BaseComponent } from './base-component';
-import { segmentedControlStyles } from './shared-styles';
+import { segmentedControlStyles, tableStyles, paginationStyles } from './shared-styles';
 import './routing-target';
 import type { RoutingTargetComponent } from './routing-target';
 import type {
@@ -570,26 +570,7 @@ export class PhoneNumbersComponent extends BaseComponent {
           vertical-align: middle;
         }
 
-        .table-container {
-          overflow-x: auto;
-        }
-
-        table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: var(--ds-font-size-base);
-        }
-
-        thead {
-          background: var(--ds-color-surface-subtle);
-        }
-
-        th {
-          text-align: left;
-          padding: var(--ds-spacing-md);
-          font-weight: var(--ds-font-weight-bold);
-          border-bottom: 2px solid var(--ds-color-border);
-        }
+        ${tableStyles}
 
         th.sortable {
           cursor: pointer;
@@ -608,11 +589,6 @@ export class PhoneNumbersComponent extends BaseComponent {
 
         .sort-icon.sort-active {
           opacity: 1;
-        }
-
-        td {
-          padding: var(--ds-spacing-md);
-          border-bottom: 1px solid var(--ds-color-border-subtle);
         }
 
         tbody tr.clickable {
@@ -678,51 +654,7 @@ export class PhoneNumbersComponent extends BaseComponent {
           color: var(--ds-color-warning);
         }
 
-        .pagination {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding-top: var(--ds-spacing-lg);
-          border-top: 1px solid var(--ds-color-border);
-        }
-
-        .pagination-info {
-          font-size: var(--ds-font-size-base);
-          color: var(--ds-color-text-secondary);
-        }
-
-        .pagination-buttons {
-          display: flex;
-          gap: var(--ds-spacing-sm);
-        }
-
-        .pagination-btn {
-          padding: var(--ds-spacing-xs) var(--ds-spacing-md);
-          font-size: var(--ds-font-size-base);
-          font-weight: var(--ds-font-weight-medium);
-          border: 1px solid var(--ds-color-border);
-          border-radius: var(--ds-border-radius);
-          background: var(--ds-color-background);
-          color: var(--ds-color-text);
-          cursor: pointer;
-          transition: all var(--ds-transition-duration) ease;
-        }
-
-        .pagination-btn:hover:not(:disabled) {
-          background: var(--ds-color-surface-subtle);
-          border-color: var(--ds-color-border);
-        }
-
-        .pagination-btn:disabled {
-          opacity: 0.4;
-          cursor: not-allowed;
-        }
-
-        .pagination-btn svg {
-          width: 1em;
-          height: 1em;
-          vertical-align: middle;
-        }
+        ${paginationStyles}
     `;
   }
 

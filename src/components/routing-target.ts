@@ -126,13 +126,13 @@ export class RoutingTargetComponent extends BaseComponent {
       .routing-target {
         display: inline-flex;
         align-items: center;
-        gap: 5px;
+        gap: var(--ds-spacing-xs);
         font-size: inherit;
         color: var(--ds-color-text-primary, #1a1a2e);
         background: var(--ds-color-surface-secondary, #f0f0f5);
         border: 1px solid var(--ds-color-border, rgba(0, 0, 0, 0.08));
         border-radius: 999px;
-        padding: 2px 10px 2px 7px;
+        padding: 2px var(--ds-spacing-md) 2px var(--ds-spacing-sm);
         cursor: default;
         transition: background 0.15s ease;
       }
@@ -164,7 +164,7 @@ export class RoutingTargetComponent extends BaseComponent {
         display: inline-block;
         width: 80px;
         height: 1em;
-        border-radius: 4px;
+        border-radius: var(--ds-border-radius);
         background: linear-gradient(90deg, rgba(0,0,0,0.06) 25%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.06) 75%);
         background-size: 200% 100%;
         animation: shimmer 1.5s infinite;

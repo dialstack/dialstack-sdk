@@ -4,7 +4,7 @@
 
 import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenumber-js';
 import { BaseComponent } from './base-component';
-import { segmentedControlStyles } from './shared-styles';
+import { segmentedControlStyles, tableStyles } from './shared-styles';
 import type {
   AvailablePhoneNumber,
   NumberOrder,
@@ -349,63 +349,23 @@ const COMPONENT_STYLES = `
     border-radius: 12px;
   }
 
-  .results-table-wrap {
-    border: 1px solid var(--ds-color-border);
-    border-radius: var(--ds-border-radius);
-    overflow: hidden;
+  ${tableStyles}
+
+  tbody tr {
+    cursor: pointer;
   }
 
-  .results-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--ds-font-size-base);
-  }
-
-  .results-table th {
-    text-align: left;
-    padding: var(--ds-layout-spacing-sm) var(--ds-layout-spacing-md);
-    font-size: var(--ds-font-size-small);
-    font-weight: var(--ds-font-weight-medium);
-    color: var(--ds-color-text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    background: var(--ds-color-surface-subtle);
-    border-bottom: 1px solid var(--ds-color-border);
-  }
-
-  .results-table th:first-child {
+  th:first-child,
+  td:first-child {
     width: 40px;
     text-align: center;
   }
 
-  .results-table td {
-    padding: var(--ds-layout-spacing-sm) var(--ds-layout-spacing-md);
-    border-bottom: 1px solid var(--ds-color-border-subtle);
-    color: var(--ds-color-text);
-  }
-
-  .results-table td:first-child {
-    text-align: center;
-  }
-
-  .results-table tr:last-child td {
-    border-bottom: none;
-  }
-
-  .results-table tbody tr {
-    cursor: pointer;
-    transition: background var(--ds-transition-duration);
-  }
-
-  .results-table tbody tr:hover {
-    background: var(--ds-color-surface-subtle);
-  }
-
-  .results-table tbody tr.selected {
+  tbody tr.selected {
     background: color-mix(in srgb, var(--ds-color-primary) 6%, transparent);
   }
 
-  .results-table tbody tr.selected:hover {
+  tbody tr.selected:hover {
     background: color-mix(in srgb, var(--ds-color-primary) 10%, transparent);
   }
 
@@ -429,7 +389,7 @@ const COMPONENT_STYLES = `
     cursor: pointer;
   }
 
-  .results-table td .checkbox-visual {
+  td .checkbox-visual {
     pointer-events: none;
   }
 
@@ -1116,8 +1076,8 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
           </div>
         </div>
 
-        <div class="results-table-wrap">
-          <table class="results-table" role="grid">
+        <div class="table-container">
+          <table role="grid">
             <thead>
               <tr>
                 <th scope="col">
