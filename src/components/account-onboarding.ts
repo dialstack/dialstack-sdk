@@ -322,6 +322,12 @@ export class AccountOnboardingComponent extends BaseComponent {
   private _onExit?: () => void;
   private _onStepChange?: (event: { step: AccountOnboardingStep }) => void;
 
+  override connectedCallback(): void {
+    // Reset per mount so each onboarding session can emit onExit exactly once.
+    this._exitFired = false;
+    super.connectedCallback();
+  }
+
   protected initialize(): void {
     if (this.isInitialized) return;
     this.attachDelegatedClickHandler();
@@ -369,8 +375,8 @@ export class AccountOnboardingComponent extends BaseComponent {
     this._onStepChange = cb;
   }
 
-  setCollectionOptions(options: OnboardingCollectionOptions): void {
-    this.collectionOptions = options;
+  setCollectionOptions(options?: OnboardingCollectionOptions | null): void {
+    this.collectionOptions = options ?? null;
     // Reset to first active step if current step is now excluded
     const activeSteps = this.getActiveSteps();
     if (!activeSteps.includes(this.currentStep)) {
@@ -381,32 +387,34 @@ export class AccountOnboardingComponent extends BaseComponent {
     }
   }
 
-  setFullTermsOfServiceUrl(url: string): void {
+  setFullTermsOfServiceUrl(url?: string | null): void {
     this.fullTermsOfServiceUrl = this.sanitizeUrl(url);
     if (this.isInitialized) {
       this.render();
     }
   }
 
-  setRecipientTermsOfServiceUrl(url: string): void {
+  setRecipientTermsOfServiceUrl(url?: string | null): void {
     this.recipientTermsOfServiceUrl = this.sanitizeUrl(url);
     if (this.isInitialized) {
       this.render();
     }
   }
 
-  setPrivacyPolicyUrl(url: string): void {
+  setPrivacyPolicyUrl(url?: string | null): void {
     this.privacyPolicyUrl = this.sanitizeUrl(url);
     if (this.isInitialized) {
       this.render();
     }
   }
 
-  private sanitizeUrl(url: string): string | null {
+  private sanitizeUrl(url?: string | null): string | null {
+    if (!url) return null;
+
     try {
       const parsed = new URL(url);
       if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-        return url;
+        return parsed.toString();
       }
     } catch {
       // invalid URL
@@ -470,23 +478,20 @@ export class AccountOnboardingComponent extends BaseComponent {
     } else if (this.loadError) {
       content = this.renderErrorState();
     } else {
-      switch (this.currentStep) {
-        case 'account':
-          content = this.renderAccountStep();
-          break;
-        case 'numbers':
-          content = this.renderNumbersStep();
-          break;
-        case 'hardware':
-          content = this.renderHardwareStep();
-          break;
-        case 'complete':
-          content = this.renderCompleteStep();
-          break;
-        default:
-          content = '';
-          break;
-      }
+      const renderStepContent = (step: AccountOnboardingStep): string => {
+        switch (step) {
+          case 'account':
+            return this.renderAccountStep();
+          case 'numbers':
+            return this.renderNumbersStep();
+          case 'hardware':
+            return this.renderHardwareStep();
+          case 'complete':
+            return this.renderCompleteStep();
+        }
+      };
+
+      content = renderStepContent(this.currentStep);
     }
 
     this.shadowRoot.innerHTML = `

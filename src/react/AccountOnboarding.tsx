@@ -139,15 +139,26 @@ export const AccountOnboarding: React.FC<AccountOnboardingProps> = ({
   useUpdateWithSetter(componentInstance, layoutVariant, (c, v) => c.setLayoutVariant(v));
   useUpdateWithSetter(componentInstance, classes, (c, v) => c.setClasses(v));
 
-  // Sync collection and URL props
-  useUpdateWithSetter(componentInstance, collectionOptions, (c, v) => c.setCollectionOptions(v));
-  useUpdateWithSetter(componentInstance, fullTermsOfServiceUrl, (c, v) =>
-    c.setFullTermsOfServiceUrl(v)
-  );
-  useUpdateWithSetter(componentInstance, recipientTermsOfServiceUrl, (c, v) =>
-    c.setRecipientTermsOfServiceUrl(v)
-  );
-  useUpdateWithSetter(componentInstance, privacyPolicyUrl, (c, v) => c.setPrivacyPolicyUrl(v));
+  // Sync collection and URL props, including explicit clears when values become undefined.
+  React.useEffect(() => {
+    if (!componentInstance) return;
+    componentInstance.setCollectionOptions(collectionOptions ?? null);
+  }, [componentInstance, collectionOptions]);
+
+  React.useEffect(() => {
+    if (!componentInstance) return;
+    componentInstance.setFullTermsOfServiceUrl(fullTermsOfServiceUrl ?? null);
+  }, [componentInstance, fullTermsOfServiceUrl]);
+
+  React.useEffect(() => {
+    if (!componentInstance) return;
+    componentInstance.setRecipientTermsOfServiceUrl(recipientTermsOfServiceUrl ?? null);
+  }, [componentInstance, recipientTermsOfServiceUrl]);
+
+  React.useEffect(() => {
+    if (!componentInstance) return;
+    componentInstance.setPrivacyPolicyUrl(privacyPolicyUrl ?? null);
+  }, [componentInstance, privacyPolicyUrl]);
 
   // Sync callbacks
   useUpdateWithSetter(componentInstance, onLoaderStart, (c, v) => c.setOnLoaderStart(v));

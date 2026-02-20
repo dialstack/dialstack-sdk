@@ -35,8 +35,8 @@ export interface AccountOnboardingElement extends Omit<BaseComponentElement, 'se
   setClasses: (classes: AccountOnboardingClasses) => void;
   setOnExit: (cb: () => void) => void;
   setOnStepChange: (cb: (event: { step: AccountOnboardingStep }) => void) => void;
-  setCollectionOptions: (options: OnboardingCollectionOptions) => void;
-  setFullTermsOfServiceUrl: (url: string) => void;
-  setRecipientTermsOfServiceUrl: (url: string) => void;
-  setPrivacyPolicyUrl: (url: string) => void;
+  setCollectionOptions: (options?: OnboardingCollectionOptions | null) => void;
+  setFullTermsOfServiceUrl: (url?: string | null) => void;
+  setRecipientTermsOfServiceUrl: (url?: string | null) => void;
+  setPrivacyPolicyUrl: (url?: string | null) => void;
 }
