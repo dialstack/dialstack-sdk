@@ -21,6 +21,7 @@ import type {
 // ============================================================================
 
 const START_NODE_ID = '__start__';
+const START_NODE_SIZE = 60;
 const NODE_WIDTH = 180;
 const NODE_HEIGHT = 80;
 const SCHEDULE_NODE_HEIGHT = 140;
@@ -98,6 +99,8 @@ export function transformDialPlanToGraph(dialPlan: DialPlan): TransformResult {
     id: START_NODE_ID,
     type: 'start',
     position: { x: 0, y: 0 },
+    width: START_NODE_SIZE,
+    height: START_NODE_SIZE,
     data: { label: 'Start' },
   };
   nodes.push(startNode);
@@ -143,6 +146,8 @@ function createFlowNode(node: DialPlanNode): DialPlanGraphNode {
         id: node.id,
         type: 'schedule',
         position,
+        width: NODE_WIDTH,
+        height: SCHEDULE_NODE_HEIGHT,
         data: {
           label: getNodeLabel(node),
           scheduleId: node.config.schedule_id,
@@ -155,6 +160,8 @@ function createFlowNode(node: DialPlanNode): DialPlanGraphNode {
         id: node.id,
         type: 'internalDial',
         position,
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
         data: {
           label: getNodeLabel(node),
           targetId: node.config.target_id,
@@ -169,6 +176,8 @@ function createFlowNode(node: DialPlanNode): DialPlanGraphNode {
         id: (node as DialPlanNode).id,
         type: 'default',
         position,
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
         data: {
           label: (node as DialPlanNode).id,
           targetId: '',
