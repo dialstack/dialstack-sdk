@@ -88,6 +88,7 @@ export const en = {
       select: 'Select',
       confirm: 'Confirm',
       done: 'Done',
+      stepOf: 'Step {current} of {total}',
     },
     search: {
       title: 'Search Available Numbers',

@@ -18,7 +18,6 @@ type SearchType = 'area_code' | 'city_state' | 'zip';
 const CHECK_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
 const SUCCESS_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
 const ERROR_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
-const CHEVRON_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>`;
 
 const US_STATES = [
   ['AL', 'Alabama'],
@@ -87,80 +86,39 @@ const COMPONENT_STYLES = `
     overflow: hidden;
   }
 
-  /* ── Breadcrumb Step Progress ── */
-  .step-breadcrumb {
+  /* ── Step Progress Bar ── */
+  .step-progress-header {
     display: flex;
     align-items: center;
-    gap: var(--ds-spacing-xs);
-    padding: var(--ds-layout-spacing-lg) var(--ds-layout-spacing-lg) var(--ds-layout-spacing-md);
+    justify-content: space-between;
+    padding: var(--ds-layout-spacing-xl) var(--ds-layout-spacing-xl) 0;
+    margin-bottom: var(--ds-spacing-md);
   }
 
-  .step-item {
-    display: flex;
-    align-items: center;
-    gap: var(--ds-spacing-xs);
-    font-size: var(--ds-font-size-small);
+  .step-progress-title {
+    font-size: var(--ds-font-size-xlarge);
     font-weight: var(--ds-font-weight-medium);
+    color: var(--ds-color-text);
+  }
+
+  .step-progress-counter {
+    font-size: var(--ds-font-size-base);
     color: var(--ds-color-text-secondary);
-    opacity: 0.5;
-    transition: opacity var(--ds-transition-duration), color var(--ds-transition-duration);
   }
 
-  .step-item.active {
-    color: var(--ds-color-primary);
-    opacity: 1;
-  }
-
-  .step-item.completed {
-    color: var(--ds-color-success);
-    opacity: 0.8;
-    cursor: pointer;
-  }
-
-  .step-item.completed:hover {
-    opacity: 1;
-  }
-
-  .step-item.completed-no-nav {
-    cursor: default;
-  }
-
-  .step-separator {
-    display: flex;
-    align-items: center;
-    color: var(--ds-color-border);
-  }
-
-  .step-separator svg {
-    width: 14px;
-    height: 14px;
-  }
-
-  .step-number {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    border-radius: var(--ds-border-radius-round);
-    font-size: 11px;
-    font-weight: var(--ds-font-weight-bold);
-    flex-shrink: 0;
-  }
-
-  .step-item.active .step-number {
-    background: var(--ds-color-primary);
-    color: #fff;
-  }
-
-  .step-item.completed .step-number {
-    background: var(--ds-color-success);
-    color: #fff;
-  }
-
-  .step-item:not(.active):not(.completed) .step-number {
+  .step-progress {
+    height: 8px;
     background: var(--ds-color-border);
-    color: var(--ds-color-text-secondary);
+    border-radius: 9999px;
+    margin: 0 var(--ds-layout-spacing-xl) var(--ds-layout-spacing-lg);
+    overflow: hidden;
+  }
+
+  .step-progress-fill {
+    height: 100%;
+    background: var(--ds-color-primary);
+    border-radius: 9999px;
+    transition: width var(--ds-transition-duration);
   }
 
   /* ── Section Title ── */
@@ -179,7 +137,7 @@ const COMPONENT_STYLES = `
 
   /* ── Card ── */
   .card {
-    padding: var(--ds-layout-spacing-lg);
+    padding: var(--ds-layout-spacing-xl);
   }
 
   /* ── Segmented Control ── */
@@ -896,56 +854,33 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
   }
 
   private renderStepBreadcrumb(): string {
-    const stepDefs = [
-      { key: 'search', label: this.t('phoneNumberOrdering.steps.search') },
-      { key: 'results', label: this.t('phoneNumberOrdering.steps.select') },
-      { key: 'confirm', label: this.t('phoneNumberOrdering.steps.confirm') },
-      { key: 'complete', label: this.t('phoneNumberOrdering.steps.done') },
+    const stepLabels = [
+      this.t('phoneNumberOrdering.steps.search'),
+      this.t('phoneNumberOrdering.steps.select'),
+      this.t('phoneNumberOrdering.steps.confirm'),
+      this.t('phoneNumberOrdering.steps.done'),
     ];
 
-    let currentKey: string;
-    if (this.step === 'ordering') {
-      currentKey = 'confirm';
-    } else if (this.step === 'error') {
-      currentKey = 'complete';
-    } else {
-      currentKey = this.step;
-    }
-    const currentIdx = stepDefs.findIndex((s) => s.key === currentKey);
-
-    // Disable backward navigation once the order has been placed
-    const isTerminal =
-      this.step === 'ordering' || this.step === 'complete' || this.step === 'error';
+    const stepProgressMap: Record<string, number> = {
+      search: 0,
+      results: 1,
+      confirm: 2,
+      ordering: 3,
+      complete: 3,
+      error: 3,
+    };
+    const progressIndex = stepProgressMap[this.step] ?? 0;
+    const totalSteps = stepLabels.length;
+    const progressPercent = ((progressIndex + 1) / totalSteps) * 100;
 
     return `
-      <nav class="step-breadcrumb" aria-label="Order progress">
-        ${stepDefs
-          .map((s, i) => {
-            const cls =
-              i < currentIdx
-                ? isTerminal
-                  ? 'completed completed-no-nav'
-                  : 'completed'
-                : i === currentIdx
-                  ? 'active'
-                  : '';
-            const numberContent =
-              i < currentIdx
-                ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg>`
-                : `${i + 1}`;
-            const clickAttr =
-              i < currentIdx && !isTerminal ? ` data-action="go-to-step" data-step="${s.key}"` : '';
-            const item = `
-              <span class="step-item ${cls}"${clickAttr}>
-                <span class="step-number">${numberContent}</span>
-                ${s.label}
-              </span>`;
-            const sep =
-              i < stepDefs.length - 1 ? `<span class="step-separator">${CHEVRON_SVG}</span>` : '';
-            return item + sep;
-          })
-          .join('')}
-      </nav>
+      <div class="step-progress-header">
+        <span class="step-progress-title">${stepLabels[progressIndex]}</span>
+        <span class="step-progress-counter">${this.t('phoneNumberOrdering.steps.stepOf', { current: progressIndex + 1, total: totalSteps })}</span>
+      </div>
+      <div class="step-progress" role="progressbar" aria-valuenow="${progressPercent}" aria-valuemin="0" aria-valuemax="100">
+        <div class="step-progress-fill" style="width: ${progressPercent}%"></div>
+      </div>
     `;
   }
 
@@ -1305,14 +1240,6 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
         case 'try-again':
           this.goToSearch();
           break;
-        case 'go-to-step': {
-          const step = actionEl.dataset.step as Step;
-          if (step) {
-            this.step = step;
-            this.render();
-          }
-          break;
-        }
       }
     });
   }
