@@ -101,7 +101,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@xyflow/react": "^12.10.0",
+    "@xyflow/react": "^12.10.1",
     "dagre": "^0.8.5",
     "libphonenumber-js": "^1.12.36"
   }
