@@ -77,6 +77,7 @@ export interface PortOrderDetails {
   approval?: PortApproval | null;
   loa?: PortDocumentMeta | null;
   csr?: PortDocumentMeta | null;
+  bill_copy?: PortDocumentMeta | null;
 }
 
 export interface PortOrder {
