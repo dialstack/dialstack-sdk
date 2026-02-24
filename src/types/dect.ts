@@ -68,10 +68,11 @@ export interface DECTBase {
  * Status of a DECT handset.
  *
  * - `unpaired`: Handset slot is empty or handset was unpaired
+ * - `pending-sync`: Handset created, base hasn't fetched config with this IPEI yet
  * - `registered`: Handset is paired with the base
  * - `provisioned`: Handset has SIP lines configured
  */
-export type HandsetStatus = 'unpaired' | 'registered' | 'provisioned';
+export type HandsetStatus = 'unpaired' | 'pending-sync' | 'registered' | 'provisioned';
 
 /**
  * A DECT handset paired with a base station.
