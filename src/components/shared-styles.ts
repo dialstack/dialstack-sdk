@@ -6,27 +6,25 @@
  * constants and include them in their own <style> blocks.
  */
 
-/** Segmented control — a row of mutually-exclusive toggle buttons. */
+/** Tab list — a row of mutually-exclusive tab triggers with underline indicator. */
 export const segmentedControlStyles = `
   .segmented-control {
-    display: flex;
-    background: var(--ds-color-surface-subtle);
-    border: 1px solid var(--ds-color-border);
-    border-radius: var(--ds-border-radius);
-    padding: var(--ds-spacing-xs);
-    gap: 2px;
+    display: inline-flex;
+    align-items: center;
+    border-bottom: 1px solid var(--ds-color-border);
     margin-bottom: var(--ds-layout-spacing-lg);
   }
 
   .segment-btn {
     padding: var(--ds-spacing-sm) var(--ds-spacing-md);
-    font-size: var(--ds-font-size-small);
+    font-size: var(--ds-font-size-base);
     font-family: var(--ds-font-family);
     font-weight: var(--ds-font-weight-medium);
     color: var(--ds-color-text-secondary);
     background: transparent;
     border: none;
-    border-radius: var(--ds-border-radius-small);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
     cursor: pointer;
     transition: all var(--ds-transition-duration);
     text-align: center;
@@ -38,9 +36,8 @@ export const segmentedControlStyles = `
   }
 
   .segment-btn.active {
-    background: var(--ds-color-background);
     color: var(--ds-color-text);
-    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    border-bottom-color: var(--ds-color-primary);
   }
 `;
 

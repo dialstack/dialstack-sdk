@@ -143,6 +143,10 @@ const COMPONENT_STYLES = `
   /* ── Segmented Control ── */
   ${segmentedControlStyles}
 
+  .segmented-control {
+    display: flex;
+  }
+
   .segment-btn {
     flex: 1;
   }
