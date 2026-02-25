@@ -10,10 +10,10 @@ import type {
   NumberOrder,
   PhoneNumberOrderingClasses,
   SearchAvailableNumbersOptions,
+  SearchType,
 } from '../types';
 
 type Step = 'search' | 'results' | 'confirm' | 'ordering' | 'complete' | 'error';
-type SearchType = 'area_code' | 'city_state' | 'zip';
 
 const CHECK_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
 const SUCCESS_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
@@ -574,11 +574,23 @@ const COMPONENT_STYLES = `
     border-radius: var(--ds-border-radius);
     color: var(--ds-color-text-secondary);
   }
+
+  .nearby-banner {
+    padding: var(--ds-layout-spacing-sm) var(--ds-layout-spacing-md);
+    margin-bottom: var(--ds-layout-spacing-md);
+    font-size: var(--ds-font-size-small);
+    color: var(--ds-color-text-secondary);
+    background: var(--ds-color-surface-subtle);
+    border-radius: var(--ds-border-radius);
+  }
 `;
 
 export class PhoneNumberOrderingComponent extends BaseComponent {
   // State machine
   private step: Step = 'search';
+
+  // Search config
+  private searchTypes: SearchType[] = ['area_code', 'city_state'];
 
   // Search state
   private searchType: SearchType = 'area_code';
@@ -629,6 +641,17 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
 
   setOnOrderError(cb: (event: { error: string }) => void): void {
     this._onOrderError = cb;
+  }
+
+  setSearchTypes(types: SearchType[]): void {
+    if (types.length === 0) return;
+    this.searchTypes = types;
+    if (!this.searchTypes.includes(this.searchType)) {
+      this.searchType = this.searchTypes[0] ?? 'area_code';
+    }
+    if (this.isInitialized) {
+      this.render();
+    }
   }
 
   // ============================================================================
@@ -890,7 +913,9 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
 
   private renderSearchStep(): string {
     const segmentBtn = (type: SearchType, label: string) =>
-      `<button class="segment-btn ${this.searchType === type ? 'active' : ''}" data-action="set-search-type" data-type="${type}">${label}</button>`;
+      this.searchTypes.includes(type)
+        ? `<button class="segment-btn ${this.searchType === type ? 'active' : ''}" data-action="set-search-type" data-type="${type}">${label}</button>`
+        : '';
 
     const hidden = (type: SearchType) => (this.searchType === type ? '' : 'search-fields-hidden');
 
@@ -911,42 +936,53 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
         </div>
 
         <div class="search-fields-stack">
-          <div class="${hidden('area_code')}">
-            <div class="form-group">
-              <label class="form-label">${this.t('phoneNumberOrdering.search.areaCodeLabel')}</label>
-              <input class="form-input" type="text" id="search-area-code"
-                placeholder="${this.t('phoneNumberOrdering.search.areaCodePlaceholder')}"
-                value="${this.searchType === 'area_code' ? this.searchValue : ''}"
-                data-field="value" />
-            </div>
-          </div>
-          <div class="${hidden('city_state')}">
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">${this.t('phoneNumberOrdering.search.cityLabel')}</label>
-                <input class="form-input" type="text" id="search-city"
-                  placeholder="${this.t('phoneNumberOrdering.search.cityPlaceholder')}"
-                  value="${this.searchType === 'city_state' ? this.searchCity : ''}"
-                  data-field="city" />
-              </div>
-              <div class="form-group">
-                <label class="form-label">${this.t('phoneNumberOrdering.search.stateLabel')}</label>
-                <select class="form-select" id="search-state" data-field="state">
-                  <option value=""></option>
-                  ${stateOptions}
-                </select>
-              </div>
-            </div>
-          </div>
-          <div class="${hidden('zip')}">
-            <div class="form-group">
-              <label class="form-label">${this.t('phoneNumberOrdering.search.zipLabel')}</label>
-              <input class="form-input" type="text" id="search-zip"
-                placeholder="${this.t('phoneNumberOrdering.search.zipPlaceholder')}"
-                value="${this.searchType === 'zip' ? this.searchValue : ''}"
-                data-field="value" />
-            </div>
-          </div>
+          ${this.searchTypes
+            .map((type) => {
+              if (type === 'area_code')
+                return `
+              <div class="${hidden('area_code')}">
+                <div class="form-group">
+                  <label class="form-label">${this.t('phoneNumberOrdering.search.areaCodeLabel')}</label>
+                  <input class="form-input" type="text" id="search-area-code"
+                    placeholder="${this.t('phoneNumberOrdering.search.areaCodePlaceholder')}"
+                    value="${this.searchType === 'area_code' ? this.escapeHtml(this.searchValue) : ''}"
+                    data-field="value" />
+                </div>
+              </div>`;
+              if (type === 'city_state')
+                return `
+              <div class="${hidden('city_state')}">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">${this.t('phoneNumberOrdering.search.cityLabel')}</label>
+                    <input class="form-input" type="text" id="search-city"
+                      placeholder="${this.t('phoneNumberOrdering.search.cityPlaceholder')}"
+                      value="${this.searchType === 'city_state' ? this.escapeHtml(this.searchCity) : ''}"
+                      data-field="city" />
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">${this.t('phoneNumberOrdering.search.stateLabel')}</label>
+                    <select class="form-select" id="search-state" data-field="state">
+                      <option value=""></option>
+                      ${stateOptions}
+                    </select>
+                  </div>
+                </div>
+              </div>`;
+              if (type === 'zip')
+                return `
+              <div class="${hidden('zip')}">
+                <div class="form-group">
+                  <label class="form-label">${this.t('phoneNumberOrdering.search.zipLabel')}</label>
+                  <input class="form-input" type="text" id="search-zip"
+                    placeholder="${this.t('phoneNumberOrdering.search.zipPlaceholder')}"
+                    value="${this.searchType === 'zip' ? this.escapeHtml(this.searchValue) : ''}"
+                    data-field="value" />
+                </div>
+              </div>`;
+              return '';
+            })
+            .join('')}
         </div>
 
         <div class="search-row">
@@ -988,6 +1024,22 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
       this.availableNumbers.length > 0 &&
       this.selectedNumbers.size === this.availableNumbers.length;
 
+    const showCity = this.searchType !== 'area_code';
+
+    // Check if city+state search returned results from a different city
+    let nearbyBanner = '';
+    if (this.searchType === 'city_state' && this.searchCity.trim()) {
+      const searchedCity = this.searchCity.trim().toLowerCase();
+      const hasExactMatch = this.availableNumbers.some(
+        (n) => n.city.toLowerCase() === searchedCity
+      );
+      if (!hasExactMatch) {
+        const stateName =
+          US_STATES.find(([code]) => code === this.searchState)?.[1] ?? this.searchState;
+        nearbyBanner = `<div class="nearby-banner">${this.t('phoneNumberOrdering.results.nearbyResults', { city: this.escapeHtml(this.searchCity.trim()), state: this.escapeHtml(stateName) })}</div>`;
+      }
+    }
+
     const rows = this.availableNumbers
       .map((num) => {
         const isSelected = this.selectedNumbers.has(num.phone_number);
@@ -999,7 +1051,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
               <span class="checkbox-visual ${isSelected ? 'checked' : ''}" aria-hidden="true">${CHECK_SVG}</span>
             </td>
             <td class="phone-number-cell">${this.formatPhone(num.phone_number)}</td>
-            <td>${this.escapeHtml(num.city)}</td>
+            ${showCity ? `<td>${this.escapeHtml(num.city)}</td>` : ''}
             <td>${this.escapeHtml(num.state)}</td>
           </tr>
         `;
@@ -1015,6 +1067,8 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
           </div>
         </div>
 
+        ${nearbyBanner}
+
         <div class="table-container">
           <table role="grid">
             <thead>
@@ -1026,7 +1080,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
                     aria-label="${this.t('phoneNumberOrdering.results.selectAll')}">${CHECK_SVG}</span>
                 </th>
                 <th scope="col">${this.t('phoneNumberOrdering.results.phoneNumber')}</th>
-                <th scope="col">${this.t('phoneNumberOrdering.results.city')}</th>
+                ${showCity ? `<th scope="col">${this.t('phoneNumberOrdering.results.city')}</th>` : ''}
                 <th scope="col">${this.t('phoneNumberOrdering.results.state')}</th>
               </tr>
             </thead>
@@ -1050,12 +1104,14 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
   private renderConfirmStep(): string {
     const selected = this.availableNumbers.filter((n) => this.selectedNumbers.has(n.phone_number));
 
+    const showCity = this.searchType !== 'area_code';
+
     const items = selected
       .map(
         (num) => `
         <div class="confirm-item">
           <span class="confirm-phone">${this.formatPhone(num.phone_number)}</span>
-          <span class="confirm-city">${this.escapeHtml(num.city)}</span>
+          ${showCity ? `<span class="confirm-city">${this.escapeHtml(num.city)}</span>` : ''}
           <span class="confirm-state">${this.escapeHtml(num.state)}</span>
         </div>
       `
@@ -1169,11 +1225,10 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
       btn.classList.toggle('active', btn.dataset.type === newType);
     });
 
-    // Toggle visibility: area_code=0, city_state=1, zip=2
+    // Toggle visibility based on rendered search types
     const stack = this.shadowRoot.querySelector('.search-fields-stack');
     if (stack) {
-      const typeIndexMap: Record<SearchType, number> = { area_code: 0, city_state: 1, zip: 2 };
-      const typeIndex = typeIndexMap[newType];
+      const typeIndex = this.searchTypes.indexOf(newType);
       for (let i = 0; i < stack.children.length; i++) {
         const child = stack.children[i];
         if (child) child.classList.toggle('search-fields-hidden', i !== typeIndex);
@@ -1265,7 +1320,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     });
     bindInput('search-zip', (v) => {
       this.searchValue = v;
-    });
+    }); // no-op if element doesn't exist
     bindInput('search-city', (v) => {
       this.searchCity = v;
     });

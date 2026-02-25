@@ -14,6 +14,7 @@ import type {
   LayoutVariant,
   NumberOrder,
   PhoneNumberOrderingClasses,
+  SearchType,
 } from '../types';
 import type { Locale } from '../locales';
 
@@ -52,6 +53,11 @@ export interface PhoneNumberOrderingProps {
    * Custom CSS classes for styling integration
    */
   classes?: PhoneNumberOrderingClasses;
+
+  /**
+   * Which search modes to show. Defaults to ['area_code', 'city_state'].
+   */
+  searchTypes?: SearchType[];
 
   /**
    * Callback when component starts loading
@@ -99,6 +105,7 @@ export const PhoneNumberOrdering: React.FC<PhoneNumberOrderingProps> = ({
   icons,
   layoutVariant,
   classes,
+  searchTypes,
   onLoaderStart,
   onLoadError,
   onOrderComplete,
@@ -116,6 +123,7 @@ export const PhoneNumberOrdering: React.FC<PhoneNumberOrderingProps> = ({
   useUpdateWithSetter(componentInstance, icons, (c, v) => c.setIcons(v));
   useUpdateWithSetter(componentInstance, layoutVariant, (c, v) => c.setLayoutVariant(v));
   useUpdateWithSetter(componentInstance, classes, (c, v) => c.setClasses(v));
+  useUpdateWithSetter(componentInstance, searchTypes, (c, v) => c.setSearchTypes(v));
 
   // Sync callbacks
   useUpdateWithSetter(componentInstance, onLoaderStart, (c, v) => c.setOnLoaderStart(v));

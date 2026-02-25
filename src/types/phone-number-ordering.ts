@@ -5,6 +5,8 @@
 import type { BaseComponentClasses } from './appearance';
 import type { BaseComponentElement } from './components';
 
+export type SearchType = 'area_code' | 'city_state' | 'zip';
+
 export interface SearchAvailableNumbersOptions {
   areaCode?: string;
   city?: string;
@@ -44,6 +46,7 @@ export interface PhoneNumberOrderingClasses extends BaseComponentClasses {
 
 export interface PhoneNumberOrderingElement extends Omit<BaseComponentElement, 'setClasses'> {
   setClasses: (classes: PhoneNumberOrderingClasses) => void;
+  setSearchTypes: (types: SearchType[]) => void;
   setOnOrderComplete: (cb: (event: { orderId: string; order: NumberOrder }) => void) => void;
   setOnOrderError: (cb: (event: { error: string }) => void) => void;
 }

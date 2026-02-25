@@ -114,6 +114,7 @@ export const en = {
       state: 'State',
       selectAll: 'Select all',
       selected: '{count} selected',
+      nearbyResults: 'No exact match for {city}, {state}. Showing best nearby results.',
       noResults: 'No numbers available for this search',
       continue: 'Continue',
       backToSearch: 'Back to Search',
