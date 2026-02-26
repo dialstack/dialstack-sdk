@@ -179,6 +179,8 @@ export type {
   ProvisionedDevice,
   CreateDeviceRequest,
   UpdateDeviceRequest,
+  CreateDeviceLineRequest,
+  UpdateDeviceLineRequest,
   DeviceListOptions,
   ProvisioningEvent,
   ProvisioningEventListOptions,

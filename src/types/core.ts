@@ -17,9 +17,12 @@ import type {
   SearchAvailableNumbersOptions,
 } from './phone-number-ordering';
 import type {
+  DeviceLine,
   ProvisionedDevice,
   CreateDeviceRequest,
   UpdateDeviceRequest,
+  CreateDeviceLineRequest,
+  UpdateDeviceLineRequest,
   DeviceListOptions,
   ProvisioningEvent,
   ProvisioningEventListOptions,
@@ -425,6 +428,45 @@ export interface DialStackInstance {
     deviceId: string,
     options?: ProvisioningEventListOptions
   ): Promise<ProvisioningEvent[]>;
+
+  /**
+   * Create a device line (assign an endpoint to a device)
+   *
+   * @param deviceId - Device ID
+   * @param data - Line creation data
+   * @returns Promise resolving to the created line
+   */
+  createDeviceLine(deviceId: string, data: CreateDeviceLineRequest): Promise<DeviceLine>;
+
+  /**
+   * Update a device line (atomically reassign endpoint)
+   *
+   * @param deviceId - Device ID
+   * @param lineId - Line ID
+   * @param data - Update data with new endpoint_id
+   * @returns Promise resolving to the updated line
+   */
+  updateDeviceLine(
+    deviceId: string,
+    lineId: string,
+    data: UpdateDeviceLineRequest
+  ): Promise<DeviceLine>;
+
+  /**
+   * List all lines for a device
+   *
+   * @param deviceId - Device ID
+   * @returns Promise resolving to array of device lines
+   */
+  listDeviceLines(deviceId: string): Promise<DeviceLine[]>;
+
+  /**
+   * Delete a device line
+   *
+   * @param deviceId - Device ID
+   * @param lineId - Line ID
+   */
+  deleteDeviceLine(deviceId: string, lineId: string): Promise<void>;
 
   // ===========================================================================
   // Number Porting Methods

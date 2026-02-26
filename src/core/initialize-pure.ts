@@ -205,6 +205,19 @@ export async function loadDialstackAndInitialize(
     deleteDECTExtension: (baseId, handsetId, extensionId) => {
       return instance.deleteDECTExtension(baseId, handsetId, extensionId);
     },
+    // Device line methods
+    createDeviceLine: (deviceId, data) => {
+      return instance.createDeviceLine(deviceId, data);
+    },
+    listDeviceLines: (deviceId) => {
+      return instance.listDeviceLines(deviceId);
+    },
+    updateDeviceLine: (deviceId, lineId, data) => {
+      return instance.updateDeviceLine(deviceId, lineId, data);
+    },
+    deleteDeviceLine: (deviceId, lineId) => {
+      return instance.deleteDeviceLine(deviceId, lineId);
+    },
   };
 
   return wrapper;

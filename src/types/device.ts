@@ -147,6 +147,22 @@ export interface ProvisioningEvent {
 }
 
 /**
+ * Request payload for creating a device line.
+ */
+export interface CreateDeviceLineRequest {
+  /** TypeID of the endpoint to assign */
+  endpoint_id: string;
+}
+
+/**
+ * Request payload for updating a device line (reassigning endpoint).
+ */
+export interface UpdateDeviceLineRequest {
+  /** TypeID of the new endpoint to assign */
+  endpoint_id: string;
+}
+
+/**
  * Options for listing provisioning events.
  */
 export interface ProvisioningEventListOptions extends DeviceListOptions {

@@ -23,9 +23,12 @@ import type {
   NumberOrder,
   PaginatedResponse,
   DIDItem,
+  DeviceLine,
   ProvisionedDevice,
   CreateDeviceRequest,
   UpdateDeviceRequest,
+  CreateDeviceLineRequest,
+  UpdateDeviceLineRequest,
   DeviceListOptions,
   ProvisioningEvent,
   ProvisioningEventListOptions,
@@ -849,6 +852,66 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Failed to delete device: ${response.status} ${errorText}`);
+    }
+  }
+
+  /**
+   * Create a device line (assign an endpoint to a device)
+   */
+  async createDeviceLine(deviceId: string, data: CreateDeviceLineRequest): Promise<DeviceLine> {
+    const response = await this.fetchApi(`/v1/devices/${deviceId}/lines`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create device line: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Update a device line (atomically reassign endpoint)
+   */
+  async updateDeviceLine(
+    deviceId: string,
+    lineId: string,
+    data: UpdateDeviceLineRequest
+  ): Promise<DeviceLine> {
+    const response = await this.fetchApi(`/v1/devices/${deviceId}/lines/${lineId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to update device line: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * List all lines for a device
+   */
+  async listDeviceLines(deviceId: string): Promise<DeviceLine[]> {
+    const response = await this.fetchApi(`/v1/devices/${deviceId}/lines`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to list device lines: ${response.status} ${errorText}`);
+    }
+    const data = await response.json();
+    return data.data;
+  }
+
+  /**
+   * Delete a device line
+   */
+  async deleteDeviceLine(deviceId: string, lineId: string): Promise<void> {
+    const response = await this.fetchApi(`/v1/devices/${deviceId}/lines/${lineId}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to delete device line: ${response.status} ${errorText}`);
     }
   }
 
