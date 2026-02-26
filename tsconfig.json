@@ -30,6 +30,9 @@
     "**/*.test.ts",
     "**/*.test.tsx",
     "**/setupTests.ts",
-    "**/__tests__/**"
+    "**/__tests__/**",
+    "**/__mocks__/**",
+    "**/__stories__/**",
+    "**/__storybook__/**"
   ]
 }
