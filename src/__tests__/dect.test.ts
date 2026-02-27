@@ -121,14 +121,13 @@ describe('DECT Types', () => {
         display_name: 'Line 1',
         endpoint: {
           id: 'ep_01h455vb4pex5vsknk084sn02t',
-          sip_username: 'user1001',
           name: 'John Doe',
         },
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
       };
       expect(ext.endpoint_id).toContain('ep_');
-      expect(ext.endpoint?.sip_username).toBe('user1001');
+      expect(ext.endpoint?.name).toBe('John Doe');
     });
 
     it('allows optional fields to be undefined', () => {
@@ -150,13 +149,11 @@ describe('DECT Types', () => {
         endpoint_id: 'ep_01h455vb4pex5vsknk084sn02t',
         endpoint: {
           id: 'ep_01h455vb4pex5vsknk084sn02t',
-          sip_username: 'user1001',
         },
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
       };
       expect(ext.endpoint?.name).toBeUndefined();
-      expect(ext.endpoint?.sip_username).toBe('user1001');
     });
   });
 
@@ -329,7 +326,7 @@ describe('DECT Types', () => {
         id: 'decte_01',
         handset_id: 'decth_01',
         endpoint_id: 'ep_01',
-        endpoint: { id: 'ep_01', sip_username: 'user100', name: 'Alice' },
+        endpoint: { id: 'ep_01', name: 'Alice' },
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
       };
@@ -337,7 +334,7 @@ describe('DECT Types', () => {
         id: 'decte_02',
         handset_id: 'decth_01',
         endpoint_id: 'ep_02',
-        endpoint: { id: 'ep_02', sip_username: 'user200' },
+        endpoint: { id: 'ep_02' },
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
       };

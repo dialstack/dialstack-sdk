@@ -123,7 +123,6 @@ export interface DECTExtension {
   /** Associated endpoint (when eager-loaded) */
   endpoint?: {
     id: string;
-    sip_username: string;
     name?: string;
   };
   /** ISO 8601 timestamp */
