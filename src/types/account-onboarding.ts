@@ -40,3 +40,108 @@ export interface AccountOnboardingElement extends Omit<BaseComponentElement, 'se
   setRecipientTermsOfServiceUrl: (url?: string | null) => void;
   setPrivacyPolicyUrl: (url?: string | null) => void;
 }
+
+export interface AccountConfig {
+  region?: string;
+  extension_length?: number;
+  transcription_enabled?: boolean;
+  timezone?: string;
+  max_phone_numbers?: number;
+}
+
+export interface Account {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  primary_contact_name?: string | null;
+  config: AccountConfig;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpdateAccountRequest {
+  name?: string;
+  email?: string;
+  phone?: string;
+  primary_contact_name?: string;
+  config?: AccountConfig;
+}
+
+export interface OnboardingUser {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateUserRequest {
+  name?: string;
+  email?: string;
+}
+
+export interface CreateExtensionRequest {
+  number: string;
+  target: string;
+}
+
+export interface AddressSuggestion {
+  place_id: string;
+  title: string;
+  formatted_address: string;
+}
+
+export interface ResolvedAddress {
+  place_id: string;
+  address_number: string;
+  street: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+  timezone?: string;
+}
+
+export interface LocationAddressInput {
+  address_number?: string;
+  street: string;
+  unit?: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+}
+
+export interface OnboardingLocation {
+  id: string;
+  name: string;
+  address: {
+    place_id?: string;
+    address_number?: string;
+    street?: string;
+    unit?: string;
+    city: string;
+    state: string;
+    postal_code: string;
+    country: string;
+    latitude?: number;
+    longitude?: number;
+    formatted_address?: string;
+  };
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateLocationRequest {
+  name: string;
+  address: LocationAddressInput;
+}
+
+export interface UpdateLocationRequest {
+  name: string;
+  address: LocationAddressInput;
+}

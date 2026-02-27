@@ -113,6 +113,18 @@ export type {
   OnboardingCollectionOptions,
   AccountOnboardingClasses,
   AccountOnboardingElement,
+  AccountConfig,
+  Account,
+  UpdateAccountRequest,
+  OnboardingUser,
+  CreateUserRequest,
+  CreateExtensionRequest,
+  AddressSuggestion,
+  ResolvedAddress,
+  LocationAddressInput,
+  OnboardingLocation,
+  CreateLocationRequest,
+  UpdateLocationRequest,
 } from './account-onboarding';
 
 // Core SDK types

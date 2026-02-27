@@ -194,6 +194,7 @@ export interface AccountSessionCreateParams {
 }
 
 export interface AccountSessionCreateResponse {
+  account_id: string;
   client_secret: string;
   expires_at: string;
 }

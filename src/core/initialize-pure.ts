@@ -205,6 +205,41 @@ export async function loadDialstackAndInitialize(
     deleteDECTExtension: (baseId, handsetId, extensionId) => {
       return instance.deleteDECTExtension(baseId, handsetId, extensionId);
     },
+    // Account management methods
+    getAccount: () => {
+      return instance.getAccount();
+    },
+    updateAccount: (request) => {
+      return instance.updateAccount(request);
+    },
+    createUser: (request) => {
+      return instance.createUser(request);
+    },
+    listUsers: (options) => {
+      return instance.listUsers(options);
+    },
+    deleteUser: (userId) => {
+      return instance.deleteUser(userId);
+    },
+    createExtension: (request) => {
+      return instance.createExtension(request);
+    },
+    // Address and location methods
+    suggestAddresses: (query, country) => {
+      return instance.suggestAddresses(query, country);
+    },
+    getPlaceDetails: (placeId) => {
+      return instance.getPlaceDetails(placeId);
+    },
+    createLocation: (request) => {
+      return instance.createLocation(request);
+    },
+    updateLocation: (locationId, request) => {
+      return instance.updateLocation(locationId, request);
+    },
+    listLocations: () => {
+      return instance.listLocations();
+    },
     // Device line methods
     createDeviceLine: (deviceId, data) => {
       return instance.createDeviceLine(deviceId, data);

@@ -44,6 +44,18 @@ import type {
   UpdateDECTHandsetRequest,
   CreateDECTExtensionRequest,
 } from './dect';
+import type {
+  Account,
+  UpdateAccountRequest,
+  OnboardingUser,
+  CreateUserRequest,
+  CreateExtensionRequest,
+  AddressSuggestion,
+  ResolvedAddress,
+  OnboardingLocation,
+  CreateLocationRequest,
+  UpdateLocationRequest,
+} from './account-onboarding';
 
 /**
  * Client secret response from fetchClientSecret
@@ -57,6 +69,21 @@ export type ClientSecretResponse =
        * ISO 8601 datetime string when the session expires
        */
       expiresAt?: string;
+      /**
+       * Account TypeID (e.g. acct_...) for account-scoped SDK methods
+       */
+      accountId?: string;
+    }
+  | {
+      client_secret: string;
+      /**
+       * ISO 8601 datetime string when the session expires
+       */
+      expires_at?: string;
+      /**
+       * Account TypeID (e.g. acct_...) for account-scoped SDK methods
+       */
+      account_id?: string;
     };
 
 /**
@@ -87,8 +114,12 @@ export interface DialStackInitParams {
    * // Recommended: return with expiry for optimal refresh
    * fetchClientSecret: async () => {
    *   const res = await fetch('/api/dialstack/session');
-   *   const { client_secret, expires_at } = await res.json();
-   *   return { clientSecret: client_secret, expiresAt: expires_at };
+   *   const { client_secret, expires_at, account_id } = await res.json();
+   *   return {
+   *     clientSecret: client_secret,
+   *     expiresAt: expires_at,
+   *     accountId: account_id,
+   *   };
    * }
    * ```
    */
@@ -702,6 +733,105 @@ export interface DialStackInstance {
    * @param extensionId - Extension ID
    */
   deleteDECTExtension(baseId: string, handsetId: string, extensionId: string): Promise<void>;
+
+  // ===========================================================================
+  // Account Management Methods (session-scoped)
+  // ===========================================================================
+
+  /**
+   * Get the current account details
+   *
+   * @returns Promise resolving to the account
+   */
+  getAccount(): Promise<Account>;
+
+  /**
+   * Update the current account
+   *
+   * @param request - Account update data
+   * @returns Promise resolving to the updated account
+   */
+  updateAccount(request: UpdateAccountRequest): Promise<Account>;
+
+  /**
+   * Create a new user in the current account
+   *
+   * @param request - User creation data
+   * @returns Promise resolving to the created user
+   */
+  createUser(request: CreateUserRequest): Promise<OnboardingUser>;
+
+  /**
+   * List users in the current account
+   *
+   * @param options - Optional pagination options
+   * @returns Promise resolving to an array of users
+   */
+  listUsers(options?: { limit?: number }): Promise<OnboardingUser[]>;
+
+  /**
+   * Delete a user
+   *
+   * @param userId - The user ID to delete
+   */
+  deleteUser(userId: string): Promise<void>;
+
+  /**
+   * Create an extension
+   *
+   * @param request - Extension creation data
+   * @returns Promise resolving to the created extension
+   */
+  createExtension(request: CreateExtensionRequest): Promise<Extension>;
+
+  // ===========================================================================
+  // BFF Methods (publishable key auth)
+  // ===========================================================================
+
+  /**
+   * Search for address suggestions via BFF autocomplete
+   *
+   * @param query - Search query (min 3 characters)
+   * @param country - Optional country code (defaults to 'US')
+   * @returns Promise resolving to an array of address suggestions
+   */
+  suggestAddresses(query: string, country?: string): Promise<AddressSuggestion[]>;
+
+  /**
+   * Get detailed place information by place ID
+   *
+   * @param placeId - The place ID from an address suggestion
+   * @returns Promise resolving to the resolved address details
+   */
+  getPlaceDetails(placeId: string): Promise<ResolvedAddress>;
+
+  // ===========================================================================
+  // Location Methods (session-scoped)
+  // ===========================================================================
+
+  /**
+   * Create a new location for the current account
+   *
+   * @param request - Location creation data
+   * @returns Promise resolving to the created location
+   */
+  createLocation(request: CreateLocationRequest): Promise<OnboardingLocation>;
+
+  /**
+   * Update an existing location
+   *
+   * @param locationId - The location ID to update
+   * @param request - Location update data
+   * @returns Promise resolving to the updated location
+   */
+  updateLocation(locationId: string, request: UpdateLocationRequest): Promise<OnboardingLocation>;
+
+  /**
+   * List locations for the current account
+   *
+   * @returns Promise resolving to an array of locations
+   */
+  listLocations(): Promise<OnboardingLocation[]>;
 }
 
 /**
@@ -717,6 +847,11 @@ export interface SessionData {
    * Session expiry timestamp
    */
   expiresAt: Date;
+
+  /**
+   * Account TypeID for account-scoped methods
+   */
+  accountId: string | null;
 }
 
 /**

@@ -44,6 +44,16 @@ import type {
   CreatePortOrderRequest,
   ApprovePortOrderRequest,
   PortEligibilityResult,
+  Account,
+  UpdateAccountRequest,
+  OnboardingUser,
+  CreateUserRequest,
+  CreateExtensionRequest,
+  AddressSuggestion,
+  ResolvedAddress,
+  OnboardingLocation,
+  CreateLocationRequest,
+  UpdateLocationRequest,
 } from '../types';
 
 const DEFAULT_API_URL = 'https://api.dialstack.ai';
@@ -62,6 +72,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   private appearance: AppearanceOptions | undefined;
   private sessionData: SessionData | null = null;
   private sessionPromise: Promise<SessionData> | null = null;
+  private cachedAccountId: string | null = null;
   private refreshTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private components: Set<HTMLElement> = new Set();
 
@@ -110,25 +121,39 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   private parseClientSecretResponse(response: ClientSecretResponse): {
     clientSecret: string;
     expiresAt: Date;
+    accountId: string | null;
   } {
     if (typeof response === 'string') {
       // Simple format: just the client secret string, use default expiry
       return {
         clientSecret: response,
         expiresAt: new Date(Date.now() + DEFAULT_SESSION_DURATION_MS),
+        accountId: null,
       };
     }
 
-    // Object format with optional expiry
-    const { clientSecret, expiresAt } = response;
+    const responseObj = response as Record<string, unknown>;
+    const clientSecret = responseObj.clientSecret ?? responseObj.client_secret;
+    const expiresAtRaw =
+      typeof responseObj.expiresAt === 'string'
+        ? responseObj.expiresAt
+        : typeof responseObj.expires_at === 'string'
+          ? responseObj.expires_at
+          : undefined;
+    const accountIdRaw =
+      typeof responseObj.accountId === 'string'
+        ? responseObj.accountId
+        : typeof responseObj.account_id === 'string'
+          ? responseObj.account_id
+          : undefined;
 
     if (!clientSecret || typeof clientSecret !== 'string') {
       throw new Error('DialStack: clientSecret must be a valid string');
     }
 
     let parsedExpiresAt: Date;
-    if (expiresAt) {
-      parsedExpiresAt = new Date(expiresAt);
+    if (expiresAtRaw) {
+      parsedExpiresAt = new Date(expiresAtRaw);
       if (isNaN(parsedExpiresAt.getTime())) {
         console.warn('DialStack: Invalid expiresAt format, using default duration');
         parsedExpiresAt = new Date(Date.now() + DEFAULT_SESSION_DURATION_MS);
@@ -137,7 +162,18 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       parsedExpiresAt = new Date(Date.now() + DEFAULT_SESSION_DURATION_MS);
     }
 
-    return { clientSecret, expiresAt: parsedExpiresAt };
+    if (
+      (responseObj.accountId != null || responseObj.account_id != null) &&
+      (!accountIdRaw || accountIdRaw.trim().length === 0)
+    ) {
+      throw new Error('DialStack: accountId must be a non-empty string when provided');
+    }
+
+    return {
+      clientSecret,
+      expiresAt: parsedExpiresAt,
+      accountId: accountIdRaw ? accountIdRaw.trim() : null,
+    };
   }
 
   /**
@@ -166,12 +202,14 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         throw new Error('DialStack: fetchClientSecret must return a valid response');
       }
 
-      const { clientSecret, expiresAt } = this.parseClientSecretResponse(response);
+      const { clientSecret, expiresAt, accountId } = this.parseClientSecretResponse(response);
 
       this.sessionData = {
         clientSecret,
         expiresAt,
+        accountId,
       };
+      this.cachedAccountId = accountId;
 
       // Schedule next refresh based on actual expiry
       const refreshInterval = this.calculateRefreshInterval(expiresAt);
@@ -223,6 +261,27 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
    */
   getAppearance(): AppearanceOptions | undefined {
     return this.appearance;
+  }
+
+  /**
+   * Get the account ID for account-scoped endpoints
+   */
+  private async getAccountId(): Promise<string> {
+    if (this.cachedAccountId) return this.cachedAccountId;
+
+    if (!this.sessionData) {
+      await this.getClientSecret();
+    }
+
+    const accountId = this.sessionData?.accountId;
+    if (!accountId) {
+      throw new Error(
+        'DialStack: accountId is required for account-scoped methods. Return { clientSecret, accountId } from fetchClientSecret.'
+      );
+    }
+
+    this.cachedAccountId = accountId;
+    return accountId;
   }
 
   /**
@@ -1263,5 +1322,202 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       const errorText = await response.text();
       throw new Error(`Failed to delete DECT extension: ${response.status} ${errorText}`);
     }
+  }
+
+  // ===========================================================================
+  // Account Management Methods (session-scoped)
+  // ===========================================================================
+
+  /**
+   * Get the current account details
+   */
+  async getAccount(): Promise<Account> {
+    const accountId = await this.getAccountId();
+    const response = await this.fetchApi(`/v1/accounts/${accountId}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get account: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Update the current account
+   */
+  async updateAccount(request: UpdateAccountRequest): Promise<Account> {
+    const accountId = await this.getAccountId();
+    const response = await this.fetchApi(`/v1/accounts/${accountId}`, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to update account: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Create a new user in the current account
+   */
+  async createUser(request: CreateUserRequest): Promise<OnboardingUser> {
+    const response = await this.fetchApi('/v1/users', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+    if (!response.ok) {
+      if (response.status === 409) {
+        throw new Error('A user with this email already exists');
+      }
+      const errorText = await response.text();
+      throw new Error(`Failed to create user: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * List users in the current account
+   */
+  async listUsers(options?: { limit?: number }): Promise<OnboardingUser[]> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.set('limit', String(options.limit));
+
+    const queryString = params.toString();
+    const path = queryString ? `/v1/users?${queryString}` : '/v1/users';
+
+    const response = await this.fetchApi(path);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to list users: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data.data;
+  }
+
+  /**
+   * Delete a user
+   */
+  async deleteUser(userId: string): Promise<void> {
+    const response = await this.fetchApi(`/v1/users/${userId}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to delete user: ${response.status} ${errorText}`);
+    }
+  }
+
+  /**
+   * Create an extension
+   */
+  async createExtension(request: CreateExtensionRequest): Promise<Extension> {
+    const response = await this.fetchApi('/v1/extensions', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create extension: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  // ===========================================================================
+  // BFF Methods (publishable key auth)
+  // ===========================================================================
+
+  /**
+   * Make an authenticated BFF API request using the publishable key
+   */
+  private async fetchBffApi(path: string, options: RequestInit = {}): Promise<Response> {
+    const headers = new Headers(options.headers);
+    headers.set('Authorization', `Bearer ${this.publishableKey}`);
+    headers.set('Content-Type', 'application/json');
+
+    return fetch(`${this.apiUrl}${path}`, {
+      ...options,
+      headers,
+    });
+  }
+
+  /**
+   * Search for address suggestions via BFF autocomplete
+   */
+  async suggestAddresses(query: string, country?: string): Promise<AddressSuggestion[]> {
+    const params = new URLSearchParams({ query });
+    if (country) params.set('country', country);
+
+    const response = await this.fetchBffApi(`/bff/v1/address-suggestions?${params}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to suggest addresses: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data.suggestions;
+  }
+
+  /**
+   * Get detailed place information by place ID
+   */
+  async getPlaceDetails(placeId: string): Promise<ResolvedAddress> {
+    const response = await this.fetchBffApi(`/bff/v1/address-suggestions/${placeId}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get place details: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  // ===========================================================================
+  // Location Methods (session-scoped)
+  // ===========================================================================
+
+  /**
+   * Create a new location for the current account
+   */
+  async createLocation(request: CreateLocationRequest): Promise<OnboardingLocation> {
+    const response = await this.fetchApi('/v1/locations', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create location: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Update an existing location
+   */
+  async updateLocation(
+    locationId: string,
+    request: UpdateLocationRequest
+  ): Promise<OnboardingLocation> {
+    const response = await this.fetchApi(`/v1/locations/${locationId}`, {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to update location: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * List locations for the current account
+   */
+  async listLocations(): Promise<OnboardingLocation[]> {
+    const response = await this.fetchApi('/v1/locations?limit=100');
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to list locations: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data.data;
   }
 }

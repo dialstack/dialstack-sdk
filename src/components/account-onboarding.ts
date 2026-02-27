@@ -6,13 +6,24 @@ import { BaseComponent } from './base-component';
 import type {
   AccountOnboardingStep,
   AccountOnboardingClasses,
+  AccountConfig,
   OnboardingCollectionOptions,
+  OnboardingUser,
+  AddressSuggestion,
+  ResolvedAddress,
+  OnboardingLocation,
 } from '../types';
+import type { Extension } from '../types/dial-plan';
+import { AsYouType, parsePhoneNumberFromString } from 'libphonenumber-js';
+import { debounce } from '../utils/debounce';
+import { US_STATES } from '../constants/us-states';
+import { US_TIMEZONES } from '../constants/us-timezones';
 
 const CHECK_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg>`;
 const CHEVRON_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>`;
 const SUCCESS_SVG = `<svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="26" cy="26" r="25" stroke="currentColor" stroke-width="2"/><polyline points="16 27 23 34 36 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const ERROR_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
+const CHECK_CIRCLE_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;color:var(--ds-color-success)"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
 
 const COMPONENT_STYLES = `
   :host {
@@ -294,6 +305,325 @@ const COMPONENT_STYLES = `
   .legal-links a:hover {
     text-decoration: underline;
   }
+
+  /* ── Form Elements ── */
+  .form-group {
+    margin-bottom: var(--ds-layout-spacing-md);
+  }
+
+  .form-label {
+    display: block;
+    font-size: var(--ds-font-size-small);
+    font-weight: var(--ds-font-weight-medium);
+    color: var(--ds-color-text);
+    margin-bottom: var(--ds-spacing-xs);
+  }
+
+  .form-input,
+  .form-select {
+    width: 100%;
+    padding: var(--ds-layout-spacing-sm) var(--ds-layout-spacing-sm);
+    font-size: var(--ds-font-size-base);
+    font-family: var(--ds-font-family);
+    color: var(--ds-color-text);
+    background: var(--ds-color-background);
+    border: 1px solid var(--ds-color-border);
+    border-radius: var(--ds-border-radius);
+    box-sizing: border-box;
+    transition: border-color var(--ds-transition-duration);
+  }
+
+  .form-input:focus,
+  .form-select:focus {
+    outline: none;
+    border-color: var(--ds-color-primary);
+  }
+
+  .form-input.error {
+    border-color: var(--ds-color-danger);
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--ds-layout-spacing-md);
+  }
+
+  .form-error {
+    font-size: var(--ds-font-size-small);
+    color: var(--ds-color-danger);
+    margin-top: var(--ds-spacing-xs);
+  }
+
+  .form-help {
+    font-size: var(--ds-font-size-small);
+    color: var(--ds-color-text-secondary);
+    margin-top: var(--ds-spacing-xs);
+  }
+
+  .form-static {
+    padding: var(--ds-spacing-sm) var(--ds-spacing-md);
+    background: var(--ds-color-surface);
+    border: 1px solid var(--ds-color-border);
+    border-radius: var(--ds-border-radius);
+    color: var(--ds-color-text-secondary);
+    font-size: var(--ds-font-size-base);
+  }
+
+  /* ── Section Divider ── */
+  .section-divider {
+    border: none;
+    border-top: 1px solid var(--ds-color-border);
+    margin: var(--ds-layout-spacing-lg) 0;
+  }
+
+  .section-heading {
+    font-size: var(--ds-font-size-large);
+    font-weight: var(--ds-font-weight-bold);
+    color: var(--ds-color-text);
+    margin: 0 0 var(--ds-spacing-xs) 0;
+  }
+
+  .section-description {
+    font-size: var(--ds-font-size-small);
+    color: var(--ds-color-text-secondary);
+    margin: 0 0 var(--ds-layout-spacing-md) 0;
+  }
+
+  /* ── User List ── */
+  .user-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-spacing-xs);
+    margin-bottom: var(--ds-layout-spacing-md);
+  }
+
+  .user-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--ds-layout-spacing-sm) var(--ds-layout-spacing-sm);
+    background: var(--ds-color-surface-subtle);
+    border-radius: var(--ds-border-radius);
+    border: 1px solid var(--ds-color-border-subtle);
+  }
+
+  .user-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .user-item-name {
+    font-size: var(--ds-font-size-base);
+    font-weight: var(--ds-font-weight-medium);
+    color: var(--ds-color-text);
+  }
+
+  .user-item-meta {
+    font-size: var(--ds-font-size-small);
+    color: var(--ds-color-text-secondary);
+  }
+
+  .user-item-actions {
+    flex-shrink: 0;
+  }
+
+  .btn-danger-ghost {
+    background: none;
+    border: none;
+    color: var(--ds-color-danger);
+    font-size: var(--ds-font-size-small);
+    font-family: var(--ds-font-family);
+    cursor: pointer;
+    padding: var(--ds-spacing-xs) var(--ds-layout-spacing-sm);
+    border-radius: var(--ds-border-radius);
+  }
+
+  .btn-danger-ghost:hover {
+    background: var(--ds-color-danger);
+    color: #fff;
+  }
+
+  .no-users {
+    text-align: center;
+    padding: var(--ds-layout-spacing-md);
+    color: var(--ds-color-text-secondary);
+    font-size: var(--ds-font-size-small);
+  }
+
+  /* ── Add User Form ── */
+  .add-user-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: var(--ds-layout-spacing-sm);
+    align-items: end;
+    padding: var(--ds-layout-spacing-sm);
+    background: var(--ds-color-surface-subtle);
+    border-radius: var(--ds-border-radius);
+    border: 1px solid var(--ds-color-border-subtle);
+  }
+
+  .add-user-form .form-group {
+    margin-bottom: 0;
+  }
+
+  .btn-add {
+    padding: var(--ds-layout-spacing-sm) var(--ds-layout-spacing-md);
+    white-space: nowrap;
+    align-self: end;
+    box-sizing: border-box;
+    /* Match .form-input height: vertical padding + line content + border */
+    height: calc(2 * var(--ds-layout-spacing-sm) + var(--ds-font-size-base) * var(--ds-line-height) + 2px);
+  }
+
+  /* ── Inline Alert ── */
+  .inline-alert {
+    font-size: var(--ds-font-size-small);
+    padding: var(--ds-layout-spacing-sm);
+    border-radius: var(--ds-border-radius);
+    margin-top: var(--ds-layout-spacing-sm);
+  }
+
+  .inline-alert.error {
+    background: color-mix(in srgb, var(--ds-color-danger) 10%, transparent);
+    color: var(--ds-color-danger);
+    border: 1px solid color-mix(in srgb, var(--ds-color-danger) 20%, transparent);
+  }
+
+  /* ── Address Autocomplete ── */
+  .address-autocomplete {
+    position: relative;
+  }
+
+  .address-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    background: var(--ds-color-background);
+    border: 1px solid var(--ds-color-border);
+    border-top: none;
+    border-radius: 0 0 var(--ds-border-radius) var(--ds-border-radius);
+    max-height: 200px;
+    overflow-y: auto;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+
+  .address-suggestion {
+    padding: var(--ds-layout-spacing-sm);
+    cursor: pointer;
+    font-size: var(--ds-font-size-small);
+    transition: background var(--ds-transition-duration);
+    border-bottom: 1px solid var(--ds-color-border-subtle);
+  }
+
+  .address-suggestion:last-child {
+    border-bottom: none;
+  }
+
+  .address-suggestion:hover,
+  .address-suggestion.highlighted {
+    background: var(--ds-color-surface-subtle);
+  }
+
+  .address-suggestion-title {
+    font-weight: var(--ds-font-weight-medium);
+    color: var(--ds-color-text);
+  }
+
+  .address-suggestion-detail {
+    color: var(--ds-color-text-secondary);
+    margin-top: 2px;
+  }
+
+  .address-no-results {
+    padding: var(--ds-layout-spacing-sm);
+    font-size: var(--ds-font-size-small);
+    color: var(--ds-color-text-secondary);
+    text-align: center;
+  }
+
+  /* ── Address Confirmed Card ── */
+  .address-confirmed {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-layout-spacing-sm);
+    padding: var(--ds-layout-spacing-sm);
+    background: var(--ds-color-surface-subtle);
+    border-radius: var(--ds-border-radius);
+    border: 1px solid var(--ds-color-border-subtle);
+  }
+
+  .address-confirmed-icon {
+    flex-shrink: 0;
+  }
+
+  .address-confirmed-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .address-confirmed-line {
+    font-size: var(--ds-font-size-small);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .address-confirmed-line:first-child {
+    font-weight: var(--ds-font-weight-medium);
+    color: var(--ds-color-text);
+  }
+
+  .address-confirmed-line:last-child {
+    color: var(--ds-color-text-secondary);
+  }
+
+  .timezone-readonly {
+    font-size: var(--ds-font-size-small);
+    color: var(--ds-color-text-secondary);
+    padding: var(--ds-spacing-xs) 0;
+  }
+
+  /* ── Address Manual Fields ── */
+  .address-manual-fields {
+    display: grid;
+    grid-template-columns: 1fr 5fr;
+    gap: var(--ds-layout-spacing-sm);
+  }
+
+  .address-manual-row-2 {
+    display: grid;
+    grid-template-columns: 2fr 2fr 2fr;
+    gap: var(--ds-layout-spacing-sm);
+    margin-top: var(--ds-layout-spacing-sm);
+  }
+
+  .address-manual-fields .form-group,
+  .address-manual-row-2 .form-group {
+    margin-bottom: 0;
+  }
+
+  /* ── Link Button ── */
+  .btn-link {
+    background: none;
+    border: none;
+    color: var(--ds-color-text-secondary);
+    font-size: var(--ds-font-size-small);
+    font-family: var(--ds-font-family);
+    cursor: pointer;
+    padding: 0;
+    margin-top: var(--ds-layout-spacing-sm);
+    text-decoration: none;
+  }
+
+  .btn-link:hover {
+    color: var(--ds-color-primary);
+    text-decoration: underline;
+  }
 `;
 
 export class AccountOnboardingComponent extends BaseComponent {
@@ -308,6 +638,49 @@ export class AccountOnboardingComponent extends BaseComponent {
   private isLoading = true;
   private loadError: string | null = null;
 
+  // Account state
+  private accountEmail = '';
+  private accountName = '';
+  private accountPhone = '';
+  private accountPrimaryContact = '';
+  private accountTimezone = '';
+  private accountConfig: AccountConfig = {};
+
+  // Location state
+  private locationName = '';
+  private addressMode: 'search' | 'confirmed' | 'edit' = 'search';
+  private addressQuery = '';
+  private addressSuggestions: AddressSuggestion[] = [];
+  private resolvedAddress: ResolvedAddress | null = null;
+  private isLoadingSuggestions = false;
+  private addressDropdownOpen = false;
+  private highlightedSuggestionIndex = -1;
+  private addressSearchVersion = 0;
+  private existingLocation: OnboardingLocation | null = null;
+  private editingLocationId: string | null = null;
+  private manualAddress = {
+    addressNumber: '',
+    street: '',
+    city: '',
+    state: '',
+    postalCode: '',
+  };
+  private locationValidationErrors: Record<string, string> = {};
+
+  // User state
+  private users: OnboardingUser[] = [];
+  private extensions: Extension[] = [];
+  private newUserName = '';
+  private newUserEmail = '';
+  private newUserExtension = '';
+  private isAddingUser = false;
+  private userError: string | null = null;
+
+  // Save state
+  private isSavingAccount = false;
+  private accountSaveError: string | null = null;
+  private accountValidationErrors: Record<string, string> = {};
+
   // Collection options and URL props
   private collectionOptions: OnboardingCollectionOptions | null = null;
   private _exitFired = false;
@@ -321,6 +694,11 @@ export class AccountOnboardingComponent extends BaseComponent {
   // Callbacks
   private _onExit?: () => void;
   private _onStepChange?: (event: { step: AccountOnboardingStep }) => void;
+
+  // Debounced address search
+  private debouncedSuggestAddresses = debounce((query: string) => {
+    this.fetchAddressSuggestions(query);
+  }, 300);
 
   override connectedCallback(): void {
     // Reset per mount so each onboarding session can emit onExit exactly once.
@@ -343,8 +721,43 @@ export class AccountOnboardingComponent extends BaseComponent {
     this.render();
 
     try {
-      // Placeholder for future API call (e.g. this.instance.getOnboardingState())
-      await Promise.resolve();
+      if (!this.instance) throw new Error('Not initialized');
+
+      const [account, users, extensions, locations] = await Promise.all([
+        this.instance.getAccount(),
+        this.instance.listUsers(),
+        this.instance.listExtensions(),
+        this.instance.listLocations(),
+      ]);
+
+      this.accountEmail = account.email ?? '';
+      this.accountName = account.name ?? '';
+      const phoneRaw = account.phone ?? '';
+      const phoneParsed = phoneRaw ? parsePhoneNumberFromString(phoneRaw, 'US') : null;
+      this.accountPhone = phoneParsed ? phoneParsed.formatNational() : phoneRaw;
+      this.accountPrimaryContact = account.primary_contact_name ?? '';
+      this.accountTimezone = account.config?.timezone ?? '';
+      this.accountConfig = account.config ?? {};
+      this.users = users;
+      this.extensions = extensions;
+      this.newUserExtension = this.getNextExtensionNumber();
+
+      if (locations.length > 0) {
+        const loc = locations[0]!;
+        this.existingLocation = loc;
+        this.locationName = loc.name;
+        this.addressMode = 'confirmed';
+        if (loc.address) {
+          this.manualAddress = {
+            addressNumber: loc.address.address_number ?? '',
+            street: loc.address.street ?? '',
+            city: loc.address.city ?? '',
+            state: loc.address.state ?? '',
+            postalCode: loc.address.postal_code ?? '',
+          };
+        }
+      }
+
       this.isLoading = false;
       this.render();
     } catch (err) {
@@ -461,12 +874,573 @@ export class AccountOnboardingComponent extends BaseComponent {
   }
 
   // ============================================================================
+  // Account Step Helpers
+  // ============================================================================
+
+  private getExtensionForUser(userId: string): Extension | undefined {
+    return this.extensions.find((ext) => ext.target === userId);
+  }
+
+  private getNextExtensionNumber(): string {
+    const configuredLength = this.accountConfig.extension_length;
+    const length =
+      typeof configuredLength === 'number' &&
+      Number.isInteger(configuredLength) &&
+      configuredLength > 0
+        ? configuredLength
+        : 4;
+    const base = Math.pow(10, length - 1) + 1;
+    const max = Math.pow(10, length) - 1;
+    const existing = new Set(this.extensions.map((ext) => ext.number));
+    let next = base;
+    while (existing.has(String(next)) && next <= max) {
+      next += 1;
+    }
+    return String(next);
+  }
+
+  // ============================================================================
+  // Address / Location Helpers
+  // ============================================================================
+
+  private async fetchAddressSuggestions(query: string): Promise<void> {
+    if (!this.instance || query.length < 3) {
+      ++this.addressSearchVersion;
+      this.addressSuggestions = [];
+      this.addressDropdownOpen = false;
+      this.renderAddressDropdown();
+      return;
+    }
+
+    const version = ++this.addressSearchVersion;
+    this.isLoadingSuggestions = true;
+    this.renderAddressDropdown();
+
+    try {
+      const results = await this.instance.suggestAddresses(query, 'US');
+      if (version !== this.addressSearchVersion) return; // stale response
+      this.addressSuggestions = results;
+      this.addressDropdownOpen = true;
+      this.highlightedSuggestionIndex = -1;
+    } catch {
+      if (version !== this.addressSearchVersion) return;
+      this.addressSuggestions = [];
+      this.addressDropdownOpen = false;
+    } finally {
+      if (version === this.addressSearchVersion) {
+        this.isLoadingSuggestions = false;
+        this.renderAddressDropdown();
+      }
+    }
+  }
+
+  private renderAddressDropdown(): void {
+    if (!this.shadowRoot) return;
+    const dropdown = this.shadowRoot.querySelector('.address-dropdown') as HTMLElement | null;
+    if (!dropdown) return;
+
+    if (this.isLoadingSuggestions) {
+      dropdown.textContent = '';
+      const msg = document.createElement('div');
+      msg.className = 'address-no-results';
+      msg.textContent = this.t('accountOnboarding.account.location.searching');
+      dropdown.appendChild(msg);
+      dropdown.style.display = 'block';
+      return;
+    }
+
+    if (!this.addressDropdownOpen) {
+      dropdown.style.display = 'none';
+      return;
+    }
+
+    if (this.addressSuggestions.length === 0) {
+      if (this.addressQuery.length >= 3 && !this.isLoadingSuggestions) {
+        dropdown.textContent = '';
+        const msg = document.createElement('div');
+        msg.className = 'address-no-results';
+        msg.textContent = this.t('accountOnboarding.account.location.noResults');
+        dropdown.appendChild(msg);
+        dropdown.style.display = 'block';
+      } else {
+        dropdown.style.display = 'none';
+      }
+      return;
+    }
+
+    dropdown.textContent = '';
+    this.addressSuggestions.forEach((s, i) => {
+      const item = document.createElement('div');
+      item.className =
+        'address-suggestion' + (i === this.highlightedSuggestionIndex ? ' highlighted' : '');
+      item.dataset.action = 'select-suggestion';
+      item.dataset.placeId = s.place_id;
+      item.dataset.index = String(i);
+
+      const title = document.createElement('div');
+      title.className = 'address-suggestion-title';
+      title.textContent = s.title;
+      item.appendChild(title);
+
+      const detail = document.createElement('div');
+      detail.className = 'address-suggestion-detail';
+      detail.textContent = s.formatted_address;
+      item.appendChild(detail);
+
+      dropdown.appendChild(item);
+    });
+    dropdown.style.display = 'block';
+  }
+
+  private async handleSelectSuggestion(placeId: string): Promise<void> {
+    if (!this.instance) return;
+
+    this.addressDropdownOpen = false;
+    this.render();
+
+    try {
+      this.resolvedAddress = await this.instance.getPlaceDetails(placeId);
+      this.addressMode = 'confirmed';
+      this.manualAddress = {
+        addressNumber: this.resolvedAddress.address_number,
+        street: this.resolvedAddress.street,
+        city: this.resolvedAddress.city,
+        state: this.resolvedAddress.state,
+        postalCode: this.resolvedAddress.postal_code,
+      };
+      if (this.resolvedAddress.timezone) {
+        this.accountTimezone = this.resolvedAddress.timezone;
+      }
+    } catch {
+      // Stay in search mode on error
+    } finally {
+      this.render();
+    }
+  }
+
+  private getConfirmedAddressLines(): { line1: string; line2: string } {
+    if (this.resolvedAddress) {
+      const streetLine = [this.resolvedAddress.address_number, this.resolvedAddress.street]
+        .filter(Boolean)
+        .join(' ');
+      const regionPart = [this.resolvedAddress.state, this.resolvedAddress.postal_code]
+        .filter(Boolean)
+        .join(' ');
+      return {
+        line1: streetLine,
+        line2: [this.resolvedAddress.city, regionPart].filter(Boolean).join(', '),
+      };
+    }
+
+    if (this.existingLocation?.address) {
+      const addr = this.existingLocation.address;
+      if (addr.formatted_address) {
+        const parts = addr.formatted_address.split(',');
+        return {
+          line1: parts[0]?.trim() ?? '',
+          line2: parts.slice(1).join(',').trim(),
+        };
+      }
+      const streetLine = [addr.address_number, addr.street].filter(Boolean).join(' ');
+      const regionPart = [addr.state, addr.postal_code].filter(Boolean).join(' ');
+      return {
+        line1: streetLine,
+        line2: [addr.city, regionPart].filter(Boolean).join(', '),
+      };
+    }
+
+    return { line1: '', line2: '' };
+  }
+
+  private hasValidAddress(): boolean {
+    if (this.existingLocation) return true;
+    if (this.resolvedAddress) return true;
+    if (this.addressMode === 'edit') {
+      return !!(
+        this.manualAddress.street.trim() &&
+        this.manualAddress.city.trim() &&
+        this.manualAddress.state.trim() &&
+        this.manualAddress.postalCode.trim()
+      );
+    }
+    return false;
+  }
+
+  private async saveAndAdvance(): Promise<void> {
+    this.accountValidationErrors = {};
+    this.locationValidationErrors = {};
+    this.accountSaveError = null;
+    this.userError = null;
+
+    let hasErrors = false;
+
+    if (!this.accountName.trim()) {
+      this.accountValidationErrors.name = this.t(
+        'accountOnboarding.account.details.companyNameRequired'
+      );
+      hasErrors = true;
+    }
+
+    if (!this.accountEmail.trim()) {
+      this.accountValidationErrors.email = this.t(
+        'accountOnboarding.account.details.emailRequired'
+      );
+      hasErrors = true;
+    }
+
+    if (!this.accountPhone.trim()) {
+      this.accountValidationErrors.phone = this.t(
+        'accountOnboarding.account.details.phoneRequired'
+      );
+      hasErrors = true;
+    } else {
+      const parsed = parsePhoneNumberFromString(this.accountPhone, 'US');
+      if (!parsed?.isValid()) {
+        this.accountValidationErrors.phone = this.t(
+          'accountOnboarding.account.details.phoneInvalid'
+        );
+        hasErrors = true;
+      }
+    }
+
+    if (!this.accountPrimaryContact.trim()) {
+      this.accountValidationErrors.primaryContact = this.t(
+        'accountOnboarding.account.details.primaryContactRequired'
+      );
+      hasErrors = true;
+    }
+
+    if (!this.locationName.trim()) {
+      this.locationValidationErrors.name = this.t(
+        'accountOnboarding.account.location.nameRequired'
+      );
+      hasErrors = true;
+    }
+
+    if (!this.hasValidAddress()) {
+      this.locationValidationErrors.address = this.t(
+        'accountOnboarding.account.location.addressRequired'
+      );
+      hasErrors = true;
+    }
+
+    if (!this.accountTimezone) {
+      this.locationValidationErrors.timezone = this.t(
+        'accountOnboarding.account.details.timezoneRequired'
+      );
+      hasErrors = true;
+    }
+
+    if (this.users.length === 0) {
+      this.userError = this.t('accountOnboarding.account.users.atLeastOne');
+      hasErrors = true;
+    }
+
+    if (hasErrors) {
+      this.render();
+      return;
+    }
+
+    this.isSavingAccount = true;
+    this.render();
+
+    try {
+      if (!this.instance) throw new Error('Not initialized');
+
+      const { extension_length: _, ...configWithoutExtLength } = this.accountConfig;
+      await this.instance.updateAccount({
+        email: this.accountEmail.trim(),
+        name: this.accountName.trim(),
+        phone: parsePhoneNumberFromString(this.accountPhone, 'US')!.number,
+        primary_contact_name: this.accountPrimaryContact.trim(),
+        config: {
+          ...configWithoutExtLength,
+          ...(this.accountTimezone ? { timezone: this.accountTimezone } : {}),
+        },
+      });
+
+      // Create or update location
+      if (!this.existingLocation) {
+        const address = this.resolvedAddress
+          ? {
+              address_number: this.resolvedAddress.address_number,
+              street: this.resolvedAddress.street,
+              city: this.resolvedAddress.city,
+              state: this.resolvedAddress.state,
+              postal_code: this.resolvedAddress.postal_code,
+              country: this.resolvedAddress.country,
+            }
+          : {
+              address_number: this.manualAddress.addressNumber.trim() || undefined,
+              street: this.manualAddress.street.trim(),
+              city: this.manualAddress.city.trim(),
+              state: this.manualAddress.state.trim(),
+              postal_code: this.manualAddress.postalCode.trim(),
+              country: 'US',
+            };
+
+        const locationPayload = {
+          name: this.locationName.trim(),
+          address,
+        };
+
+        if (this.editingLocationId) {
+          this.existingLocation = await this.instance.updateLocation(
+            this.editingLocationId,
+            locationPayload
+          );
+        } else {
+          this.existingLocation = await this.instance.createLocation(locationPayload);
+        }
+        this.editingLocationId = null;
+      } else if (this.existingLocation.name !== this.locationName.trim()) {
+        // Update location name if it changed without re-editing the address
+        this.existingLocation = await this.instance.updateLocation(this.existingLocation.id, {
+          name: this.locationName.trim(),
+          address: {
+            address_number: this.manualAddress.addressNumber.trim() || undefined,
+            street: this.manualAddress.street.trim(),
+            city: this.manualAddress.city.trim(),
+            state: this.manualAddress.state.trim(),
+            postal_code: this.manualAddress.postalCode.trim(),
+            country: 'US',
+          },
+        });
+      }
+
+      this.isSavingAccount = false;
+      const steps = this.getActiveSteps();
+      const idx = steps.indexOf('account');
+      const nextStep = steps[idx + 1];
+      if (nextStep) {
+        this.navigateToStep(nextStep);
+      }
+    } catch (err) {
+      this.isSavingAccount = false;
+      this.accountSaveError =
+        err instanceof Error ? err.message : this.t('accountOnboarding.account.saveError');
+      this.render();
+    }
+  }
+
+  private async handleAddUser(): Promise<void> {
+    this.userError = null;
+
+    if (!this.newUserName.trim()) {
+      this.userError = this.t('accountOnboarding.account.users.nameRequired');
+      this.render();
+      return;
+    }
+
+    this.isAddingUser = true;
+    this.render();
+
+    try {
+      if (!this.instance) throw new Error('Not initialized');
+
+      const user = await this.instance.createUser({
+        name: this.newUserName.trim(),
+        email: this.newUserEmail.trim() || undefined,
+      });
+
+      const extNumber = this.newUserExtension.trim() || this.getNextExtensionNumber();
+      try {
+        await this.instance.createExtension({
+          number: extNumber,
+          target: user.id,
+        });
+      } catch (extErr) {
+        // Rollback: delete the user if extension creation fails
+        await this.instance.deleteUser(user.id).catch(() => {});
+        throw extErr;
+      }
+
+      // Refresh lists
+      const [users, extensions] = await Promise.all([
+        this.instance.listUsers(),
+        this.instance.listExtensions(),
+      ]);
+      this.users = users;
+      this.extensions = extensions;
+
+      this.newUserName = '';
+      this.newUserEmail = '';
+      this.newUserExtension = this.getNextExtensionNumber();
+      this.isAddingUser = false;
+      this.render();
+    } catch (err) {
+      this.isAddingUser = false;
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('already exists')) {
+        this.userError = this.t('accountOnboarding.account.users.duplicateEmail');
+      } else {
+        this.userError = message;
+      }
+      this.render();
+    }
+  }
+
+  private async handleRemoveUser(userId: string): Promise<void> {
+    try {
+      if (!this.instance) throw new Error('Not initialized');
+
+      await this.instance.deleteUser(userId);
+
+      const [users, extensions] = await Promise.all([
+        this.instance.listUsers(),
+        this.instance.listExtensions(),
+      ]);
+      this.users = users;
+      this.extensions = extensions;
+      this.newUserExtension = this.getNextExtensionNumber();
+      this.render();
+    } catch (err) {
+      this.userError = err instanceof Error ? err.message : String(err);
+      this.render();
+    }
+  }
+
+  private attachInputListeners(): void {
+    if (!this.shadowRoot) return;
+
+    const bindInput = (id: string, setter: (val: string) => void): void => {
+      const el = this.shadowRoot?.querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`);
+      if (el) {
+        el.addEventListener('input', (e) => setter((e.target as HTMLInputElement).value));
+        el.addEventListener('change', (e) => setter((e.target as HTMLSelectElement).value));
+      }
+    };
+
+    bindInput('account-name', (v) => {
+      this.accountName = v;
+    });
+    bindInput('account-email', (v) => {
+      this.accountEmail = v;
+    });
+    // Phone input with as-you-type formatting and blur normalization
+    const phoneEl = this.shadowRoot?.querySelector<HTMLInputElement>('#account-phone');
+    if (phoneEl) {
+      phoneEl.addEventListener('input', () => {
+        const digits = phoneEl.value.replace(/\D/g, '');
+        const formatted = digits ? new AsYouType('US').input(digits) : '';
+        this.accountPhone = formatted;
+        phoneEl.value = formatted;
+      });
+      phoneEl.addEventListener('blur', () => {
+        const parsed = parsePhoneNumberFromString(phoneEl.value, 'US');
+        if (parsed?.isValid()) {
+          const national = parsed.formatNational();
+          this.accountPhone = national;
+          phoneEl.value = national;
+        }
+      });
+    }
+    bindInput('account-primary-contact', (v) => {
+      this.accountPrimaryContact = v;
+    });
+    bindInput('location-name', (v) => {
+      this.locationName = v;
+    });
+    bindInput('account-timezone', (v) => {
+      this.accountTimezone = v;
+    });
+    bindInput('new-user-name', (v) => {
+      this.newUserName = v;
+    });
+    bindInput('new-user-email', (v) => {
+      this.newUserEmail = v;
+    });
+    bindInput('new-user-extension', (v) => {
+      this.newUserExtension = v;
+    });
+
+    // Address search input
+    const addressInput = this.shadowRoot.querySelector<HTMLInputElement>('#address-search');
+    if (addressInput) {
+      addressInput.addEventListener('input', (e) => {
+        this.addressQuery = (e.target as HTMLInputElement).value;
+        this.debouncedSuggestAddresses(this.addressQuery);
+      });
+      addressInput.addEventListener('focus', () => {
+        if (this.addressQuery.length >= 3) {
+          this.addressDropdownOpen = true;
+          this.renderAddressDropdown();
+        }
+      });
+      addressInput.addEventListener('blur', () => {
+        // Delay to allow click events on dropdown items to fire first
+        setTimeout(() => {
+          this.addressDropdownOpen = false;
+          this.renderAddressDropdown();
+        }, 200);
+      });
+      addressInput.addEventListener('keydown', (e) => {
+        this.handleAddressKeydown(e);
+      });
+    }
+
+    // Manual address fields
+    bindInput('manual-house-number', (v) => {
+      this.manualAddress.addressNumber = v;
+    });
+    bindInput('manual-street', (v) => {
+      this.manualAddress.street = v;
+    });
+    bindInput('manual-city', (v) => {
+      this.manualAddress.city = v;
+    });
+    bindInput('manual-state', (v) => {
+      this.manualAddress.state = v;
+    });
+    bindInput('manual-postal-code', (v) => {
+      this.manualAddress.postalCode = v;
+    });
+  }
+
+  private handleAddressKeydown(e: KeyboardEvent): void {
+    if (!this.addressDropdownOpen || this.addressSuggestions.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        this.highlightedSuggestionIndex = Math.min(
+          this.highlightedSuggestionIndex + 1,
+          this.addressSuggestions.length - 1
+        );
+        this.renderAddressDropdown();
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        this.highlightedSuggestionIndex = Math.max(this.highlightedSuggestionIndex - 1, 0);
+        this.renderAddressDropdown();
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (
+          this.highlightedSuggestionIndex >= 0 &&
+          this.highlightedSuggestionIndex < this.addressSuggestions.length
+        ) {
+          const suggestion = this.addressSuggestions[this.highlightedSuggestionIndex]!;
+          this.handleSelectSuggestion(suggestion.place_id);
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        this.addressDropdownOpen = false;
+        this.renderAddressDropdown();
+        break;
+    }
+  }
+
+  // ============================================================================
   // Render
   // ============================================================================
 
   // Note: All content rendered via innerHTML comes from internal i18n strings
   // (this.t()) and static SVG constants — no user-supplied data is interpolated
-  // without escaping. This follows the same pattern as PhoneNumberOrderingComponent.
+  // without escaping. User-supplied data (emails, names, addresses) is escaped
+  // via this.escapeHtml(). The address dropdown uses safe DOM APIs (textContent,
+  // createElement) instead of innerHTML.
   protected render(): void {
     if (!this.shadowRoot) return;
 
@@ -505,6 +1479,10 @@ export class AccountOnboardingComponent extends BaseComponent {
         ${content}
       </div>
     `;
+
+    if (this.currentStep === 'account' && !this.isLoading && !this.loadError) {
+      this.attachInputListeners();
+    }
   }
 
   private renderLoadingState(): string {
@@ -601,19 +1579,295 @@ export class AccountOnboardingComponent extends BaseComponent {
   }
 
   private renderAccountStep(): string {
-    const steps = this.getActiveSteps();
-    const stepNum = steps.indexOf('account') + 1;
+    const t = (key: string): string => this.t(key);
+    const nameErr = this.accountValidationErrors.name;
+    const emailErr = this.accountValidationErrors.email;
+    const phoneErr = this.accountValidationErrors.phone;
+    const primaryContactErr = this.accountValidationErrors.primaryContact;
+
+    const userListHtml =
+      this.users.length === 0
+        ? `<div class="no-users">${t('accountOnboarding.account.users.noUsers')}</div>`
+        : `<div class="user-list">${this.users
+            .map((u) => {
+              const ext = this.getExtensionForUser(u.id);
+              const extDisplay = ext ? ` &middot; ext ${this.escapeHtml(ext.number)}` : '';
+              return `
+              <div class="user-item">
+                <div class="user-item-info">
+                  <span class="user-item-name">${this.escapeHtml(u.name ?? '')}</span>
+                  <span class="user-item-meta">${this.escapeHtml(u.email ?? '')}${extDisplay}</span>
+                </div>
+                <div class="user-item-actions">
+                  <button class="btn-danger-ghost" data-action="remove-user" data-user-id="${this.escapeHtml(u.id)}">
+                    ${t('accountOnboarding.account.users.removeUser')}
+                  </button>
+                </div>
+              </div>`;
+            })
+            .join('')}</div>`;
+
+    const userErrorHtml = this.userError
+      ? `<div class="inline-alert error">${this.escapeHtml(this.userError)}</div>`
+      : '';
+
+    const saveErrorHtml = this.accountSaveError
+      ? `<div class="inline-alert error">${this.escapeHtml(this.accountSaveError)}</div>`
+      : '';
+
     return `
       <div class="card ${this.classes.stepAccount || ''}" part="step-account">
-        <h2 class="section-title">${this.t('accountOnboarding.account.title')}</h2>
-        <p class="section-subtitle">${this.t('accountOnboarding.account.subtitle')}</p>
-        <div class="placeholder">
-          <div class="placeholder-icon">${stepNum}</div>
-          <p class="placeholder-text">${this.t('accountOnboarding.account.placeholder')}</p>
+        <h2 class="section-title">${t('accountOnboarding.account.title')}</h2>
+        <p class="section-subtitle">${t('accountOnboarding.account.subtitle')}</p>
+
+        <h3 class="section-heading">${t('accountOnboarding.account.details.heading')}</h3>
+
+        <div class="form-group">
+          <label class="form-label" for="account-name">${t('accountOnboarding.account.details.companyNameLabel')}</label>
+          <input class="form-input${nameErr ? ' error' : ''}" type="text" id="account-name"
+            value="${this.escapeHtml(this.accountName)}"
+            placeholder="${t('accountOnboarding.account.details.companyNamePlaceholder')}" />
+          ${nameErr ? `<div class="form-error">${this.escapeHtml(nameErr)}</div>` : ''}
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="account-email">${t('accountOnboarding.account.details.emailLabel')}</label>
+          <input class="form-input${emailErr ? ' error' : ''}" type="email" id="account-email"
+            value="${this.escapeHtml(this.accountEmail)}"
+            placeholder="${t('accountOnboarding.account.details.emailPlaceholder')}" />
+          ${emailErr ? `<div class="form-error">${this.escapeHtml(emailErr)}</div>` : ''}
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="account-phone">${t('accountOnboarding.account.details.phoneLabel')}</label>
+          <input class="form-input${phoneErr ? ' error' : ''}" type="tel" id="account-phone"
+            value="${this.escapeHtml(this.accountPhone)}"
+            placeholder="${t('accountOnboarding.account.details.phonePlaceholder')}" />
+          ${phoneErr ? `<div class="form-error">${this.escapeHtml(phoneErr)}</div>` : ''}
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="account-primary-contact">${t('accountOnboarding.account.details.primaryContactLabel')}</label>
+          <input class="form-input${primaryContactErr ? ' error' : ''}" type="text" id="account-primary-contact"
+            value="${this.escapeHtml(this.accountPrimaryContact)}"
+            placeholder="${t('accountOnboarding.account.details.primaryContactPlaceholder')}" />
+          ${primaryContactErr ? `<div class="form-error">${this.escapeHtml(primaryContactErr)}</div>` : ''}
+        </div>
+
+        <hr class="section-divider" />
+
+        ${this.renderLocationSection()}
+
+        <hr class="section-divider" />
+
+        <h3 class="section-heading">${t('accountOnboarding.account.users.heading')}</h3>
+        <p class="section-description">${t('accountOnboarding.account.users.description')}</p>
+
+        ${userListHtml}
+
+        <div class="add-user-form">
+          <div class="form-group">
+            <label class="form-label" for="new-user-name">${t('accountOnboarding.account.users.nameLabel')}</label>
+            <input class="form-input" type="text" id="new-user-name"
+              value="${this.escapeHtml(this.newUserName)}"
+              placeholder="${t('accountOnboarding.account.users.namePlaceholder')}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="new-user-email">${t('accountOnboarding.account.users.emailLabel')}</label>
+            <input class="form-input" type="email" id="new-user-email"
+              value="${this.escapeHtml(this.newUserEmail)}"
+              placeholder="${t('accountOnboarding.account.users.emailPlaceholder')}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="new-user-extension">${t('accountOnboarding.account.users.extensionLabel')}</label>
+            <input class="form-input" type="text" id="new-user-extension"
+              value="${this.escapeHtml(this.newUserExtension)}"
+              placeholder="${t('accountOnboarding.account.users.extensionPlaceholder')}" />
+          </div>
+          <button class="btn btn-secondary btn-add" data-action="add-user"${this.isAddingUser ? ' disabled' : ''}>
+            ${this.isAddingUser ? t('accountOnboarding.account.saving') : t('accountOnboarding.account.users.addUser')}
+          </button>
+        </div>
+
+        ${userErrorHtml}
+        ${saveErrorHtml}
+      </div>
+      ${this.renderAccountStepFooter()}
+    `;
+  }
+
+  private renderLocationSection(): string {
+    const t = (key: string): string => this.t(key);
+    const nameErr = this.locationValidationErrors.name;
+    const addressErr = this.locationValidationErrors.address;
+    const timezoneErr = this.locationValidationErrors.timezone;
+
+    let addressHtml: string;
+    switch (this.addressMode) {
+      case 'search':
+        addressHtml = this.renderAddressSearch();
+        break;
+      case 'confirmed':
+        addressHtml = this.renderAddressConfirmed();
+        break;
+      case 'edit':
+        addressHtml = this.renderAddressManualFields();
+        break;
+    }
+
+    const timezoneHtml =
+      this.addressMode === 'confirmed' && this.accountTimezone
+        ? (() => {
+            const tzLabel =
+              US_TIMEZONES.find(([v]) => v === this.accountTimezone)?.[1] ?? this.accountTimezone;
+            return `
+        <div class="form-group">
+          <label class="form-label">${t('accountOnboarding.account.details.timezoneLabel')}</label>
+          <div class="timezone-readonly">${this.escapeHtml(tzLabel)}</div>
+        </div>`;
+          })()
+        : `
+        <div class="form-group">
+          <label class="form-label" for="account-timezone">${t('accountOnboarding.account.details.timezoneLabel')}</label>
+          <select class="form-select${timezoneErr ? ' error' : ''}" id="account-timezone">
+            ${!this.accountTimezone ? `<option value="" selected>${t('accountOnboarding.account.details.timezonePlaceholder')}</option>` : ''}
+            ${US_TIMEZONES.map(
+              ([value, label]) =>
+                `<option value="${this.escapeHtml(value)}"${this.accountTimezone === value ? ' selected' : ''}>${this.escapeHtml(label)}</option>`
+            ).join('')}
+          </select>
+          ${timezoneErr ? `<div class="form-error">${this.escapeHtml(timezoneErr)}</div>` : ''}
+        </div>`;
+
+    return `
+      <h3 class="section-heading">${t('accountOnboarding.account.location.heading')}</h3>
+      <p class="section-description">${t('accountOnboarding.account.location.description')}</p>
+
+      <div class="form-group">
+        <label class="form-label" for="location-name">${t('accountOnboarding.account.location.nameLabel')}</label>
+        <input class="form-input${nameErr ? ' error' : ''}" type="text" id="location-name"
+          value="${this.escapeHtml(this.locationName)}"
+          placeholder="${t('accountOnboarding.account.location.namePlaceholder')}" />
+        ${nameErr ? `<div class="form-error">${this.escapeHtml(nameErr)}</div>` : ''}
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">${t('accountOnboarding.account.location.addressLabel')}</label>
+        ${addressHtml}
+        ${addressErr ? `<div class="form-error">${this.escapeHtml(addressErr)}</div>` : ''}
+      </div>
+
+      ${timezoneHtml}
+    `;
+  }
+
+  private renderAddressSearch(): string {
+    const t = (key: string): string => this.t(key);
+    return `
+      <div class="address-autocomplete">
+        <input class="form-input" type="text" id="address-search"
+          value="${this.escapeHtml(this.addressQuery)}"
+          placeholder="${t('accountOnboarding.account.location.searchPlaceholder')}"
+          autocomplete="off" />
+        <div class="address-dropdown" style="display:none"></div>
+      </div>
+      <button class="btn-link" type="button" data-action="enter-manually">
+        ${t('accountOnboarding.account.location.enterManually')}
+      </button>
+    `;
+  }
+
+  private renderAddressConfirmed(): string {
+    const t = (key: string): string => this.t(key);
+    const { line1, line2 } = this.getConfirmedAddressLines();
+
+    return `
+      <div class="address-confirmed">
+        <div class="address-confirmed-icon">${CHECK_CIRCLE_SVG}</div>
+        <div class="address-confirmed-text">
+          ${line1 ? `<div class="address-confirmed-line">${this.escapeHtml(line1)}</div>` : ''}
+          ${line2 ? `<div class="address-confirmed-line">${this.escapeHtml(line2)}</div>` : ''}
+        </div>
+        <button class="btn btn-secondary" style="padding:var(--ds-spacing-xs) var(--ds-layout-spacing-sm);font-size:var(--ds-font-size-small)" data-action="edit-address">
+          ${t('accountOnboarding.account.location.edit')}
+        </button>
+      </div>
+    `;
+  }
+
+  private renderAddressManualFields(): string {
+    const t = (key: string): string => this.t(key);
+
+    const stateOptions = US_STATES.map(
+      ([code, name]) =>
+        `<option value="${this.escapeHtml(code)}"${this.manualAddress.state === code ? ' selected' : ''}>${this.escapeHtml(name)}</option>`
+    ).join('');
+
+    return `
+      <div class="address-manual-fields">
+        <div class="form-group">
+          <label class="form-label" for="manual-house-number">${t('accountOnboarding.account.location.houseNumberLabel')}</label>
+          <input class="form-input" type="text" id="manual-house-number"
+            value="${this.escapeHtml(this.manualAddress.addressNumber)}"
+            placeholder="${t('accountOnboarding.account.location.houseNumberPlaceholder')}" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="manual-street">${t('accountOnboarding.account.location.streetLabel')}</label>
+          <input class="form-input" type="text" id="manual-street"
+            value="${this.escapeHtml(this.manualAddress.street)}"
+            placeholder="${t('accountOnboarding.account.location.streetPlaceholder')}" />
         </div>
       </div>
-      ${this.renderStepFooter()}
+      <div class="address-manual-row-2">
+        <div class="form-group">
+          <label class="form-label" for="manual-city">${t('accountOnboarding.account.location.cityLabel')}</label>
+          <input class="form-input" type="text" id="manual-city"
+            value="${this.escapeHtml(this.manualAddress.city)}"
+            placeholder="${t('accountOnboarding.account.location.cityPlaceholder')}" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="manual-state">${t('accountOnboarding.account.location.stateLabel')}</label>
+          <select class="form-select" id="manual-state">
+            <option value="">${t('accountOnboarding.account.location.statePlaceholder')}</option>
+            ${stateOptions}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="manual-postal-code">${t('accountOnboarding.account.location.postalCodeLabel')}</label>
+          <input class="form-input" type="text" id="manual-postal-code"
+            value="${this.escapeHtml(this.manualAddress.postalCode)}"
+            placeholder="${t('accountOnboarding.account.location.postalCodePlaceholder')}" />
+        </div>
+      </div>
+      <button class="btn-link" type="button" data-action="search-instead">
+        ${t('accountOnboarding.account.location.searchInstead')}
+      </button>
     `;
+  }
+
+  private renderAccountStepFooter(): string {
+    const steps = this.getActiveSteps();
+    const idx = steps.indexOf(this.currentStep);
+    const hasPrev = idx > 0;
+
+    if (hasPrev) {
+      return `
+        <div class="footer-bar">
+          <button class="btn btn-secondary" data-action="back">
+            ${this.t('accountOnboarding.nav.back')}
+          </button>
+          <button class="btn btn-primary" data-action="next"${this.isSavingAccount ? ' disabled' : ''}>
+            ${this.isSavingAccount ? this.t('accountOnboarding.account.saving') : this.t('accountOnboarding.nav.next')}
+          </button>
+        </div>`;
+    }
+
+    return `
+      <div class="footer-bar footer-bar-end">
+        <button class="btn btn-primary" data-action="next"${this.isSavingAccount ? ' disabled' : ''}>
+          ${this.isSavingAccount ? this.t('accountOnboarding.account.saving') : this.t('accountOnboarding.nav.next')}
+        </button>
+      </div>`;
   }
 
   private renderNumbersStep(): string {
@@ -727,11 +1981,25 @@ export class AccountOnboardingComponent extends BaseComponent {
 
       switch (action) {
         case 'next': {
-          const steps = this.getActiveSteps();
-          const idx = steps.indexOf(this.currentStep);
-          const nextStep = steps[idx + 1];
-          if (nextStep) {
-            this.navigateToStep(nextStep);
+          if (this.currentStep === 'account') {
+            this.saveAndAdvance();
+          } else {
+            const steps = this.getActiveSteps();
+            const idx = steps.indexOf(this.currentStep);
+            const nextStep = steps[idx + 1];
+            if (nextStep) {
+              this.navigateToStep(nextStep);
+            }
+          }
+          break;
+        }
+        case 'add-user':
+          this.handleAddUser();
+          break;
+        case 'remove-user': {
+          const userId = actionEl.dataset.userId;
+          if (userId) {
+            this.handleRemoveUser(userId);
           }
           break;
         }
@@ -760,6 +2028,31 @@ export class AccountOnboardingComponent extends BaseComponent {
           break;
         case 'retry':
           this.loadOnboardingData();
+          break;
+        case 'select-suggestion': {
+          const placeId = actionEl.dataset.placeId;
+          if (placeId) {
+            this.handleSelectSuggestion(placeId);
+          }
+          break;
+        }
+        case 'edit-address':
+          this.editingLocationId = this.existingLocation?.id ?? null;
+          this.resolvedAddress = null;
+          this.existingLocation = null;
+          this.addressMode = 'edit';
+          this.render();
+          break;
+        case 'enter-manually':
+          this.addressMode = 'edit';
+          this.render();
+          break;
+        case 'search-instead':
+          this.addressMode = 'search';
+          this.addressQuery = '';
+          this.addressSuggestions = [];
+          this.addressDropdownOpen = false;
+          this.render();
           break;
       }
     });
