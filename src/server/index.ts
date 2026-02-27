@@ -184,12 +184,22 @@ export interface PhoneNumberListParams {
   status?: 'active' | 'inactive' | 'pending';
 }
 
+export interface ComponentConfig {
+  enabled: boolean;
+}
+
 export interface AccountSessionCreateParams {
   account: string;
-  /** Components to enable for this session */
-  components?: {
-    call_logs?: { enabled: boolean };
-    voicemails?: { enabled: boolean };
+  /** Components to enable for this session. At least one must be enabled. */
+  components: {
+    call_logs?: ComponentConfig;
+    voicemails?: ComponentConfig;
+    call_history?: ComponentConfig;
+    phone_number_ordering?: ComponentConfig;
+    phone_numbers?: ComponentConfig;
+    account_onboarding?: ComponentConfig;
+    dial_plan_viewer?: ComponentConfig;
+    [key: string]: ComponentConfig | undefined;
   };
 }
 
