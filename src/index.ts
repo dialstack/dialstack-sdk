@@ -53,6 +53,7 @@ export type {
   AccountOnboardingStep,
   OnboardingCollectionOptions,
   AccountOnboardingClasses,
+  OnboardingUser,
   // Custom render types
   VoicemailRowRenderer,
   CallLogRowRenderer,
