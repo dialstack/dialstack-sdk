@@ -2,7 +2,7 @@
  * US IANA timezone identifiers with human-readable labels.
  * Covers the contiguous US, Alaska, Hawaii, and US territories.
  */
-export const US_TIMEZONES: readonly [string, string][] = [
+export const US_TIMEZONES = [
   ['Pacific/Guam', 'Guam'],
   ['America/Puerto_Rico', 'Atlantic — Puerto Rico'],
   ['America/New_York', 'Eastern — New York'],
@@ -14,4 +14,4 @@ export const US_TIMEZONES: readonly [string, string][] = [
   ['America/Adak', 'Hawaii-Aleutian — Adak'],
   ['Pacific/Honolulu', 'Hawaii — Honolulu'],
   ['Pacific/Pago_Pago', 'Samoa — Pago Pago'],
-];
+] as const;
