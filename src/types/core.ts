@@ -55,6 +55,8 @@ import type {
   OnboardingLocation,
   CreateLocationRequest,
   UpdateLocationRequest,
+  OnboardingEndpoint,
+  CreateEndpointRequest,
 } from './account-onboarding';
 
 /**
@@ -832,6 +834,27 @@ export interface DialStackInstance {
    * @returns Promise resolving to an array of locations
    */
   listLocations(): Promise<OnboardingLocation[]>;
+
+  // ===========================================================================
+  // Endpoint Methods (session-scoped)
+  // ===========================================================================
+
+  /**
+   * Create an endpoint for a user
+   *
+   * @param userId - The user ID
+   * @param request - Optional endpoint creation data
+   * @returns Promise resolving to the created endpoint
+   */
+  createEndpoint(userId: string, request?: CreateEndpointRequest): Promise<OnboardingEndpoint>;
+
+  /**
+   * List endpoints for a user
+   *
+   * @param userId - The user ID
+   * @returns Promise resolving to an array of endpoints
+   */
+  listEndpoints(userId: string): Promise<OnboardingEndpoint[]>;
 }
 
 /**

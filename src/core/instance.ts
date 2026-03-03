@@ -54,6 +54,8 @@ import type {
   OnboardingLocation,
   CreateLocationRequest,
   UpdateLocationRequest,
+  OnboardingEndpoint,
+  CreateEndpointRequest,
 } from '../types';
 
 const DEFAULT_API_URL = 'https://api.dialstack.ai';
@@ -373,7 +375,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     }
 
     const data: ExtensionListResponse = await response.json();
-    return data.data;
+    return data.data ?? [];
   }
 
   /**
@@ -883,7 +885,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     }
 
     const data = await response.json();
-    return data.data;
+    return data.data ?? [];
   }
 
   /**
@@ -958,7 +960,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       throw new Error(`Failed to list device lines: ${response.status} ${errorText}`);
     }
     const data = await response.json();
-    return data.data;
+    return data.data ?? [];
   }
 
   /**
@@ -1010,7 +1012,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     }
 
     const data = await response.json();
-    return data.data;
+    return data.data ?? [];
   }
 
   // ===========================================================================
@@ -1158,7 +1160,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     }
 
     const data = await response.json();
-    return data.data;
+    return data.data ?? [];
   }
 
   /**
@@ -1231,7 +1233,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     }
 
     const data = await response.json();
-    return data.data;
+    return data.data ?? [];
   }
 
   /**
@@ -1305,7 +1307,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     }
 
     const data = await response.json();
-    return data.data;
+    return data.data ?? [];
   }
 
   /**
@@ -1392,7 +1394,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     }
 
     const data = await response.json();
-    return data.data;
+    return data.data ?? [];
   }
 
   /**
@@ -1462,7 +1464,9 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
    * Get detailed place information by place ID
    */
   async getPlaceDetails(placeId: string): Promise<ResolvedAddress> {
-    const response = await this.fetchBffApi(`/bff/v1/address-suggestions/${placeId}`);
+    const response = await this.fetchBffApi(
+      `/bff/v1/address-suggestions/${encodeURIComponent(placeId)}`
+    );
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Failed to get place details: ${response.status} ${errorText}`);
@@ -1518,6 +1522,42 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     }
 
     const data = await response.json();
-    return data.data;
+    return data.data ?? [];
+  }
+
+  // ===========================================================================
+  // Endpoint Methods (session-scoped)
+  // ===========================================================================
+
+  /**
+   * Create an endpoint for a user
+   */
+  async createEndpoint(
+    userId: string,
+    request?: CreateEndpointRequest
+  ): Promise<OnboardingEndpoint> {
+    const response = await this.fetchApi(`/v1/users/${userId}/endpoints`, {
+      method: 'POST',
+      body: JSON.stringify(request ?? {}),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create endpoint: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * List endpoints for a user
+   */
+  async listEndpoints(userId: string): Promise<OnboardingEndpoint[]> {
+    const response = await this.fetchApi(`/v1/users/${userId}/endpoints`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to list endpoints: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data.data ?? [];
   }
 }

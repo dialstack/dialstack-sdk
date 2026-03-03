@@ -62,6 +62,43 @@ const mockLocation = {
   updated_at: '2026-01-01T00:00:00Z',
 };
 
+const mockDevice = {
+  id: 'dev_01abc',
+  mac_address: '00:04:13:aa:bb:cc',
+  vendor: 'snom',
+  status: 'pending-sync' as const,
+  lines: [
+    {
+      id: 'dln_01abc',
+      device_id: 'dev_01abc',
+      line_number: 1,
+      endpoint_id: 'ep_01abc',
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    },
+  ],
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+};
+
+const mockEndpoint = {
+  id: 'ep_01abc',
+  user_id: 'user_01abc',
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+};
+
+const mockDectBase = {
+  id: 'dectb_01abc',
+  mac_address: '00:04:13:dd:ee:ff',
+  vendor: 'snom',
+  status: 'pending-sync' as const,
+  multicell_role: 'single' as const,
+  max_handsets: 20,
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+};
+
 const createMockInstance = (overrides?: Record<string, unknown>) => {
   return {
     getAppearance: () => undefined,
@@ -100,6 +137,36 @@ const createMockInstance = (overrides?: Record<string, unknown>) => {
     }),
     createLocation: jest.fn().mockResolvedValue(mockLocation),
     updateLocation: jest.fn().mockResolvedValue(mockLocation),
+    // Hardware methods
+    listDevices: jest.fn().mockResolvedValue([]),
+    listDeviceLines: jest.fn().mockResolvedValue([]),
+    createDevice: jest.fn().mockResolvedValue(mockDevice),
+    deleteDevice: jest.fn().mockResolvedValue(undefined),
+    createDeviceLine: jest.fn().mockResolvedValue(mockDevice.lines![0]),
+    deleteDeviceLine: jest.fn().mockResolvedValue(undefined),
+    listDECTBases: jest.fn().mockResolvedValue([]),
+    createDECTBase: jest.fn().mockResolvedValue(mockDectBase),
+    deleteDECTBase: jest.fn().mockResolvedValue(undefined),
+    listDECTHandsets: jest.fn().mockResolvedValue([]),
+    createDECTHandset: jest.fn().mockResolvedValue({
+      id: 'decth_01abc',
+      base_id: 'dectb_01abc',
+      ipei: '03AABB1234567890CCDD',
+      status: 'pending-sync',
+      slot_number: 1,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    }),
+    deleteDECTHandset: jest.fn().mockResolvedValue(undefined),
+    createDECTExtension: jest.fn().mockResolvedValue({
+      id: 'decte_01abc',
+      handset_id: 'decth_01abc',
+      endpoint_id: 'ep_01abc',
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    }),
+    createEndpoint: jest.fn().mockResolvedValue(mockEndpoint),
+    listEndpoints: jest.fn().mockResolvedValue([]),
     ...overrides,
   } as unknown as Parameters<AccountOnboardingElement['setInstance']>[0];
 };
@@ -1349,5 +1416,317 @@ describe('AccountOnboardingComponent', () => {
     expect(
       (instance as unknown as Record<string, jest.Mock>).createLocation
     ).not.toHaveBeenCalled();
+  });
+
+  // ==========================================================================
+  // Hardware Step Tests
+  // ==========================================================================
+
+  const navigateToHardware = async (element: AccountOnboardingElement): Promise<void> => {
+    // Account step → next (save & advance)
+    clickAction(element, 'next');
+    await waitFor(() => {
+      const active = element.shadowRoot?.querySelector('.step-item.active')?.textContent?.trim();
+      expect(active).not.toContain('Account');
+    });
+    // Numbers step → next
+    clickAction(element, 'next');
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('Device Assignments');
+    });
+  };
+
+  const mountHardwareStep = async (
+    overrides?: Record<string, unknown>
+  ): Promise<{
+    element: AccountOnboardingElement;
+    instance: ReturnType<typeof createMockInstance>;
+  }> => {
+    const result = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      ...overrides,
+    });
+    await navigateToHardware(result.element);
+    return result;
+  };
+
+  /** Click the "+ Add Device" button to open the inline new-device form. */
+  const clickAddDevice = (element: AccountOnboardingElement): void => {
+    clickAction(element, 'hw-add-new');
+  };
+
+  /** Fill the inline form fields (only one form is open at a time). */
+  const fillInlineForm = (
+    element: AccountOnboardingElement,
+    opts: { mac?: string; userId?: string; isDectBase?: boolean; ipei?: string }
+  ): void => {
+    if (opts.mac !== undefined) {
+      const macInput = element.shadowRoot?.querySelector<HTMLInputElement>('#hw-edit-mac');
+      if (macInput) {
+        macInput.value = opts.mac;
+        macInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }
+
+    if (opts.isDectBase) {
+      const checkbox =
+        element.shadowRoot?.querySelector<HTMLInputElement>('#hw-edit-dect-checkbox');
+      if (checkbox && !checkbox.checked) {
+        checkbox.checked = true;
+        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+
+    if (opts.ipei !== undefined) {
+      const ipeiInput = element.shadowRoot?.querySelector<HTMLInputElement>('#hw-edit-ipei');
+      if (ipeiInput) {
+        ipeiInput.value = opts.ipei;
+        ipeiInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }
+
+    if (opts.userId !== undefined) {
+      const userSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#hw-edit-user');
+      if (userSelect) {
+        userSelect.value = opts.userId;
+        userSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+  };
+
+  /** Click Save on the inline form. */
+  const clickSaveRow = (element: AccountOnboardingElement): void => {
+    clickAction(element, 'hw-save-row');
+  };
+
+  /** Click "+ Handset" on a DECT base row. */
+  const clickAddHandset = (element: AccountOnboardingElement, baseId: string): void => {
+    const btn = element.shadowRoot?.querySelector<HTMLButtonElement>(
+      `[data-action="hw-add-handset"][data-base-id="${baseId}"]`
+    );
+    expect(btn).not.toBeNull();
+    btn?.click();
+  };
+
+  it('renders hardware step with Add Device button', async () => {
+    const { element } = await mountHardwareStep();
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('+ Add Device');
+    });
+  });
+
+  it('hardware step is skippable (Next works without assignments)', async () => {
+    const { element } = await mountHardwareStep();
+
+    clickAction(element, 'next');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('Setup Complete');
+    });
+  });
+
+  it('shows no users message when user list is empty on hardware step', async () => {
+    const { element } = await mountComponent({
+      listUsers: jest.fn().mockResolvedValue([]),
+      listExtensions: jest.fn().mockResolvedValue([]),
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+    });
+
+    element.setCollectionOptions({ steps: { exclude: ['account', 'numbers'] } });
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('No team members found');
+    });
+  });
+
+  it('adds a desk phone and assigns it to a user', async () => {
+    const createdDevice = { ...mockDevice, mac_address: '00:04:13:11:22:33' };
+    const listDevicesMock = jest
+      .fn()
+      .mockResolvedValueOnce([]) // initial load
+      .mockResolvedValue([createdDevice]); // after createDevice
+
+    const { element, instance } = await mountHardwareStep({
+      listDevices: listDevicesMock,
+      listEndpoints: jest.fn().mockResolvedValue([]),
+    });
+
+    clickAddDevice(element);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('#hw-edit-mac')).not.toBeNull();
+    });
+
+    fillInlineForm(element, { mac: '000413112233', userId: 'user_01abc' });
+    clickSaveRow(element);
+
+    await waitFor(() => {
+      expect((instance as unknown as Record<string, jest.Mock>).createDevice).toHaveBeenCalledWith({
+        mac_address: '00:04:13:11:22:33',
+      });
+      expect(
+        (instance as unknown as Record<string, jest.Mock>).createEndpoint
+      ).toHaveBeenCalledWith('user_01abc');
+    });
+  });
+
+  it('shows invalid MAC error for bad MAC', async () => {
+    const { element } = await mountHardwareStep();
+
+    clickAddDevice(element);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('#hw-edit-mac')).not.toBeNull();
+    });
+
+    fillInlineForm(element, { mac: 'invalid', userId: 'user_01abc' });
+    clickSaveRow(element);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('valid 12-digit MAC');
+    });
+  });
+
+  it('shows duplicate MAC error from API 409', async () => {
+    const { element } = await mountHardwareStep({
+      createDevice: jest.fn().mockRejectedValue(new Error('Failed to create device: 409 conflict')),
+    });
+
+    clickAddDevice(element);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('#hw-edit-mac')).not.toBeNull();
+    });
+
+    fillInlineForm(element, { mac: '000413112233', userId: 'user_01abc' });
+    clickSaveRow(element);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('already registered');
+    });
+  });
+
+  it('adds a DECT base with handset and assigns to user', async () => {
+    const { element, instance } = await mountHardwareStep();
+
+    clickAddDevice(element);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('#hw-edit-mac')).not.toBeNull();
+    });
+
+    fillInlineForm(element, {
+      mac: '000413DDEEFF',
+      userId: 'user_01abc',
+      isDectBase: true,
+      ipei: '03AABB1234567890CCDD',
+    });
+    clickSaveRow(element);
+
+    await waitFor(() => {
+      expect(
+        (instance as unknown as Record<string, jest.Mock>).createDECTBase
+      ).toHaveBeenCalledWith({ mac_address: '00:04:13:dd:ee:ff' });
+    });
+  });
+
+  it('requires user selection before adding device', async () => {
+    const { element } = await mountHardwareStep();
+
+    clickAddDevice(element);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('#hw-edit-mac')).not.toBeNull();
+    });
+
+    fillInlineForm(element, { mac: '000413112233' });
+    // Don't select a user, just click save
+    clickSaveRow(element);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('Please select a team member');
+    });
+  });
+
+  it('removes a device by deleting it entirely', async () => {
+    const { element, instance } = await mountHardwareStep({
+      listDevices: jest.fn().mockResolvedValue([mockDevice]),
+      listDeviceLines: jest.fn().mockResolvedValue(mockDevice.lines!),
+      listEndpoints: jest.fn().mockResolvedValue([mockEndpoint]),
+    });
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('[data-action="remove-device"]')).not.toBeNull();
+    });
+
+    clickAction(element, 'remove-device');
+
+    await waitFor(() => {
+      expect((instance as unknown as Record<string, jest.Mock>).deleteDevice).toHaveBeenCalledWith(
+        'dev_01abc'
+      );
+    });
+  });
+
+  it('cancel closes the inline form', async () => {
+    const { element } = await mountHardwareStep();
+
+    clickAddDevice(element);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('#hw-edit-mac')).not.toBeNull();
+    });
+
+    clickAction(element, 'hw-cancel-row');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('#hw-edit-mac')).toBeNull();
+      expect(element.shadowRoot?.textContent).toContain('+ Add Device');
+    });
+  });
+
+  it('Add Handset opens inline form under base', async () => {
+    const { element } = await mountHardwareStep({
+      listDECTBases: jest.fn().mockResolvedValue([mockDectBase]),
+      listDECTHandsets: jest.fn().mockResolvedValue([]),
+      listEndpoints: jest.fn().mockResolvedValue([]),
+    });
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('DECT Base');
+    });
+
+    clickAddHandset(element, 'dectb_01abc');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('#hw-edit-ipei')).not.toBeNull();
+      expect(element.shadowRoot?.querySelector('#hw-edit-user')).not.toBeNull();
+    });
+  });
+
+  it('only one form open at a time — opening handset form closes new device form', async () => {
+    const { element } = await mountHardwareStep({
+      listDECTBases: jest.fn().mockResolvedValue([mockDectBase]),
+      listDECTHandsets: jest.fn().mockResolvedValue([]),
+      listEndpoints: jest.fn().mockResolvedValue([]),
+    });
+
+    // Open new device form
+    clickAddDevice(element);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('#hw-edit-mac')).not.toBeNull();
+    });
+
+    // Now open handset form — should close the new device form
+    clickAddHandset(element, 'dectb_01abc');
+
+    await waitFor(() => {
+      // MAC input gone (new device form closed)
+      expect(element.shadowRoot?.querySelector('#hw-edit-mac')).toBeNull();
+      // IPEI input present (handset form open)
+      expect(element.shadowRoot?.querySelector('#hw-edit-ipei')).not.toBeNull();
+    });
   });
 });

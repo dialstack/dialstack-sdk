@@ -55,6 +55,10 @@ const createMockDialstack = (): DialStackInstance => {
       listExtensions: jest.fn().mockResolvedValue([]),
       listLocations: jest.fn().mockResolvedValue([mockLocation]),
       updateAccount: jest.fn().mockResolvedValue(mockAccount),
+      listDevices: jest.fn().mockResolvedValue([]),
+      listDECTBases: jest.fn().mockResolvedValue([]),
+      listEndpoints: jest.fn().mockResolvedValue([]),
+      listDECTHandsets: jest.fn().mockResolvedValue([]),
     } as unknown as Parameters<AccountOnboardingElement['setInstance']>[0];
     element.setInstance(instance);
     return element;

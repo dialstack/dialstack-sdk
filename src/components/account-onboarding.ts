@@ -12,10 +12,15 @@ import type {
   AddressSuggestion,
   ResolvedAddress,
   OnboardingLocation,
+  OnboardingEndpoint,
+  ProvisionedDevice,
+  DECTBase,
+  DECTHandset,
 } from '../types';
 import type { Extension } from '../types/dial-plan';
 import { AsYouType, parsePhoneNumberFromString } from 'libphonenumber-js';
 import { debounce } from '../utils/debounce';
+import { normalizeMac } from '../utils/mac';
 import { US_STATES } from '../constants/us-states';
 import { US_TIMEZONES } from '../constants/us-timezones';
 
@@ -446,6 +451,20 @@ const COMPONENT_STYLES = `
     color: #fff;
   }
 
+  .btn-link {
+    background: none;
+    border: none;
+    color: var(--ds-color-primary);
+    font-size: var(--ds-font-size-small);
+    font-family: var(--ds-font-family);
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .btn-link:hover {
+    text-decoration: underline;
+  }
+
   .no-users {
     text-align: center;
     padding: var(--ds-layout-spacing-md);
@@ -470,12 +489,10 @@ const COMPONENT_STYLES = `
   }
 
   .btn-add {
-    padding: var(--ds-layout-spacing-sm) var(--ds-layout-spacing-md);
     white-space: nowrap;
     align-self: end;
-    box-sizing: border-box;
-    /* Match .form-input height: vertical padding + line content + border */
-    height: calc(2 * var(--ds-layout-spacing-sm) + var(--ds-font-size-base) * var(--ds-line-height) + 2px);
+    /* Override .btn horizontal padding to match .form-input vertical padding for equal height */
+    padding: var(--ds-layout-spacing-sm) var(--ds-layout-spacing-md);
   }
 
   /* ── Inline Alert ── */
@@ -490,6 +507,134 @@ const COMPONENT_STYLES = `
     background: color-mix(in srgb, var(--ds-color-danger) 10%, transparent);
     color: var(--ds-color-danger);
     border: 1px solid color-mix(in srgb, var(--ds-color-danger) 20%, transparent);
+  }
+
+  .inline-alert.warning {
+    background: color-mix(in srgb, #f59e0b 10%, transparent);
+    color: #92400e;
+    border: 1px solid color-mix(in srgb, #f59e0b 20%, transparent);
+  }
+
+  /* ── HW Step: Device List ── */
+  .hw-device-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-spacing-xs);
+    margin-bottom: var(--ds-layout-spacing-md);
+  }
+
+  .hw-device-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--ds-layout-spacing-sm);
+    background: var(--ds-color-surface-subtle);
+    border-radius: var(--ds-border-radius);
+    border: 1px solid var(--ds-color-border-subtle);
+  }
+
+  .hw-device-row__info {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-spacing-xs);
+    flex: 1;
+    min-width: 0;
+  }
+
+  .hw-device-row__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-spacing-xs);
+    flex-shrink: 0;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  .hw-device-badge {
+    font-size: var(--ds-font-size-small);
+    color: var(--ds-color-text);
+    font-weight: var(--ds-font-weight-medium);
+  }
+
+  .hw-device-mac {
+    font-size: var(--ds-font-size-small);
+    color: var(--ds-color-text-secondary);
+    font-family: monospace;
+  }
+
+  .hw-device-user {
+    font-size: var(--ds-font-size-small);
+    color: var(--ds-color-text-secondary);
+  }
+
+  .hw-dect-group {
+    border: 1px solid var(--ds-color-border-subtle);
+    border-radius: var(--ds-border-radius);
+    overflow: hidden;
+  }
+
+  .hw-device-row--base {
+    border: none;
+    border-radius: 0;
+  }
+
+  .hw-device-row--handset {
+    border: none;
+    border-radius: 0;
+    border-top: 1px solid var(--ds-color-border-subtle);
+    padding-left: calc(var(--ds-layout-spacing-sm) + var(--ds-layout-spacing-sm));
+  }
+
+  .hw-device-row--editing {
+    border: none;
+    border-radius: 0;
+    border-top: 1px solid var(--ds-color-border-subtle);
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hw-inline-form {
+    display: flex;
+    gap: var(--ds-layout-spacing-sm);
+    align-items: end;
+  }
+
+  .hw-inline-form .form-group {
+    flex: 1;
+    margin-bottom: 0;
+  }
+
+  .hw-device-row--add {
+    background: none;
+    border: none;
+    justify-content: center;
+    padding: var(--ds-layout-spacing-md);
+  }
+
+  .hw-dect-base-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-spacing-xs);
+  }
+
+  .form-check-label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-spacing-xs);
+    font-size: var(--ds-font-size-base);
+    color: var(--ds-color-text);
+    cursor: pointer;
+  }
+
+  .form-check-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
+
+  .btn-sm {
+    font-size: var(--ds-font-size-small);
+    padding: 2px var(--ds-spacing-xs);
   }
 
   /* ── Address Autocomplete ── */
@@ -676,6 +821,20 @@ export class AccountOnboardingComponent extends BaseComponent {
   private isAddingUser = false;
   private userError: string | null = null;
 
+  // Hardware state
+  private devices: ProvisionedDevice[] = [];
+  private dectBases: DECTBase[] = [];
+  private dectHandsets: Map<string, DECTHandset[]> = new Map();
+  private userEndpointMap: Map<string, OnboardingEndpoint[]> = new Map();
+  // Inline editing state (only one form open at a time)
+  private hwEditingRowKey: string | null = null; // 'new' | 'new-handset:{baseId}' | null
+  private hwEditMac = '';
+  private hwEditIsDectBase = false;
+  private hwEditIpei = '';
+  private hwEditUserId = '';
+  private hwEditSaving = false;
+  private hwEditError: string | null = null;
+
   // Save state
   private isSavingAccount = false;
   private accountSaveError: string | null = null;
@@ -723,11 +882,13 @@ export class AccountOnboardingComponent extends BaseComponent {
     try {
       if (!this.instance) throw new Error('Not initialized');
 
-      const [account, users, extensions, locations] = await Promise.all([
+      const [account, users, extensions, locations, devices, dectBases] = await Promise.all([
         this.instance.getAccount(),
         this.instance.listUsers(),
         this.instance.listExtensions(),
         this.instance.listLocations(),
+        this.instance.listDevices(),
+        this.instance.listDECTBases(),
       ]);
 
       this.accountEmail = account.email ?? '';
@@ -738,9 +899,14 @@ export class AccountOnboardingComponent extends BaseComponent {
       this.accountPrimaryContact = account.primary_contact_name ?? '';
       this.accountTimezone = account.config?.timezone ?? '';
       this.accountConfig = account.config ?? {};
-      this.users = users;
-      this.extensions = extensions;
+      this.users = users ?? [];
+      this.extensions = extensions ?? [];
       this.newUserExtension = this.getNextExtensionNumber();
+      this.devices = devices ?? [];
+      this.dectBases = dectBases ?? [];
+
+      // Endpoints and handsets are lazy-loaded when the hardware step is shown
+      // to avoid O(users + bases) API calls on initial load.
 
       if (locations.length > 0) {
         const loc = locations[0]!;
@@ -759,6 +925,13 @@ export class AccountOnboardingComponent extends BaseComponent {
       }
 
       this.isLoading = false;
+
+      // Jump to a specific step if configured (useful for development)
+      const initial = this.collectionOptions?.initialStep;
+      if (initial && this.getActiveSteps().includes(initial)) {
+        this.navigateToStep(initial);
+      }
+
       this.render();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -794,6 +967,11 @@ export class AccountOnboardingComponent extends BaseComponent {
     const activeSteps = this.getActiveSteps();
     if (!activeSteps.includes(this.currentStep)) {
       this.currentStep = activeSteps[0] ?? 'complete';
+    }
+    // Jump to initialStep if data is already loaded (React effects run after mount)
+    const initial = this.collectionOptions?.initialStep;
+    if (initial && !this.isLoading && !this.loadError && activeSteps.includes(initial)) {
+      this.navigateToStep(initial);
     }
     if (this.isInitialized) {
       this.render();
@@ -871,6 +1049,57 @@ export class AccountOnboardingComponent extends BaseComponent {
     this.currentStep = step;
     this._onStepChange?.({ step });
     this.render();
+
+    // Lazy-load hardware data when the step is first shown
+    if (step === 'hardware' && this.userEndpointMap.size === 0) {
+      this.loadHardwareData();
+    }
+  }
+
+  /**
+   * Lazy-load per-user endpoints and per-base DECT handsets.
+   * Called once when the hardware step is first navigated to, avoiding
+   * O(users + bases) API calls during initial data load.
+   */
+  private async loadHardwareData(): Promise<void> {
+    if (!this.instance) return;
+
+    try {
+      const endpointMap = new Map<string, OnboardingEndpoint[]>();
+      const handsetMap = new Map<string, DECTHandset[]>();
+      await Promise.all([
+        ...this.users.map(async (u) => {
+          const eps = await this.instance!.listEndpoints(u.id);
+          endpointMap.set(u.id, eps);
+        }),
+        ...this.dectBases.map(async (b) => {
+          const hs = await this.instance!.listDECTHandsets(b.id);
+          handsetMap.set(b.id, hs);
+        }),
+      ]);
+      this.userEndpointMap = endpointMap;
+      this.dectHandsets = handsetMap;
+      // Hydrate device lines (the list endpoint doesn't include them)
+      await this.hydrateDeviceLines();
+      this.render();
+    } catch (err) {
+      console.warn('[dialstack] Failed to load hardware data:', err);
+    }
+  }
+
+  /**
+   * Fetch lines for each device and attach them to this.devices.
+   * The /v1/devices list endpoint does not include lines, so we load
+   * them separately to power the assignment display.
+   */
+  private async hydrateDeviceLines(): Promise<void> {
+    if (!this.instance || this.devices.length === 0) return;
+
+    await Promise.all(
+      this.devices.map(async (dev) => {
+        dev.lines = await this.instance!.listDeviceLines(dev.id);
+      })
+    );
   }
 
   // ============================================================================
@@ -1067,6 +1296,7 @@ export class AccountOnboardingComponent extends BaseComponent {
   }
 
   private async saveAndAdvance(): Promise<void> {
+    if (this.isSavingAccount) return;
     this.accountValidationErrors = {};
     this.locationValidationErrors = {};
     this.accountSaveError = null;
@@ -1224,6 +1454,7 @@ export class AccountOnboardingComponent extends BaseComponent {
   }
 
   private async handleAddUser(): Promise<void> {
+    if (this.isAddingUser) return;
     this.userError = null;
 
     if (!this.newUserName.trim()) {
@@ -1480,8 +1711,12 @@ export class AccountOnboardingComponent extends BaseComponent {
       </div>
     `;
 
-    if (this.currentStep === 'account' && !this.isLoading && !this.loadError) {
-      this.attachInputListeners();
+    if (!this.isLoading && !this.loadError) {
+      if (this.currentStep === 'account') {
+        this.attachInputListeners();
+      } else if (this.currentStep === 'hardware') {
+        this.attachHardwareInputListeners();
+      }
     }
   }
 
@@ -1887,19 +2122,224 @@ export class AccountOnboardingComponent extends BaseComponent {
   }
 
   private renderHardwareStep(): string {
-    const steps = this.getActiveSteps();
-    const stepNum = steps.indexOf('hardware') + 1;
+    const t = (key: string): string => this.t(key);
+
+    if (this.users.length === 0) {
+      return `
+        <div class="card ${this.classes.stepHardware || ''}" part="step-hardware">
+          <h2 class="section-title">${t('accountOnboarding.hardware.title')}</h2>
+          <p class="section-subtitle">${t('accountOnboarding.hardware.noUsers')}</p>
+        </div>
+        ${this.renderStepFooter()}
+      `;
+    }
+
+    // Build a reverse map: endpointId → userId
+    const endpointToUser = new Map<string, string>();
+    for (const [userId, eps] of this.userEndpointMap.entries()) {
+      for (const ep of eps) {
+        endpointToUser.set(ep.id, userId);
+      }
+    }
+
+    const getUserName = (userId: string): string => {
+      const u = this.users.find((u) => u.id === userId);
+      return u?.name ?? u?.email ?? userId;
+    };
+
+    // ── Desk phone rows ──
+    const deskPhoneRows = this.devices
+      .map((dev) => {
+        const lines = dev.lines ?? [];
+        const assignedLine = lines.find((l) => l.endpoint_id && endpointToUser.has(l.endpoint_id));
+        const userId = assignedLine ? endpointToUser.get(assignedLine.endpoint_id!)! : null;
+        const vendor = dev.vendor ? dev.vendor.charAt(0).toUpperCase() + dev.vendor.slice(1) : '';
+        const vendorLabel = `${vendor}${dev.model ? ' ' + dev.model : ''}`;
+        return `
+        <div class="hw-device-row">
+          <div class="hw-device-row__info">
+            <span class="hw-device-badge">${this.escapeHtml(vendorLabel)}</span>
+            <span class="hw-device-mac">${this.escapeHtml(dev.mac_address)}</span>
+            ${userId ? `<span class="hw-device-user">&rarr; ${this.escapeHtml(getUserName(userId))}</span>` : ''}
+          </div>
+          <div class="hw-device-row__actions">
+            <button class="btn-danger-ghost" data-action="remove-device" data-device-id="${this.escapeHtml(dev.id)}" data-device-type="deskphone" data-user-id="${this.escapeHtml(userId ?? '')}" data-base-id="">${t('accountOnboarding.hardware.removeDevice')}</button>
+          </div>
+        </div>`;
+      })
+      .join('');
+
+    // ── DECT base groups ──
+    const dectGroupRows = this.dectBases
+      .map((base) => {
+        const handsets = this.dectHandsets.get(base.id) ?? [];
+        const count = handsets.length;
+        const countLabel = `${count} ${count === 1 ? t('accountOnboarding.hardware.handset') : t('accountOnboarding.hardware.handsets')}`;
+
+        const handsetRows = handsets
+          .map((hs) => {
+            const exts = hs.extensions ?? [];
+            const ext = exts.find((e) => endpointToUser.has(e.endpoint_id));
+            const hsUserId = ext ? endpointToUser.get(ext.endpoint_id)! : null;
+            return `
+            <div class="hw-device-row hw-device-row--handset">
+              <div class="hw-device-row__info">
+                <span class="hw-device-mac">${this.escapeHtml(hs.ipei)}</span>
+                ${hsUserId ? `<span class="hw-device-user">&rarr; ${this.escapeHtml(getUserName(hsUserId))}</span>` : ''}
+              </div>
+              <div class="hw-device-row__actions">
+                <button class="btn-danger-ghost" data-action="remove-device" data-device-id="${this.escapeHtml(hs.id)}" data-device-type="dect-handset" data-user-id="${this.escapeHtml(hsUserId ?? '')}" data-base-id="${this.escapeHtml(base.id)}">${t('accountOnboarding.hardware.removeDevice')}</button>
+              </div>
+            </div>`;
+          })
+          .join('');
+
+        const inlineHandsetForm =
+          this.hwEditingRowKey === `new-handset:${base.id}`
+            ? this.renderInlineHandsetForm(base.id)
+            : '';
+
+        return `
+        <div class="hw-dect-group">
+          <div class="hw-device-row hw-device-row--base">
+            <div class="hw-device-row__info">
+              <span class="hw-device-mac">${this.escapeHtml(base.mac_address)}</span>
+              <span class="hw-device-badge">${t('accountOnboarding.hardware.dectBase')} &mdash; ${countLabel}</span>
+            </div>
+            <div class="hw-device-row__actions">
+              <button class="btn-link" data-action="hw-add-handset" data-base-id="${this.escapeHtml(base.id)}">${t('accountOnboarding.hardware.addHandsetButton')}</button>
+              <button class="btn-danger-ghost" data-action="hw-remove-base" data-base-id="${this.escapeHtml(base.id)}">${t('accountOnboarding.hardware.removeDevice')}</button>
+            </div>
+          </div>
+          ${handsetRows}
+          ${inlineHandsetForm}
+        </div>`;
+      })
+      .join('');
+
+    // ── Add device row / inline form ──
+    let addDeviceRow: string;
+    if (this.hwEditingRowKey === 'new') {
+      addDeviceRow = this.renderInlineNewDeviceForm();
+    } else if (!this.hwEditingRowKey || this.hwEditingRowKey.startsWith('new-handset:')) {
+      addDeviceRow = `
+        <div class="hw-device-row hw-device-row--add">
+          <button class="btn-link" data-action="hw-add-new">${t('accountOnboarding.hardware.addDeviceButton')}</button>
+        </div>`;
+    } else {
+      addDeviceRow = '';
+    }
+
     return `
       <div class="card ${this.classes.stepHardware || ''}" part="step-hardware">
-        <h2 class="section-title">${this.t('accountOnboarding.hardware.title')}</h2>
-        <p class="section-subtitle">${this.t('accountOnboarding.hardware.subtitle')}</p>
-        <div class="placeholder">
-          <div class="placeholder-icon">${stepNum}</div>
-          <p class="placeholder-text">${this.t('accountOnboarding.hardware.placeholder')}</p>
+        <h2 class="section-title">${t('accountOnboarding.hardware.title')}</h2>
+        <p class="section-subtitle">${t('accountOnboarding.hardware.subtitle')}</p>
+
+        <div class="hw-device-list">
+          ${deskPhoneRows}
+          ${dectGroupRows}
+          ${addDeviceRow}
         </div>
       </div>
       ${this.renderStepFooter()}
     `;
+  }
+
+  private renderInlineNewDeviceForm(): string {
+    const t = (key: string): string => this.t(key);
+    const userOptionsHtml = this.users
+      .map(
+        (u) =>
+          `<option value="${this.escapeHtml(u.id)}"${this.hwEditUserId === u.id ? ' selected' : ''}>${this.escapeHtml(u.name ?? u.email ?? u.id)}</option>`
+      )
+      .join('');
+
+    const ipeiField = this.hwEditIsDectBase
+      ? `<div class="form-group">
+          <label class="form-label" for="hw-edit-ipei">${t('accountOnboarding.hardware.ipeiLabel')}</label>
+          <input class="form-input" type="text" id="hw-edit-ipei"
+            value="${this.escapeHtml(this.hwEditIpei)}"
+            placeholder="${t('accountOnboarding.hardware.ipeiPlaceholder')}" />
+        </div>`
+      : '';
+
+    const errorHtml = this.hwEditError
+      ? `<div class="inline-alert error">${this.escapeHtml(this.hwEditError)}</div>`
+      : '';
+
+    return `
+      <div class="hw-device-row hw-device-row--editing">
+        <div class="hw-inline-form">
+          <div class="form-group">
+            <label class="form-label" for="hw-edit-mac">${t('accountOnboarding.hardware.macLabel')}</label>
+            <input class="form-input" type="text" id="hw-edit-mac"
+              value="${this.escapeHtml(this.hwEditMac)}"
+              placeholder="${t('accountOnboarding.hardware.macPlaceholder')}" />
+          </div>
+          <div class="form-group">
+            <label class="form-check-label">
+              <input type="checkbox" id="hw-edit-dect-checkbox"
+                ${this.hwEditIsDectBase ? 'checked' : ''} />
+              ${t('accountOnboarding.hardware.isDectBase')}
+            </label>
+          </div>
+          ${ipeiField}
+          <div class="form-group">
+            <label class="form-label" for="hw-edit-user">${t('accountOnboarding.hardware.userLabel')}</label>
+            <select class="form-input" id="hw-edit-user">
+              <option value="">${t('accountOnboarding.hardware.selectUser')}</option>
+              ${userOptionsHtml}
+            </select>
+          </div>
+          <button class="btn btn-secondary btn-sm" data-action="hw-save-row"${this.hwEditSaving ? ' disabled' : ''}>
+            ${this.hwEditSaving ? t('accountOnboarding.hardware.saving') : t('accountOnboarding.hardware.save')}
+          </button>
+          <button class="btn btn-secondary btn-sm" data-action="hw-cancel-row"${this.hwEditSaving ? ' disabled' : ''}>
+            ${t('accountOnboarding.hardware.cancel')}
+          </button>
+        </div>
+        ${errorHtml}
+      </div>`;
+  }
+
+  private renderInlineHandsetForm(baseId: string): string {
+    const t = (key: string): string => this.t(key);
+    const userOptionsHtml = this.users
+      .map(
+        (u) =>
+          `<option value="${this.escapeHtml(u.id)}"${this.hwEditUserId === u.id ? ' selected' : ''}>${this.escapeHtml(u.name ?? u.email ?? u.id)}</option>`
+      )
+      .join('');
+
+    const errorHtml = this.hwEditError
+      ? `<div class="inline-alert error">${this.escapeHtml(this.hwEditError)}</div>`
+      : '';
+
+    return `
+      <div class="hw-device-row hw-device-row--editing" data-base-id="${this.escapeHtml(baseId)}">
+        <div class="hw-inline-form">
+          <div class="form-group">
+            <label class="form-label" for="hw-edit-ipei">${t('accountOnboarding.hardware.ipeiLabel')}</label>
+            <input class="form-input" type="text" id="hw-edit-ipei"
+              value="${this.escapeHtml(this.hwEditIpei)}"
+              placeholder="${t('accountOnboarding.hardware.ipeiPlaceholder')}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="hw-edit-user">${t('accountOnboarding.hardware.userLabel')}</label>
+            <select class="form-input" id="hw-edit-user">
+              <option value="">${t('accountOnboarding.hardware.selectUser')}</option>
+              ${userOptionsHtml}
+            </select>
+          </div>
+          <button class="btn btn-secondary btn-sm" data-action="hw-save-row"${this.hwEditSaving ? ' disabled' : ''}>
+            ${this.hwEditSaving ? t('accountOnboarding.hardware.saving') : t('accountOnboarding.hardware.save')}
+          </button>
+          <button class="btn btn-secondary btn-sm" data-action="hw-cancel-row"${this.hwEditSaving ? ' disabled' : ''}>
+            ${t('accountOnboarding.hardware.cancel')}
+          </button>
+        </div>
+        ${errorHtml}
+      </div>`;
   }
 
   private renderCompleteStep(): string {
@@ -1954,6 +2394,296 @@ export class AccountOnboardingComponent extends BaseComponent {
   }
 
   // ============================================================================
+  // Hardware Step Methods
+  // ============================================================================
+
+  private attachHardwareInputListeners(): void {
+    if (!this.shadowRoot) return;
+
+    const bindInput = (id: string, setter: (val: string) => void): void => {
+      const el = this.shadowRoot?.querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`);
+      if (el) {
+        el.addEventListener('input', (e) => setter((e.target as HTMLInputElement).value));
+        el.addEventListener('change', (e) => setter((e.target as HTMLSelectElement).value));
+      }
+    };
+
+    bindInput('hw-edit-mac', (v) => {
+      this.hwEditMac = v;
+    });
+    bindInput('hw-edit-ipei', (v) => {
+      this.hwEditIpei = v;
+    });
+    bindInput('hw-edit-user', (v) => {
+      this.hwEditUserId = v;
+    });
+
+    // DECT base checkbox — toggle triggers re-render to show/hide IPEI field
+    const dectCheckbox = this.shadowRoot.querySelector<HTMLInputElement>('#hw-edit-dect-checkbox');
+    if (dectCheckbox) {
+      dectCheckbox.addEventListener('change', () => {
+        this.hwEditIsDectBase = dectCheckbox.checked;
+        this.render();
+      });
+    }
+
+    // MAC input blur → auto-normalize
+    const macInput = this.shadowRoot.querySelector<HTMLInputElement>('#hw-edit-mac');
+    if (macInput) {
+      macInput.addEventListener('blur', () => {
+        const normalized = normalizeMac(macInput.value);
+        if (normalized) {
+          this.hwEditMac = normalized;
+          macInput.value = normalized;
+        }
+      });
+    }
+  }
+
+  /**
+   * Inline save handler. Branches on hwEditingRowKey to decide whether to
+   * create a new desk phone, a new DECT base + handset, or add a handset
+   * to an existing base.
+   */
+  private async handleSaveHwRow(): Promise<void> {
+    if (!this.instance || this.hwEditSaving) return;
+    this.hwEditError = null;
+
+    if (this.hwEditingRowKey === 'new') {
+      // ── New device form ──
+      const normalized = normalizeMac(this.hwEditMac);
+      if (!normalized) {
+        this.hwEditError = this.t('accountOnboarding.hardware.invalidMac');
+        this.render();
+        return;
+      }
+
+      if (!this.hwEditUserId) {
+        this.hwEditError = this.t('accountOnboarding.hardware.selectUserRequired');
+        this.render();
+        return;
+      }
+
+      if (this.hwEditIsDectBase) {
+        // Validate IPEI
+        const ipeiRaw = this.hwEditIpei;
+        if (normalizeMac(ipeiRaw)) {
+          this.hwEditError = this.t('accountOnboarding.hardware.ipeiNotMac');
+          this.render();
+          return;
+        }
+        const ipeiHex = ipeiRaw.replace(/[^a-fA-F0-9]/g, '');
+        if (!ipeiHex) {
+          this.hwEditError = this.t('accountOnboarding.hardware.invalidIpei');
+          this.render();
+          return;
+        }
+
+        this.hwEditSaving = true;
+        this.render();
+
+        try {
+          // 1. Create DECT base
+          await this.instance.createDECTBase({ mac_address: normalized });
+          this.dectBases = await this.instance.listDECTBases();
+          const newBase = this.dectBases.find(
+            (b) => b.mac_address.replace(/:/g, '') === normalized.replace(/:/g, '')
+          );
+          if (!newBase) throw new Error('Failed to find newly created DECT base');
+
+          // 2. Register handset on the base
+          await this.instance.createDECTHandset(newBase.id, { ipei: ipeiHex });
+          const handsets = await this.instance.listDECTHandsets(newBase.id);
+          this.dectHandsets.set(newBase.id, handsets);
+
+          // 3. Assign handset to user
+          const newHandset = handsets.find(
+            (h) => h.ipei.replace(/[^a-fA-F0-9]/g, '').toLowerCase() === ipeiHex.toLowerCase()
+          );
+          if (newHandset) {
+            const endpoint = await this.ensureEndpoint(this.hwEditUserId);
+            await this.instance.createDECTExtension(newBase.id, newHandset.id, {
+              endpoint_id: endpoint.id,
+            });
+            const refreshed = await this.instance.listDECTHandsets(newBase.id);
+            this.dectHandsets.set(newBase.id, refreshed);
+          }
+
+          // Switch to handset form for this base (keep adding handsets)
+          this.hwEditingRowKey = `new-handset:${newBase.id}`;
+          this.hwEditIpei = '';
+          this.hwEditUserId = '';
+          this.hwEditMac = '';
+          this.hwEditIsDectBase = false;
+          this.hwEditError = null;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes('409') || msg.toLowerCase().includes('already')) {
+            this.hwEditError = this.t('accountOnboarding.hardware.duplicateMac');
+          } else {
+            this.hwEditError = msg;
+          }
+        } finally {
+          this.hwEditSaving = false;
+          this.render();
+        }
+      } else {
+        // Desk phone flow
+        this.hwEditSaving = true;
+        this.render();
+
+        try {
+          await this.instance.createDevice({ mac_address: normalized });
+          this.devices = await this.instance.listDevices();
+          await this.hydrateDeviceLines();
+          const newDev = this.devices.find(
+            (d) => d.mac_address.replace(/:/g, '') === normalized.replace(/:/g, '')
+          );
+
+          if (newDev) {
+            const endpoint = await this.ensureEndpoint(this.hwEditUserId);
+            await this.instance.createDeviceLine(newDev.id, { endpoint_id: endpoint.id });
+            this.devices = await this.instance.listDevices();
+            await this.hydrateDeviceLines();
+          }
+
+          // Close form
+          this.hwEditingRowKey = null;
+          this.hwEditMac = '';
+          this.hwEditUserId = '';
+          this.hwEditError = null;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes('409') || msg.toLowerCase().includes('already')) {
+            this.hwEditError = this.t('accountOnboarding.hardware.duplicateMac');
+          } else {
+            this.hwEditError = msg;
+          }
+        } finally {
+          this.hwEditSaving = false;
+          this.render();
+        }
+      }
+    } else if (this.hwEditingRowKey?.startsWith('new-handset:')) {
+      // ── Add handset to existing base ──
+      const baseId = this.hwEditingRowKey.replace('new-handset:', '');
+
+      const ipeiRaw = this.hwEditIpei;
+      if (normalizeMac(ipeiRaw)) {
+        this.hwEditError = this.t('accountOnboarding.hardware.ipeiNotMac');
+        this.render();
+        return;
+      }
+      const ipeiHex = ipeiRaw.replace(/[^a-fA-F0-9]/g, '');
+      if (!ipeiHex) {
+        this.hwEditError = this.t('accountOnboarding.hardware.invalidIpei');
+        this.render();
+        return;
+      }
+
+      if (!this.hwEditUserId) {
+        this.hwEditError = this.t('accountOnboarding.hardware.selectUserRequired');
+        this.render();
+        return;
+      }
+
+      this.hwEditSaving = true;
+      this.render();
+
+      try {
+        await this.instance.createDECTHandset(baseId, { ipei: ipeiHex });
+        const handsets = await this.instance.listDECTHandsets(baseId);
+        this.dectHandsets.set(baseId, handsets);
+
+        const newHandset = handsets.find(
+          (h) => h.ipei.replace(/[^a-fA-F0-9]/g, '').toLowerCase() === ipeiHex.toLowerCase()
+        );
+        if (newHandset) {
+          const endpoint = await this.ensureEndpoint(this.hwEditUserId);
+          await this.instance.createDECTExtension(baseId, newHandset.id, {
+            endpoint_id: endpoint.id,
+          });
+          const refreshed = await this.instance.listDECTHandsets(baseId);
+          this.dectHandsets.set(baseId, refreshed);
+        }
+
+        // Keep form open for more handsets — just clear IPEI + user
+        this.hwEditIpei = '';
+        this.hwEditUserId = '';
+        this.hwEditError = null;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('409') || msg.toLowerCase().includes('already')) {
+          this.hwEditError = this.t('accountOnboarding.hardware.duplicateMac');
+        } else {
+          this.hwEditError = msg;
+        }
+      } finally {
+        this.hwEditSaving = false;
+        this.render();
+      }
+    }
+  }
+
+  private async ensureEndpoint(userId: string): Promise<OnboardingEndpoint> {
+    if (!this.instance) throw new Error('Not initialized');
+
+    const existing = this.userEndpointMap.get(userId) ?? [];
+    if (existing.length > 0) return existing[0]!;
+
+    const endpoint = await this.instance.createEndpoint(userId);
+    const updated = [...existing, endpoint];
+    this.userEndpointMap.set(userId, updated);
+    return endpoint;
+  }
+
+  /** Remove a device (desk phone) or handset (DECT) entirely. */
+  private async handleRemoveDectBase(baseId: string): Promise<void> {
+    if (!this.instance) return;
+    try {
+      await this.instance.deleteDECTBase(baseId);
+      this.dectBases = this.dectBases.filter((b) => b.id !== baseId);
+      this.dectHandsets.delete(baseId);
+      // Close inline form if it was editing this base
+      if (this.hwEditingRowKey === `new-handset:${baseId}`) {
+        this.hwEditingRowKey = null;
+        this.hwEditIpei = '';
+        this.hwEditUserId = '';
+        this.hwEditError = null;
+      }
+      await this.loadHardwareData();
+    } catch {
+      this.hwEditError = this.t('accountOnboarding.hardware.removeBaseFailed');
+      this.render();
+    }
+  }
+
+  private async handleRemoveDevice(
+    deviceId: string,
+    deviceType: string,
+    _userId: string,
+    baseId: string
+  ): Promise<void> {
+    if (!this.instance) return;
+
+    try {
+      if (deviceType === 'deskphone') {
+        await this.instance.deleteDevice(deviceId);
+        this.devices = await this.instance.listDevices();
+        await this.hydrateDeviceLines();
+      } else {
+        // DECT handset — delete the handset from its base
+        await this.instance.deleteDECTHandset(baseId, deviceId);
+        const refreshed = await this.instance.listDECTHandsets(baseId);
+        this.dectHandsets.set(baseId, refreshed);
+      }
+    } catch (err) {
+      this.hwEditError = err instanceof Error ? err.message : String(err);
+    }
+    this.render();
+  }
+
+  // ============================================================================
   // Event Handling
   // ============================================================================
 
@@ -2000,6 +2730,53 @@ export class AccountOnboardingComponent extends BaseComponent {
           const userId = actionEl.dataset.userId;
           if (userId) {
             this.handleRemoveUser(userId);
+          }
+          break;
+        }
+        case 'hw-add-new':
+          this.hwEditingRowKey = 'new';
+          this.hwEditMac = '';
+          this.hwEditIsDectBase = false;
+          this.hwEditIpei = '';
+          this.hwEditUserId = '';
+          this.hwEditError = null;
+          this.render();
+          break;
+        case 'hw-add-handset': {
+          const hsBaseId = actionEl.dataset.baseId ?? '';
+          this.hwEditingRowKey = `new-handset:${hsBaseId}`;
+          this.hwEditIpei = '';
+          this.hwEditUserId = '';
+          this.hwEditError = null;
+          this.render();
+          break;
+        }
+        case 'hw-save-row':
+          this.handleSaveHwRow();
+          break;
+        case 'hw-cancel-row':
+          this.hwEditingRowKey = null;
+          this.hwEditMac = '';
+          this.hwEditIsDectBase = false;
+          this.hwEditIpei = '';
+          this.hwEditUserId = '';
+          this.hwEditError = null;
+          this.render();
+          break;
+        case 'hw-remove-base': {
+          const delBaseId = actionEl.dataset.baseId ?? '';
+          if (delBaseId) {
+            this.handleRemoveDectBase(delBaseId);
+          }
+          break;
+        }
+        case 'remove-device': {
+          const deviceId = actionEl.dataset.deviceId;
+          const deviceType = actionEl.dataset.deviceType ?? 'deskphone';
+          const rmUserId = actionEl.dataset.userId ?? '';
+          const rmBaseId = actionEl.dataset.baseId ?? '';
+          if (deviceId) {
+            this.handleRemoveDevice(deviceId, deviceType, rmUserId, rmBaseId);
           }
           break;
         }

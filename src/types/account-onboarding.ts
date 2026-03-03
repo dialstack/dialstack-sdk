@@ -22,6 +22,8 @@ export interface OnboardingCollectionOptions {
     /** Hide these steps, preventing the user from seeing them. */
     exclude?: AccountOnboardingStep[];
   };
+  /** Jump straight to this step after data loads. Useful for development. */
+  initialStep?: AccountOnboardingStep;
 }
 
 export interface AccountOnboardingClasses extends BaseComponentClasses {
@@ -144,4 +146,21 @@ export interface CreateLocationRequest {
 export interface UpdateLocationRequest {
   name: string;
   address: LocationAddressInput;
+}
+
+/**
+ * Minimal endpoint type for onboarding device assignment.
+ * Intentionally omits sip_username (not needed by the UI) and sip_password
+ * (write-only in the API, never returned).
+ */
+export interface OnboardingEndpoint {
+  id: string;
+  user_id: string;
+  name?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateEndpointRequest {
+  name?: string;
 }

@@ -253,6 +253,13 @@ export async function loadDialstackAndInitialize(
     deleteDeviceLine: (deviceId, lineId) => {
       return instance.deleteDeviceLine(deviceId, lineId);
     },
+    // Endpoint methods
+    createEndpoint: (userId, request) => {
+      return instance.createEndpoint(userId, request);
+    },
+    listEndpoints: (userId) => {
+      return instance.listEndpoints(userId);
+    },
   };
 
   return wrapper;

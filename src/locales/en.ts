@@ -303,10 +303,35 @@ export const en = {
       placeholder: 'This step is under construction. Number porting and ordering will appear here.',
     },
     hardware: {
-      title: 'Hardware Assignment',
-      subtitle: 'Assign phones and devices to your team.',
-      placeholder:
-        'This step is under construction. Hardware provisioning and assignment will appear here.',
+      title: 'Device Assignments',
+      subtitle:
+        'Register and assign phones to your team members. You can skip this step and configure hardware later.',
+      noUsers: 'No team members found. Add team members in the Account step first.',
+      isDectBase: 'This is a DECT base station',
+      userLabel: 'Team Member',
+      selectUser: 'Select a team member',
+      selectUserRequired: 'Please select a team member.',
+      macLabel: 'MAC Address',
+      macPlaceholder: '00:04:13:AA:BB:CC',
+      invalidMac: 'Enter a valid 12-digit MAC address.',
+      ipeiLabel: 'Handset IPEI',
+      ipeiPlaceholder: '03AABB1234567890CCDD',
+      invalidIpei: 'Enter a valid IPEI (hex digits only).',
+      ipeiNotMac:
+        'This looks like a MAC address, not an IPEI. An IPEI looks like 03AABB1234567890CCDD.',
+      removeDevice: 'Remove',
+      unsupportedVendor:
+        'This device is not currently supported. Our support team has been notified and will follow up.',
+      duplicateMac: 'This MAC address is already registered.',
+      handset: 'handset',
+      handsets: 'handsets',
+      addDeviceButton: '+ Add Device',
+      addHandsetButton: '+ Handset',
+      save: 'Save',
+      saving: 'Saving...',
+      cancel: 'Cancel',
+      dectBase: 'DECT Base',
+      removeBaseFailed: 'Failed to remove DECT base.',
     },
     complete: {
       title: 'Setup Complete',
@@ -316,6 +341,7 @@ export const en = {
     },
     nav: {
       next: 'Next',
+      skip: 'Skip',
       back: 'Back',
       exit: 'Finish',
     },
