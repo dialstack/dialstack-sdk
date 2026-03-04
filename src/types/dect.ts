@@ -179,6 +179,8 @@ export interface CreateDECTHandsetRequest {
  * Request payload for updating a DECT handset.
  */
 export interface UpdateDECTHandsetRequest {
+  /** International Portable Equipment Identity */
+  ipei?: string;
   /** Display name for the handset */
   display_name?: string;
 }
