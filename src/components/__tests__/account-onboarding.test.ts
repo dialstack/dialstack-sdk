@@ -167,6 +167,105 @@ const createMockInstance = (overrides?: Record<string, unknown>) => {
     }),
     createEndpoint: jest.fn().mockResolvedValue(mockEndpoint),
     listEndpoints: jest.fn().mockResolvedValue([]),
+    // Number methods
+    listPhoneNumbers: jest.fn().mockResolvedValue({
+      object: 'list',
+      data: [],
+      next_page_url: null,
+      previous_page_url: null,
+    }),
+    listNumberOrders: jest.fn().mockResolvedValue({
+      object: 'list',
+      data: [],
+      next_page_url: null,
+      previous_page_url: null,
+    }),
+    listPortOrders: jest.fn().mockResolvedValue({
+      object: 'list',
+      data: [],
+      next_page_url: null,
+      previous_page_url: null,
+    }),
+    fetchAllPages: jest
+      .fn()
+      .mockImplementation(
+        async (
+          fetchFn: (opts: {
+            limit: number;
+          }) => Promise<{ data: unknown[]; next_page_url: string | null }>
+        ) => {
+          const response = await fetchFn({ limit: 100 });
+          return response.data;
+        }
+      ),
+    searchAvailableNumbers: jest.fn().mockResolvedValue([]),
+    createPhoneNumberOrder: jest.fn().mockResolvedValue({
+      id: 'no_01abc',
+      order_type: 'purchase',
+      status: 'complete',
+      phone_numbers: ['+12125551001'],
+      completed_numbers: ['+12125551001'],
+      failed_numbers: [],
+      error_message: null,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    }),
+    getPhoneNumberOrder: jest.fn().mockResolvedValue({
+      id: 'no_01abc',
+      order_type: 'purchase',
+      status: 'complete',
+      phone_numbers: ['+12125551001'],
+      completed_numbers: ['+12125551001'],
+      failed_numbers: [],
+      error_message: null,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    }),
+    checkPortEligibility: jest.fn().mockResolvedValue({
+      portable_numbers: [
+        {
+          phone_number: '+12125551001',
+          losing_carrier_name: 'OldCo',
+          is_wireless: false,
+          account_number_required: false,
+        },
+      ],
+      non_portable_numbers: [],
+    }),
+    createPortOrder: jest.fn().mockResolvedValue({
+      id: 'po_01abc',
+      status: 'draft',
+      details: { phone_numbers: ['+12125551001'], subscriber: null },
+      submitted_at: null,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    }),
+    approvePortOrder: jest.fn().mockResolvedValue({
+      id: 'po_01abc',
+      status: 'approved',
+      details: { phone_numbers: ['+12125551001'] },
+      submitted_at: null,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    }),
+    submitPortOrder: jest.fn().mockResolvedValue({
+      id: 'po_01abc',
+      status: 'submitted',
+      details: { phone_numbers: ['+12125551001'] },
+      submitted_at: '2026-01-01T00:00:00Z',
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    }),
+    cancelPortOrder: jest.fn().mockResolvedValue({
+      id: 'po_01abc',
+      status: 'cancelled',
+      details: { phone_numbers: ['+12125551001'] },
+      submitted_at: null,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    }),
+    uploadCSR: jest.fn().mockResolvedValue(undefined),
+    uploadBillCopy: jest.fn().mockResolvedValue(undefined),
     ...overrides,
   } as unknown as Parameters<AccountOnboardingElement['setInstance']>[0];
 };
@@ -1727,6 +1826,619 @@ describe('AccountOnboardingComponent', () => {
       expect(element.shadowRoot?.querySelector('#hw-edit-mac')).toBeNull();
       // IPEI input present (handset form open)
       expect(element.shadowRoot?.querySelector('#hw-edit-ipei')).not.toBeNull();
+    });
+  });
+
+  // ==========================================================================
+  // Numbers Step Tests
+  // ==========================================================================
+
+  const navigateToNumbers = async (
+    element: AccountOnboardingElement,
+    instance: ReturnType<typeof createMockInstance>
+  ): Promise<void> => {
+    // Navigate past account step
+    clickAction(element, 'next');
+    await waitFor(() => {
+      expect(
+        (instance as unknown as Record<string, jest.Mock>).listPhoneNumbers
+      ).toHaveBeenCalled();
+    });
+  };
+
+  it('renders numbers overview with empty state when no numbers exist', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+    });
+
+    await navigateToNumbers(element, instance);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('No telephone numbers yet');
+      expect(element.shadowRoot?.querySelector('[data-action="num-start-order"]')).not.toBeNull();
+      expect(element.shadowRoot?.querySelector('[data-action="num-start-port"]')).not.toBeNull();
+    });
+  });
+
+  it('renders existing phone numbers in the overview table', async () => {
+    const mockDids = {
+      object: 'list',
+      data: [
+        {
+          id: 'did_01',
+          phone_number: '+12125551001',
+          status: 'active',
+          outbound_enabled: true,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+        },
+      ],
+      next_page_url: null,
+      previous_page_url: null,
+    };
+
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue(mockDids),
+    });
+
+    await navigateToNumbers(element, instance);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('(212) 555-1001');
+      expect(element.shadowRoot?.textContent).toContain('Active');
+    });
+  });
+
+  it('navigates to order search when clicking Request New Numbers', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+    });
+
+    await navigateToNumbers(element, instance);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('[data-action="num-start-order"]')).not.toBeNull();
+    });
+
+    clickAction(element, 'num-start-order');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('Search Available Numbers');
+      expect(element.shadowRoot?.querySelector('#num-area-code')).not.toBeNull();
+    });
+  });
+
+  it('searches numbers by area code and displays results', async () => {
+    const mockAvailable = [
+      {
+        phone_number: '+12125559001',
+        city: 'New York',
+        state: 'NY',
+        rate_center: 'NWYRCYZN01',
+        lata: '132',
+      },
+      {
+        phone_number: '+12125559002',
+        city: 'New York',
+        state: 'NY',
+        rate_center: 'NWYRCYZN01',
+        lata: '132',
+      },
+    ];
+
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      searchAvailableNumbers: jest.fn().mockResolvedValue(mockAvailable),
+    });
+
+    await navigateToNumbers(element, instance);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('[data-action="num-start-order"]')).not.toBeNull();
+    });
+
+    clickAction(element, 'num-start-order');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('#num-area-code')).not.toBeNull();
+    });
+
+    const areaInput = element.shadowRoot?.querySelector<HTMLInputElement>('#num-area-code');
+    if (areaInput) {
+      areaInput.value = '212';
+      areaInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    clickAction(element, 'num-search');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('(212) 555-9001');
+      expect(element.shadowRoot?.textContent).toContain('(212) 555-9002');
+    });
+  });
+
+  it('places number order and shows status', async () => {
+    const mockAvailable = [
+      {
+        phone_number: '+12125559001',
+        city: 'New York',
+        state: 'NY',
+        rate_center: 'NWYRCYZN01',
+        lata: '132',
+      },
+    ];
+
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      searchAvailableNumbers: jest.fn().mockResolvedValue(mockAvailable),
+    });
+
+    await navigateToNumbers(element, instance);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('[data-action="num-start-order"]')).not.toBeNull();
+    });
+
+    clickAction(element, 'num-start-order');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('#num-area-code')).not.toBeNull();
+    });
+
+    clickAction(element, 'num-search');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('(212) 555-9001');
+    });
+
+    // Select the number via checkbox
+    const checkbox = element.shadowRoot?.querySelector<HTMLInputElement>(
+      '[data-action="num-toggle-number"]'
+    );
+    checkbox?.click();
+
+    // Go to confirm
+    clickAction(element, 'num-confirm-order');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('Confirm Order');
+    });
+
+    // Place the order
+    clickAction(element, 'num-place-order');
+
+    await waitFor(() => {
+      expect(
+        (instance as unknown as Record<string, jest.Mock>).createPhoneNumberOrder
+      ).toHaveBeenCalledWith(['+12125559001']);
+    });
+
+    // Should show order status
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('Order Status');
+    });
+  });
+
+  it('navigates to port flow when clicking Port Existing Numbers', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+    });
+
+    await navigateToNumbers(element, instance);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('[data-action="num-start-port"]')).not.toBeNull();
+    });
+
+    clickAction(element, 'num-start-port');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('Numbers to Port');
+      expect(element.shadowRoot?.querySelector('#num-port-phone-0')).not.toBeNull();
+    });
+  });
+
+  it('adds and removes port phone number inputs', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+    });
+
+    await navigateToNumbers(element, instance);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('[data-action="num-start-port"]')).not.toBeNull();
+    });
+
+    clickAction(element, 'num-start-port');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('#num-port-phone-0')).not.toBeNull();
+    });
+
+    // Should not have a remove button when only one input
+    expect(element.shadowRoot?.querySelector('[data-action="num-remove-port-phone"]')).toBeNull();
+
+    // Add another
+    clickAction(element, 'num-add-port-phone');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('#num-port-phone-1')).not.toBeNull();
+      // Now remove buttons should appear
+      expect(
+        element.shadowRoot?.querySelector('[data-action="num-remove-port-phone"]')
+      ).not.toBeNull();
+    });
+  });
+
+  it('checks port eligibility and shows results', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+    });
+
+    await navigateToNumbers(element, instance);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('[data-action="num-start-port"]')).not.toBeNull();
+    });
+
+    clickAction(element, 'num-start-port');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('#num-port-phone-0')).not.toBeNull();
+    });
+
+    const phoneInput = element.shadowRoot?.querySelector<HTMLInputElement>('#num-port-phone-0');
+    if (phoneInput) {
+      phoneInput.value = '(212) 555-1001';
+      phoneInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    clickAction(element, 'num-check-eligibility');
+
+    await waitFor(() => {
+      expect(
+        (instance as unknown as Record<string, jest.Mock>).checkPortEligibility
+      ).toHaveBeenCalled();
+      expect(element.shadowRoot?.textContent).toContain('Portable');
+      expect(element.shadowRoot?.textContent).toContain('OldCo');
+    });
+  });
+
+  it('shows subscriber form after eligibility and validates required fields', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+    });
+
+    await navigateToNumbers(element, instance);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('[data-action="num-start-port"]')).not.toBeNull();
+    });
+
+    clickAction(element, 'num-start-port');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('#num-port-phone-0')).not.toBeNull();
+    });
+
+    const phoneInput = element.shadowRoot?.querySelector<HTMLInputElement>('#num-port-phone-0');
+    if (phoneInput) {
+      phoneInput.value = '(212) 555-1001';
+      phoneInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    clickAction(element, 'num-check-eligibility');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('Portable');
+    });
+
+    clickAction(element, 'num-to-subscriber');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('Subscriber Information');
+      expect(element.shadowRoot?.querySelector('#num-port-btn')).not.toBeNull();
+    });
+
+    // Try to advance without filling — should show validation errors
+    clickAction(element, 'num-to-foc-date');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('BTN is required');
+      expect(element.shadowRoot?.textContent).toContain('Business name is required');
+    });
+  });
+
+  it('returns to overview from order sub-flow via cancel', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+    });
+
+    await navigateToNumbers(element, instance);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('[data-action="num-start-order"]')).not.toBeNull();
+    });
+
+    clickAction(element, 'num-start-order');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('Search Available Numbers');
+    });
+
+    clickAction(element, 'num-back-to-overview');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('[data-action="num-start-order"]')).not.toBeNull();
+    });
+  });
+
+  it('shows main step footer only at overview sub-step', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+    });
+
+    await navigateToNumbers(element, instance);
+
+    await waitFor(() => {
+      // At overview, should have the main step "Next" button
+      expect(element.shadowRoot?.querySelector('[data-action="next"]')).not.toBeNull();
+    });
+
+    clickAction(element, 'num-start-order');
+
+    await waitFor(() => {
+      // Inside order sub-flow, main "next" should NOT be visible
+      // Instead, we have num-search and num-back-to-overview
+      expect(element.shadowRoot?.querySelector('[data-action="num-search"]')).not.toBeNull();
+    });
+  });
+
+  it('advances past numbers step from overview via Next', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+    });
+
+    await navigateToNumbers(element, instance);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('[data-action="next"]')).not.toBeNull();
+    });
+
+    clickAction(element, 'next');
+
+    // Should advance to hardware step
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('Device Assignments');
+    });
+  });
+
+  it('shows error when numbers data fails to load', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockRejectedValue(new Error('Network error')),
+    });
+
+    await navigateToNumbers(element, instance);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('Network error');
+      expect(element.shadowRoot?.querySelector('[data-action="num-retry-load"]')).not.toBeNull();
+    });
+  });
+
+  it('shows non-portable numbers in eligibility results', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      checkPortEligibility: jest.fn().mockResolvedValue({
+        portable_numbers: [],
+        non_portable_numbers: [{ phone_number: '+12125551001', city: 'New York', state: 'NY' }],
+      }),
+    });
+
+    await navigateToNumbers(element, instance);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('[data-action="num-start-port"]')).not.toBeNull();
+    });
+
+    clickAction(element, 'num-start-port');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('#num-port-phone-0')).not.toBeNull();
+    });
+
+    const phoneInput = element.shadowRoot?.querySelector<HTMLInputElement>('#num-port-phone-0');
+    if (phoneInput) {
+      phoneInput.value = '(212) 555-1001';
+      phoneInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    clickAction(element, 'num-check-eligibility');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('Not Portable');
+      expect(element.shadowRoot?.textContent).toContain('None of the entered numbers are eligible');
+    });
+  });
+
+  it('validates phone number format before checking eligibility', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+    });
+
+    await navigateToNumbers(element, instance);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('[data-action="num-start-port"]')).not.toBeNull();
+    });
+
+    clickAction(element, 'num-start-port');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('#num-port-phone-0')).not.toBeNull();
+    });
+
+    // Enter invalid number
+    const phoneInput = element.shadowRoot?.querySelector<HTMLInputElement>('#num-port-phone-0');
+    if (phoneInput) {
+      phoneInput.value = '123';
+      phoneInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    clickAction(element, 'num-check-eligibility');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('Enter a valid US phone number');
+      expect(
+        (instance as unknown as Record<string, jest.Mock>).checkPortEligibility
+      ).not.toHaveBeenCalled();
+    });
+  });
+
+  it('validates empty phone inputs before checking eligibility', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+    });
+
+    await navigateToNumbers(element, instance);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('[data-action="num-start-port"]')).not.toBeNull();
+    });
+
+    clickAction(element, 'num-start-port');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('#num-port-phone-0')).not.toBeNull();
+    });
+
+    // Click check without entering any number
+    clickAction(element, 'num-check-eligibility');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('At least one phone number is required');
+    });
+  });
+
+  it('validates bill copy required before moving to review', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+    });
+
+    await navigateToNumbers(element, instance);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('[data-action="num-start-port"]')).not.toBeNull();
+    });
+
+    clickAction(element, 'num-start-port');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('#num-port-phone-0')).not.toBeNull();
+    });
+
+    const phoneInput = element.shadowRoot?.querySelector<HTMLInputElement>('#num-port-phone-0');
+    if (phoneInput) {
+      phoneInput.value = '(212) 555-1001';
+      phoneInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    clickAction(element, 'num-check-eligibility');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('Portable');
+    });
+
+    clickAction(element, 'num-to-subscriber');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('#num-port-btn')).not.toBeNull();
+    });
+
+    // Fill subscriber form
+    const fillInput = (id: string, value: string): void => {
+      const input = element.shadowRoot?.querySelector<HTMLInputElement>(`#${id}`);
+      if (input) {
+        input.value = value;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    };
+
+    fillInput('num-port-btn', '(212) 555-1001');
+    fillInput('num-port-business-name', 'Acme Corp');
+    fillInput('num-port-approver-name', 'John Doe');
+    fillInput('num-port-house-number', '123');
+    fillInput('num-port-street-name', 'Main St');
+    fillInput('num-port-city', 'New York');
+    fillInput('num-port-zip', '10001');
+
+    // Select state
+    const stateSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#num-port-state');
+    if (stateSelect) {
+      stateSelect.value = 'NY';
+      stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    clickAction(element, 'num-to-foc-date');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('Requested Port Date');
+    });
+
+    // Fill FOC date
+    const today = new Date();
+    const futureDate = new Date(today);
+    futureDate.setDate(futureDate.getDate() + 10);
+    const dateStr = futureDate.toISOString().split('T')[0];
+
+    fillInput('num-port-foc-date', dateStr!);
+
+    const timeSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#num-port-foc-time');
+    if (timeSelect) {
+      timeSelect.value = '10:00';
+      timeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    clickAction(element, 'num-to-documents');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('Supporting Documents');
+    });
+
+    // Try to advance to review without bill copy
+    clickAction(element, 'num-to-review');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('A phone bill copy is required');
+    });
+  });
+
+  it('resets numbers sub-step to overview when navigating back to numbers', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+    });
+
+    await navigateToNumbers(element, instance);
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('[data-action="num-start-order"]')).not.toBeNull();
+    });
+
+    // Enter order sub-flow
+    clickAction(element, 'num-start-order');
+
+    await waitFor(() => {
+      expect(element.shadowRoot?.textContent).toContain('Search Available Numbers');
+    });
+
+    // Navigate to hardware then back to numbers
+    clickAction(element, 'num-back-to-overview');
+
+    await waitFor(() => {
+      // Should be back at overview with action cards
+      expect(element.shadowRoot?.querySelector('[data-action="num-start-order"]')).not.toBeNull();
     });
   });
 });

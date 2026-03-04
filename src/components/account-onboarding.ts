@@ -16,6 +16,15 @@ import type {
   ProvisionedDevice,
   DECTBase,
   DECTHandset,
+  AvailablePhoneNumber,
+  NumberOrder,
+  PortOrder,
+  PortEligibilityResult,
+  CreatePortOrderRequest,
+  SearchType,
+  DIDItem,
+  PhoneNumberItem,
+  PhoneNumberStatus,
 } from '../types';
 import type { Extension } from '../types/dial-plan';
 import { AsYouType, parsePhoneNumberFromString } from 'libphonenumber-js';
@@ -769,7 +778,342 @@ const COMPONENT_STYLES = `
     color: var(--ds-color-primary);
     text-decoration: underline;
   }
+
+  /* ── Numbers Step ── */
+  .num-action-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--ds-layout-spacing-md);
+    margin-top: var(--ds-layout-spacing-md);
+  }
+
+  .num-action-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-spacing-xs);
+    padding: var(--ds-layout-spacing-md);
+    border: 1px solid var(--ds-color-border);
+    border-radius: var(--ds-border-radius);
+    background: var(--ds-color-surface-subtle);
+    cursor: pointer;
+    transition: border-color var(--ds-transition-duration), box-shadow var(--ds-transition-duration);
+  }
+
+  .num-action-card:hover {
+    border-color: var(--ds-color-primary);
+    box-shadow: 0 0 0 1px var(--ds-color-primary);
+  }
+
+  .num-action-card-title {
+    font-weight: var(--ds-font-weight-bold);
+    font-size: var(--ds-font-size-base);
+    color: var(--ds-color-text);
+  }
+
+  .num-action-card-desc {
+    font-size: var(--ds-font-size-small);
+    color: var(--ds-color-text-secondary);
+  }
+
+  .num-overview-list {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: var(--ds-layout-spacing-md);
+  }
+
+  .num-overview-list th,
+  .num-overview-list td {
+    text-align: left;
+    padding: var(--ds-spacing-sm) var(--ds-spacing-md);
+    border-bottom: 1px solid var(--ds-color-border-subtle);
+    font-size: var(--ds-font-size-small);
+  }
+
+  .num-overview-list th {
+    color: var(--ds-color-text-secondary);
+    font-weight: var(--ds-font-weight-medium);
+  }
+
+  .num-status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: var(--ds-font-weight-medium);
+    text-transform: capitalize;
+  }
+
+  .num-status-active { background: color-mix(in srgb, var(--ds-color-success) 15%, transparent); color: var(--ds-color-success); }
+  .num-status-ordering { background: color-mix(in srgb, var(--ds-color-primary) 15%, transparent); color: var(--ds-color-primary); }
+  .num-status-porting { background: color-mix(in srgb, var(--ds-color-warning, #e9a820) 15%, transparent); color: var(--ds-color-warning, #b07d18); }
+  .num-status-error { background: color-mix(in srgb, var(--ds-color-danger) 15%, transparent); color: var(--ds-color-danger); }
+  .num-status-inactive { background: var(--ds-color-surface-subtle); color: var(--ds-color-text-secondary); }
+
+  .num-sub-progress {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-spacing-xs);
+    margin-bottom: var(--ds-layout-spacing-md);
+    font-size: var(--ds-font-size-small);
+    color: var(--ds-color-text-secondary);
+  }
+
+  .num-sub-progress-step {
+    padding: 2px 10px;
+    border-radius: 12px;
+    background: var(--ds-color-surface-subtle);
+    font-weight: var(--ds-font-weight-medium);
+  }
+
+  .num-sub-progress-step.active {
+    background: var(--ds-color-primary);
+    color: #fff;
+  }
+
+  .num-sub-progress-step.completed {
+    background: var(--ds-color-success);
+    color: #fff;
+  }
+
+  .num-sub-progress-arrow {
+    color: var(--ds-color-border);
+  }
+
+  .num-phone-input-row {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-spacing-sm);
+    margin-bottom: var(--ds-spacing-sm);
+  }
+
+  .num-phone-input-row .form-input {
+    flex: 1;
+  }
+
+  .num-eligibility-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: var(--ds-layout-spacing-md);
+  }
+
+  .num-eligibility-table th,
+  .num-eligibility-table td {
+    text-align: left;
+    padding: var(--ds-spacing-sm) var(--ds-spacing-md);
+    border-bottom: 1px solid var(--ds-color-border-subtle);
+    font-size: var(--ds-font-size-small);
+  }
+
+  .num-eligibility-table th {
+    color: var(--ds-color-text-secondary);
+    font-weight: var(--ds-font-weight-medium);
+  }
+
+  .num-doc-upload {
+    padding: var(--ds-layout-spacing-sm);
+    border: 1px dashed var(--ds-color-border);
+    border-radius: var(--ds-border-radius);
+    margin-bottom: var(--ds-layout-spacing-sm);
+  }
+
+  .num-doc-upload-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--ds-spacing-xs);
+  }
+
+  .num-doc-upload-label {
+    font-weight: var(--ds-font-weight-medium);
+    font-size: var(--ds-font-size-base);
+  }
+
+  .num-doc-upload-badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 12px;
+  }
+
+  .num-doc-upload-badge.required {
+    background: color-mix(in srgb, var(--ds-color-danger) 15%, transparent);
+    color: var(--ds-color-danger);
+  }
+
+  .num-doc-upload-badge.optional {
+    background: var(--ds-color-surface-subtle);
+    color: var(--ds-color-text-secondary);
+  }
+
+  .num-doc-upload-desc {
+    font-size: var(--ds-font-size-small);
+    color: var(--ds-color-text-secondary);
+    margin-bottom: var(--ds-spacing-sm);
+  }
+
+  .num-doc-upload-file {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-spacing-sm);
+    font-size: var(--ds-font-size-small);
+  }
+
+  .num-doc-upload-file .file-name {
+    color: var(--ds-color-text-secondary);
+  }
+
+  .num-review-section {
+    margin-bottom: var(--ds-layout-spacing-md);
+  }
+
+  .num-review-section h4 {
+    font-size: var(--ds-font-size-base);
+    font-weight: var(--ds-font-weight-bold);
+    margin: 0 0 var(--ds-spacing-sm) 0;
+    color: var(--ds-color-text);
+  }
+
+  .num-review-row {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--ds-spacing-xs) 0;
+    font-size: var(--ds-font-size-small);
+    border-bottom: 1px solid var(--ds-color-border-subtle);
+  }
+
+  .num-review-label {
+    color: var(--ds-color-text-secondary);
+  }
+
+  .num-review-value {
+    color: var(--ds-color-text);
+    font-weight: var(--ds-font-weight-medium);
+  }
+
+  .num-search-type-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: var(--ds-layout-spacing-md);
+    border: 1px solid var(--ds-color-border);
+    border-radius: var(--ds-border-radius);
+    overflow: hidden;
+  }
+
+  .num-search-type-tab {
+    flex: 1;
+    padding: var(--ds-spacing-sm) var(--ds-spacing-md);
+    font-size: var(--ds-font-size-small);
+    font-family: var(--ds-font-family);
+    font-weight: var(--ds-font-weight-medium);
+    background: var(--ds-color-surface-subtle);
+    border: none;
+    cursor: pointer;
+    color: var(--ds-color-text-secondary);
+    transition: background var(--ds-transition-duration), color var(--ds-transition-duration);
+  }
+
+  .num-search-type-tab:not(:last-child) {
+    border-right: 1px solid var(--ds-color-border);
+  }
+
+  .num-search-type-tab.active {
+    background: var(--ds-color-primary);
+    color: #fff;
+  }
+
+  .num-results-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: var(--ds-layout-spacing-md);
+  }
+
+  .num-results-table th,
+  .num-results-table td {
+    text-align: left;
+    padding: var(--ds-spacing-sm) var(--ds-spacing-md);
+    border-bottom: 1px solid var(--ds-color-border-subtle);
+    font-size: var(--ds-font-size-small);
+  }
+
+  .num-results-table th {
+    color: var(--ds-color-text-secondary);
+    font-weight: var(--ds-font-weight-medium);
+  }
+
+  .num-results-table tr:hover td {
+    background: var(--ds-color-surface-subtle);
+  }
+
+  .num-results-table input[type="checkbox"] {
+    cursor: pointer;
+  }
+
+  .num-confirm-list {
+    margin-bottom: var(--ds-layout-spacing-md);
+  }
+
+  .num-confirm-item {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-spacing-sm);
+    padding: var(--ds-spacing-sm) 0;
+    border-bottom: 1px solid var(--ds-color-border-subtle);
+    font-size: var(--ds-font-size-small);
+  }
+
+  .num-sub-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: var(--ds-layout-spacing-md);
+    border-top: 1px solid var(--ds-color-border);
+    margin-top: var(--ds-layout-spacing-md);
+  }
+
+  .num-sub-footer-end {
+    justify-content: flex-end;
+  }
+
+  .num-order-status-icon {
+    width: 48px;
+    height: 48px;
+    margin-bottom: var(--ds-layout-spacing-sm);
+  }
+
+  .num-order-status-icon.success { color: var(--ds-color-success); }
+  .num-order-status-icon.error { color: var(--ds-color-danger); }
+  .num-order-status-icon.pending { color: var(--ds-color-primary); }
+
+  .num-port-subscriber-form {
+    display: grid;
+    gap: var(--ds-layout-spacing-sm);
+  }
+
+  .num-port-address-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--ds-layout-spacing-sm);
+  }
+
+  .num-port-address-row-2 {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: var(--ds-layout-spacing-sm);
+  }
 `;
+
+type NumSubStep =
+  | 'overview'
+  | 'order-search'
+  | 'order-results'
+  | 'order-confirm'
+  | 'order-status'
+  | 'port-numbers'
+  | 'port-eligibility'
+  | 'port-subscriber'
+  | 'port-foc-date'
+  | 'port-documents'
+  | 'port-review'
+  | 'port-submitted';
 
 export class AccountOnboardingComponent extends BaseComponent {
   private static readonly ALL_STEPS: AccountOnboardingStep[] = [
@@ -834,6 +1178,58 @@ export class AccountOnboardingComponent extends BaseComponent {
   private hwEditUserId = '';
   private hwEditSaving = false;
   private hwEditError: string | null = null;
+  private hwActionError: string | null = null;
+
+  // Numbers step state
+  private numSubStep: NumSubStep = 'overview';
+  private numPhoneNumbers: PhoneNumberItem[] = [];
+  private numIsLoadingNumbers = false;
+  private numLoadError: string | null = null;
+  // Order flow
+  private numOrderSearchType: SearchType = 'area_code';
+  private numOrderSearchValue = '';
+  private numOrderSearchCity = '';
+  private numOrderSearchState = '';
+  private numOrderQuantity = 5;
+  private numOrderIsSearching = false;
+  private numOrderAvailableNumbers: AvailablePhoneNumber[] = [];
+  private numOrderSelectedNumbers: Set<string> = new Set();
+  private numOrderCurrentOrder: NumberOrder | null = null;
+  private numOrderIsPlacing = false;
+  private numOrderError: string | null = null;
+  private numOrderPollTimer: ReturnType<typeof setTimeout> | null = null;
+  private numOrderPollCount = 0;
+  // Port flow
+  private numPortPhoneInputs: string[] = [''];
+  private numPortEligibilityResult: PortEligibilityResult | null = null;
+  private numPortIsCheckingEligibility = false;
+  private numPortEligibilityError: string | null = null;
+  // Port subscriber
+  private numPortSubscriberBtn = '';
+  private numPortSubscriberBusinessName = '';
+  private numPortSubscriberApproverName = '';
+  private numPortSubscriberAccountNumber = '';
+  private numPortSubscriberPin = '';
+  private numPortSubscriberHouseNumber = '';
+  private numPortSubscriberStreetName = '';
+  private numPortSubscriberLine2 = '';
+  private numPortSubscriberCity = '';
+  private numPortSubscriberState = '';
+  private numPortSubscriberZip = '';
+  private numPortSubscriberErrors: Record<string, string> = {};
+  // Port FOC
+  private numPortFocDate = '';
+  private numPortFocTime = '';
+  private numPortFocErrors: Record<string, string> = {};
+  // Port documents
+  private numPortCsrFile: File | null = null;
+  private numPortBillCopyFile: File | null = null;
+  private numPortDocUploadError: string | null = null;
+  // Port review
+  private numPortSignature = '';
+  private numPortCurrentOrder: PortOrder | null = null;
+  private numPortIsSubmitting = false;
+  private numPortSubmitError: string | null = null;
 
   // Save state
   private isSavingAccount = false;
@@ -882,14 +1278,16 @@ export class AccountOnboardingComponent extends BaseComponent {
     try {
       if (!this.instance) throw new Error('Not initialized');
 
-      const [account, users, extensions, locations, devices, dectBases] = await Promise.all([
-        this.instance.getAccount(),
-        this.instance.listUsers(),
-        this.instance.listExtensions(),
-        this.instance.listLocations(),
-        this.instance.listDevices(),
-        this.instance.listDECTBases(),
-      ]);
+      // Core data is required; hardware data is optional (lazy-loaded on hardware step)
+      const [account, users, extensions, locations, devicesResult, dectBasesResult] =
+        await Promise.all([
+          this.instance.getAccount(),
+          this.instance.listUsers(),
+          this.instance.listExtensions(),
+          this.instance.listLocations(),
+          this.instance.listDevices().catch(() => [] as ProvisionedDevice[]),
+          this.instance.listDECTBases().catch(() => [] as DECTBase[]),
+        ]);
 
       this.accountEmail = account.email ?? '';
       this.accountName = account.name ?? '';
@@ -902,8 +1300,8 @@ export class AccountOnboardingComponent extends BaseComponent {
       this.users = users ?? [];
       this.extensions = extensions ?? [];
       this.newUserExtension = this.getNextExtensionNumber();
-      this.devices = devices ?? [];
-      this.dectBases = dectBases ?? [];
+      this.devices = devicesResult ?? [];
+      this.dectBases = dectBasesResult ?? [];
 
       // Endpoints and handsets are lazy-loaded when the hardware step is shown
       // to avoid O(users + bases) API calls on initial load.
@@ -1034,6 +1432,7 @@ export class AccountOnboardingComponent extends BaseComponent {
   // ============================================================================
 
   protected override cleanup(): void {
+    this.numStopOrderPoll();
     if (!this._exitFired) {
       this._exitFired = true;
       this._onExit?.();
@@ -1049,6 +1448,11 @@ export class AccountOnboardingComponent extends BaseComponent {
     this.currentStep = step;
     this._onStepChange?.({ step });
     this.render();
+
+    // Lazy-load numbers data when the step is first shown
+    if (step === 'numbers' && this.numPhoneNumbers.length === 0 && !this.numIsLoadingNumbers) {
+      this.loadNumbersData();
+    }
 
     // Lazy-load hardware data when the step is first shown
     if (step === 'hardware' && this.userEndpointMap.size === 0) {
@@ -1664,6 +2068,1309 @@ export class AccountOnboardingComponent extends BaseComponent {
   }
 
   // ============================================================================
+  // Numbers Step — Data
+  // ============================================================================
+
+  private async loadNumbersData(): Promise<void> {
+    if (!this.instance) return;
+    this.numIsLoadingNumbers = true;
+    this.numLoadError = null;
+    this.render();
+
+    try {
+      const [dids, orders, ports] = await Promise.all([
+        this.instance.fetchAllPages<DIDItem>((opts) => this.instance!.listPhoneNumbers(opts)),
+        this.instance.fetchAllPages<NumberOrder>((opts) => this.instance!.listNumberOrders(opts)),
+        this.instance.fetchAllPages<PortOrder>((opts) => this.instance!.listPortOrders(opts)),
+      ]);
+
+      this.numPhoneNumbers = this.numMergePhoneNumbers(dids, orders, ports);
+      this.numIsLoadingNumbers = false;
+      this.render();
+    } catch (err) {
+      this.numLoadError = err instanceof Error ? err.message : String(err);
+      this.numIsLoadingNumbers = false;
+      this.render();
+    }
+  }
+
+  private numMergePhoneNumbers(
+    dids: DIDItem[],
+    orders: NumberOrder[],
+    ports: PortOrder[]
+  ): PhoneNumberItem[] {
+    const map = new Map<string, PhoneNumberItem>();
+
+    const activePortNumbers = new Set<string>();
+    for (const port of ports) {
+      if (port.status !== 'complete' && port.status !== 'cancelled') {
+        for (const num of port.details.phone_numbers) {
+          activePortNumbers.add(num);
+        }
+      }
+    }
+
+    for (const did of dids) {
+      if (did.status === 'inactive' && activePortNumbers.has(did.phone_number)) continue;
+      map.set(did.phone_number, {
+        phone_number: did.phone_number,
+        status: did.status as PhoneNumberStatus,
+        number_class: did.number_class,
+        expires_at: did.expires_at,
+        outbound_enabled: did.outbound_enabled,
+        caller_id_name: did.caller_id_name,
+        routing_target: did.routing_target,
+        source: 'did',
+        created_at: did.created_at,
+        updated_at: did.updated_at,
+      });
+    }
+
+    for (const order of orders) {
+      if (order.status !== 'pending' && order.status !== 'partial') continue;
+      for (const num of order.phone_numbers) {
+        if (order.completed_numbers.includes(num)) continue;
+        if (map.has(num)) continue;
+        const isFailed = order.failed_numbers.includes(num);
+        map.set(num, {
+          phone_number: num,
+          status: isFailed ? 'order_failed' : 'ordering',
+          outbound_enabled: null,
+          source: 'number_order',
+          created_at: order.created_at,
+          updated_at: order.updated_at,
+          order_id: order.id,
+        });
+      }
+    }
+
+    for (const port of ports) {
+      if (port.status === 'complete' || port.status === 'cancelled') continue;
+      const portStatusMap: Record<string, PhoneNumberStatus> = {
+        draft: 'porting_draft',
+        approved: 'porting_approved',
+        submitted: 'porting_submitted',
+        exception: 'porting_exception',
+        foc: 'porting_foc',
+      };
+      const portStatus = portStatusMap[port.status] || 'porting_draft';
+      for (const num of port.details.phone_numbers) {
+        if (map.has(num)) continue;
+        map.set(num, {
+          phone_number: num,
+          status: portStatus,
+          outbound_enabled: null,
+          carrier: port.details.losing_carrier?.name,
+          transfer_date: port.details.actual_foc_date || port.details.requested_foc_date,
+          source: 'port_order',
+          created_at: port.created_at,
+          updated_at: port.updated_at,
+          port_order_id: port.id,
+        });
+      }
+    }
+
+    return Array.from(map.values()).sort((a, b) => a.phone_number.localeCompare(b.phone_number));
+  }
+
+  // ============================================================================
+  // Numbers Step — Order Flow
+  // ============================================================================
+
+  private async numSearchNumbers(): Promise<void> {
+    if (!this.instance) return;
+    this.numOrderIsSearching = true;
+    this.numOrderError = null;
+    this.numOrderAvailableNumbers = [];
+    this.numOrderSelectedNumbers.clear();
+    this.render();
+
+    try {
+      const opts: Record<string, string | number> = { quantity: this.numOrderQuantity };
+      switch (this.numOrderSearchType) {
+        case 'area_code':
+          opts.areaCode = this.numOrderSearchValue;
+          break;
+        case 'city_state':
+          opts.city = this.numOrderSearchCity;
+          opts.state = this.numOrderSearchState;
+          break;
+        case 'zip':
+          opts.zip = this.numOrderSearchValue;
+          break;
+      }
+
+      const results = await this.instance.searchAvailableNumbers(opts as never);
+      this.numOrderAvailableNumbers = results;
+      this.numOrderIsSearching = false;
+      this.numSubStep = 'order-results';
+      this.render();
+    } catch (err) {
+      this.numOrderError = err instanceof Error ? err.message : String(err);
+      this.numOrderIsSearching = false;
+      this.render();
+    }
+  }
+
+  private async numPlaceOrder(): Promise<void> {
+    if (!this.instance || this.numOrderSelectedNumbers.size === 0 || this.numOrderIsPlacing) return;
+    this.numOrderIsPlacing = true;
+    this.numOrderError = null;
+    this.render();
+
+    try {
+      const order = await this.instance.createPhoneNumberOrder(
+        Array.from(this.numOrderSelectedNumbers)
+      );
+      this.numOrderCurrentOrder = order;
+      this.numSubStep = 'order-status';
+      this.numOrderPollCount = 0;
+      this.render();
+      this.numStartOrderPoll(order.id);
+    } catch (err) {
+      this.numOrderError = err instanceof Error ? err.message : String(err);
+      this.render();
+    } finally {
+      this.numOrderIsPlacing = false;
+    }
+  }
+
+  private numStartOrderPoll(orderId: string): void {
+    this.numStopOrderPoll();
+    this.numOrderPollTimer = setTimeout(async () => {
+      if (!this.instance) return;
+      try {
+        const order = await this.instance.getPhoneNumberOrder(orderId);
+        this.numOrderCurrentOrder = order;
+        this.numOrderPollCount++;
+        this.render();
+        if (order.status === 'pending' && this.numOrderPollCount < 5) {
+          this.numStartOrderPoll(orderId);
+        }
+      } catch {
+        // Silently stop polling on error
+      }
+    }, 2000);
+  }
+
+  private numStopOrderPoll(): void {
+    if (this.numOrderPollTimer) {
+      clearTimeout(this.numOrderPollTimer);
+      this.numOrderPollTimer = null;
+    }
+  }
+
+  private numResetOrderFlow(): void {
+    this.numOrderSearchType = 'area_code';
+    this.numOrderSearchValue = '';
+    this.numOrderSearchCity = '';
+    this.numOrderSearchState = '';
+    this.numOrderQuantity = 5;
+    this.numOrderIsSearching = false;
+    this.numOrderIsPlacing = false;
+    this.numOrderAvailableNumbers = [];
+    this.numOrderSelectedNumbers.clear();
+    this.numOrderCurrentOrder = null;
+    this.numOrderError = null;
+    this.numStopOrderPoll();
+    this.numOrderPollCount = 0;
+  }
+
+  // ============================================================================
+  // Numbers Step — Port Flow
+  // ============================================================================
+
+  private async numCheckPortEligibility(): Promise<void> {
+    if (!this.instance) return;
+
+    // Validate all phone inputs
+    const validNumbers: string[] = [];
+    for (const input of this.numPortPhoneInputs) {
+      const trimmed = input.trim();
+      if (!trimmed) continue;
+      const parsed = parsePhoneNumberFromString(trimmed, 'US');
+      if (!parsed || !parsed.isValid()) {
+        this.numPortEligibilityError = this.t('accountOnboarding.numbers.validation.phoneInvalid');
+        this.render();
+        return;
+      }
+      validNumbers.push(parsed.format('E.164'));
+    }
+
+    if (validNumbers.length === 0) {
+      this.numPortEligibilityError = this.t('accountOnboarding.numbers.validation.phoneRequired');
+      this.render();
+      return;
+    }
+
+    this.numPortIsCheckingEligibility = true;
+    this.numPortEligibilityError = null;
+    this.render();
+
+    try {
+      const result = await this.instance.checkPortEligibility(validNumbers);
+      this.numPortEligibilityResult = result;
+      this.numPortIsCheckingEligibility = false;
+      this.numSubStep = 'port-eligibility';
+      this.render();
+    } catch (err) {
+      this.numPortEligibilityError = err instanceof Error ? err.message : String(err);
+      this.numPortIsCheckingEligibility = false;
+      this.render();
+    }
+  }
+
+  private numValidateSubscriber(): boolean {
+    const errors: Record<string, string> = {};
+    const t = (key: string): string => this.t(key);
+
+    if (!this.numPortSubscriberBtn.trim()) {
+      errors.btn = t('accountOnboarding.numbers.validation.btnRequired');
+    } else {
+      const parsed = parsePhoneNumberFromString(this.numPortSubscriberBtn, 'US');
+      if (!parsed || !parsed.isValid()) {
+        errors.btn = t('accountOnboarding.numbers.validation.btnInvalid');
+      }
+    }
+    if (!this.numPortSubscriberBusinessName.trim()) {
+      errors.businessName = t('accountOnboarding.numbers.validation.businessNameRequired');
+    }
+    if (!this.numPortSubscriberApproverName.trim()) {
+      errors.approverName = t('accountOnboarding.numbers.validation.approverNameRequired');
+    }
+    if (!this.numPortSubscriberHouseNumber.trim()) {
+      errors.houseNumber = t('accountOnboarding.numbers.validation.houseNumberRequired');
+    }
+    if (!this.numPortSubscriberStreetName.trim()) {
+      errors.streetName = t('accountOnboarding.numbers.validation.streetNameRequired');
+    }
+    if (!this.numPortSubscriberCity.trim()) {
+      errors.city = t('accountOnboarding.numbers.validation.cityRequired');
+    }
+    if (!this.numPortSubscriberState.trim()) {
+      errors.state = t('accountOnboarding.numbers.validation.stateRequired');
+    }
+    if (!this.numPortSubscriberZip.trim()) {
+      errors.zip = t('accountOnboarding.numbers.validation.zipRequired');
+    }
+
+    this.numPortSubscriberErrors = errors;
+    return Object.keys(errors).length === 0;
+  }
+
+  private numValidateFocDate(): boolean {
+    const errors: Record<string, string> = {};
+    const t = (key: string): string => this.t(key);
+
+    if (!this.numPortFocDate) {
+      errors.date = t('accountOnboarding.numbers.validation.focDateRequired');
+    } else {
+      const focDate = new Date(this.numPortFocDate + 'T00:00:00');
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Count business days
+      let bizDays = 0;
+      const check = new Date(today);
+      while (bizDays < 5) {
+        check.setDate(check.getDate() + 1);
+        const day = check.getDay();
+        if (day !== 0 && day !== 6) bizDays++;
+      }
+      if (focDate < check) {
+        errors.date = t('accountOnboarding.numbers.validation.focDateTooSoon');
+      }
+
+      const maxDate = new Date(today);
+      maxDate.setDate(maxDate.getDate() + 30);
+      if (focDate > maxDate) {
+        errors.date = t('accountOnboarding.numbers.validation.focDateTooFar');
+      }
+    }
+
+    if (!this.numPortFocTime) {
+      errors.time = t('accountOnboarding.numbers.validation.focTimeRequired');
+    }
+
+    this.numPortFocErrors = errors;
+    return Object.keys(errors).length === 0;
+  }
+
+  private async numCreateAndSubmitPort(): Promise<void> {
+    if (!this.instance || !this.numPortEligibilityResult) return;
+
+    this.numPortIsSubmitting = true;
+    this.numPortSubmitError = null;
+    this.render();
+
+    try {
+      const portableNumbers = this.numPortEligibilityResult.portable_numbers.map(
+        (n) => n.phone_number
+      );
+
+      const btnParsed = parsePhoneNumberFromString(this.numPortSubscriberBtn, 'US');
+
+      const request: CreatePortOrderRequest = {
+        phone_numbers: portableNumbers,
+        subscriber: {
+          btn: btnParsed?.format('E.164') || this.numPortSubscriberBtn,
+          business_name: this.numPortSubscriberBusinessName.trim(),
+          approver_name: this.numPortSubscriberApproverName.trim(),
+          account_number: this.numPortSubscriberAccountNumber.trim() || undefined,
+          pin: this.numPortSubscriberPin.trim() || undefined,
+          address: {
+            house_number: this.numPortSubscriberHouseNumber.trim(),
+            street_name: this.numPortSubscriberStreetName.trim(),
+            line2: this.numPortSubscriberLine2.trim() || undefined,
+            city: this.numPortSubscriberCity.trim(),
+            state: this.numPortSubscriberState.trim(),
+            zip: this.numPortSubscriberZip.trim(),
+          },
+        },
+        requested_foc_date: this.numPortFocDate,
+        requested_foc_time: this.numPortFocTime || undefined,
+      };
+
+      // 1. Create draft port order
+      const order = await this.instance.createPortOrder(request);
+
+      // 2. Upload documents if provided
+      if (this.numPortBillCopyFile) {
+        await this.instance.uploadBillCopy(order.id, this.numPortBillCopyFile);
+      }
+      if (this.numPortCsrFile) {
+        await this.instance.uploadCSR(order.id, this.numPortCsrFile);
+      }
+
+      // 3. Approve with signature
+      await this.instance.approvePortOrder(order.id, {
+        signature: this.numPortSignature.trim(),
+        ip: '0.0.0.0', // Client IP — server overrides with real IP
+      });
+
+      // 4. Submit
+      const submitted = await this.instance.submitPortOrder(order.id);
+
+      this.numPortCurrentOrder = submitted;
+      this.numPortIsSubmitting = false;
+      this.numSubStep = 'port-submitted';
+      this.render();
+    } catch (err) {
+      this.numPortSubmitError = err instanceof Error ? err.message : String(err);
+      this.numPortIsSubmitting = false;
+      this.render();
+    }
+  }
+
+  private numResetPortFlow(): void {
+    this.numPortPhoneInputs = [''];
+    this.numPortEligibilityResult = null;
+    this.numPortIsCheckingEligibility = false;
+    this.numPortEligibilityError = null;
+    this.numPortSubscriberBtn = '';
+    this.numPortSubscriberBusinessName = '';
+    this.numPortSubscriberApproverName = '';
+    this.numPortSubscriberAccountNumber = '';
+    this.numPortSubscriberPin = '';
+    this.numPortSubscriberHouseNumber = '';
+    this.numPortSubscriberStreetName = '';
+    this.numPortSubscriberLine2 = '';
+    this.numPortSubscriberCity = '';
+    this.numPortSubscriberState = '';
+    this.numPortSubscriberZip = '';
+    this.numPortSubscriberErrors = {};
+    this.numPortFocDate = '';
+    this.numPortFocTime = '';
+    this.numPortFocErrors = {};
+    this.numPortCsrFile = null;
+    this.numPortBillCopyFile = null;
+    this.numPortDocUploadError = null;
+    this.numPortSignature = '';
+    this.numPortCurrentOrder = null;
+    this.numPortIsSubmitting = false;
+    this.numPortSubmitError = null;
+  }
+
+  private numFormatPhone(e164: string): string {
+    const parsed = parsePhoneNumberFromString(e164, 'US');
+    return parsed ? parsed.formatNational() : e164;
+  }
+
+  private numGetStatusBadgeClass(status: PhoneNumberStatus): string {
+    if (status === 'active') return 'num-status-active';
+    if (status === 'ordering') return 'num-status-ordering';
+    if (status === 'order_failed' || status === 'porting_exception') return 'num-status-error';
+    if (status === 'inactive' || status === 'released') return 'num-status-inactive';
+    return 'num-status-porting';
+  }
+
+  // ============================================================================
+  // Numbers Step — Sub-step Renderers
+  // ============================================================================
+
+  private renderNumOverview(): string {
+    const t = (key: string): string => this.t(key);
+
+    if (this.numIsLoadingNumbers) {
+      return `
+        <div class="placeholder">
+          <div class="spinner"></div>
+        </div>`;
+    }
+
+    if (this.numLoadError) {
+      return `
+        <div class="inline-alert error">${this.escapeHtml(this.numLoadError)}</div>
+        <button class="btn btn-secondary" style="margin-top:var(--ds-layout-spacing-sm)" data-action="num-retry-load">
+          ${t('accountOnboarding.numbers.overview.retry')}
+        </button>`;
+    }
+
+    let tableHtml: string;
+    if (this.numPhoneNumbers.length > 0) {
+      const rows = this.numPhoneNumbers
+        .map((item) => {
+          const statusKey = `accountOnboarding.numbers.status.${item.status}`;
+          const sourceKey = `accountOnboarding.numbers.source.${item.source}`;
+          const badgeClass = this.numGetStatusBadgeClass(item.status);
+          return `
+          <tr>
+            <td>${this.numFormatPhone(item.phone_number)}</td>
+            <td><span class="num-status-badge ${badgeClass}">${t(statusKey)}</span></td>
+            <td>${t(sourceKey)}</td>
+          </tr>`;
+        })
+        .join('');
+
+      tableHtml = `
+        <table class="num-overview-list">
+          <thead>
+            <tr>
+              <th>${t('accountOnboarding.numbers.overview.phoneNumber')}</th>
+              <th>${t('accountOnboarding.numbers.overview.status')}</th>
+              <th>${t('accountOnboarding.numbers.overview.source')}</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    } else {
+      tableHtml = `
+        <p class="section-description" style="text-align:center;padding:var(--ds-layout-spacing-md) 0">
+          ${t('accountOnboarding.numbers.overview.empty')}
+        </p>`;
+    }
+
+    return `
+      ${tableHtml}
+      <div class="num-action-cards">
+        <div class="num-action-card" data-action="num-start-order" tabindex="0" role="button">
+          <div class="num-action-card-title">${t('accountOnboarding.numbers.overview.requestNew')}</div>
+          <div class="num-action-card-desc">${t('accountOnboarding.numbers.overview.requestNewDesc')}</div>
+        </div>
+        <div class="num-action-card" data-action="num-start-port" tabindex="0" role="button">
+          <div class="num-action-card-title">${t('accountOnboarding.numbers.overview.portExisting')}</div>
+          <div class="num-action-card-desc">${t('accountOnboarding.numbers.overview.portExistingDesc')}</div>
+        </div>
+      </div>`;
+  }
+
+  private renderNumOrderSearch(): string {
+    const t = (key: string): string => this.t(key);
+
+    const tabs = (['area_code', 'city_state', 'zip'] as const)
+      .map((type) => {
+        const labelMap: Record<SearchType, string> = {
+          area_code: t('accountOnboarding.numbers.order.searchByAreaCode'),
+          city_state: t('accountOnboarding.numbers.order.searchByCityState'),
+          zip: t('accountOnboarding.numbers.order.searchByZip'),
+        };
+        return `<button class="num-search-type-tab${this.numOrderSearchType === type ? ' active' : ''}"
+          data-action="num-set-search-type" data-search-type="${type}">${labelMap[type]}</button>`;
+      })
+      .join('');
+
+    let fieldsHtml = '';
+    switch (this.numOrderSearchType) {
+      case 'area_code':
+        fieldsHtml = `
+          <div class="form-group">
+            <label class="form-label">${t('accountOnboarding.numbers.order.areaCodeLabel')}</label>
+            <input class="form-input" type="text" id="num-area-code" maxlength="3"
+              value="${this.escapeHtml(this.numOrderSearchValue)}"
+              placeholder="${t('accountOnboarding.numbers.order.areaCodePlaceholder')}" />
+          </div>`;
+        break;
+      case 'city_state':
+        fieldsHtml = `
+          <div class="form-group">
+            <label class="form-label">${t('accountOnboarding.numbers.order.cityLabel')}</label>
+            <input class="form-input" type="text" id="num-search-city"
+              value="${this.escapeHtml(this.numOrderSearchCity)}"
+              placeholder="${t('accountOnboarding.numbers.order.cityPlaceholder')}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">${t('accountOnboarding.numbers.order.stateLabel')}</label>
+            <select class="form-select" id="num-search-state">
+              <option value="">${t('accountOnboarding.numbers.order.statePlaceholder')}</option>
+              ${US_STATES.map(
+                ([code, name]) =>
+                  `<option value="${this.escapeHtml(code)}"${this.numOrderSearchState === code ? ' selected' : ''}>${this.escapeHtml(name)}</option>`
+              ).join('')}
+            </select>
+          </div>`;
+        break;
+      case 'zip':
+        fieldsHtml = `
+          <div class="form-group">
+            <label class="form-label">${t('accountOnboarding.numbers.order.zipLabel')}</label>
+            <input class="form-input" type="text" id="num-zip-code" maxlength="5"
+              value="${this.escapeHtml(this.numOrderSearchValue)}"
+              placeholder="${t('accountOnboarding.numbers.order.zipPlaceholder')}" />
+          </div>`;
+        break;
+    }
+
+    return `
+      <h3 class="section-heading">${t('accountOnboarding.numbers.order.searchTitle')}</h3>
+      <p class="section-description">${t('accountOnboarding.numbers.order.searchSubtitle')}</p>
+      <div class="num-search-type-tabs">${tabs}</div>
+      ${fieldsHtml}
+      <div class="form-group">
+        <label class="form-label">${t('accountOnboarding.numbers.order.quantityLabel')}</label>
+        <input class="form-input" type="number" id="num-quantity" min="1" max="50"
+          value="${this.numOrderQuantity}" />
+      </div>
+      ${this.numOrderError ? `<div class="inline-alert error">${this.escapeHtml(this.numOrderError)}</div>` : ''}
+      <div class="num-sub-footer">
+        <button class="btn btn-secondary" data-action="num-back-to-overview">
+          ${t('accountOnboarding.numbers.nav.cancel')}
+        </button>
+        <button class="btn btn-primary" data-action="num-search"${this.numOrderIsSearching ? ' disabled' : ''}>
+          ${this.numOrderIsSearching ? t('accountOnboarding.numbers.order.searching') : t('accountOnboarding.numbers.order.search')}
+        </button>
+      </div>`;
+  }
+
+  private renderNumOrderResults(): string {
+    const t = (key: string): string => this.t(key);
+
+    if (this.numOrderAvailableNumbers.length === 0) {
+      return `
+        <h3 class="section-heading">${t('accountOnboarding.numbers.order.resultsTitle')}</h3>
+        <p class="section-description">${t('accountOnboarding.numbers.order.noResults')}</p>
+        <div class="num-sub-footer">
+          <button class="btn btn-secondary" data-action="num-back-to-search">
+            ${t('accountOnboarding.numbers.nav.back')}
+          </button>
+        </div>`;
+    }
+
+    const rows = this.numOrderAvailableNumbers
+      .map((num) => {
+        const isSelected = this.numOrderSelectedNumbers.has(num.phone_number);
+        return `
+        <tr>
+          <td><input type="checkbox" data-action="num-toggle-number" data-phone="${this.escapeHtml(num.phone_number)}"${isSelected ? ' checked' : ''} /></td>
+          <td>${this.numFormatPhone(num.phone_number)}</td>
+          <td>${this.escapeHtml(num.city)}</td>
+          <td>${this.escapeHtml(num.state)}</td>
+          <td>${this.escapeHtml(num.rate_center)}</td>
+        </tr>`;
+      })
+      .join('');
+
+    const allSelected = this.numOrderSelectedNumbers.size === this.numOrderAvailableNumbers.length;
+
+    return `
+      <h3 class="section-heading">${t('accountOnboarding.numbers.order.resultsTitle')}</h3>
+      <p class="section-description">${t('accountOnboarding.numbers.order.resultsSubtitle')}</p>
+      <div style="margin-bottom:var(--ds-spacing-sm)">
+        <button class="btn-link" data-action="num-select-all">
+          ${allSelected ? t('accountOnboarding.numbers.order.deselectAll') : t('accountOnboarding.numbers.order.selectAll')}
+        </button>
+        <span style="font-size:var(--ds-font-size-small);color:var(--ds-color-text-secondary);margin-left:var(--ds-spacing-sm)">
+          ${this.numOrderSelectedNumbers.size} ${t('accountOnboarding.numbers.order.selected')}
+        </span>
+      </div>
+      <table class="num-results-table">
+        <thead>
+          <tr>
+            <th style="width:40px"></th>
+            <th>${t('accountOnboarding.numbers.overview.phoneNumber')}</th>
+            <th>${t('accountOnboarding.numbers.order.city')}</th>
+            <th>${t('accountOnboarding.numbers.order.state')}</th>
+            <th>${t('accountOnboarding.numbers.order.rateCenter')}</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="num-sub-footer">
+        <button class="btn btn-secondary" data-action="num-back-to-search">
+          ${t('accountOnboarding.numbers.nav.back')}
+        </button>
+        <button class="btn btn-primary" data-action="num-confirm-order"${this.numOrderSelectedNumbers.size === 0 ? ' disabled' : ''}>
+          ${t('accountOnboarding.numbers.nav.next')}
+        </button>
+      </div>`;
+  }
+
+  private renderNumOrderConfirm(): string {
+    const t = (key: string): string => this.t(key);
+
+    const items = Array.from(this.numOrderSelectedNumbers)
+      .map((num) => `<div class="num-confirm-item">${this.numFormatPhone(num)}</div>`)
+      .join('');
+
+    return `
+      <h3 class="section-heading">${t('accountOnboarding.numbers.order.confirmTitle')}</h3>
+      <p class="section-description">${t('accountOnboarding.numbers.order.confirmSubtitle')}</p>
+      <div class="num-confirm-list">${items}</div>
+      ${this.numOrderError ? `<div class="inline-alert error">${this.escapeHtml(this.numOrderError)}</div>` : ''}
+      <div class="num-sub-footer">
+        <button class="btn btn-secondary" data-action="num-back-to-results">
+          ${t('accountOnboarding.numbers.nav.back')}
+        </button>
+        <button class="btn btn-primary" data-action="num-place-order"${this.numOrderIsPlacing ? ' disabled' : ''}>
+          ${this.numOrderIsPlacing ? t('accountOnboarding.numbers.order.placing') : t('accountOnboarding.numbers.order.placeOrder')}
+        </button>
+      </div>`;
+  }
+
+  private renderNumOrderStatus(): string {
+    const t = (key: string): string => this.t(key);
+    const order = this.numOrderCurrentOrder;
+    if (!order) return '';
+
+    let icon = '';
+    let message = '';
+    const pollExhausted = order.status === 'pending' && this.numOrderPollCount >= 5;
+    switch (order.status) {
+      case 'pending':
+        if (pollExhausted) {
+          icon = `<div class="num-order-status-icon pending">${SUCCESS_SVG}</div>`;
+          message = t('accountOnboarding.numbers.order.statusStalled');
+        } else {
+          icon = `<div class="num-order-status-icon pending"><div class="spinner"></div></div>`;
+          message = t('accountOnboarding.numbers.order.statusPending');
+        }
+        break;
+      case 'complete':
+        icon = `<div class="num-order-status-icon success">${SUCCESS_SVG}</div>`;
+        message = t('accountOnboarding.numbers.order.statusComplete');
+        break;
+      case 'failed':
+        icon = `<div class="num-order-status-icon error">${ERROR_SVG}</div>`;
+        message = t('accountOnboarding.numbers.order.statusFailed');
+        break;
+      case 'partial':
+        icon = `<div class="num-order-status-icon success">${SUCCESS_SVG}</div>`;
+        message = t('accountOnboarding.numbers.order.statusPartial');
+        break;
+    }
+
+    const showDone = order.status !== 'pending' || pollExhausted;
+
+    return `
+      <h3 class="section-heading">${t('accountOnboarding.numbers.order.statusTitle')}</h3>
+      <div class="placeholder" style="min-height:120px">
+        ${icon}
+        <p class="placeholder-text">${message}</p>
+      </div>
+      ${
+        showDone
+          ? `
+        <div class="num-sub-footer num-sub-footer-end">
+          <button class="btn btn-primary" data-action="num-order-done">
+            ${t('accountOnboarding.numbers.order.done')}
+          </button>
+        </div>`
+          : ''
+      }`;
+  }
+
+  private renderNumPortNumbers(): string {
+    const t = (key: string): string => this.t(key);
+
+    const inputs = this.numPortPhoneInputs
+      .map((val, i) => {
+        return `
+        <div class="num-phone-input-row">
+          <input class="form-input" type="tel" id="num-port-phone-${i}"
+            value="${this.escapeHtml(val)}"
+            placeholder="${t('accountOnboarding.numbers.port.phonePlaceholder')}" />
+          ${
+            this.numPortPhoneInputs.length > 1
+              ? `
+            <button class="btn-danger-ghost" data-action="num-remove-port-phone" data-index="${i}">
+              ${t('accountOnboarding.numbers.port.removeNumber')}
+            </button>`
+              : ''
+          }
+        </div>`;
+      })
+      .join('');
+
+    return `
+      <h3 class="section-heading">${t('accountOnboarding.numbers.port.numbersTitle')}</h3>
+      <p class="section-description">${t('accountOnboarding.numbers.port.numbersSubtitle')}</p>
+      ${inputs}
+      <button class="btn-link" data-action="num-add-port-phone" style="margin-bottom:var(--ds-layout-spacing-md)">
+        ${t('accountOnboarding.numbers.port.addAnother')}
+      </button>
+      ${this.numPortEligibilityError ? `<div class="inline-alert error">${this.escapeHtml(this.numPortEligibilityError)}</div>` : ''}
+      <div class="num-sub-footer">
+        <button class="btn btn-secondary" data-action="num-back-to-overview">
+          ${t('accountOnboarding.numbers.nav.cancel')}
+        </button>
+        <button class="btn btn-primary" data-action="num-check-eligibility"${this.numPortIsCheckingEligibility ? ' disabled' : ''}>
+          ${this.numPortIsCheckingEligibility ? t('accountOnboarding.numbers.port.checking') : t('accountOnboarding.numbers.port.checkEligibility')}
+        </button>
+      </div>`;
+  }
+
+  private renderNumPortEligibility(): string {
+    const t = (key: string): string => this.t(key);
+    const result = this.numPortEligibilityResult;
+    if (!result) return '';
+
+    const portableRows = result.portable_numbers
+      .map(
+        (n) => `
+        <tr>
+          <td>${this.numFormatPhone(n.phone_number)}</td>
+          <td><span class="num-status-badge num-status-active">${t('accountOnboarding.numbers.port.portable')}</span></td>
+          <td>${this.escapeHtml(n.losing_carrier_name || '—')}</td>
+          <td>${n.is_wireless ? t('accountOnboarding.numbers.port.wirelessYes') : t('accountOnboarding.numbers.port.wirelessNo')}</td>
+        </tr>`
+      )
+      .join('');
+
+    const nonPortableRows = result.non_portable_numbers
+      .map(
+        (n) => `
+        <tr>
+          <td>${this.numFormatPhone(n.phone_number)}</td>
+          <td><span class="num-status-badge num-status-error">${t('accountOnboarding.numbers.port.notPortable')}</span></td>
+          <td>—</td>
+          <td>—</td>
+        </tr>`
+      )
+      .join('');
+
+    const hasPortable = result.portable_numbers.length > 0;
+
+    return `
+      <h3 class="section-heading">${t('accountOnboarding.numbers.port.eligibilityTitle')}</h3>
+      <p class="section-description">${t('accountOnboarding.numbers.port.eligibilitySubtitle')}</p>
+      <table class="num-eligibility-table">
+        <thead>
+          <tr>
+            <th>${t('accountOnboarding.numbers.overview.phoneNumber')}</th>
+            <th>${t('accountOnboarding.numbers.overview.status')}</th>
+            <th>${t('accountOnboarding.numbers.port.carrier')}</th>
+            <th>${t('accountOnboarding.numbers.port.wireless')}</th>
+          </tr>
+        </thead>
+        <tbody>${portableRows}${nonPortableRows}</tbody>
+      </table>
+      ${!hasPortable ? `<div class="inline-alert error">${t('accountOnboarding.numbers.port.noPortable')}</div>` : ''}
+      <div class="num-sub-footer">
+        <button class="btn btn-secondary" data-action="num-back-to-port-numbers">
+          ${t('accountOnboarding.numbers.nav.back')}
+        </button>
+        ${
+          hasPortable
+            ? `
+          <button class="btn btn-primary" data-action="num-to-subscriber">
+            ${t('accountOnboarding.numbers.port.continueWithPortable')}
+          </button>`
+            : ''
+        }
+      </div>`;
+  }
+
+  private renderNumPortSubscriber(): string {
+    const t = (key: string): string => this.t(key);
+    const e = this.numPortSubscriberErrors;
+
+    const stateOptions = US_STATES.map(
+      ([code, name]) =>
+        `<option value="${this.escapeHtml(code)}"${this.numPortSubscriberState === code ? ' selected' : ''}>${this.escapeHtml(name)}</option>`
+    ).join('');
+
+    return `
+      <h3 class="section-heading">${t('accountOnboarding.numbers.port.subscriberTitle')}</h3>
+      <p class="section-description">${t('accountOnboarding.numbers.port.subscriberSubtitle')}</p>
+      <div class="num-port-subscriber-form">
+        <div class="form-group">
+          <label class="form-label">${t('accountOnboarding.numbers.port.btnLabel')}</label>
+          <input class="form-input${e.btn ? ' error' : ''}" type="tel" id="num-port-btn"
+            value="${this.escapeHtml(this.numPortSubscriberBtn)}"
+            placeholder="${t('accountOnboarding.numbers.port.btnPlaceholder')}" />
+          ${e.btn ? `<div class="form-error">${this.escapeHtml(e.btn)}</div>` : ''}
+        </div>
+        <div class="form-group">
+          <label class="form-label">${t('accountOnboarding.numbers.port.businessNameLabel')}</label>
+          <input class="form-input${e.businessName ? ' error' : ''}" type="text" id="num-port-business-name"
+            value="${this.escapeHtml(this.numPortSubscriberBusinessName)}"
+            placeholder="${t('accountOnboarding.numbers.port.businessNamePlaceholder')}" />
+          ${e.businessName ? `<div class="form-error">${this.escapeHtml(e.businessName)}</div>` : ''}
+        </div>
+        <div class="form-group">
+          <label class="form-label">${t('accountOnboarding.numbers.port.approverNameLabel')}</label>
+          <input class="form-input${e.approverName ? ' error' : ''}" type="text" id="num-port-approver-name"
+            value="${this.escapeHtml(this.numPortSubscriberApproverName)}"
+            placeholder="${t('accountOnboarding.numbers.port.approverNamePlaceholder')}" />
+          ${e.approverName ? `<div class="form-error">${this.escapeHtml(e.approverName)}</div>` : ''}
+        </div>
+        <div class="form-group">
+          <label class="form-label">${t('accountOnboarding.numbers.port.accountNumberLabel')}</label>
+          <input class="form-input" type="text" id="num-port-account-number"
+            value="${this.escapeHtml(this.numPortSubscriberAccountNumber)}"
+            placeholder="${t('accountOnboarding.numbers.port.accountNumberPlaceholder')}" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">${t('accountOnboarding.numbers.port.pinLabel')}</label>
+          <input class="form-input" type="text" id="num-port-pin"
+            value="${this.escapeHtml(this.numPortSubscriberPin)}"
+            placeholder="${t('accountOnboarding.numbers.port.pinPlaceholder')}" />
+        </div>
+        <hr class="section-divider" />
+        <h4 class="section-heading" style="font-size:var(--ds-font-size-base)">${t('accountOnboarding.numbers.port.addressHeading')}</h4>
+        <div class="num-port-address-grid">
+          <div class="form-group">
+            <label class="form-label">${t('accountOnboarding.numbers.port.houseNumberLabel')}</label>
+            <input class="form-input${e.houseNumber ? ' error' : ''}" type="text" id="num-port-house-number"
+              value="${this.escapeHtml(this.numPortSubscriberHouseNumber)}"
+              placeholder="${t('accountOnboarding.numbers.port.houseNumberPlaceholder')}" />
+            ${e.houseNumber ? `<div class="form-error">${this.escapeHtml(e.houseNumber)}</div>` : ''}
+          </div>
+          <div class="form-group">
+            <label class="form-label">${t('accountOnboarding.numbers.port.streetNameLabel')}</label>
+            <input class="form-input${e.streetName ? ' error' : ''}" type="text" id="num-port-street-name"
+              value="${this.escapeHtml(this.numPortSubscriberStreetName)}"
+              placeholder="${t('accountOnboarding.numbers.port.streetNamePlaceholder')}" />
+            ${e.streetName ? `<div class="form-error">${this.escapeHtml(e.streetName)}</div>` : ''}
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">${t('accountOnboarding.numbers.port.line2Label')}</label>
+          <input class="form-input" type="text" id="num-port-line2"
+            value="${this.escapeHtml(this.numPortSubscriberLine2)}"
+            placeholder="${t('accountOnboarding.numbers.port.line2Placeholder')}" />
+        </div>
+        <div class="num-port-address-row-2">
+          <div class="form-group">
+            <label class="form-label">${t('accountOnboarding.numbers.port.cityLabel')}</label>
+            <input class="form-input${e.city ? ' error' : ''}" type="text" id="num-port-city"
+              value="${this.escapeHtml(this.numPortSubscriberCity)}"
+              placeholder="${t('accountOnboarding.numbers.port.cityPlaceholder')}" />
+            ${e.city ? `<div class="form-error">${this.escapeHtml(e.city)}</div>` : ''}
+          </div>
+          <div class="form-group">
+            <label class="form-label">${t('accountOnboarding.numbers.port.stateLabel')}</label>
+            <select class="form-select${e.state ? ' error' : ''}" id="num-port-state">
+              <option value="">${t('accountOnboarding.numbers.port.statePlaceholder')}</option>
+              ${stateOptions}
+            </select>
+            ${e.state ? `<div class="form-error">${this.escapeHtml(e.state)}</div>` : ''}
+          </div>
+          <div class="form-group">
+            <label class="form-label">${t('accountOnboarding.numbers.port.zipLabel')}</label>
+            <input class="form-input${e.zip ? ' error' : ''}" type="text" id="num-port-zip" maxlength="5"
+              value="${this.escapeHtml(this.numPortSubscriberZip)}"
+              placeholder="${t('accountOnboarding.numbers.port.zipPlaceholder')}" />
+            ${e.zip ? `<div class="form-error">${this.escapeHtml(e.zip)}</div>` : ''}
+          </div>
+        </div>
+      </div>
+      <div class="num-sub-footer">
+        <button class="btn btn-secondary" data-action="num-back-to-eligibility">
+          ${t('accountOnboarding.numbers.nav.back')}
+        </button>
+        <button class="btn btn-primary" data-action="num-to-foc-date">
+          ${t('accountOnboarding.numbers.nav.next')}
+        </button>
+      </div>`;
+  }
+
+  private renderNumPortFocDate(): string {
+    const t = (key: string): string => this.t(key);
+    const e = this.numPortFocErrors;
+
+    // Calculate min date (5 business days)
+    const today = new Date();
+    let bizDays = 0;
+    const minDate = new Date(today);
+    while (bizDays < 5) {
+      minDate.setDate(minDate.getDate() + 1);
+      const day = minDate.getDay();
+      if (day !== 0 && day !== 6) bizDays++;
+    }
+    const minStr = `${minDate.getFullYear()}-${String(minDate.getMonth() + 1).padStart(2, '0')}-${String(minDate.getDate()).padStart(2, '0')}`;
+
+    const maxDate = new Date(today);
+    maxDate.setDate(maxDate.getDate() + 30);
+    const maxStr = `${maxDate.getFullYear()}-${String(maxDate.getMonth() + 1).padStart(2, '0')}-${String(maxDate.getDate()).padStart(2, '0')}`;
+
+    // Time options: 8AM-8PM ET in 30-min increments
+    const timeOptions: string[] = [];
+    for (let h = 8; h <= 20; h++) {
+      for (const m of ['00', '30']) {
+        if (h === 20 && m === '30') continue;
+        const hStr = h.toString().padStart(2, '0');
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
+        timeOptions.push(
+          `<option value="${hStr}:${m}"${this.numPortFocTime === `${hStr}:${m}` ? ' selected' : ''}>${h12}:${m} ${ampm} ET</option>`
+        );
+      }
+    }
+
+    return `
+      <h3 class="section-heading">${t('accountOnboarding.numbers.port.focTitle')}</h3>
+      <p class="section-description">${t('accountOnboarding.numbers.port.focSubtitle')}</p>
+      <div class="form-group">
+        <label class="form-label">${t('accountOnboarding.numbers.port.focDateLabel')}</label>
+        <input class="form-input${e.date ? ' error' : ''}" type="date" id="num-port-foc-date"
+          value="${this.escapeHtml(this.numPortFocDate)}" min="${minStr}" max="${maxStr}" />
+        ${e.date ? `<div class="form-error">${this.escapeHtml(e.date)}</div>` : ''}
+      </div>
+      <div class="form-group">
+        <label class="form-label">${t('accountOnboarding.numbers.port.focTimeLabel')}</label>
+        <select class="form-select${e.time ? ' error' : ''}" id="num-port-foc-time">
+          <option value="">${t('accountOnboarding.numbers.port.focTimePlaceholder')}</option>
+          ${timeOptions.join('')}
+        </select>
+        ${e.time ? `<div class="form-error">${this.escapeHtml(e.time)}</div>` : ''}
+      </div>
+      <div class="num-sub-footer">
+        <button class="btn btn-secondary" data-action="num-back-to-subscriber">
+          ${t('accountOnboarding.numbers.nav.back')}
+        </button>
+        <button class="btn btn-primary" data-action="num-to-documents">
+          ${t('accountOnboarding.numbers.nav.next')}
+        </button>
+      </div>`;
+  }
+
+  private renderNumPortDocuments(): string {
+    const t = (key: string): string => this.t(key);
+
+    const billFileName = this.numPortBillCopyFile
+      ? `${t('accountOnboarding.numbers.port.fileSelected')} ${this.escapeHtml(this.numPortBillCopyFile.name)}`
+      : t('accountOnboarding.numbers.port.noFileSelected');
+
+    const csrFileName = this.numPortCsrFile
+      ? `${t('accountOnboarding.numbers.port.fileSelected')} ${this.escapeHtml(this.numPortCsrFile.name)}`
+      : t('accountOnboarding.numbers.port.noFileSelected');
+
+    return `
+      <h3 class="section-heading">${t('accountOnboarding.numbers.port.documentsTitle')}</h3>
+      <p class="section-description">${t('accountOnboarding.numbers.port.documentsSubtitle')}</p>
+
+      <div class="num-doc-upload">
+        <div class="num-doc-upload-header">
+          <span class="num-doc-upload-label">${t('accountOnboarding.numbers.port.billCopyLabel')}</span>
+          <span class="num-doc-upload-badge required">${t('accountOnboarding.numbers.port.billCopyRequired')}</span>
+        </div>
+        <p class="num-doc-upload-desc">${t('accountOnboarding.numbers.port.billCopyDesc')}</p>
+        <div class="num-doc-upload-file">
+          <button class="btn btn-secondary" style="padding:var(--ds-spacing-xs) var(--ds-layout-spacing-sm);font-size:var(--ds-font-size-small)"
+            data-action="num-upload-bill">
+            ${t('accountOnboarding.numbers.port.uploadFile')}
+          </button>
+          <span class="file-name">${billFileName}</span>
+        </div>
+        <input type="file" id="num-bill-copy-input" style="display:none" accept=".pdf,.png,.jpg,.jpeg" />
+      </div>
+
+      <div class="num-doc-upload">
+        <div class="num-doc-upload-header">
+          <span class="num-doc-upload-label">${t('accountOnboarding.numbers.port.csrLabel')}</span>
+          <span class="num-doc-upload-badge optional">${t('accountOnboarding.numbers.port.csrOptional')}</span>
+        </div>
+        <p class="num-doc-upload-desc">${t('accountOnboarding.numbers.port.csrDesc')}</p>
+        <div class="num-doc-upload-file">
+          <button class="btn btn-secondary" style="padding:var(--ds-spacing-xs) var(--ds-layout-spacing-sm);font-size:var(--ds-font-size-small)"
+            data-action="num-upload-csr">
+            ${t('accountOnboarding.numbers.port.uploadFile')}
+          </button>
+          <span class="file-name">${csrFileName}</span>
+        </div>
+        <input type="file" id="num-csr-input" style="display:none" accept=".pdf,.png,.jpg,.jpeg" />
+      </div>
+
+      ${this.numPortDocUploadError ? `<div class="inline-alert error">${this.escapeHtml(this.numPortDocUploadError)}</div>` : ''}
+      <div class="num-sub-footer">
+        <button class="btn btn-secondary" data-action="num-back-to-foc-date">
+          ${t('accountOnboarding.numbers.nav.back')}
+        </button>
+        <button class="btn btn-primary" data-action="num-to-review">
+          ${t('accountOnboarding.numbers.nav.next')}
+        </button>
+      </div>`;
+  }
+
+  private renderNumPortReview(): string {
+    const t = (key: string): string => this.t(key);
+    const result = this.numPortEligibilityResult;
+    if (!result) return '';
+
+    const numbersList = result.portable_numbers
+      .map((n) => this.numFormatPhone(n.phone_number))
+      .join(', ');
+
+    return `
+      <h3 class="section-heading">${t('accountOnboarding.numbers.port.reviewTitle')}</h3>
+      <p class="section-description">${t('accountOnboarding.numbers.port.reviewSubtitle')}</p>
+
+      <div class="num-review-section">
+        <h4>${t('accountOnboarding.numbers.port.numbersSection')}</h4>
+        <div class="num-review-row">
+          <span class="num-review-label">${t('accountOnboarding.numbers.overview.phoneNumber')}</span>
+          <span class="num-review-value">${this.escapeHtml(numbersList)}</span>
+        </div>
+      </div>
+
+      <div class="num-review-section">
+        <h4>${t('accountOnboarding.numbers.port.subscriberSection')}</h4>
+        <div class="num-review-row">
+          <span class="num-review-label">${t('accountOnboarding.numbers.port.btnLabel')}</span>
+          <span class="num-review-value">${this.escapeHtml(this.numPortSubscriberBtn)}</span>
+        </div>
+        <div class="num-review-row">
+          <span class="num-review-label">${t('accountOnboarding.numbers.port.businessNameLabel')}</span>
+          <span class="num-review-value">${this.escapeHtml(this.numPortSubscriberBusinessName)}</span>
+        </div>
+        <div class="num-review-row">
+          <span class="num-review-label">${t('accountOnboarding.numbers.port.approverNameLabel')}</span>
+          <span class="num-review-value">${this.escapeHtml(this.numPortSubscriberApproverName)}</span>
+        </div>
+      </div>
+
+      <div class="num-review-section">
+        <h4>${t('accountOnboarding.numbers.port.focSection')}</h4>
+        <div class="num-review-row">
+          <span class="num-review-label">${t('accountOnboarding.numbers.port.focDateLabel')}</span>
+          <span class="num-review-value">${this.escapeHtml(this.numPortFocDate)}</span>
+        </div>
+        ${
+          this.numPortFocTime
+            ? `
+          <div class="num-review-row">
+            <span class="num-review-label">${t('accountOnboarding.numbers.port.focTimeLabel')}</span>
+            <span class="num-review-value">${this.escapeHtml(this.numPortFocTime)}</span>
+          </div>`
+            : ''
+        }
+      </div>
+
+      <div class="num-review-section">
+        <h4>${t('accountOnboarding.numbers.port.documentsSection')}</h4>
+        <div class="num-review-row">
+          <span class="num-review-label">${t('accountOnboarding.numbers.port.billCopyLabel')}</span>
+          <span class="num-review-value">${this.numPortBillCopyFile ? this.escapeHtml(this.numPortBillCopyFile.name) : '—'}</span>
+        </div>
+        <div class="num-review-row">
+          <span class="num-review-label">${t('accountOnboarding.numbers.port.csrLabel')}</span>
+          <span class="num-review-value">${this.numPortCsrFile ? this.escapeHtml(this.numPortCsrFile.name) : '—'}</span>
+        </div>
+      </div>
+
+      <hr class="section-divider" />
+      <div class="form-group">
+        <label class="form-label">${t('accountOnboarding.numbers.port.signatureLabel')}</label>
+        <input class="form-input" type="text" id="num-port-signature"
+          value="${this.escapeHtml(this.numPortSignature)}"
+          placeholder="${t('accountOnboarding.numbers.port.signaturePlaceholder')}" />
+        <div class="form-help">${t('accountOnboarding.numbers.port.signatureHelp')}</div>
+      </div>
+
+      ${this.numPortSubmitError ? `<div class="inline-alert error">${this.escapeHtml(this.numPortSubmitError)}</div>` : ''}
+      <div class="num-sub-footer">
+        <button class="btn btn-secondary" data-action="num-back-to-documents">
+          ${t('accountOnboarding.numbers.nav.back')}
+        </button>
+        <button class="btn btn-primary" data-action="num-submit-port"${this.numPortIsSubmitting ? ' disabled' : ''}>
+          ${this.numPortIsSubmitting ? t('accountOnboarding.numbers.port.submitting') : t('accountOnboarding.numbers.port.approve')}
+        </button>
+      </div>`;
+  }
+
+  private renderNumPortSubmitted(): string {
+    const t = (key: string): string => this.t(key);
+    const order = this.numPortCurrentOrder;
+
+    return `
+      <h3 class="section-heading">${t('accountOnboarding.numbers.port.submittedTitle')}</h3>
+      <div class="placeholder" style="min-height:120px">
+        <div class="num-order-status-icon success">${SUCCESS_SVG}</div>
+        <p class="placeholder-text">${t('accountOnboarding.numbers.port.submittedSubtitle')}</p>
+      </div>
+      ${
+        order
+          ? `
+        <div class="num-review-row">
+          <span class="num-review-label">${t('accountOnboarding.numbers.port.submittedStatus')}</span>
+          <span class="num-review-value"><span class="num-status-badge num-status-porting">${this.escapeHtml(order.status)}</span></span>
+        </div>`
+          : ''
+      }
+      <div class="num-sub-footer num-sub-footer-end">
+        <button class="btn btn-primary" data-action="num-port-done">
+          ${t('accountOnboarding.numbers.port.backToOverview')}
+        </button>
+      </div>`;
+  }
+
+  // ============================================================================
+  // Numbers Step — Input Listeners
+  // ============================================================================
+
+  private attachNumInputListeners(): void {
+    if (!this.shadowRoot) return;
+
+    // Order search fields
+    const areaCodeInput = this.shadowRoot.querySelector<HTMLInputElement>('#num-area-code');
+    if (areaCodeInput) {
+      areaCodeInput.addEventListener('input', () => {
+        this.numOrderSearchValue = areaCodeInput.value;
+      });
+    }
+
+    const searchCityInput = this.shadowRoot.querySelector<HTMLInputElement>('#num-search-city');
+    if (searchCityInput) {
+      searchCityInput.addEventListener('input', () => {
+        this.numOrderSearchCity = searchCityInput.value;
+      });
+    }
+
+    const searchStateSelect = this.shadowRoot.querySelector<HTMLSelectElement>('#num-search-state');
+    if (searchStateSelect) {
+      searchStateSelect.addEventListener('change', () => {
+        this.numOrderSearchState = searchStateSelect.value;
+      });
+    }
+
+    const zipInput = this.shadowRoot.querySelector<HTMLInputElement>('#num-zip-code');
+    if (zipInput) {
+      zipInput.addEventListener('input', () => {
+        this.numOrderSearchValue = zipInput.value;
+      });
+    }
+
+    const quantityInput = this.shadowRoot.querySelector<HTMLInputElement>('#num-quantity');
+    if (quantityInput) {
+      quantityInput.addEventListener('input', () => {
+        this.numOrderQuantity = parseInt(quantityInput.value, 10) || 5;
+      });
+    }
+
+    // Port phone inputs
+    for (let i = 0; i < this.numPortPhoneInputs.length; i++) {
+      const phoneInput = this.shadowRoot.querySelector<HTMLInputElement>(`#num-port-phone-${i}`);
+      if (phoneInput) {
+        phoneInput.addEventListener('input', () => {
+          const formatter = new AsYouType('US');
+          this.numPortPhoneInputs[i] = formatter.input(phoneInput.value);
+          phoneInput.value = this.numPortPhoneInputs[i]!;
+        });
+      }
+    }
+
+    // Port subscriber fields (except BTN which has special formatting)
+    const bindInput = (id: string, setter: (val: string) => void): void => {
+      const el = this.shadowRoot!.querySelector<HTMLInputElement>(`#${id}`);
+      if (el) el.addEventListener('input', () => setter(el.value));
+    };
+    bindInput('num-port-business-name', (v) => {
+      this.numPortSubscriberBusinessName = v;
+    });
+    bindInput('num-port-approver-name', (v) => {
+      this.numPortSubscriberApproverName = v;
+    });
+    bindInput('num-port-account-number', (v) => {
+      this.numPortSubscriberAccountNumber = v;
+    });
+    bindInput('num-port-pin', (v) => {
+      this.numPortSubscriberPin = v;
+    });
+    bindInput('num-port-house-number', (v) => {
+      this.numPortSubscriberHouseNumber = v;
+    });
+    bindInput('num-port-street-name', (v) => {
+      this.numPortSubscriberStreetName = v;
+    });
+    bindInput('num-port-line2', (v) => {
+      this.numPortSubscriberLine2 = v;
+    });
+    bindInput('num-port-city', (v) => {
+      this.numPortSubscriberCity = v;
+    });
+    bindInput('num-port-zip', (v) => {
+      this.numPortSubscriberZip = v;
+    });
+
+    // BTN formatting
+    const btnInput = this.shadowRoot.querySelector<HTMLInputElement>('#num-port-btn');
+    if (btnInput) {
+      btnInput.addEventListener('input', () => {
+        const formatter = new AsYouType('US');
+        this.numPortSubscriberBtn = formatter.input(btnInput.value);
+        btnInput.value = this.numPortSubscriberBtn;
+      });
+    }
+
+    const portStateSelect = this.shadowRoot.querySelector<HTMLSelectElement>('#num-port-state');
+    if (portStateSelect) {
+      portStateSelect.addEventListener('change', () => {
+        this.numPortSubscriberState = portStateSelect.value;
+      });
+    }
+
+    // FOC date/time
+    const focDateInput = this.shadowRoot.querySelector<HTMLInputElement>('#num-port-foc-date');
+    if (focDateInput) {
+      focDateInput.addEventListener('input', () => {
+        this.numPortFocDate = focDateInput.value;
+      });
+    }
+
+    const focTimeSelect = this.shadowRoot.querySelector<HTMLSelectElement>('#num-port-foc-time');
+    if (focTimeSelect) {
+      focTimeSelect.addEventListener('change', () => {
+        this.numPortFocTime = focTimeSelect.value;
+      });
+    }
+
+    // File inputs
+    const billInput = this.shadowRoot.querySelector<HTMLInputElement>('#num-bill-copy-input');
+    if (billInput) {
+      billInput.addEventListener('change', () => {
+        this.numPortBillCopyFile = billInput.files?.[0] ?? null;
+        this.render();
+      });
+    }
+
+    const csrInput = this.shadowRoot.querySelector<HTMLInputElement>('#num-csr-input');
+    if (csrInput) {
+      csrInput.addEventListener('change', () => {
+        this.numPortCsrFile = csrInput.files?.[0] ?? null;
+        this.render();
+      });
+    }
+
+    // Signature
+    const sigInput = this.shadowRoot.querySelector<HTMLInputElement>('#num-port-signature');
+    if (sigInput) {
+      sigInput.addEventListener('input', () => {
+        this.numPortSignature = sigInput.value;
+      });
+    }
+  }
+
+  // ============================================================================
   // Render
   // ============================================================================
 
@@ -1714,6 +3421,8 @@ export class AccountOnboardingComponent extends BaseComponent {
     if (!this.isLoading && !this.loadError) {
       if (this.currentStep === 'account') {
         this.attachInputListeners();
+      } else if (this.currentStep === 'numbers') {
+        this.attachNumInputListeners();
       } else if (this.currentStep === 'hardware') {
         this.attachHardwareInputListeners();
       }
@@ -2106,18 +3815,53 @@ export class AccountOnboardingComponent extends BaseComponent {
   }
 
   private renderNumbersStep(): string {
-    const steps = this.getActiveSteps();
-    const stepNum = steps.indexOf('numbers') + 1;
+    let subContent = '';
+    switch (this.numSubStep) {
+      case 'overview':
+        subContent = this.renderNumOverview();
+        break;
+      case 'order-search':
+        subContent = this.renderNumOrderSearch();
+        break;
+      case 'order-results':
+        subContent = this.renderNumOrderResults();
+        break;
+      case 'order-confirm':
+        subContent = this.renderNumOrderConfirm();
+        break;
+      case 'order-status':
+        subContent = this.renderNumOrderStatus();
+        break;
+      case 'port-numbers':
+        subContent = this.renderNumPortNumbers();
+        break;
+      case 'port-eligibility':
+        subContent = this.renderNumPortEligibility();
+        break;
+      case 'port-subscriber':
+        subContent = this.renderNumPortSubscriber();
+        break;
+      case 'port-foc-date':
+        subContent = this.renderNumPortFocDate();
+        break;
+      case 'port-documents':
+        subContent = this.renderNumPortDocuments();
+        break;
+      case 'port-review':
+        subContent = this.renderNumPortReview();
+        break;
+      case 'port-submitted':
+        subContent = this.renderNumPortSubmitted();
+        break;
+    }
+
     return `
       <div class="card ${this.classes.stepNumbers || ''}" part="step-numbers">
         <h2 class="section-title">${this.t('accountOnboarding.numbers.title')}</h2>
         <p class="section-subtitle">${this.t('accountOnboarding.numbers.subtitle')}</p>
-        <div class="placeholder">
-          <div class="placeholder-icon">${stepNum}</div>
-          <p class="placeholder-text">${this.t('accountOnboarding.numbers.placeholder')}</p>
-        </div>
+        ${subContent}
       </div>
-      ${this.renderStepFooter()}
+      ${this.numSubStep === 'overview' ? this.renderStepFooter() : ''}
     `;
   }
 
@@ -2230,11 +3974,15 @@ export class AccountOnboardingComponent extends BaseComponent {
       addDeviceRow = '';
     }
 
+    const actionErrorHtml = this.hwActionError
+      ? `<div class="inline-alert error" style="margin-bottom:var(--ds-layout-spacing-sm)">${this.escapeHtml(this.hwActionError)}</div>`
+      : '';
+
     return `
       <div class="card ${this.classes.stepHardware || ''}" part="step-hardware">
         <h2 class="section-title">${t('accountOnboarding.hardware.title')}</h2>
         <p class="section-subtitle">${t('accountOnboarding.hardware.subtitle')}</p>
-
+        ${actionErrorHtml}
         <div class="hw-device-list">
           ${deskPhoneRows}
           ${dectGroupRows}
@@ -2540,12 +4288,17 @@ export class AccountOnboardingComponent extends BaseComponent {
             (d) => d.mac_address.replace(/:/g, '') === normalized.replace(/:/g, '')
           );
 
-          if (newDev) {
-            const endpoint = await this.ensureEndpoint(this.hwEditUserId);
-            await this.instance.createDeviceLine(newDev.id, { endpoint_id: endpoint.id });
-            this.devices = await this.instance.listDevices();
-            await this.hydrateDeviceLines();
+          if (!newDev) {
+            this.hwEditError = this.t('accountOnboarding.hardware.deviceNotFound');
+            this.hwEditSaving = false;
+            this.render();
+            return;
           }
+
+          const endpoint = await this.ensureEndpoint(this.hwEditUserId);
+          await this.instance.createDeviceLine(newDev.id, { endpoint_id: endpoint.id });
+          this.devices = await this.instance.listDevices();
+          await this.hydrateDeviceLines();
 
           // Close form
           this.hwEditingRowKey = null;
@@ -2640,6 +4393,7 @@ export class AccountOnboardingComponent extends BaseComponent {
   /** Remove a device (desk phone) or handset (DECT) entirely. */
   private async handleRemoveDectBase(baseId: string): Promise<void> {
     if (!this.instance) return;
+    this.hwActionError = null;
     try {
       await this.instance.deleteDECTBase(baseId);
       this.dectBases = this.dectBases.filter((b) => b.id !== baseId);
@@ -2653,7 +4407,7 @@ export class AccountOnboardingComponent extends BaseComponent {
       }
       await this.loadHardwareData();
     } catch {
-      this.hwEditError = this.t('accountOnboarding.hardware.removeBaseFailed');
+      this.hwActionError = this.t('accountOnboarding.hardware.removeBaseFailed');
       this.render();
     }
   }
@@ -2665,6 +4419,7 @@ export class AccountOnboardingComponent extends BaseComponent {
     baseId: string
   ): Promise<void> {
     if (!this.instance) return;
+    this.hwActionError = null;
 
     try {
       if (deviceType === 'deskphone') {
@@ -2678,7 +4433,7 @@ export class AccountOnboardingComponent extends BaseComponent {
         this.dectHandsets.set(baseId, refreshed);
       }
     } catch (err) {
-      this.hwEditError = err instanceof Error ? err.message : String(err);
+      this.hwActionError = err instanceof Error ? err.message : String(err);
     }
     this.render();
   }
@@ -2830,6 +4585,178 @@ export class AccountOnboardingComponent extends BaseComponent {
           this.addressSuggestions = [];
           this.addressDropdownOpen = false;
           this.render();
+          break;
+
+        // ── Numbers Step Actions ──
+        case 'num-retry-load':
+          this.loadNumbersData();
+          break;
+        case 'num-start-order':
+          this.numResetOrderFlow();
+          this.numSubStep = 'order-search';
+          this.render();
+          break;
+        case 'num-start-port':
+          this.numResetPortFlow();
+          this.numSubStep = 'port-numbers';
+          this.render();
+          break;
+        case 'num-back-to-overview':
+          this.numResetOrderFlow();
+          this.numResetPortFlow();
+          this.numSubStep = 'overview';
+          this.loadNumbersData();
+          break;
+        case 'num-set-search-type': {
+          const searchType = actionEl.dataset.searchType as SearchType;
+          if (searchType) {
+            this.numOrderSearchType = searchType;
+            this.numOrderSearchValue = '';
+            this.numOrderSearchCity = '';
+            this.numOrderSearchState = '';
+            this.render();
+          }
+          break;
+        }
+        case 'num-search':
+          this.numSearchNumbers();
+          break;
+        case 'num-back-to-search':
+          this.numSubStep = 'order-search';
+          this.render();
+          break;
+        case 'num-toggle-number': {
+          const phone = actionEl.dataset.phone;
+          if (phone) {
+            if (this.numOrderSelectedNumbers.has(phone)) {
+              this.numOrderSelectedNumbers.delete(phone);
+            } else {
+              this.numOrderSelectedNumbers.add(phone);
+            }
+            this.render();
+          }
+          break;
+        }
+        case 'num-select-all':
+          if (this.numOrderSelectedNumbers.size === this.numOrderAvailableNumbers.length) {
+            this.numOrderSelectedNumbers.clear();
+          } else {
+            for (const num of this.numOrderAvailableNumbers) {
+              this.numOrderSelectedNumbers.add(num.phone_number);
+            }
+          }
+          this.render();
+          break;
+        case 'num-confirm-order':
+          if (this.numOrderSelectedNumbers.size > 0) {
+            this.numSubStep = 'order-confirm';
+            this.render();
+          }
+          break;
+        case 'num-back-to-results':
+          this.numSubStep = 'order-results';
+          this.render();
+          break;
+        case 'num-place-order':
+          this.numPlaceOrder();
+          break;
+        case 'num-order-done':
+          this.numResetOrderFlow();
+          this.numSubStep = 'overview';
+          this.loadNumbersData();
+          break;
+        case 'num-add-port-phone':
+          this.numPortPhoneInputs.push('');
+          this.render();
+          break;
+        case 'num-remove-port-phone': {
+          const idx = parseInt(actionEl.dataset.index ?? '', 10);
+          if (!isNaN(idx) && this.numPortPhoneInputs.length > 1) {
+            this.numPortPhoneInputs.splice(idx, 1);
+            this.render();
+          }
+          break;
+        }
+        case 'num-check-eligibility':
+          this.numCheckPortEligibility();
+          break;
+        case 'num-back-to-port-numbers':
+          this.numSubStep = 'port-numbers';
+          this.render();
+          break;
+        case 'num-to-subscriber':
+          this.numSubStep = 'port-subscriber';
+          this.render();
+          break;
+        case 'num-back-to-eligibility':
+          this.numSubStep = 'port-eligibility';
+          this.render();
+          break;
+        case 'num-to-foc-date':
+          if (this.numValidateSubscriber()) {
+            this.numSubStep = 'port-foc-date';
+            this.render();
+          } else {
+            this.render();
+          }
+          break;
+        case 'num-back-to-subscriber':
+          this.numSubStep = 'port-subscriber';
+          this.render();
+          break;
+        case 'num-to-documents':
+          if (this.numValidateFocDate()) {
+            this.numSubStep = 'port-documents';
+            this.render();
+          } else {
+            this.render();
+          }
+          break;
+        case 'num-back-to-foc-date':
+          this.numSubStep = 'port-foc-date';
+          this.render();
+          break;
+        case 'num-upload-bill': {
+          const billInput =
+            this.shadowRoot?.querySelector<HTMLInputElement>('#num-bill-copy-input');
+          billInput?.click();
+          break;
+        }
+        case 'num-upload-csr': {
+          const csrInput = this.shadowRoot?.querySelector<HTMLInputElement>('#num-csr-input');
+          csrInput?.click();
+          break;
+        }
+        case 'num-to-review':
+          if (!this.numPortBillCopyFile) {
+            this.numPortDocUploadError = this.t(
+              'accountOnboarding.numbers.validation.billCopyRequired'
+            );
+            this.render();
+          } else {
+            this.numPortDocUploadError = null;
+            this.numSubStep = 'port-review';
+            this.render();
+          }
+          break;
+        case 'num-back-to-documents':
+          this.numSubStep = 'port-documents';
+          this.render();
+          break;
+        case 'num-submit-port':
+          if (!this.numPortSignature.trim()) {
+            this.numPortSubmitError = this.t(
+              'accountOnboarding.numbers.validation.signatureRequired'
+            );
+            this.render();
+          } else {
+            this.numCreateAndSubmitPort();
+          }
+          break;
+        case 'num-port-done':
+          this.numResetPortFlow();
+          this.numSubStep = 'overview';
+          this.loadNumbersData();
           break;
       }
     });

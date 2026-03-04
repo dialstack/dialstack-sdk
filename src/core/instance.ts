@@ -294,7 +294,9 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
 
     const headers = new Headers(options.headers);
     headers.set('Authorization', `Bearer ${clientSecret}`);
-    headers.set('Content-Type', 'application/json');
+    if (!(options.body instanceof FormData)) {
+      headers.set('Content-Type', 'application/json');
+    }
 
     return fetch(`${this.apiUrl}${path}`, {
       ...options,
@@ -508,6 +510,28 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       throw new Error(`Failed to list port orders: ${response.status} ${errorText}`);
     }
     return response.json();
+  }
+
+  /**
+   * Fetch all pages of a paginated list endpoint, following next_page_url links.
+   */
+  async fetchAllPages<T>(
+    fetchFn: (opts: { limit: number }) => Promise<PaginatedResponse<T>>
+  ): Promise<T[]> {
+    const allData: T[] = [];
+    const MAX_PAGES = 100;
+    let pages = 0;
+    let response = await fetchFn({ limit: 100 });
+    allData.push(...response.data);
+
+    while (response.next_page_url && ++pages < MAX_PAGES) {
+      const nextResponse = await this.fetchApi(response.next_page_url);
+      if (!nextResponse.ok) break;
+      response = await nextResponse.json();
+      allData.push(...response.data);
+    }
+
+    return allData;
   }
 
   // ===========================================================================
@@ -1102,6 +1126,66 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       throw new Error(`Failed to cancel port order: ${response.status} ${errorText}`);
     }
     return response.json();
+  }
+
+  /**
+   * Upload a CSR document for a port order
+   */
+  async uploadCSR(orderId: string, file: File): Promise<void> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await this.fetchApi(`/v1/port-orders/${orderId}/csr`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to upload CSR: ${response.status} ${errorText}`);
+    }
+  }
+
+  /**
+   * Upload a bill copy for a port order
+   */
+  async uploadBillCopy(orderId: string, file: File): Promise<void> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await this.fetchApi(`/v1/port-orders/${orderId}/bill-copy`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to upload bill copy: ${response.status} ${errorText}`);
+    }
+  }
+
+  /**
+   * Download the CSR document for a port order
+   */
+  async downloadCSR(orderId: string): Promise<Blob> {
+    const response = await this.fetchApi(`/v1/port-orders/${orderId}/csr`, {
+      method: 'GET',
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to download CSR: ${response.status} ${errorText}`);
+    }
+    return response.blob();
+  }
+
+  /**
+   * Download the bill copy for a port order
+   */
+  async downloadBillCopy(orderId: string): Promise<Blob> {
+    const response = await this.fetchApi(`/v1/port-orders/${orderId}/bill-copy`, {
+      method: 'GET',
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to download bill copy: ${response.status} ${errorText}`);
+    }
+    return response.blob();
   }
 
   // ===========================================================================

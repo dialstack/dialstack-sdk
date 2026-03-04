@@ -355,6 +355,16 @@ export interface DialStackInstance {
     status?: string;
   }): Promise<PaginatedResponse<PortOrder>>;
 
+  /**
+   * Fetch all pages of a paginated list endpoint, following next_page_url links.
+   *
+   * @param fetchFn - A function that fetches a single page (e.g., `(opts) => this.listPhoneNumbers(opts)`)
+   * @returns Promise resolving to the full array of items across all pages
+   */
+  fetchAllPages<T>(
+    fetchFn: (opts: { limit: number }) => Promise<PaginatedResponse<T>>
+  ): Promise<T[]>;
+
   // ===========================================================================
   // Phone Number Ordering Methods
   // ===========================================================================
@@ -586,6 +596,38 @@ export interface DialStackInstance {
    * @returns Promise resolving to the updated port order
    */
   cancelPortOrder(orderId: string): Promise<PortOrder>;
+
+  /**
+   * Upload a CSR document for a port order
+   *
+   * @param orderId - The port order ID
+   * @param file - The CSR file to upload
+   */
+  uploadCSR(orderId: string, file: File): Promise<void>;
+
+  /**
+   * Upload a bill copy for a port order
+   *
+   * @param orderId - The port order ID
+   * @param file - The bill copy file to upload
+   */
+  uploadBillCopy(orderId: string, file: File): Promise<void>;
+
+  /**
+   * Download the CSR document for a port order
+   *
+   * @param orderId - The port order ID
+   * @returns Promise resolving to the document as a Blob
+   */
+  downloadCSR(orderId: string): Promise<Blob>;
+
+  /**
+   * Download the bill copy for a port order
+   *
+   * @param orderId - The port order ID
+   * @returns Promise resolving to the document as a Blob
+   */
+  downloadBillCopy(orderId: string): Promise<Blob>;
 
   // ===========================================================================
   // DECT Base Methods

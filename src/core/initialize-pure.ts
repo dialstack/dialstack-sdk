@@ -115,6 +115,9 @@ export async function loadDialstackAndInitialize(
     listPortOrders: (options) => {
       return instance.listPortOrders(options);
     },
+    fetchAllPages: (fetchFn) => {
+      return instance.fetchAllPages(fetchFn);
+    },
     // Phone number ordering methods
     searchAvailableNumbers: (options) => {
       return instance.searchAvailableNumbers(options);
@@ -162,6 +165,18 @@ export async function loadDialstackAndInitialize(
     },
     cancelPortOrder: (orderId) => {
       return instance.cancelPortOrder(orderId);
+    },
+    uploadCSR: (orderId, file) => {
+      return instance.uploadCSR(orderId, file);
+    },
+    uploadBillCopy: (orderId, file) => {
+      return instance.uploadBillCopy(orderId, file);
+    },
+    downloadCSR: (orderId) => {
+      return instance.downloadCSR(orderId);
+    },
+    downloadBillCopy: (orderId) => {
+      return instance.downloadBillCopy(orderId);
     },
     // DECT base methods
     createDECTBase: (data) => {
