@@ -49,6 +49,7 @@ export interface AccountConfig {
   transcription_enabled?: boolean;
   timezone?: string;
   max_phone_numbers?: number;
+  onboarding_step?: AccountOnboardingStep;
 }
 
 export interface Account {

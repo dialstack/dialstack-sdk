@@ -1124,6 +1124,7 @@ export class AccountOnboardingComponent extends BaseComponent {
   ];
 
   private currentStep: AccountOnboardingStep = 'account';
+  private savedStepIndex = 0;
   private isLoading = true;
   private loadError: string | null = null;
 
@@ -1324,9 +1325,18 @@ export class AccountOnboardingComponent extends BaseComponent {
 
       this.isLoading = false;
 
-      // Jump to a specific step if configured (useful for development)
+      // Restore saved onboarding step from account config
+      const activeSteps = this.getActiveSteps();
+      const savedStep = account.config?.onboarding_step;
+      if (savedStep && savedStep !== 'complete' && activeSteps.includes(savedStep)) {
+        const idx = activeSteps.indexOf(savedStep);
+        this.savedStepIndex = idx;
+        this.navigateToStep(savedStep);
+      }
+
+      // Jump to a specific step if configured (takes priority as an explicit override)
       const initial = this.collectionOptions?.initialStep;
-      if (initial && this.getActiveSteps().includes(initial)) {
+      if (initial && activeSteps.includes(initial)) {
         this.navigateToStep(initial);
       }
 
@@ -1448,6 +1458,16 @@ export class AccountOnboardingComponent extends BaseComponent {
     this.currentStep = step;
     this._onStepChange?.({ step });
     this.render();
+
+    // Persist progress (fire-and-forget) only when advancing beyond high-water mark
+    const activeSteps = this.getActiveSteps();
+    const stepIdx = activeSteps.indexOf(step);
+    if (stepIdx > this.savedStepIndex && this.instance) {
+      this.savedStepIndex = stepIdx;
+      this.instance
+        .updateAccount({ config: { ...this.accountConfig, onboarding_step: step } })
+        .catch((err) => console.warn('Failed to persist onboarding step:', err));
+    }
 
     // Lazy-load numbers data when the step is first shown
     if (step === 'numbers' && this.numPhoneNumbers.length === 0 && !this.numIsLoadingNumbers) {
@@ -1782,16 +1802,18 @@ export class AccountOnboardingComponent extends BaseComponent {
       if (!this.instance) throw new Error('Not initialized');
 
       const { extension_length: _, ...configWithoutExtLength } = this.accountConfig;
+      const updatedConfig = {
+        ...configWithoutExtLength,
+        ...(this.accountTimezone ? { timezone: this.accountTimezone } : {}),
+      };
       await this.instance.updateAccount({
         email: this.accountEmail.trim(),
         name: this.accountName.trim(),
         phone: parsePhoneNumberFromString(this.accountPhone, 'US')!.number,
         primary_contact_name: this.accountPrimaryContact.trim(),
-        config: {
-          ...configWithoutExtLength,
-          ...(this.accountTimezone ? { timezone: this.accountTimezone } : {}),
-        },
+        config: updatedConfig,
       });
+      this.accountConfig = { ...this.accountConfig, ...updatedConfig };
 
       // Create or update location
       if (!this.existingLocation) {
