@@ -103,19 +103,19 @@ describe('AccountOnboarding (React wrapper)', () => {
       expect(element?.shadowRoot?.querySelector('[data-action="next"]')).toBeTruthy();
     });
 
-    // First click triggers async account save, wait for step to advance
-    clickAction(element!, 'next');
-    await waitFor(() => {
-      const active = element?.shadowRoot?.querySelector('.step-item.active')?.textContent?.trim();
-      expect(active).not.toBe('Account');
-    });
+    // Navigate to complete: business-details → team-members → numbers → complete (3 clicks)
+    for (let i = 0; i < 3; i += 1) {
+      const before = element?.shadowRoot?.innerHTML;
+      clickAction(element!, 'next');
+      await waitFor(() => {
+        expect(element?.shadowRoot?.innerHTML).not.toBe(before);
+      });
+    }
 
-    clickAction(element!, 'next');
     await waitFor(() => {
       expect(element?.shadowRoot?.querySelector('[data-action="exit"]')).toBeTruthy();
     });
 
-    expect(element?.shadowRoot?.textContent).not.toContain('Hardware');
     const termsBefore = element?.shadowRoot?.querySelector<HTMLAnchorElement>('.legal-links a');
     expect(termsBefore?.getAttribute('href')).toBe('https://example.com/terms');
 
@@ -128,7 +128,6 @@ describe('AccountOnboarding (React wrapper)', () => {
     await waitFor(() => {
       const termsAfter = element?.shadowRoot?.querySelector('.legal-links a');
       expect(termsAfter).toBeNull();
-      expect(element?.shadowRoot?.textContent).toContain('Hardware');
     });
   });
 });

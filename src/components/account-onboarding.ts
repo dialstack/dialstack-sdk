@@ -32,1074 +32,18 @@ import { debounce } from '../utils/debounce';
 import { normalizeMac } from '../utils/mac';
 import { US_STATES } from '../constants/us-states';
 import { US_TIMEZONES } from '../constants/us-timezones';
-
-const CHECK_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg>`;
-const CHEVRON_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>`;
-const SUCCESS_SVG = `<svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="26" cy="26" r="25" stroke="currentColor" stroke-width="2"/><polyline points="16 27 23 34 36 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-const ERROR_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
-const CHECK_CIRCLE_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;color:var(--ds-color-success)"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
-
-const COMPONENT_STYLES = `
-  :host {
-    display: block;
-  }
-
-  .container {
-    background: var(--ds-color-background);
-    color: var(--ds-color-text);
-    font-size: var(--ds-font-size-base);
-    line-height: var(--ds-line-height);
-    overflow: hidden;
-  }
-
-  /* ── Breadcrumb Step Progress ── */
-  .step-breadcrumb {
-    display: flex;
-    align-items: center;
-    gap: var(--ds-spacing-xs);
-    padding: var(--ds-layout-spacing-lg) var(--ds-layout-spacing-lg) var(--ds-layout-spacing-md);
-  }
-
-  .step-item {
-    display: flex;
-    align-items: center;
-    gap: var(--ds-spacing-xs);
-    font-size: var(--ds-font-size-small);
-    font-weight: var(--ds-font-weight-medium);
-    color: var(--ds-color-text-secondary);
-    opacity: 0.5;
-    transition: opacity var(--ds-transition-duration), color var(--ds-transition-duration);
-  }
-
-  .step-item.active {
-    color: var(--ds-color-primary);
-    opacity: 1;
-  }
-
-  .step-item.completed {
-    color: var(--ds-color-success);
-    opacity: 0.8;
-    cursor: pointer;
-  }
-
-  .step-item.completed:hover {
-    opacity: 1;
-  }
-
-  .step-separator {
-    display: flex;
-    align-items: center;
-    color: var(--ds-color-border);
-  }
-
-  .step-separator svg {
-    width: 14px;
-    height: 14px;
-  }
-
-  .step-number {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    border-radius: var(--ds-border-radius-round);
-    font-size: 11px;
-    font-weight: var(--ds-font-weight-bold);
-    flex-shrink: 0;
-  }
-
-  .step-item.active .step-number {
-    background: var(--ds-color-primary);
-    color: #fff;
-  }
-
-  .step-item.completed .step-number {
-    background: var(--ds-color-success);
-    color: #fff;
-  }
-
-  .step-item:not(.active):not(.completed) .step-number {
-    background: var(--ds-color-border);
-    color: var(--ds-color-text-secondary);
-  }
-
-  /* ── Section Title ── */
-  .section-title {
-    font-size: var(--ds-font-size-xlarge);
-    font-weight: var(--ds-font-weight-bold);
-    color: var(--ds-color-text);
-    margin: 0 0 var(--ds-layout-spacing-xs) 0;
-  }
-
-  .section-subtitle {
-    font-size: var(--ds-font-size-base);
-    color: var(--ds-color-text-secondary);
-    margin: 0 0 var(--ds-layout-spacing-lg) 0;
-  }
-
-  /* ── Card ── */
-  .card {
-    padding: var(--ds-layout-spacing-lg);
-  }
-
-  /* ── Placeholder ── */
-  .placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: var(--ds-layout-spacing-lg) 0;
-    text-align: center;
-    min-height: 200px;
-  }
-
-  .placeholder-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: var(--ds-border-radius-round);
-    background: var(--ds-color-surface-subtle);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: var(--ds-layout-spacing-md);
-    color: var(--ds-color-text-secondary);
-    font-size: 24px;
-  }
-
-  .placeholder-text {
-    font-size: var(--ds-font-size-small);
-    color: var(--ds-color-text-secondary);
-    max-width: 360px;
-  }
-
-  /* ── Complete Step ── */
-  .complete-icon {
-    width: 64px;
-    height: 64px;
-    color: var(--ds-color-success);
-    margin-bottom: var(--ds-layout-spacing-md);
-  }
-
-  /* ── Footer Bar ── */
-  .footer-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--ds-layout-spacing-md) var(--ds-layout-spacing-lg);
-    border-top: 1px solid var(--ds-color-border);
-  }
-
-  .footer-bar-end {
-    justify-content: flex-end;
-  }
-
-  /* ── Buttons ── */
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--ds-spacing-xs);
-    padding: var(--ds-layout-spacing-sm) var(--ds-layout-spacing-lg);
-    font-size: var(--ds-font-size-base);
-    font-family: var(--ds-font-family);
-    font-weight: var(--ds-font-weight-medium);
-    border-radius: var(--ds-border-radius);
-    border: none;
-    cursor: pointer;
-    transition: opacity var(--ds-transition-duration), transform 0.1s;
-    line-height: var(--ds-line-height);
-  }
-
-  .btn:active {
-    transform: scale(0.98);
-  }
-
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  .btn-primary {
-    background: var(--ds-color-primary);
-    color: #fff;
-  }
-
-  .btn-primary:hover:not(:disabled) {
-    opacity: 0.9;
-  }
-
-  .btn-secondary {
-    background: var(--ds-color-surface-subtle);
-    color: var(--ds-color-text);
-    border: 1px solid var(--ds-color-border);
-  }
-
-  .btn-secondary:hover:not(:disabled) {
-    background: var(--ds-color-border-subtle);
-  }
-
-  /* ── Center State (loading, error) ── */
-  .center-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: var(--ds-layout-spacing-lg) 0;
-    text-align: center;
-    min-height: 200px;
-  }
-
-  .center-icon {
-    width: 48px;
-    height: 48px;
-    margin-bottom: var(--ds-layout-spacing-md);
-  }
-
-  .center-icon.error {
-    color: var(--ds-color-danger);
-  }
-
-  .center-icon svg {
-    width: 100%;
-    height: 100%;
-  }
-
-  .center-title {
-    font-size: var(--ds-font-size-xlarge);
-    font-weight: var(--ds-font-weight-bold);
-    color: var(--ds-color-text);
-    margin-bottom: var(--ds-layout-spacing-xs);
-  }
-
-  .center-description {
-    font-size: var(--ds-font-size-base);
-    color: var(--ds-color-text-secondary);
-    margin-bottom: var(--ds-layout-spacing-lg);
-    max-width: 360px;
-  }
-
-  .center-btn {
-    margin-top: var(--ds-layout-spacing-sm);
-  }
-
-  /* ── Spinner ── */
-  .spinner {
-    display: inline-block;
-    width: var(--ds-spinner-size);
-    height: var(--ds-spinner-size);
-    animation: spin 1s linear infinite;
-    color: var(--ds-color-primary);
-    margin-bottom: var(--ds-layout-spacing-md);
-  }
-
-  .spinner svg {
-    width: 100%;
-    height: 100%;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-
-  /* ── Legal Links ── */
-  .legal-links {
-    font-size: var(--ds-font-size-small);
-    color: var(--ds-color-text-secondary);
-    margin-top: var(--ds-layout-spacing-md);
-    max-width: 360px;
-  }
-
-  .legal-links a {
-    color: var(--ds-color-primary);
-    text-decoration: none;
-  }
-
-  .legal-links a:hover {
-    text-decoration: underline;
-  }
-
-  /* ── Form Elements ── */
-  .form-group {
-    margin-bottom: var(--ds-layout-spacing-md);
-  }
-
-  .form-label {
-    display: block;
-    font-size: var(--ds-font-size-small);
-    font-weight: var(--ds-font-weight-medium);
-    color: var(--ds-color-text);
-    margin-bottom: var(--ds-spacing-xs);
-  }
-
-  .form-input,
-  .form-select {
-    width: 100%;
-    padding: var(--ds-layout-spacing-sm) var(--ds-layout-spacing-sm);
-    font-size: var(--ds-font-size-base);
-    font-family: var(--ds-font-family);
-    color: var(--ds-color-text);
-    background: var(--ds-color-background);
-    border: 1px solid var(--ds-color-border);
-    border-radius: var(--ds-border-radius);
-    box-sizing: border-box;
-    transition: border-color var(--ds-transition-duration);
-  }
-
-  .form-input:focus,
-  .form-select:focus {
-    outline: none;
-    border-color: var(--ds-color-primary);
-  }
-
-  .form-input.error {
-    border-color: var(--ds-color-danger);
-  }
-
-  .form-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--ds-layout-spacing-md);
-  }
-
-  .form-error {
-    font-size: var(--ds-font-size-small);
-    color: var(--ds-color-danger);
-    margin-top: var(--ds-spacing-xs);
-  }
-
-  .form-help {
-    font-size: var(--ds-font-size-small);
-    color: var(--ds-color-text-secondary);
-    margin-top: var(--ds-spacing-xs);
-  }
-
-  .form-static {
-    padding: var(--ds-spacing-sm) var(--ds-spacing-md);
-    background: var(--ds-color-surface);
-    border: 1px solid var(--ds-color-border);
-    border-radius: var(--ds-border-radius);
-    color: var(--ds-color-text-secondary);
-    font-size: var(--ds-font-size-base);
-  }
-
-  /* ── Section Divider ── */
-  .section-divider {
-    border: none;
-    border-top: 1px solid var(--ds-color-border);
-    margin: var(--ds-layout-spacing-lg) 0;
-  }
-
-  .section-heading {
-    font-size: var(--ds-font-size-large);
-    font-weight: var(--ds-font-weight-bold);
-    color: var(--ds-color-text);
-    margin: 0 0 var(--ds-spacing-xs) 0;
-  }
-
-  .section-description {
-    font-size: var(--ds-font-size-small);
-    color: var(--ds-color-text-secondary);
-    margin: 0 0 var(--ds-layout-spacing-md) 0;
-  }
-
-  /* ── User List ── */
-  .user-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--ds-spacing-xs);
-    margin-bottom: var(--ds-layout-spacing-md);
-  }
-
-  .user-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--ds-layout-spacing-sm) var(--ds-layout-spacing-sm);
-    background: var(--ds-color-surface-subtle);
-    border-radius: var(--ds-border-radius);
-    border: 1px solid var(--ds-color-border-subtle);
-  }
-
-  .user-item-info {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-
-  .user-item-name {
-    font-size: var(--ds-font-size-base);
-    font-weight: var(--ds-font-weight-medium);
-    color: var(--ds-color-text);
-  }
-
-  .user-item-meta {
-    font-size: var(--ds-font-size-small);
-    color: var(--ds-color-text-secondary);
-  }
-
-  .user-item-actions {
-    flex-shrink: 0;
-  }
-
-  .btn-danger-ghost {
-    background: none;
-    border: none;
-    color: var(--ds-color-danger);
-    font-size: var(--ds-font-size-small);
-    font-family: var(--ds-font-family);
-    cursor: pointer;
-    padding: var(--ds-spacing-xs) var(--ds-layout-spacing-sm);
-    border-radius: var(--ds-border-radius);
-  }
-
-  .btn-danger-ghost:hover {
-    background: var(--ds-color-danger);
-    color: #fff;
-  }
-
-  .btn-link {
-    background: none;
-    border: none;
-    color: var(--ds-color-primary);
-    font-size: var(--ds-font-size-small);
-    font-family: var(--ds-font-family);
-    cursor: pointer;
-    padding: 0;
-  }
-
-  .btn-link:hover {
-    text-decoration: underline;
-  }
-
-  .no-users {
-    text-align: center;
-    padding: var(--ds-layout-spacing-md);
-    color: var(--ds-color-text-secondary);
-    font-size: var(--ds-font-size-small);
-  }
-
-  /* ── Add User Form ── */
-  .add-user-form {
-    display: grid;
-    grid-template-columns: 1fr 1fr auto;
-    gap: var(--ds-layout-spacing-sm);
-    align-items: end;
-    padding: var(--ds-layout-spacing-sm);
-    background: var(--ds-color-surface-subtle);
-    border-radius: var(--ds-border-radius);
-    border: 1px solid var(--ds-color-border-subtle);
-  }
-
-  .add-user-form .form-group {
-    margin-bottom: 0;
-  }
-
-  .btn-add {
-    white-space: nowrap;
-    align-self: end;
-    /* Override .btn horizontal padding to match .form-input vertical padding for equal height */
-    padding: var(--ds-layout-spacing-sm) var(--ds-layout-spacing-md);
-  }
-
-  /* ── Inline Alert ── */
-  .inline-alert {
-    font-size: var(--ds-font-size-small);
-    padding: var(--ds-layout-spacing-sm);
-    border-radius: var(--ds-border-radius);
-    margin-top: var(--ds-layout-spacing-sm);
-  }
-
-  .inline-alert.error {
-    background: color-mix(in srgb, var(--ds-color-danger) 10%, transparent);
-    color: var(--ds-color-danger);
-    border: 1px solid color-mix(in srgb, var(--ds-color-danger) 20%, transparent);
-  }
-
-  .inline-alert.warning {
-    background: color-mix(in srgb, #f59e0b 10%, transparent);
-    color: #92400e;
-    border: 1px solid color-mix(in srgb, #f59e0b 20%, transparent);
-  }
-
-  /* ── HW Step: Device List ── */
-  .hw-device-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--ds-spacing-xs);
-    margin-bottom: var(--ds-layout-spacing-md);
-  }
-
-  .hw-device-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--ds-layout-spacing-sm);
-    background: var(--ds-color-surface-subtle);
-    border-radius: var(--ds-border-radius);
-    border: 1px solid var(--ds-color-border-subtle);
-  }
-
-  .hw-device-row__info {
-    display: flex;
-    align-items: center;
-    gap: var(--ds-spacing-xs);
-    flex: 1;
-    min-width: 0;
-  }
-
-  .hw-device-row__actions {
-    display: flex;
-    align-items: center;
-    gap: var(--ds-spacing-xs);
-    flex-shrink: 0;
-    margin-left: auto;
-    white-space: nowrap;
-  }
-
-  .hw-device-badge {
-    font-size: var(--ds-font-size-small);
-    color: var(--ds-color-text);
-    font-weight: var(--ds-font-weight-medium);
-  }
-
-  .hw-device-mac {
-    font-size: var(--ds-font-size-small);
-    color: var(--ds-color-text-secondary);
-    font-family: monospace;
-  }
-
-  .hw-device-user {
-    font-size: var(--ds-font-size-small);
-    color: var(--ds-color-text-secondary);
-  }
-
-  .hw-dect-group {
-    border: 1px solid var(--ds-color-border-subtle);
-    border-radius: var(--ds-border-radius);
-    overflow: hidden;
-  }
-
-  .hw-device-row--base {
-    border: none;
-    border-radius: 0;
-  }
-
-  .hw-device-row--handset {
-    border: none;
-    border-radius: 0;
-    border-top: 1px solid var(--ds-color-border-subtle);
-    padding-left: calc(var(--ds-layout-spacing-sm) + var(--ds-layout-spacing-sm));
-  }
-
-  .hw-device-row--editing {
-    border: none;
-    border-radius: 0;
-    border-top: 1px solid var(--ds-color-border-subtle);
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .hw-inline-form {
-    display: flex;
-    gap: var(--ds-layout-spacing-sm);
-    align-items: end;
-  }
-
-  .hw-inline-form .form-group {
-    flex: 1;
-    margin-bottom: 0;
-  }
-
-  .hw-device-row--add {
-    background: none;
-    border: none;
-    justify-content: center;
-    padding: var(--ds-layout-spacing-md);
-  }
-
-  .hw-dect-base-actions {
-    display: flex;
-    align-items: center;
-    gap: var(--ds-spacing-xs);
-  }
-
-  .form-check-label {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--ds-spacing-xs);
-    font-size: var(--ds-font-size-base);
-    color: var(--ds-color-text);
-    cursor: pointer;
-  }
-
-  .form-check-label input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-  }
-
-  .btn-sm {
-    font-size: var(--ds-font-size-small);
-    padding: 2px var(--ds-spacing-xs);
-  }
-
-  /* ── Address Autocomplete ── */
-  .address-autocomplete {
-    position: relative;
-  }
-
-  .address-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    z-index: 10;
-    background: var(--ds-color-background);
-    border: 1px solid var(--ds-color-border);
-    border-top: none;
-    border-radius: 0 0 var(--ds-border-radius) var(--ds-border-radius);
-    max-height: 200px;
-    overflow-y: auto;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  }
-
-  .address-suggestion {
-    padding: var(--ds-layout-spacing-sm);
-    cursor: pointer;
-    font-size: var(--ds-font-size-small);
-    transition: background var(--ds-transition-duration);
-    border-bottom: 1px solid var(--ds-color-border-subtle);
-  }
-
-  .address-suggestion:last-child {
-    border-bottom: none;
-  }
-
-  .address-suggestion:hover,
-  .address-suggestion.highlighted {
-    background: var(--ds-color-surface-subtle);
-  }
-
-  .address-suggestion-title {
-    font-weight: var(--ds-font-weight-medium);
-    color: var(--ds-color-text);
-  }
-
-  .address-suggestion-detail {
-    color: var(--ds-color-text-secondary);
-    margin-top: 2px;
-  }
-
-  .address-no-results {
-    padding: var(--ds-layout-spacing-sm);
-    font-size: var(--ds-font-size-small);
-    color: var(--ds-color-text-secondary);
-    text-align: center;
-  }
-
-  /* ── Address Confirmed Card ── */
-  .address-confirmed {
-    display: flex;
-    align-items: center;
-    gap: var(--ds-layout-spacing-sm);
-    padding: var(--ds-layout-spacing-sm);
-    background: var(--ds-color-surface-subtle);
-    border-radius: var(--ds-border-radius);
-    border: 1px solid var(--ds-color-border-subtle);
-  }
-
-  .address-confirmed-icon {
-    flex-shrink: 0;
-  }
-
-  .address-confirmed-text {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .address-confirmed-line {
-    font-size: var(--ds-font-size-small);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .address-confirmed-line:first-child {
-    font-weight: var(--ds-font-weight-medium);
-    color: var(--ds-color-text);
-  }
-
-  .address-confirmed-line:last-child {
-    color: var(--ds-color-text-secondary);
-  }
-
-  .timezone-readonly {
-    font-size: var(--ds-font-size-small);
-    color: var(--ds-color-text-secondary);
-    padding: var(--ds-spacing-xs) 0;
-  }
-
-  /* ── Address Manual Fields ── */
-  .address-manual-fields {
-    display: grid;
-    grid-template-columns: 1fr 5fr;
-    gap: var(--ds-layout-spacing-sm);
-  }
-
-  .address-manual-row-2 {
-    display: grid;
-    grid-template-columns: 2fr 2fr 2fr;
-    gap: var(--ds-layout-spacing-sm);
-    margin-top: var(--ds-layout-spacing-sm);
-  }
-
-  .address-manual-fields .form-group,
-  .address-manual-row-2 .form-group {
-    margin-bottom: 0;
-  }
-
-  /* ── Link Button ── */
-  .btn-link {
-    background: none;
-    border: none;
-    color: var(--ds-color-text-secondary);
-    font-size: var(--ds-font-size-small);
-    font-family: var(--ds-font-family);
-    cursor: pointer;
-    padding: 0;
-    margin-top: var(--ds-layout-spacing-sm);
-    text-decoration: none;
-  }
-
-  .btn-link:hover {
-    color: var(--ds-color-primary);
-    text-decoration: underline;
-  }
-
-  /* ── Numbers Step ── */
-  .num-action-cards {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--ds-layout-spacing-md);
-    margin-top: var(--ds-layout-spacing-md);
-  }
-
-  .num-action-card {
-    display: flex;
-    flex-direction: column;
-    gap: var(--ds-spacing-xs);
-    padding: var(--ds-layout-spacing-md);
-    border: 1px solid var(--ds-color-border);
-    border-radius: var(--ds-border-radius);
-    background: var(--ds-color-surface-subtle);
-    cursor: pointer;
-    transition: border-color var(--ds-transition-duration), box-shadow var(--ds-transition-duration);
-  }
-
-  .num-action-card:hover {
-    border-color: var(--ds-color-primary);
-    box-shadow: 0 0 0 1px var(--ds-color-primary);
-  }
-
-  .num-action-card-title {
-    font-weight: var(--ds-font-weight-bold);
-    font-size: var(--ds-font-size-base);
-    color: var(--ds-color-text);
-  }
-
-  .num-action-card-desc {
-    font-size: var(--ds-font-size-small);
-    color: var(--ds-color-text-secondary);
-  }
-
-  .num-overview-list {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: var(--ds-layout-spacing-md);
-  }
-
-  .num-overview-list th,
-  .num-overview-list td {
-    text-align: left;
-    padding: var(--ds-spacing-sm) var(--ds-spacing-md);
-    border-bottom: 1px solid var(--ds-color-border-subtle);
-    font-size: var(--ds-font-size-small);
-  }
-
-  .num-overview-list th {
-    color: var(--ds-color-text-secondary);
-    font-weight: var(--ds-font-weight-medium);
-  }
-
-  .num-status-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: var(--ds-font-weight-medium);
-    text-transform: capitalize;
-  }
-
-  .num-status-active { background: color-mix(in srgb, var(--ds-color-success) 15%, transparent); color: var(--ds-color-success); }
-  .num-status-ordering { background: color-mix(in srgb, var(--ds-color-primary) 15%, transparent); color: var(--ds-color-primary); }
-  .num-status-porting { background: color-mix(in srgb, var(--ds-color-warning, #e9a820) 15%, transparent); color: var(--ds-color-warning, #b07d18); }
-  .num-status-error { background: color-mix(in srgb, var(--ds-color-danger) 15%, transparent); color: var(--ds-color-danger); }
-  .num-status-inactive { background: var(--ds-color-surface-subtle); color: var(--ds-color-text-secondary); }
-
-  .num-sub-progress {
-    display: flex;
-    align-items: center;
-    gap: var(--ds-spacing-xs);
-    margin-bottom: var(--ds-layout-spacing-md);
-    font-size: var(--ds-font-size-small);
-    color: var(--ds-color-text-secondary);
-  }
-
-  .num-sub-progress-step {
-    padding: 2px 10px;
-    border-radius: 12px;
-    background: var(--ds-color-surface-subtle);
-    font-weight: var(--ds-font-weight-medium);
-  }
-
-  .num-sub-progress-step.active {
-    background: var(--ds-color-primary);
-    color: #fff;
-  }
-
-  .num-sub-progress-step.completed {
-    background: var(--ds-color-success);
-    color: #fff;
-  }
-
-  .num-sub-progress-arrow {
-    color: var(--ds-color-border);
-  }
-
-  .num-phone-input-row {
-    display: flex;
-    align-items: center;
-    gap: var(--ds-spacing-sm);
-    margin-bottom: var(--ds-spacing-sm);
-  }
-
-  .num-phone-input-row .form-input {
-    flex: 1;
-  }
-
-  .num-eligibility-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: var(--ds-layout-spacing-md);
-  }
-
-  .num-eligibility-table th,
-  .num-eligibility-table td {
-    text-align: left;
-    padding: var(--ds-spacing-sm) var(--ds-spacing-md);
-    border-bottom: 1px solid var(--ds-color-border-subtle);
-    font-size: var(--ds-font-size-small);
-  }
-
-  .num-eligibility-table th {
-    color: var(--ds-color-text-secondary);
-    font-weight: var(--ds-font-weight-medium);
-  }
-
-  .num-doc-upload {
-    padding: var(--ds-layout-spacing-sm);
-    border: 1px dashed var(--ds-color-border);
-    border-radius: var(--ds-border-radius);
-    margin-bottom: var(--ds-layout-spacing-sm);
-  }
-
-  .num-doc-upload-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--ds-spacing-xs);
-  }
-
-  .num-doc-upload-label {
-    font-weight: var(--ds-font-weight-medium);
-    font-size: var(--ds-font-size-base);
-  }
-
-  .num-doc-upload-badge {
-    font-size: 11px;
-    padding: 2px 8px;
-    border-radius: 12px;
-  }
-
-  .num-doc-upload-badge.required {
-    background: color-mix(in srgb, var(--ds-color-danger) 15%, transparent);
-    color: var(--ds-color-danger);
-  }
-
-  .num-doc-upload-badge.optional {
-    background: var(--ds-color-surface-subtle);
-    color: var(--ds-color-text-secondary);
-  }
-
-  .num-doc-upload-desc {
-    font-size: var(--ds-font-size-small);
-    color: var(--ds-color-text-secondary);
-    margin-bottom: var(--ds-spacing-sm);
-  }
-
-  .num-doc-upload-file {
-    display: flex;
-    align-items: center;
-    gap: var(--ds-spacing-sm);
-    font-size: var(--ds-font-size-small);
-  }
-
-  .num-doc-upload-file .file-name {
-    color: var(--ds-color-text-secondary);
-  }
-
-  .num-review-section {
-    margin-bottom: var(--ds-layout-spacing-md);
-  }
-
-  .num-review-section h4 {
-    font-size: var(--ds-font-size-base);
-    font-weight: var(--ds-font-weight-bold);
-    margin: 0 0 var(--ds-spacing-sm) 0;
-    color: var(--ds-color-text);
-  }
-
-  .num-review-row {
-    display: flex;
-    justify-content: space-between;
-    padding: var(--ds-spacing-xs) 0;
-    font-size: var(--ds-font-size-small);
-    border-bottom: 1px solid var(--ds-color-border-subtle);
-  }
-
-  .num-review-label {
-    color: var(--ds-color-text-secondary);
-  }
-
-  .num-review-value {
-    color: var(--ds-color-text);
-    font-weight: var(--ds-font-weight-medium);
-  }
-
-  .num-search-type-tabs {
-    display: flex;
-    gap: 0;
-    margin-bottom: var(--ds-layout-spacing-md);
-    border: 1px solid var(--ds-color-border);
-    border-radius: var(--ds-border-radius);
-    overflow: hidden;
-  }
-
-  .num-search-type-tab {
-    flex: 1;
-    padding: var(--ds-spacing-sm) var(--ds-spacing-md);
-    font-size: var(--ds-font-size-small);
-    font-family: var(--ds-font-family);
-    font-weight: var(--ds-font-weight-medium);
-    background: var(--ds-color-surface-subtle);
-    border: none;
-    cursor: pointer;
-    color: var(--ds-color-text-secondary);
-    transition: background var(--ds-transition-duration), color var(--ds-transition-duration);
-  }
-
-  .num-search-type-tab:not(:last-child) {
-    border-right: 1px solid var(--ds-color-border);
-  }
-
-  .num-search-type-tab.active {
-    background: var(--ds-color-primary);
-    color: #fff;
-  }
-
-  .num-results-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: var(--ds-layout-spacing-md);
-  }
-
-  .num-results-table th,
-  .num-results-table td {
-    text-align: left;
-    padding: var(--ds-spacing-sm) var(--ds-spacing-md);
-    border-bottom: 1px solid var(--ds-color-border-subtle);
-    font-size: var(--ds-font-size-small);
-  }
-
-  .num-results-table th {
-    color: var(--ds-color-text-secondary);
-    font-weight: var(--ds-font-weight-medium);
-  }
-
-  .num-results-table tr:hover td {
-    background: var(--ds-color-surface-subtle);
-  }
-
-  .num-results-table input[type="checkbox"] {
-    cursor: pointer;
-  }
-
-  .num-confirm-list {
-    margin-bottom: var(--ds-layout-spacing-md);
-  }
-
-  .num-confirm-item {
-    display: flex;
-    align-items: center;
-    gap: var(--ds-spacing-sm);
-    padding: var(--ds-spacing-sm) 0;
-    border-bottom: 1px solid var(--ds-color-border-subtle);
-    font-size: var(--ds-font-size-small);
-  }
-
-  .num-sub-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-top: var(--ds-layout-spacing-md);
-    border-top: 1px solid var(--ds-color-border);
-    margin-top: var(--ds-layout-spacing-md);
-  }
-
-  .num-sub-footer-end {
-    justify-content: flex-end;
-  }
-
-  .num-order-status-icon {
-    width: 48px;
-    height: 48px;
-    margin-bottom: var(--ds-layout-spacing-sm);
-  }
-
-  .num-order-status-icon.success { color: var(--ds-color-success); }
-  .num-order-status-icon.error { color: var(--ds-color-danger); }
-  .num-order-status-icon.pending { color: var(--ds-color-primary); }
-
-  .num-port-subscriber-form {
-    display: grid;
-    gap: var(--ds-layout-spacing-sm);
-  }
-
-  .num-port-address-grid {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: var(--ds-layout-spacing-sm);
-  }
-
-  .num-port-address-row-2 {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    gap: var(--ds-layout-spacing-sm);
-  }
-`;
+import {
+  COMPONENT_STYLES,
+  CHECK_SVG,
+  SUCCESS_SVG,
+  ERROR_SVG,
+  CHECK_CIRCLE_SVG,
+  BUILDING_SVG,
+  PHONE_SVG,
+  MONITOR_SVG,
+} from './account-onboarding.styles';
+
+type AccountSubStep = 'business-details' | 'team-members';
 
 type NumSubStep =
   | 'overview'
@@ -1124,6 +68,7 @@ export class AccountOnboardingComponent extends BaseComponent {
   ];
 
   private currentStep: AccountOnboardingStep = 'account';
+  private accountSubStep: AccountSubStep = 'business-details';
   private savedStepIndex = 0;
   private isLoading = true;
   private loadError: string | null = null;
@@ -1455,6 +400,9 @@ export class AccountOnboardingComponent extends BaseComponent {
 
   private navigateToStep(step: AccountOnboardingStep): void {
     if (step === this.currentStep) return;
+    if (this.currentStep === 'account') {
+      this.accountSubStep = 'business-details';
+    }
     this.currentStep = step;
     this._onStepChange?.({ step });
     this.render();
@@ -1719,12 +667,28 @@ export class AccountOnboardingComponent extends BaseComponent {
     return false;
   }
 
-  private async saveAndAdvance(): Promise<void> {
+  private advancePastAccount(): void {
+    this.userError = null;
+
+    if (this.users.length === 0) {
+      this.userError = this.t('accountOnboarding.account.users.atLeastOne');
+      this.render();
+      return;
+    }
+
+    const steps = this.getActiveSteps();
+    const idx = steps.indexOf('account');
+    const nextStep = steps[idx + 1];
+    if (nextStep) {
+      this.navigateToStep(nextStep);
+    }
+  }
+
+  private async saveAndAdvanceToTeamMembers(): Promise<void> {
     if (this.isSavingAccount) return;
     this.accountValidationErrors = {};
     this.locationValidationErrors = {};
     this.accountSaveError = null;
-    this.userError = null;
 
     let hasErrors = false;
 
@@ -1782,11 +746,6 @@ export class AccountOnboardingComponent extends BaseComponent {
       this.locationValidationErrors.timezone = this.t(
         'accountOnboarding.account.details.timezoneRequired'
       );
-      hasErrors = true;
-    }
-
-    if (this.users.length === 0) {
-      this.userError = this.t('accountOnboarding.account.users.atLeastOne');
       hasErrors = true;
     }
 
@@ -1850,7 +809,6 @@ export class AccountOnboardingComponent extends BaseComponent {
         }
         this.editingLocationId = null;
       } else if (this.existingLocation.name !== this.locationName.trim()) {
-        // Update location name if it changed without re-editing the address
         this.existingLocation = await this.instance.updateLocation(this.existingLocation.id, {
           name: this.locationName.trim(),
           address: {
@@ -1865,12 +823,8 @@ export class AccountOnboardingComponent extends BaseComponent {
       }
 
       this.isSavingAccount = false;
-      const steps = this.getActiveSteps();
-      const idx = steps.indexOf('account');
-      const nextStep = steps[idx + 1];
-      if (nextStep) {
-        this.navigateToStep(nextStep);
-      }
+      this.accountSubStep = 'team-members';
+      this.render();
     } catch (err) {
       this.isSavingAccount = false;
       this.accountSaveError =
@@ -3411,6 +2365,8 @@ export class AccountOnboardingComponent extends BaseComponent {
       content = this.renderLoadingState();
     } else if (this.loadError) {
       content = this.renderErrorState();
+    } else if (this.currentStep === 'complete') {
+      content = this.renderCompleteStep();
     } else {
       const renderStepContent = (step: AccountOnboardingStep): string => {
         switch (step) {
@@ -3420,14 +2376,22 @@ export class AccountOnboardingComponent extends BaseComponent {
             return this.renderNumbersStep();
           case 'hardware':
             return this.renderHardwareStep();
-          case 'complete':
-            return this.renderCompleteStep();
+          default:
+            return '';
         }
       };
 
-      content = renderStepContent(this.currentStep);
+      content = `
+        <div class="step-layout">
+          ${this.renderStepSidebar()}
+          <div class="step-content">
+            ${renderStepContent(this.currentStep)}
+          </div>
+        </div>`;
     }
 
+    // Note: All content rendered via innerHTML comes from internal i18n strings
+    // and static SVG constants — user-supplied data is escaped via escapeHtml().
     this.shadowRoot.innerHTML = `
       <style>
         ${styles}
@@ -3435,7 +2399,6 @@ export class AccountOnboardingComponent extends BaseComponent {
       </style>
       <div class="container ${this.getClassNames()}" part="container"
            role="region" aria-label="${this.t('accountOnboarding.title')}">
-        ${this.isLoading || this.loadError ? '' : this.renderStepBreadcrumb()}
         ${content}
       </div>
     `;
@@ -3479,40 +2442,102 @@ export class AccountOnboardingComponent extends BaseComponent {
     `;
   }
 
-  private renderStepBreadcrumb(): string {
-    const activeSteps = this.getActiveSteps();
-    const stepLabels: Record<AccountOnboardingStep, string> = {
-      account: this.t('accountOnboarding.steps.account'),
-      numbers: this.t('accountOnboarding.steps.numbers'),
-      hardware: this.t('accountOnboarding.steps.hardware'),
-      complete: this.t('accountOnboarding.steps.complete'),
-    };
-    const stepDefs = activeSteps.map((key) => ({ key, label: stepLabels[key] }));
+  private renderStepSidebar(): string {
+    type SidebarSubStep = { key: string; label: string; description?: string };
+    let title: string;
+    let icon: string;
+    let subSteps: SidebarSubStep[];
+    let activeKey: string;
 
-    const currentIdx = activeSteps.indexOf(this.currentStep);
+    switch (this.currentStep) {
+      case 'account':
+        title = this.t('accountOnboarding.steps.account');
+        icon = BUILDING_SVG;
+        subSteps = [
+          {
+            key: 'business-details',
+            label: this.t('accountOnboarding.sidebar.businessDetails'),
+            description: this.t('accountOnboarding.sidebar.businessDetailsDesc'),
+          },
+          {
+            key: 'team-members',
+            label: this.t('accountOnboarding.sidebar.teamMembers'),
+            description: this.t('accountOnboarding.sidebar.teamMembersDesc'),
+          },
+        ];
+        activeKey = this.accountSubStep;
+        break;
+      case 'numbers':
+        title = this.t('accountOnboarding.steps.numbers');
+        icon = PHONE_SVG;
+        subSteps = [
+          {
+            key: 'options',
+            label: this.t('accountOnboarding.sidebar.numberOptions'),
+            description: this.t('accountOnboarding.sidebar.numberOptionsDesc'),
+          },
+          {
+            key: 'setup',
+            label: this.t('accountOnboarding.sidebar.numberSetup'),
+            description: this.t('accountOnboarding.sidebar.numberSetupDesc'),
+          },
+          {
+            key: 'verification',
+            label: this.t('accountOnboarding.sidebar.verification'),
+            description: this.t('accountOnboarding.sidebar.verificationDesc'),
+          },
+        ];
+        // Map numSubStep to display sub-step
+        if (this.numSubStep === 'overview') {
+          activeKey = 'options';
+        } else if (['port-submitted', 'order-status'].includes(this.numSubStep)) {
+          activeKey = 'verification';
+        } else {
+          activeKey = 'setup';
+        }
+        break;
+      case 'hardware':
+        title = this.t('accountOnboarding.steps.hardware');
+        icon = MONITOR_SVG;
+        subSteps = [
+          {
+            key: 'device-assignment',
+            label: this.t('accountOnboarding.sidebar.deviceAssignment'),
+            description: this.t('accountOnboarding.sidebar.deviceAssignmentDesc'),
+          },
+        ];
+        activeKey = 'device-assignment';
+        break;
+      default:
+        return '';
+    }
+
+    const activeIdx = subSteps.findIndex((s) => s.key === activeKey);
+    const timelineItems = subSteps
+      .map((s, i) => {
+        const status = i < activeIdx ? 'completed' : i === activeIdx ? 'active' : '';
+        const dotContent = i < activeIdx ? CHECK_SVG : '';
+        return `
+          <div class="step-timeline-item ${status}">
+            <div class="step-timeline-dot">${dotContent}</div>
+            <div class="step-timeline-text">
+              <span class="step-timeline-label">${s.label}</span>
+              ${s.description ? `<span class="step-timeline-desc">${s.description}</span>` : ''}
+            </div>
+          </div>`;
+      })
+      .join('');
 
     return `
-      <nav class="step-breadcrumb" aria-label="${this.t('accountOnboarding.breadcrumbAriaLabel')}">
-        ${stepDefs
-          .map((s, i) => {
-            const cls = i < currentIdx ? 'completed' : i === currentIdx ? 'active' : '';
-            const numberContent = i < currentIdx ? CHECK_SVG : `${i + 1}`;
-            const ariaCurrent = i === currentIdx ? ' aria-current="step"' : '';
-            const clickAttr =
-              i < currentIdx
-                ? ` data-action="go-to-step" data-step="${s.key}" role="button" tabindex="0"`
-                : '';
-            const item = `
-              <span class="step-item ${cls}"${ariaCurrent}${clickAttr}>
-                <span class="step-number">${numberContent}</span>
-                ${s.label}
-              </span>`;
-            const sep =
-              i < stepDefs.length - 1 ? `<span class="step-separator">${CHEVRON_SVG}</span>` : '';
-            return item + sep;
-          })
-          .join('')}
-      </nav>
+      <aside class="step-sidebar" aria-label="${title}">
+        <div class="step-sidebar-header">
+          <div class="step-sidebar-icon">${icon}</div>
+          <span class="step-sidebar-title">${title}</span>
+        </div>
+        <div class="step-timeline">
+          ${timelineItems}
+        </div>
+      </aside>
     `;
   }
 
@@ -3526,18 +2551,18 @@ export class AccountOnboardingComponent extends BaseComponent {
       return `
         <div class="footer-bar footer-bar-end">
           <button class="btn btn-primary" data-action="next">
-            ${this.t('accountOnboarding.nav.next')}
+            ${this.t('accountOnboarding.nav.next')} &rarr;
           </button>
         </div>`;
     }
     if (hasPrev && hasNext) {
       return `
         <div class="footer-bar">
-          <button class="btn btn-secondary" data-action="back">
-            ${this.t('accountOnboarding.nav.back')}
+          <button class="btn btn-ghost" data-action="back">
+            &larr; ${this.t('accountOnboarding.nav.back')}
           </button>
           <button class="btn btn-primary" data-action="next">
-            ${this.t('accountOnboarding.nav.next')}
+            ${this.t('accountOnboarding.nav.next')} &rarr;
           </button>
         </div>`;
     }
@@ -3545,33 +2570,109 @@ export class AccountOnboardingComponent extends BaseComponent {
   }
 
   private renderAccountStep(): string {
+    switch (this.accountSubStep) {
+      case 'business-details':
+        return this.renderAccountBusinessDetails();
+      case 'team-members':
+        return this.renderAccountTeamMembers();
+    }
+  }
+
+  private renderAccountBusinessDetails(): string {
     const t = (key: string): string => this.t(key);
     const nameErr = this.accountValidationErrors.name;
     const emailErr = this.accountValidationErrors.email;
     const phoneErr = this.accountValidationErrors.phone;
     const primaryContactErr = this.accountValidationErrors.primaryContact;
 
-    const userListHtml =
+    const saveErrorHtml = this.accountSaveError
+      ? `<div class="inline-alert error">${this.escapeHtml(this.accountSaveError)}</div>`
+      : '';
+
+    return `
+      <div class="card ${this.classes.stepAccount || ''}" part="step-account">
+        <h2 class="section-title">${t('accountOnboarding.account.title')}</h2>
+        <p class="section-subtitle">${t('accountOnboarding.account.subtitle')}</p>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="account-name">${t('accountOnboarding.account.details.companyNameLabel')}</label>
+            <input class="form-input${nameErr ? ' error' : ''}" type="text" id="account-name"
+              value="${this.escapeHtml(this.accountName)}"
+              placeholder="${t('accountOnboarding.account.details.companyNamePlaceholder')}" />
+            ${nameErr ? `<div class="form-error">${this.escapeHtml(nameErr)}</div>` : ''}
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="account-primary-contact">${t('accountOnboarding.account.details.primaryContactLabel')}</label>
+            <input class="form-input${primaryContactErr ? ' error' : ''}" type="text" id="account-primary-contact"
+              value="${this.escapeHtml(this.accountPrimaryContact)}"
+              placeholder="${t('accountOnboarding.account.details.primaryContactPlaceholder')}" />
+            ${primaryContactErr ? `<div class="form-error">${this.escapeHtml(primaryContactErr)}</div>` : ''}
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="account-email">${t('accountOnboarding.account.details.emailLabel')}</label>
+            <input class="form-input${emailErr ? ' error' : ''}" type="email" id="account-email"
+              value="${this.escapeHtml(this.accountEmail)}"
+              placeholder="${t('accountOnboarding.account.details.emailPlaceholder')}" />
+            ${emailErr ? `<div class="form-error">${this.escapeHtml(emailErr)}</div>` : ''}
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="account-phone">${t('accountOnboarding.account.details.phoneLabel')}</label>
+            <input class="form-input${phoneErr ? ' error' : ''}" type="tel" id="account-phone"
+              value="${this.escapeHtml(this.accountPhone)}"
+              placeholder="${t('accountOnboarding.account.details.phonePlaceholder')}" />
+            ${phoneErr ? `<div class="form-error">${this.escapeHtml(phoneErr)}</div>` : ''}
+          </div>
+        </div>
+
+        <hr class="section-divider" />
+
+        <p class="section-description">${t('accountOnboarding.account.location.description')}</p>
+
+        ${this.renderLocationSection()}
+
+        ${saveErrorHtml}
+      </div>
+      ${this.renderAccountStepFooter()}
+    `;
+  }
+
+  private renderAccountTeamMembers(): string {
+    const t = (key: string): string => this.t(key);
+
+    const userTableHtml =
       this.users.length === 0
         ? `<div class="no-users">${t('accountOnboarding.account.users.noUsers')}</div>`
-        : `<div class="user-list">${this.users
-            .map((u) => {
-              const ext = this.getExtensionForUser(u.id);
-              const extDisplay = ext ? ` &middot; ext ${this.escapeHtml(ext.number)}` : '';
-              return `
-              <div class="user-item">
-                <div class="user-item-info">
-                  <span class="user-item-name">${this.escapeHtml(u.name ?? '')}</span>
-                  <span class="user-item-meta">${this.escapeHtml(u.email ?? '')}${extDisplay}</span>
-                </div>
-                <div class="user-item-actions">
-                  <button class="btn-danger-ghost" data-action="remove-user" data-user-id="${this.escapeHtml(u.id)}">
-                    ${t('accountOnboarding.account.users.removeUser')}
-                  </button>
-                </div>
-              </div>`;
-            })
-            .join('')}</div>`;
+        : `<table class="user-table">
+            <thead>
+              <tr>
+                <th>${t('accountOnboarding.account.users.nameLabel')}</th>
+                <th>${t('accountOnboarding.account.users.emailLabel')}</th>
+                <th>${t('accountOnboarding.account.users.extensionLabel')}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>${this.users
+              .map((u) => {
+                const ext = this.getExtensionForUser(u.id);
+                const extDisplay = ext ? this.escapeHtml(ext.number) : '—';
+                return `
+                <tr>
+                  <td class="user-table-name">${this.escapeHtml(u.name ?? '')}</td>
+                  <td>${this.escapeHtml(u.email ?? '')}</td>
+                  <td>${extDisplay}</td>
+                  <td>
+                    <button class="btn-danger-ghost" data-action="remove-user" data-user-id="${this.escapeHtml(u.id)}">
+                      ${t('accountOnboarding.account.users.removeUser')}
+                    </button>
+                  </td>
+                </tr>`;
+              })
+              .join('')}</tbody>
+          </table>`;
 
     const userErrorHtml = this.userError
       ? `<div class="inline-alert error">${this.escapeHtml(this.userError)}</div>`
@@ -3583,53 +2684,10 @@ export class AccountOnboardingComponent extends BaseComponent {
 
     return `
       <div class="card ${this.classes.stepAccount || ''}" part="step-account">
-        <h2 class="section-title">${t('accountOnboarding.account.title')}</h2>
-        <p class="section-subtitle">${t('accountOnboarding.account.subtitle')}</p>
+        <h2 class="section-title">${t('accountOnboarding.account.users.heading')}</h2>
+        <p class="section-subtitle">${t('accountOnboarding.account.users.description')}</p>
 
-        <h3 class="section-heading">${t('accountOnboarding.account.details.heading')}</h3>
-
-        <div class="form-group">
-          <label class="form-label" for="account-name">${t('accountOnboarding.account.details.companyNameLabel')}</label>
-          <input class="form-input${nameErr ? ' error' : ''}" type="text" id="account-name"
-            value="${this.escapeHtml(this.accountName)}"
-            placeholder="${t('accountOnboarding.account.details.companyNamePlaceholder')}" />
-          ${nameErr ? `<div class="form-error">${this.escapeHtml(nameErr)}</div>` : ''}
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="account-email">${t('accountOnboarding.account.details.emailLabel')}</label>
-          <input class="form-input${emailErr ? ' error' : ''}" type="email" id="account-email"
-            value="${this.escapeHtml(this.accountEmail)}"
-            placeholder="${t('accountOnboarding.account.details.emailPlaceholder')}" />
-          ${emailErr ? `<div class="form-error">${this.escapeHtml(emailErr)}</div>` : ''}
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="account-phone">${t('accountOnboarding.account.details.phoneLabel')}</label>
-          <input class="form-input${phoneErr ? ' error' : ''}" type="tel" id="account-phone"
-            value="${this.escapeHtml(this.accountPhone)}"
-            placeholder="${t('accountOnboarding.account.details.phonePlaceholder')}" />
-          ${phoneErr ? `<div class="form-error">${this.escapeHtml(phoneErr)}</div>` : ''}
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="account-primary-contact">${t('accountOnboarding.account.details.primaryContactLabel')}</label>
-          <input class="form-input${primaryContactErr ? ' error' : ''}" type="text" id="account-primary-contact"
-            value="${this.escapeHtml(this.accountPrimaryContact)}"
-            placeholder="${t('accountOnboarding.account.details.primaryContactPlaceholder')}" />
-          ${primaryContactErr ? `<div class="form-error">${this.escapeHtml(primaryContactErr)}</div>` : ''}
-        </div>
-
-        <hr class="section-divider" />
-
-        ${this.renderLocationSection()}
-
-        <hr class="section-divider" />
-
-        <h3 class="section-heading">${t('accountOnboarding.account.users.heading')}</h3>
-        <p class="section-description">${t('accountOnboarding.account.users.description')}</p>
-
-        ${userListHtml}
+        ${userTableHtml}
 
         <div class="add-user-form">
           <div class="form-group">
@@ -3812,18 +2870,19 @@ export class AccountOnboardingComponent extends BaseComponent {
   }
 
   private renderAccountStepFooter(): string {
-    const steps = this.getActiveSteps();
-    const idx = steps.indexOf(this.currentStep);
-    const hasPrev = idx > 0;
+    const hasBack = this.accountSubStep === 'team-members';
+    const nextLabel = this.isSavingAccount
+      ? this.t('accountOnboarding.account.saving')
+      : `${this.t('accountOnboarding.nav.next')} &rarr;`;
 
-    if (hasPrev) {
+    if (hasBack) {
       return `
         <div class="footer-bar">
-          <button class="btn btn-secondary" data-action="back">
-            ${this.t('accountOnboarding.nav.back')}
+          <button class="btn btn-ghost" data-action="back">
+            &larr; ${this.t('accountOnboarding.nav.back')}
           </button>
           <button class="btn btn-primary" data-action="next"${this.isSavingAccount ? ' disabled' : ''}>
-            ${this.isSavingAccount ? this.t('accountOnboarding.account.saving') : this.t('accountOnboarding.nav.next')}
+            ${nextLabel}
           </button>
         </div>`;
     }
@@ -3831,7 +2890,7 @@ export class AccountOnboardingComponent extends BaseComponent {
     return `
       <div class="footer-bar footer-bar-end">
         <button class="btn btn-primary" data-action="next"${this.isSavingAccount ? ' disabled' : ''}>
-          ${this.isSavingAccount ? this.t('accountOnboarding.account.saving') : this.t('accountOnboarding.nav.next')}
+          ${nextLabel}
         </button>
       </div>`;
   }
@@ -4489,7 +3548,11 @@ export class AccountOnboardingComponent extends BaseComponent {
       switch (action) {
         case 'next': {
           if (this.currentStep === 'account') {
-            this.saveAndAdvance();
+            if (this.accountSubStep === 'business-details') {
+              this.saveAndAdvanceToTeamMembers();
+            } else {
+              this.advancePastAccount();
+            }
           } else {
             const steps = this.getActiveSteps();
             const idx = steps.indexOf(this.currentStep);
@@ -4558,11 +3621,16 @@ export class AccountOnboardingComponent extends BaseComponent {
           break;
         }
         case 'back': {
-          const steps = this.getActiveSteps();
-          const idx = steps.indexOf(this.currentStep);
-          const prevStep = steps[idx - 1];
-          if (prevStep) {
-            this.navigateToStep(prevStep);
+          if (this.currentStep === 'account' && this.accountSubStep === 'team-members') {
+            this.accountSubStep = 'business-details';
+            this.render();
+          } else {
+            const steps = this.getActiveSteps();
+            const idx = steps.indexOf(this.currentStep);
+            const prevStep = steps[idx - 1];
+            if (prevStep) {
+              this.navigateToStep(prevStep);
+            }
           }
           break;
         }
