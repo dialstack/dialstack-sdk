@@ -429,7 +429,7 @@ describe('AccountOnboardingComponent', () => {
     component.setCollectionOptions({ initialStep: 'hardware' });
 
     await waitFor(() => {
-      expect(component.shadowRoot?.textContent).toContain('Device Assignments');
+      expect(component.shadowRoot?.textContent).toContain('Assign Devices');
     });
   });
 
@@ -1556,7 +1556,7 @@ describe('AccountOnboardingComponent', () => {
     });
     clickAction(element, 'next'); // numbers → hardware
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Device Assignments');
+      expect(element.shadowRoot?.textContent).toContain('Assign Devices');
     });
   };
 
@@ -1646,7 +1646,7 @@ describe('AccountOnboardingComponent', () => {
     clickAction(element, 'next');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Setup Complete');
+      expect(element.shadowRoot?.textContent).toContain('Wahoo!');
     });
   });
 
@@ -2028,7 +2028,7 @@ describe('AccountOnboardingComponent', () => {
     clickAction(element, 'num-confirm-order');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Confirm Order');
+      expect(element.shadowRoot?.textContent).toContain('Confirm Your Order');
     });
 
     // Place the order
@@ -2042,7 +2042,7 @@ describe('AccountOnboardingComponent', () => {
 
     // Should show order status
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Order Status');
+      expect(element.shadowRoot?.textContent).toContain('Order Submitted');
     });
   });
 
@@ -2236,7 +2236,7 @@ describe('AccountOnboardingComponent', () => {
 
     // Should advance to hardware step
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Device Assignments');
+      expect(element.shadowRoot?.textContent).toContain('Assign Devices');
     });
   });
 

@@ -10,6 +10,7 @@ import type {
   UpdateDeviceRequest,
   DeviceListOptions,
   ProvisioningEventListOptions,
+  ProvisionedDevice,
 } from '../types/device';
 import type {
   CreateDECTBaseRequest,
@@ -18,6 +19,18 @@ import type {
   UpdateDECTHandsetRequest,
   CreateDECTExtensionRequest,
 } from '../types/dect';
+import type {
+  Account,
+  OnboardingUser,
+  OnboardingLocation,
+  CreateUserRequest,
+  CreateExtensionRequest,
+  CreateLocationRequest,
+  UpdateLocationRequest,
+} from '../types/account-onboarding';
+import type { Extension } from '../types/dial-plan';
+import type { CreateDeviceLineRequest, DeviceLine } from '../types/device';
+import type { OnboardingEndpoint, CreateEndpointRequest } from '../types/account-onboarding';
 import {
   MOCK_CALLS,
   MOCK_VOICEMAILS,
@@ -38,6 +51,7 @@ export function createMockInstance(
 ): DialStackInstanceImpl {
   const empty = options.empty ?? false;
   const mockOrders = new Map<string, NumberOrder>();
+  const mockDevices: ProvisionedDevice[] = [];
 
   const instance: DialStackInstanceImpl = {
     getAppearance: () => appearance,
@@ -161,6 +175,199 @@ export function createMockInstance(
       return order;
     },
 
+    // Account onboarding methods
+    getAccount: async (): Promise<Account> => {
+      await delay();
+      return {
+        id: 'acct_mock01',
+        name: 'Acme Corp',
+        email: 'admin@acme.com',
+        phone: '+12018401234',
+        primary_contact_name: 'Jane Doe',
+        config: { timezone: 'America/New_York', extension_length: 4 },
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      };
+    },
+    updateAccount: async (_request) => {
+      await delay();
+      return {
+        id: 'acct_mock01',
+        name: 'Acme Corp',
+        email: 'admin@acme.com',
+        phone: '+12018401234',
+        primary_contact_name: 'Jane Doe',
+        config: { timezone: 'America/New_York' },
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: new Date().toISOString(),
+      };
+    },
+    listUsers: async (): Promise<OnboardingUser[]> => {
+      await delay();
+      return empty
+        ? []
+        : [
+            {
+              id: 'usr_mock01',
+              name: 'Alice Smith',
+              email: 'alice@acme.com',
+              created_at: '2025-01-01T00:00:00Z',
+              updated_at: '2025-01-01T00:00:00Z',
+            },
+            {
+              id: 'usr_mock02',
+              name: 'Bob Jones',
+              email: 'bob@acme.com',
+              created_at: '2025-01-02T00:00:00Z',
+              updated_at: '2025-01-02T00:00:00Z',
+            },
+          ];
+    },
+    createUser: async (request: CreateUserRequest): Promise<OnboardingUser> => {
+      await delay();
+      return {
+        id: 'usr_' + Math.random().toString(36).slice(2, 10),
+        name: request.name ?? null,
+        email: request.email ?? null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+    },
+    deleteUser: async (_userId: string) => {
+      await delay();
+    },
+    createExtension: async (request: CreateExtensionRequest): Promise<Extension> => {
+      await delay();
+      return {
+        id: 'ext_' + Math.random().toString(36).slice(2, 10),
+        number: request.number,
+        target: request.target,
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      } as Extension;
+    },
+    listLocations: async (): Promise<OnboardingLocation[]> => {
+      await delay();
+      return empty
+        ? []
+        : [
+            {
+              id: 'loc_mock01',
+              name: 'Main Office',
+              address: {
+                street: '123 Main St',
+                city: 'New York',
+                state: 'NY',
+                postal_code: '10001',
+                country: 'US',
+                formatted_address: '123 Main St, New York, NY 10001, US',
+              },
+              status: 'active',
+              created_at: '2025-01-01T00:00:00Z',
+              updated_at: '2025-01-01T00:00:00Z',
+            },
+          ];
+    },
+    createLocation: async (request: CreateLocationRequest): Promise<OnboardingLocation> => {
+      await delay();
+      return {
+        id: 'loc_' + Math.random().toString(36).slice(2, 10),
+        name: request.name,
+        address: {
+          ...request.address,
+          city: request.address.city,
+          state: request.address.state,
+          postal_code: request.address.postal_code,
+          country: request.address.country,
+        },
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+    },
+    updateLocation: async (
+      _locationId: string,
+      request: UpdateLocationRequest
+    ): Promise<OnboardingLocation> => {
+      await delay();
+      return {
+        id: _locationId,
+        name: request.name,
+        address: {
+          ...request.address,
+          city: request.address.city,
+          state: request.address.state,
+          postal_code: request.address.postal_code,
+          country: request.address.country,
+        },
+        status: 'active',
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: new Date().toISOString(),
+      };
+    },
+    suggestAddresses: async (_query: string) => {
+      await delay(100);
+      return [
+        {
+          place_id: 'place_01',
+          title: '123 Main St',
+          formatted_address: '123 Main St, New York, NY 10001',
+        },
+        {
+          place_id: 'place_02',
+          title: '456 Oak Ave',
+          formatted_address: '456 Oak Ave, Brooklyn, NY 11201',
+        },
+      ];
+    },
+    getPlaceDetails: async (_placeId: string) => {
+      await delay(100);
+      return {
+        place_id: _placeId,
+        address_number: '123',
+        street: 'Main St',
+        city: 'New York',
+        state: 'NY',
+        postal_code: '10001',
+        country: 'US',
+        latitude: 40.7128,
+        longitude: -74.006,
+        timezone: 'America/New_York',
+      };
+    },
+    createEndpoint: async (
+      userId: string,
+      _request?: CreateEndpointRequest
+    ): Promise<OnboardingEndpoint> => {
+      await delay();
+      return {
+        id: 'ep_' + Math.random().toString(36).slice(2, 10),
+        user_id: userId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+    },
+    listEndpoints: async (_userId: string): Promise<OnboardingEndpoint[]> => [],
+    createDeviceLine: async (
+      deviceId: string,
+      data: CreateDeviceLineRequest
+    ): Promise<DeviceLine> => {
+      await delay();
+      return {
+        id: 'dln_' + Math.random().toString(36).slice(2, 10),
+        device_id: deviceId,
+        line_number: 1,
+        endpoint_id: data.endpoint_id,
+      };
+    },
+    fetchAllPages: async <T>(
+      _fetcher: (opts: { offset: number; limit: number }) => Promise<T[]>
+    ): Promise<T[]> => {
+      return [];
+    },
+    uploadBillCopy: async () => {},
+    uploadCSR: async () => {},
+
     // Routing target resolution
     listExtensions: async () => [],
     getCallerID: async (_phoneNumberId: string) => ({ caller_id_name: 'ACME Corp' }),
@@ -170,33 +377,72 @@ export function createMockInstance(
       type: (target.startsWith('rg_') ? 'ring_group' : 'user') as 'ring_group' | 'user',
     }),
 
-    // Stubs for unused methods
-    checkPortEligibility: async (_phoneNumbers: string[]) => ({
-      portable_numbers: [],
-      non_portable_numbers: [],
-    }),
+    checkPortEligibility: async (phoneNumbers: string[]) => {
+      await delay();
+      return {
+        portable_numbers: phoneNumbers.map((n) => ({
+          phone_number: n,
+          losing_carrier_name: 'OldTelco',
+          losing_carrier_spid: '6214',
+          is_wireless: false,
+          account_number_required: true,
+        })),
+        non_portable_numbers: [],
+      };
+    },
     createPortOrder: async (_request: CreatePortOrderRequest) => {
-      throw new Error('Not implemented in mock');
+      await delay();
+      return {
+        id: 'po_mock_' + Math.random().toString(36).slice(2, 10),
+        status: 'draft' as const,
+        details: { phone_numbers: _request.phone_numbers, subscriber: null },
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
     },
-    getPortOrder: async (_orderId: string) => {
-      throw new Error('Not implemented in mock');
-    },
-    approvePortOrder: async (_orderId: string, _request: ApprovePortOrderRequest) => {
-      throw new Error('Not implemented in mock');
-    },
-    submitPortOrder: async (_orderId: string) => {
-      throw new Error('Not implemented in mock');
-    },
+    getPortOrder: async (orderId: string) => ({
+      id: orderId,
+      status: 'submitted' as const,
+      details: { phone_numbers: [], subscriber: null },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }),
+    approvePortOrder: async (orderId: string, _request: ApprovePortOrderRequest) => ({
+      id: orderId,
+      status: 'submitted' as const,
+      details: { phone_numbers: [], subscriber: null },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }),
+    submitPortOrder: async (orderId: string) => ({
+      id: orderId,
+      status: 'submitted' as const,
+      details: { phone_numbers: [], subscriber: null },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }),
     cancelPortOrder: async (_orderId: string) => {
-      throw new Error('Not implemented in mock');
+      await delay();
     },
-    createDevice: async (_data: CreateDeviceRequest) => {
-      throw new Error('Not implemented in mock');
+    createDevice: async (data: CreateDeviceRequest) => {
+      await delay();
+      const dev: ProvisionedDevice = {
+        id: 'dev_' + Math.random().toString(36).slice(2, 10),
+        mac_address: data.mac_address,
+        vendor: 'snom',
+        model: 'D785',
+        status: 'pending-sync',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      mockDevices.push(dev);
+      return dev;
     },
     getDevice: async (_id: string) => {
       throw new Error('Not implemented in mock');
     },
-    listDevices: async (_options?: DeviceListOptions) => [],
+    listDevices: async (_options?: DeviceListOptions) => [...mockDevices],
+    listDeviceLines: async (_deviceId: string): Promise<DeviceLine[]> => [],
     updateDevice: async (_id: string, _data: UpdateDeviceRequest) => {
       throw new Error('Not implemented in mock');
     },

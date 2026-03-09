@@ -414,6 +414,17 @@ export abstract class BaseComponent extends getHTMLElementBase() {
       return key;
     }
 
+    // Pluralization: if params.count is provided, look for _one / _other suffixed keys
+    if (params && 'count' in params) {
+      const suffix = params.count === 1 ? '_one' : '_other';
+      const pluralKey = `${key}${suffix}`;
+      const pluralValue = this.t(pluralKey);
+      // If a plural-specific key was found (not returned as-is), use it
+      if (pluralValue !== pluralKey) {
+        return pluralValue.replace(/\{(\w+)\}/g, (_, k) => String(params[k] ?? ''));
+      }
+    }
+
     // Replace {param} placeholders
     if (params) {
       return value.replace(/\{(\w+)\}/g, (_, k) => String(params[k] ?? ''));
