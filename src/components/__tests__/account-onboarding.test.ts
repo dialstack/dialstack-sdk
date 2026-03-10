@@ -107,6 +107,23 @@ const mockEndpoint = {
   updated_at: '2026-01-01T00:00:00Z',
 };
 
+const mockDID = {
+  id: 'did_01abc',
+  phone_number: '+12125551001',
+  status: 'active' as const,
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+};
+
+// DID matching the account phone (212) 555-0100 → +12125550100
+const mockAccountDID = {
+  id: 'did_02acct',
+  phone_number: '+12125550100',
+  status: 'active' as const,
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+};
+
 const mockDectBase = {
   id: 'dectb_01abc',
   mac_address: '00:04:13:dd:ee:ff',
@@ -186,6 +203,13 @@ const createMockInstance = (overrides?: Record<string, unknown>) => {
     }),
     createEndpoint: jest.fn().mockResolvedValue(mockEndpoint),
     listEndpoints: jest.fn().mockResolvedValue([]),
+    // E911 methods
+    validateLocationE911: jest.fn().mockResolvedValue({ adjusted: false, address: {} }),
+    provisionLocationE911: jest.fn().mockResolvedValue({
+      ...mockLocation,
+      e911_status: 'pending',
+      primary_did_id: 'did_01abc',
+    }),
     // Number methods
     listPhoneNumbers: jest.fn().mockResolvedValue({
       object: 'list',
@@ -379,8 +403,8 @@ const navigateToComplete = async (
   element: AccountOnboardingElement,
   nextClicks?: number
 ): Promise<void> => {
-  // default: business-details → team-members → (done) → numbers → (done) → hardware → (done) → complete
-  const clicks = nextClicks ?? 4;
+  // default: business-details → team-members → (done) → numbers → primary-did → (done) → hardware → (done) → complete
+  const clicks = nextClicks ?? 5;
   for (let i = 0; i < clicks; i += 1) {
     const contentBefore = stepRoot(element).innerHTML;
     clickAction(element, 'next');
@@ -440,7 +464,7 @@ describe('AccountOnboardingComponent', () => {
     component.setCollectionOptions({ steps: { include: ['account', 'numbers'] } });
     component.setFullTermsOfServiceUrl('https://example.com/terms');
 
-    await navigateToComplete(component, 3);
+    await navigateToComplete(component, 4);
 
     const linkBeforeReset = stepRoot(component).querySelector<HTMLAnchorElement>('.legal-links a');
     expect(linkBeforeReset?.getAttribute('href')).toBe('https://example.com/terms');
@@ -456,8 +480,8 @@ describe('AccountOnboardingComponent', () => {
     });
     component.setCollectionOptions({ steps: { exclude: ['hardware'] } });
 
-    // With hardware excluded: business-details → team-members → numbers → complete = 3 clicks
-    await navigateToComplete(component, 3);
+    // With hardware excluded: business-details → team-members → numbers(overview) → numbers(primary-did) → complete = 4 clicks
+    await navigateToComplete(component, 4);
 
     // After clearing options, hardware should be re-included.
     // Use initialStep to jump to hardware and verify it renders.
@@ -1580,7 +1604,7 @@ describe('AccountOnboardingComponent', () => {
   // ==========================================================================
 
   const navigateToHardware = async (element: AccountOnboardingElement): Promise<void> => {
-    // Account step: business-details → team-members → (complete) → numbers
+    // Account step: business-details → team-members → (complete) → numbers → primary-did → (complete) → hardware
     await navigateToTeamMembers(element);
     clickAction(element, 'next'); // team-members → account complete screen
     await clickThroughStepComplete(element); // advance to numbers
@@ -1588,7 +1612,11 @@ describe('AccountOnboardingComponent', () => {
       const title = stepRoot(element).querySelector('.step-sidebar-title')?.textContent;
       expect(title).toContain('Numbers');
     });
-    clickAction(element, 'next'); // numbers → numbers complete screen
+    clickAction(element, 'next'); // numbers overview → primary-did
+    await waitFor(() => {
+      expect(stepRoot(element).querySelector('.primary-did-section')).not.toBeNull();
+    });
+    clickAction(element, 'next'); // primary-did → numbers complete screen
     await clickThroughStepComplete(element); // advance to hardware
     await waitFor(() => {
       expect(stepRoot(element).textContent).toContain('Assign Devices');
@@ -1834,15 +1862,15 @@ describe('AccountOnboardingComponent', () => {
     });
   });
 
-  // ==========================================================================
-  // Numbers Step Tests
-  // ==========================================================================
+  // ============================================================================
+  // Primary DID Selection (Numbers Step) Tests
+  // ============================================================================
 
   const navigateToNumbers = async (
     element: AccountOnboardingElement,
     instance: ReturnType<typeof createMockInstance>
   ): Promise<void> => {
-    // Account step: business-details → team-members → (complete) → numbers
+    // Account step: business-details → team-members → (complete) → numbers (overview)
     await navigateToTeamMembers(element);
     clickAction(element, 'next'); // team-members → account complete screen
     await clickThroughStepComplete(element); // advance to numbers
@@ -1852,6 +1880,385 @@ describe('AccountOnboardingComponent', () => {
       ).toHaveBeenCalled();
     });
   };
+
+  /** Navigate to the primary-did sub-step (overview → primary-did). */
+  const navigateToPrimaryDID = async (
+    element: AccountOnboardingElement,
+    instance: ReturnType<typeof createMockInstance>
+  ): Promise<void> => {
+    await navigateToNumbers(element, instance);
+    clickAction(element, 'next'); // overview → primary-did
+    await waitFor(() => {
+      expect(stepRoot(element)?.querySelector('.primary-did-section')).not.toBeNull();
+    });
+  };
+
+  it('auto-selects primary DID when account phone matches', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [mockDID, mockAccountDID],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+    });
+
+    await navigateToPrimaryDID(element, instance);
+
+    await waitFor(() => {
+      const radios = stepRoot(element)?.querySelectorAll<HTMLInputElement>(
+        'input[name="primary-did"]'
+      );
+      expect(radios?.length).toBe(2);
+      // The account phone DID should be checked
+      const checked = stepRoot(element)?.querySelector<HTMLInputElement>(
+        'input[name="primary-did"]:checked'
+      );
+      expect(checked?.value).toBe('did_02acct');
+    });
+
+    // Auto-match badge should be visible inline next to the number
+    const badge = stepRoot(element)?.querySelector('.primary-did-badge.auto-matched');
+    expect(badge).not.toBeNull();
+    expect(badge?.textContent).toContain('auto-selected');
+  });
+
+  it('shows radio buttons when no phone match but does not auto-select with multiple DIDs', async () => {
+    const nonMatchingDID1 = { ...mockDID, id: 'did_other1', phone_number: '+13105550101' };
+    const nonMatchingDID2 = { ...mockDID, id: 'did_other2', phone_number: '+13105550102' };
+
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [nonMatchingDID1, nonMatchingDID2],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+    });
+
+    await navigateToPrimaryDID(element, instance);
+
+    await waitFor(() => {
+      const radios = stepRoot(element)?.querySelectorAll<HTMLInputElement>(
+        'input[name="primary-did"]'
+      );
+      expect(radios?.length).toBe(2);
+    });
+
+    // No radio should be checked (no match, multiple DIDs)
+    const checked = stepRoot(element)?.querySelector<HTMLInputElement>(
+      'input[name="primary-did"]:checked'
+    );
+    expect(checked).toBeNull();
+
+    // Auto-match badge should NOT appear
+    const badge = stepRoot(element)?.querySelector('.primary-did-badge.auto-matched');
+    expect(badge).toBeNull();
+  });
+
+  it('auto-selects the only DID when there is exactly one (convenience)', async () => {
+    const singleDID = { ...mockDID, id: 'did_single', phone_number: '+13105550999' };
+
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [singleDID],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+    });
+
+    await navigateToPrimaryDID(element, instance);
+
+    await waitFor(() => {
+      const checked = stepRoot(element)?.querySelector<HTMLInputElement>(
+        'input[name="primary-did"]:checked'
+      );
+      expect(checked?.value).toBe('did_single');
+    });
+  });
+
+  it('user can manually select a different DID', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [mockDID, mockAccountDID],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+    });
+
+    await navigateToPrimaryDID(element, instance);
+
+    await waitFor(() => {
+      const radios = stepRoot(element)?.querySelectorAll<HTMLInputElement>(
+        'input[name="primary-did"]'
+      );
+      expect(radios?.length).toBe(2);
+    });
+
+    // Initially the account DID is auto-matched
+    const checked = stepRoot(element)?.querySelector<HTMLInputElement>(
+      'input[name="primary-did"]:checked'
+    );
+    expect(checked?.value).toBe('did_02acct');
+
+    // Simulate user selecting the other DID
+    const otherRadio = stepRoot(element)?.querySelector<HTMLInputElement>(
+      `input[name="primary-did"][value="did_01abc"]`
+    );
+    expect(otherRadio).not.toBeNull();
+    otherRadio!.checked = true;
+    otherRadio!.dispatchEvent(new Event('change', { bubbles: true }));
+
+    await waitFor(() => {
+      // After re-render, the other radio should be checked
+      const newChecked = stepRoot(element)?.querySelector<HTMLInputElement>(
+        'input[name="primary-did"]:checked'
+      );
+      expect(newChecked?.value).toBe('did_01abc');
+    });
+
+    // Auto-match message should disappear after manual override
+    const text = stepRoot(element)?.textContent ?? '';
+    expect(text).not.toContain('matches your account phone');
+  });
+
+  it('shows no DIDs message when none are available', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+    });
+
+    await navigateToPrimaryDID(element, instance);
+
+    await waitFor(() => {
+      const text = stepRoot(element)?.textContent ?? '';
+      expect(text).toContain('No active phone numbers available yet');
+    });
+
+    // No radios should exist
+    const radios = stepRoot(element)?.querySelectorAll('input[name="primary-did"]');
+    expect(radios?.length).toBe(0);
+  });
+
+  it('temporary DID shows badge', async () => {
+    const tempDID = {
+      ...mockDID,
+      id: 'did_temp',
+      phone_number: '+15551234567',
+      number_class: 'temporary' as const,
+    };
+
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [tempDID],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+    });
+
+    await navigateToPrimaryDID(element, instance);
+
+    await waitFor(() => {
+      const badge = stepRoot(element)?.querySelector('.primary-did-badge');
+      expect(badge).not.toBeNull();
+      expect(badge?.textContent).toContain('Temporary');
+    });
+  });
+
+  it('does not refetch DIDs after rejection when revisiting primary-did via back/forth', async () => {
+    const emptyPage = { object: 'list', data: [], next_page_url: null, previous_page_url: null };
+    const listPhoneNumbers = jest
+      .fn()
+      .mockResolvedValueOnce(emptyPage) // consumed by overview loadNumbersData
+      .mockRejectedValueOnce(new Error('Network error')); // consumed by loadActiveDIDs
+
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers,
+    });
+
+    // Navigate to primary-did — DID load fails
+    await navigateToPrimaryDID(element, instance);
+
+    // Go back to overview
+    clickAction(element, 'back');
+    await waitFor(() => {
+      expect(stepRoot(element)?.querySelector('[data-action="num-start-order"]')).not.toBeNull();
+    });
+
+    // Go forward again to primary-did
+    clickAction(element, 'next');
+    await waitFor(() => {
+      expect(stepRoot(element)?.querySelector('.primary-did-section')).not.toBeNull();
+    });
+
+    // listPhoneNumbers should have been called exactly twice (overview + first DID load), not again on revisit
+    expect(listPhoneNumbers).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not refetch DIDs when empty result is revisited via back/forth', async () => {
+    const emptyPage = { object: 'list', data: [], next_page_url: null, previous_page_url: null };
+    const listPhoneNumbers = jest.fn().mockResolvedValue(emptyPage);
+
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers,
+    });
+
+    await navigateToPrimaryDID(element, instance);
+
+    await waitFor(() => {
+      expect(stepRoot(element)?.textContent).toContain('No active phone numbers available yet');
+    });
+
+    // Back to overview, then forward again
+    clickAction(element, 'back');
+    await waitFor(() => {
+      expect(stepRoot(element)?.querySelector('[data-action="num-start-order"]')).not.toBeNull();
+    });
+    clickAction(element, 'next');
+    await waitFor(() => {
+      expect(stepRoot(element)?.querySelector('.primary-did-section')).not.toBeNull();
+    });
+
+    // Called twice: once by overview loadNumbersData, once by loadActiveDIDs. Not again on revisit.
+    expect(listPhoneNumbers).toHaveBeenCalledTimes(2);
+    expect(stepRoot(element)?.textContent).toContain('No active phone numbers available yet');
+  });
+
+  it('auto-selects matching DID on page 2 of paginated response', async () => {
+    const page1DID = { ...mockDID, id: 'did_page1', phone_number: '+13105550101' };
+    const provisionedLocation = {
+      ...mockLocation,
+      primary_did_id: 'did_02acct',
+      e911_status: 'pending' as const,
+    };
+
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      // listPhoneNumbers is still called by the overview loadNumbersData (via default fetchAllPages)
+      // but we override fetchAllPages to return both pages' worth of DIDs
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [page1DID],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+      // fetchAllPages simulates two-page fetch returning both DIDs
+      fetchAllPages: jest.fn().mockResolvedValue([page1DID, mockAccountDID]),
+      updateLocation: jest.fn().mockResolvedValue(provisionedLocation),
+      validateLocationE911: jest.fn().mockResolvedValue({
+        adjusted: false,
+        address: { house_number: '123', street_name: 'Main', city: 'New York' },
+      }),
+      provisionLocationE911: jest.fn().mockResolvedValue(provisionedLocation),
+    });
+
+    await navigateToTeamMembers(element);
+    clickAction(element, 'next'); // team-members → account complete screen
+    await clickThroughStepComplete(element); // advance to numbers overview
+    await waitFor(() => {
+      const title = stepRoot(element)?.querySelector('.step-sidebar-title')?.textContent;
+      expect(title).toContain('Numbers');
+    });
+    clickAction(element, 'next'); // overview → primary-did
+    await waitFor(() => {
+      expect(stepRoot(element)?.querySelector('.primary-did-section')).not.toBeNull();
+    });
+
+    await waitFor(() => {
+      const radios = stepRoot(element)?.querySelectorAll('input[name="primary-did"]');
+      expect(radios?.length).toBe(2);
+    });
+
+    // Account DID from page 2 should be auto-selected
+    const checked = stepRoot(element)?.querySelector<HTMLInputElement>(
+      'input[name="primary-did"]:checked'
+    );
+    expect(checked?.value).toBe('did_02acct');
+
+    // Navigate to complete (2 more clicks: primary-did→hardware→complete)
+    await navigateToComplete(element, 2);
+
+    await waitFor(() => {
+      expect(stepRoot(element)?.querySelector('[data-action="exit"]')).toBeTruthy();
+    });
+
+    // Should have used the auto-matched DID from page 2
+    expect(instance.updateLocation).toHaveBeenCalledWith('loc_01abc', {
+      primary_did_id: 'did_02acct',
+    });
+  });
+
+  it('uses pre-selected DID from numbers step for E911 provisioning on complete', async () => {
+    const provisionedLocation = {
+      ...mockLocation,
+      primary_did_id: 'did_01abc',
+      e911_status: 'pending' as const,
+    };
+
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [mockDID, mockAccountDID],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+      updateLocation: jest.fn().mockResolvedValue(provisionedLocation),
+      validateLocationE911: jest.fn().mockResolvedValue({
+        adjusted: false,
+        address: { house_number: '123', street_name: 'Main', city: 'New York' },
+      }),
+      provisionLocationE911: jest.fn().mockResolvedValue(provisionedLocation),
+    });
+
+    // Navigate to primary-did sub-step
+    await navigateToPrimaryDID(element, instance);
+
+    await waitFor(() => {
+      expect(
+        stepRoot(element)?.querySelectorAll('input[name="primary-did"]')?.length
+      ).toBeGreaterThan(0);
+    });
+
+    // Override auto-match: select mockDID instead of mockAccountDID
+    const otherRadio = stepRoot(element)?.querySelector<HTMLInputElement>(
+      `input[name="primary-did"][value="did_01abc"]`
+    );
+    otherRadio!.checked = true;
+    otherRadio!.dispatchEvent(new Event('change', { bubbles: true }));
+
+    // Navigate to complete (2 more clicks: primary-did→hardware→complete)
+    await navigateToComplete(element, 2);
+
+    await waitFor(() => {
+      const text = stepRoot(element)?.textContent ?? '';
+      expect(text).toContain('assigned as primary number for');
+    });
+
+    // Should have used the manually selected DID, not the account-phone matched one
+    expect(instance.updateLocation).toHaveBeenCalledWith('loc_01abc', {
+      primary_did_id: 'did_01abc',
+    });
+  });
+
+  // ==========================================================================
+  // Numbers Step Tests
+  // ==========================================================================
 
   it('renders numbers overview with empty state when no numbers exist', async () => {
     const { element, instance } = await mountComponent({
@@ -2213,8 +2620,14 @@ describe('AccountOnboardingComponent', () => {
       expect(stepRoot(element).querySelector('[data-action="next"]')).not.toBeNull();
     });
 
-    clickAction(element, 'next');
-    await clickThroughStepComplete(element);
+    clickAction(element, 'next'); // overview → primary-did
+
+    await waitFor(() => {
+      expect(stepRoot(element).querySelector('.primary-did-section')).not.toBeNull();
+    });
+
+    clickAction(element, 'next'); // primary-did → numbers complete screen
+    await clickThroughStepComplete(element); // advance to hardware
 
     // Should advance to hardware step
     await waitFor(() => {
@@ -2658,5 +3071,221 @@ describe('AccountOnboardingComponent', () => {
       // Should be back at overview with action cards
       expect(stepRoot(element).querySelector('[data-action="num-start-order"]')).not.toBeNull();
     });
+  });
+
+  // ============================================================================
+  // E911 Auto-Provisioning Tests
+  // ============================================================================
+
+  it('auto-provisions E911 for simple case (1 location, matching DID)', async () => {
+    const provisionedLocation = {
+      ...mockLocation,
+      primary_did_id: 'did_02acct',
+      e911_status: 'pending' as const,
+    };
+
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [mockDID, mockAccountDID],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+      updateLocation: jest.fn().mockResolvedValue(provisionedLocation),
+      validateLocationE911: jest.fn().mockResolvedValue({
+        adjusted: false,
+        address: { house_number: '123', street_name: 'Main', city: 'New York' },
+      }),
+      provisionLocationE911: jest.fn().mockResolvedValue(provisionedLocation),
+    });
+
+    await navigateToComplete(element);
+
+    await waitFor(() => {
+      // E911 panel should appear with disclosure
+      const text = element.shadowRoot?.textContent ?? '';
+      expect(text).toContain('assigned as primary number for');
+    });
+
+    expect(instance.updateLocation).toHaveBeenCalledWith('loc_01abc', {
+      primary_did_id: 'did_02acct',
+    });
+    expect(instance.validateLocationE911).toHaveBeenCalledWith('loc_01abc');
+    expect(instance.provisionLocationE911).toHaveBeenCalledWith('loc_01abc');
+  });
+
+  it('falls back to complex when no DID matches account phone and user selects none', async () => {
+    // With multiple non-matching DIDs and no user selection, no DID is auto-selected
+    const nonMatching1 = { ...mockDID, id: 'did_nm1', phone_number: '+13105550101' };
+    const nonMatching2 = { ...mockDID, id: 'did_nm2', phone_number: '+13105550102' };
+
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [nonMatching1, nonMatching2],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+    });
+
+    await navigateToComplete(element);
+
+    await waitFor(() => {
+      const text = element.shadowRoot?.textContent ?? '';
+      expect(text).toContain('E911 emergency services have not been fully configured');
+    });
+
+    expect(instance.updateLocation).not.toHaveBeenCalled();
+    expect(instance.validateLocationE911).not.toHaveBeenCalled();
+    expect(instance.provisionLocationE911).not.toHaveBeenCalled();
+  });
+
+  it('shows deferred warning for complex case (multiple locations)', async () => {
+    const secondLocation = {
+      ...mockLocation,
+      id: 'loc_02xyz',
+      name: 'Branch Office',
+    };
+
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation, secondLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [mockDID],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+    });
+
+    await navigateToComplete(element);
+
+    await waitFor(() => {
+      const text = element.shadowRoot?.textContent ?? '';
+      expect(text).toContain('E911 emergency services have not been fully configured');
+    });
+
+    // Should not have called provision methods
+    expect(instance.validateLocationE911).not.toHaveBeenCalled();
+    expect(instance.provisionLocationE911).not.toHaveBeenCalled();
+  });
+
+  it('falls back to deferred warning when validation fails', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [mockAccountDID],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+      validateLocationE911: jest.fn().mockRejectedValue(new Error('Validation failed')),
+    });
+
+    await navigateToComplete(element);
+
+    await waitFor(() => {
+      const text = element.shadowRoot?.textContent ?? '';
+      expect(text).toContain('E911 emergency services have not been fully configured');
+    });
+
+    expect(instance.provisionLocationE911).not.toHaveBeenCalled();
+  });
+
+  it('shows address standardized disclosure when adjusted', async () => {
+    const provisionedLocation = {
+      ...mockLocation,
+      primary_did_id: 'did_02acct',
+      e911_status: 'provisioned' as const,
+    };
+
+    const { element } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [mockAccountDID],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+      updateLocation: jest.fn().mockResolvedValue(provisionedLocation),
+      validateLocationE911: jest.fn().mockResolvedValue({
+        adjusted: true,
+        address: { house_number: '123', street_name: 'Main', city: 'New York' },
+      }),
+      provisionLocationE911: jest.fn().mockResolvedValue(provisionedLocation),
+    });
+
+    await navigateToComplete(element);
+
+    await waitFor(() => {
+      const text = element.shadowRoot?.textContent ?? '';
+      expect(text).toContain('address was standardized');
+    });
+  });
+
+  it('retries E911 provisioning when primary DID assigned but E911 failed', async () => {
+    const locationWithDIDButFailed = {
+      ...mockLocation,
+      primary_did_id: 'did_01abc',
+      e911_status: 'failed' as const,
+    };
+    const provisionedLocation = {
+      ...mockLocation,
+      primary_did_id: 'did_01abc',
+      e911_status: 'pending' as const,
+    };
+
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([locationWithDIDButFailed]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [mockDID],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+      validateLocationE911: jest.fn().mockResolvedValue({
+        adjusted: false,
+        address: { house_number: '123', street_name: 'Main', city: 'New York' },
+      }),
+      provisionLocationE911: jest.fn().mockResolvedValue(provisionedLocation),
+    });
+
+    await navigateToComplete(element);
+
+    await waitFor(() => {
+      const text = element.shadowRoot?.textContent ?? '';
+      expect(text).toContain('E911');
+    });
+
+    // Should NOT call updateLocation (DID already assigned)
+    expect(instance.updateLocation).not.toHaveBeenCalled();
+    // Should retry validation and provisioning
+    expect(instance.validateLocationE911).toHaveBeenCalledWith('loc_01abc');
+    expect(instance.provisionLocationE911).toHaveBeenCalledWith('loc_01abc');
+  });
+
+  it('does not show E911 panel when no DIDs are available', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+    });
+
+    await navigateToComplete(element);
+
+    // Give time for E911 flow to settle
+    await waitFor(() => {
+      expect(element.shadowRoot?.querySelector('[data-action="exit"]')).toBeTruthy();
+    });
+
+    const text = element.shadowRoot?.textContent ?? '';
+    expect(text).not.toContain('emergency services');
+    expect(instance.validateLocationE911).not.toHaveBeenCalled();
+    expect(instance.provisionLocationE911).not.toHaveBeenCalled();
   });
 });

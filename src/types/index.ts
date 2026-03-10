@@ -127,6 +127,7 @@ export type {
   UpdateLocationRequest,
   OnboardingEndpoint,
   CreateEndpointRequest,
+  E911ValidationResult,
 } from './account-onboarding';
 
 // Core SDK types

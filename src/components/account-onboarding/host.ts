@@ -21,9 +21,11 @@ export interface OnboardingHost {
   readonly classes: AccountOnboardingClasses;
 
   // Shared state (read)
+  readonly currentStep: AccountOnboardingStep;
   readonly users: OnboardingUser[];
   readonly extensions: Extension[];
   readonly accountConfig: AccountConfig;
+  readonly accountPhone: string;
 
   // Methods
   t(key: string, params?: Record<string, string | number>): string;

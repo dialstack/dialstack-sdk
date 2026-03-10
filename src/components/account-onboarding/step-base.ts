@@ -30,6 +30,7 @@ export abstract class OnboardingStepBase extends BaseComponent {
   protected _users: OnboardingUser[] = [];
   protected _extensions: Extension[] = [];
   protected _accountConfig: AccountConfig = {};
+  protected _accountPhone = '';
 
   protected isLoading = true;
   protected loadError: string | null = null;
@@ -60,6 +61,14 @@ export abstract class OnboardingStepBase extends BaseComponent {
 
   get accountConfig(): AccountConfig {
     return this._accountConfig;
+  }
+
+  get currentStep(): AccountOnboardingStep {
+    return this.stepName;
+  }
+
+  get accountPhone(): string {
+    return this._accountPhone;
   }
 
   setUsers(users: OnboardingUser[]): void {

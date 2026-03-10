@@ -20,6 +20,7 @@ import type { OnboardingHost } from './host';
 
 export type NumSubStep =
   | 'overview'
+  | 'primary-did'
   | 'order-search'
   | 'order-results'
   | 'order-confirm'
@@ -88,6 +89,13 @@ export class NumbersStepHelper {
   private numPortIsSubmitting = false;
   private numPortSubmitError: string | null = null;
 
+  // Primary DID selection state
+  activeDIDs: DIDItem[] = [];
+  selectedPrimaryDIDId: string | null = null;
+  primaryDIDAutoMatched = false;
+  private isLoadingDIDs = false;
+  private hasAttemptedDIDLoad = false;
+
   constructor(private host: OnboardingHost) {}
 
   // ============================================================================
@@ -126,6 +134,44 @@ export class NumbersStepHelper {
   /** Whether numbers data has been loaded at least once. */
   hasLoadedNumbers(): boolean {
     return this.numPhoneNumbers.length > 0 || this.numIsLoadingNumbers;
+  }
+
+  /**
+   * Load active DIDs for the numbers step and auto-match against account phone.
+   */
+  async loadActiveDIDs(): Promise<void> {
+    if (!this.host.instance) return;
+
+    this.hasAttemptedDIDLoad = true;
+    this.isLoadingDIDs = true;
+    this.host.render();
+
+    try {
+      this.activeDIDs = await this.host.instance.fetchAllPages<DIDItem>((opts) =>
+        this.host.instance!.listPhoneNumbers({ ...opts, status: 'active' })
+      );
+
+      // Try to match account phone to an active DID
+      const parsed = parsePhoneNumberFromString(this.host.accountPhone, 'US');
+      const e164Phone = parsed?.number;
+      const matchedDID = e164Phone
+        ? this.activeDIDs.find((d) => d.phone_number === e164Phone)
+        : undefined;
+
+      if (matchedDID) {
+        this.selectedPrimaryDIDId = matchedDID.id;
+        this.primaryDIDAutoMatched = true;
+      } else if (this.activeDIDs.length === 1) {
+        // Convenience: auto-select the only available DID
+        this.selectedPrimaryDIDId = this.activeDIDs[0]!.id;
+        this.primaryDIDAutoMatched = false;
+      }
+    } catch (err) {
+      console.warn('[dialstack] Failed to load active DIDs:', err);
+    } finally {
+      this.isLoadingDIDs = false;
+      this.host.render();
+    }
   }
 
   private numMergePhoneNumbers(
@@ -543,6 +589,7 @@ export class NumbersStepHelper {
 
   getSidebarActiveKey(): string | null {
     if (this.numSubStep === 'overview') return 'options';
+    if (this.numSubStep === 'primary-did') return 'primary-did';
     if (this.numSubStep === 'port-submitted') return null;
     if (this.numSubStep === 'order-status') {
       const done =
@@ -559,6 +606,27 @@ export class NumbersStepHelper {
 
   handleAction(action: string, actionEl: HTMLElement): boolean {
     switch (action) {
+      // Sub-step navigation: overview → primary-did → (next main step)
+      case 'next':
+        if (this.host.currentStep === 'numbers' && this.numSubStep === 'overview') {
+          this.numSubStep = 'primary-did';
+          // Only load DIDs on first visit; preserve user selection on back/forth
+          if (!this.hasAttemptedDIDLoad && !this.isLoadingDIDs) {
+            this.loadActiveDIDs();
+          } else {
+            this.host.render();
+          }
+          return true;
+        }
+        // primary-did 'next' falls through to main handler (advances to next main step)
+        return false;
+      case 'back':
+        if (this.host.currentStep === 'numbers' && this.numSubStep === 'primary-did') {
+          this.numSubStep = 'overview';
+          this.host.render();
+          return true;
+        }
+        return false;
       case 'num-retry-load':
         this.loadNumbersData();
         return true;
@@ -891,6 +959,18 @@ export class NumbersStepHelper {
         this.numPortSignature = sigInput.value;
       });
     }
+
+    // Primary DID radio buttons
+    const radios = this.host.shadowRoot.querySelectorAll<HTMLInputElement>(
+      'input[name="primary-did"]'
+    );
+    for (const radio of radios) {
+      radio.addEventListener('change', () => {
+        this.selectedPrimaryDIDId = radio.value;
+        this.primaryDIDAutoMatched = false;
+        this.host.render();
+      });
+    }
   }
 
   // ============================================================================
@@ -902,6 +982,9 @@ export class NumbersStepHelper {
     switch (this.numSubStep) {
       case 'overview':
         subContent = this.renderNumOverview();
+        break;
+      case 'primary-did':
+        subContent = this.renderPrimaryDIDSection();
         break;
       case 'order-search':
         subContent = this.renderNumOrderSearch();
@@ -938,7 +1021,7 @@ export class NumbersStepHelper {
         break;
     }
 
-    const showOuterHeader = this.numSubStep === 'overview';
+    const showOuterHeader = this.numSubStep === 'overview' || this.numSubStep === 'primary-did';
     return `
       <div class="card ${this.host.classes.stepNumbers || ''}" part="step-numbers">
         ${
@@ -949,8 +1032,68 @@ export class NumbersStepHelper {
         }
         ${subContent}
       </div>
-      ${this.numSubStep === 'overview' ? this.host.renderStepFooter() : ''}
+      ${showOuterHeader ? this.host.renderStepFooter() : ''}
     `;
+  }
+
+  private renderPrimaryDIDSection(): string {
+    const t = (key: string): string => this.host.t(key);
+
+    let primaryDIDHtml: string;
+
+    if (this.isLoadingDIDs) {
+      primaryDIDHtml = `
+        <div class="center-state" role="status" aria-live="polite">
+          <div class="spinner"><svg viewBox="0 0 50 50"><circle cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="4" stroke-dasharray="80 60"/></svg></div>
+          <p>${t('accountOnboarding.numbers.primaryNumber.loading')}</p>
+        </div>`;
+    } else if (this.activeDIDs.length === 0) {
+      primaryDIDHtml = `<div class="inline-alert info">${t('accountOnboarding.numbers.primaryNumber.noDIDs')}</div>`;
+    } else {
+      // Sort matched DID to top of the list
+      const sortedDIDs = this.primaryDIDAutoMatched
+        ? [...this.activeDIDs].sort((a, b) => {
+            if (a.id === this.selectedPrimaryDIDId) return -1;
+            if (b.id === this.selectedPrimaryDIDId) return 1;
+            return 0;
+          })
+        : this.activeDIDs;
+
+      const radioOptions = sortedDIDs
+        .map((did) => {
+          const isSelected = this.selectedPrimaryDIDId === did.id;
+          const formatted =
+            parsePhoneNumberFromString(did.phone_number, 'US')?.formatNational() ??
+            did.phone_number;
+          const isAutoMatched = this.primaryDIDAutoMatched && did.id === this.selectedPrimaryDIDId;
+          const badges = [
+            isAutoMatched
+              ? `<span class="primary-did-badge auto-matched">${t('accountOnboarding.numbers.primaryNumber.autoMatchedBadge')}</span>`
+              : '',
+            did.number_class === 'temporary'
+              ? `<span class="primary-did-badge">${t('accountOnboarding.numbers.primaryNumber.temporary')}</span>`
+              : '',
+          ]
+            .filter(Boolean)
+            .join('');
+          return `
+            <label class="primary-did-option${isSelected ? ' selected' : ''}">
+              <input type="radio" name="primary-did" value="${this.host.escapeHtml(did.id)}"${isSelected ? ' checked' : ''} />
+              <span>${this.host.escapeHtml(formatted)}</span>
+              ${badges}
+            </label>`;
+        })
+        .join('');
+
+      primaryDIDHtml = `<div class="primary-did-group">${radioOptions}</div>`;
+    }
+
+    return `
+      <div class="primary-did-section">
+        <h3 class="section-heading">${t('accountOnboarding.numbers.primaryNumber.heading')}</h3>
+        <p class="section-description">${t('accountOnboarding.numbers.primaryNumber.description')}</p>
+        ${primaryDIDHtml}
+      </div>`;
   }
 
   private renderNumOverview(): string {

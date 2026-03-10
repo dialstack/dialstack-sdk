@@ -236,6 +236,8 @@ export const en = {
       teamMembersDesc: 'Add users and assign extensions',
       numberOptions: 'Number Options',
       numberOptionsDesc: 'Choose to port existing or get new numbers',
+      primaryNumber: 'Primary Number',
+      primaryNumberDesc: 'Select your main E911 number',
       numberSetup: 'Number Setup',
       numberSetupDesc: 'Configure your phone numbers',
       verification: 'Verification',
@@ -319,6 +321,18 @@ export const en = {
     numbers: {
       title: 'Phone Numbers',
       subtitle: "Choose how you'd like to set up your business numbers",
+      primaryNumber: {
+        heading: 'Primary Number',
+        description:
+          'Select the primary phone number for this location. This number is registered with E911 emergency services.',
+        loading: 'Loading phone numbers...',
+        noDIDs:
+          'No active phone numbers available yet. E911 will be configured once numbers are provisioned.',
+        autoMatched:
+          '{phone} matches your account phone and has been selected as the primary number for E911.',
+        autoMatchedBadge: 'Account number — auto-selected',
+        temporary: 'Temporary',
+      },
       overview: {
         heading: 'Your Numbers',
         empty: 'No telephone numbers yet. Request new numbers or port your existing ones.',
@@ -558,6 +572,15 @@ export const en = {
     complete: {
       title: 'Wahoo!',
       subtitle: "It's time to start using your embedded voice system",
+      e911: {
+        loading: 'Configuring emergency services...',
+        verified: 'E911 emergency address is verified.',
+        processing: 'E911 registration is being processed. This may take a few minutes.',
+        addressStandardized: 'Your address was standardized for emergency services accuracy.',
+        primaryAssigned: 'assigned as primary number for',
+        deferred:
+          'E911 emergency services have not been fully configured. Each location with a phone number needs a verified emergency address before your phone service can be activated.',
+      },
     },
     stepComplete: {
       title: 'All Done!',

@@ -57,6 +57,7 @@ import type {
   UpdateLocationRequest,
   OnboardingEndpoint,
   CreateEndpointRequest,
+  E911ValidationResult,
 } from './account-onboarding';
 
 /**
@@ -876,6 +877,26 @@ export interface DialStackInstance {
    * @returns Promise resolving to an array of locations
    */
   listLocations(): Promise<OnboardingLocation[]>;
+
+  // ===========================================================================
+  // E911 Methods (session-scoped)
+  // ===========================================================================
+
+  /**
+   * Validate a location's address for E911 emergency services
+   *
+   * @param locationId - The location ID to validate
+   * @returns Promise resolving to the validation result
+   */
+  validateLocationE911(locationId: string): Promise<E911ValidationResult>;
+
+  /**
+   * Provision E911 emergency services for a location
+   *
+   * @param locationId - The location ID to provision
+   * @returns Promise resolving to the updated location
+   */
+  provisionLocationE911(locationId: string): Promise<OnboardingLocation>;
 
   // ===========================================================================
   // Endpoint Methods (session-scoped)

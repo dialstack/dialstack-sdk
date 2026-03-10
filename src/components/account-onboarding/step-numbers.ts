@@ -18,6 +18,11 @@ export class OnboardingNumbersStep extends OnboardingStepBase {
     return 'numbers';
   }
 
+  /** Exposes the user's primary DID selection to the orchestrator (used for E911). */
+  get selectedPrimaryDIDId(): string | null {
+    return this.numbers.selectedPrimaryDIDId;
+  }
+
   protected async loadData(): Promise<void> {
     if (!this.instance) throw new Error('Not initialized');
 
@@ -30,6 +35,7 @@ export class OnboardingNumbersStep extends OnboardingStepBase {
     this._users = users ?? [];
     this._extensions = extensions ?? [];
     this._accountConfig = accountData.config ?? {};
+    this._accountPhone = accountData.phone ?? '';
 
     // Lazy-load numbers data (DIDs, orders, port orders)
     await this.numbers.loadNumbersData();
@@ -64,6 +70,11 @@ export class OnboardingNumbersStep extends OnboardingStepBase {
           key: 'options',
           label: this.t('accountOnboarding.sidebar.numberOptions'),
           description: this.t('accountOnboarding.sidebar.numberOptionsDesc'),
+        },
+        {
+          key: 'primary-did',
+          label: this.t('accountOnboarding.sidebar.primaryNumber'),
+          description: this.t('accountOnboarding.sidebar.primaryNumberDesc'),
         },
         {
           key: 'setup',

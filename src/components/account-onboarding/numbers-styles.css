@@ -433,3 +433,8 @@
   grid-template-columns: 1fr auto 1fr;
   gap: var(--ds-layout-spacing-sm);
 }
+
+.primary-did-badge.auto-matched {
+  background: color-mix(in srgb, var(--ds-color-primary) 12%, transparent);
+  color: var(--ds-color-primary);
+}

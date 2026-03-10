@@ -12,6 +12,9 @@ import type {
   AccountOnboardingClasses,
   AccountConfig,
   OnboardingCollectionOptions,
+  OnboardingLocation,
+  DIDItem,
+  E911ValidationResult,
   AppearanceOptions,
   FormattingOptions,
   ComponentIcons,
@@ -19,8 +22,10 @@ import type {
 } from '../../types';
 import COMPONENT_STYLES from './styles.css';
 import { create as createConfetti } from 'canvas-confetti';
-import { ERROR_SVG } from './icons';
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
+import { CHECK_CIRCLE_SVG, ERROR_SVG } from './icons';
 import type { OnboardingStepBase } from './step-base';
+import type { OnboardingNumbersStep } from './step-numbers';
 import type { Locale } from '../../locales';
 
 // Side-effect imports: register step custom elements
@@ -64,6 +69,13 @@ export class AccountOnboardingComponent extends BaseComponent {
 
   // Step element cache
   private stepElements = new Map<string, OnboardingStepBase>();
+
+  // E911 state
+  private e911FlowState: 'idle' | 'running' | 'simple' | 'complex' | 'failed' = 'idle';
+  private e911ValidationResult: E911ValidationResult | null = null;
+  private e911ProvisionedLocation: OnboardingLocation | null = null;
+  private e911PrimaryDid: DIDItem | null = null;
+  private _accountPhone = '';
 
   // Confetti animation
   private confettiInstance: ReturnType<typeof createConfetti> | null = null;
@@ -134,6 +146,7 @@ export class AccountOnboardingComponent extends BaseComponent {
 
       const accountData = await this.instance.getAccount();
       this._accountConfig = accountData.config ?? {};
+      this._accountPhone = accountData.phone ?? '';
 
       this.isLoading = false;
 
@@ -381,6 +394,121 @@ export class AccountOnboardingComponent extends BaseComponent {
         .updateAccount({ config: { ...this._accountConfig, onboarding_step: step } })
         .catch((err) => console.warn('Failed to persist onboarding step:', err));
     }
+
+    // Trigger E911 auto-provisioning when reaching the complete step
+    if (step === 'complete' && this.e911FlowState === 'idle') {
+      this.tryAutoProvisionE911();
+    }
+  }
+
+  // ============================================================================
+  // E911 Auto-Provisioning
+  // ============================================================================
+
+  /**
+   * Attempt automatic E911 provisioning for the simple case:
+   * exactly 1 location, at least 1 active DID, location has no primary DID.
+   * Falls back to 'complex' state for all other cases.
+   */
+  private async tryAutoProvisionE911(): Promise<void> {
+    if (!this.instance) return;
+
+    this.e911FlowState = 'running';
+    this.render();
+
+    try {
+      // Fetch active DIDs fresh (step elements manage their own state)
+      const activeDIDs = await this.instance.fetchAllPages<DIDItem>((opts) =>
+        this.instance!.listPhoneNumbers({ ...opts, status: 'active' })
+      );
+
+      // No DIDs → nothing to do
+      if (activeDIDs.length === 0) {
+        this.e911FlowState = 'idle';
+        this.render();
+        return;
+      }
+
+      // Check simple case: exactly 1 location
+      const locations = await this.instance.listLocations();
+      if (locations.length !== 1) {
+        this.e911FlowState = 'complex';
+        this.render();
+        return;
+      }
+
+      const location = locations[0]!;
+      if (location.primary_did_id) {
+        this.e911PrimaryDid = activeDIDs.find((d) => d.id === location.primary_did_id) ?? null;
+
+        // Already provisioned or in progress — show status directly
+        if (
+          location.e911_status === 'provisioned' ||
+          location.e911_status === 'pending' ||
+          location.e911_status === 'binding'
+        ) {
+          this.e911ProvisionedLocation = location;
+          this.e911FlowState = 'simple';
+          this.render();
+          return;
+        }
+
+        // Failed or none — retry provisioning
+        if (location.e911_status === 'none' || location.e911_status === 'failed') {
+          try {
+            const validationResult = await this.instance.validateLocationE911(location.id);
+            this.e911ValidationResult = validationResult;
+            const provisionedLocation = await this.instance.provisionLocationE911(location.id);
+            this.e911ProvisionedLocation = provisionedLocation;
+            this.e911FlowState = 'simple';
+            this.render();
+            return;
+          } catch (retryErr) {
+            console.warn('[dialstack] E911 retry provisioning failed:', retryErr);
+          }
+        }
+        this.e911FlowState = 'complex';
+        this.render();
+        return;
+      }
+
+      // Use the DID pre-selected in the numbers step, or fall back to account phone matching
+      let selectedDID: DIDItem | undefined;
+      const numbersEl = this.stepElements.get('numbers') as OnboardingNumbersStep | undefined;
+      const selectedId = numbersEl?.selectedPrimaryDIDId;
+      if (selectedId) {
+        selectedDID = activeDIDs.find((d) => d.id === selectedId);
+      }
+      if (!selectedDID) {
+        const parsed = parsePhoneNumberFromString(this._accountPhone, 'US');
+        const e164Phone = parsed?.number;
+        selectedDID = e164Phone ? activeDIDs.find((d) => d.phone_number === e164Phone) : undefined;
+      }
+
+      if (!selectedDID) {
+        this.e911FlowState = 'complex';
+        this.render();
+        return;
+      }
+
+      // Assign primary DID to location
+      await this.instance.updateLocation(location.id, { primary_did_id: selectedDID.id });
+
+      // Validate E911 address
+      const validationResult = await this.instance.validateLocationE911(location.id);
+      this.e911ValidationResult = validationResult;
+
+      // Provision E911
+      const provisionedLocation = await this.instance.provisionLocationE911(location.id);
+      this.e911ProvisionedLocation = provisionedLocation;
+      this.e911PrimaryDid = selectedDID;
+      this.e911FlowState = 'simple';
+      this.render();
+    } catch (err) {
+      console.warn('[dialstack] E911 auto-provisioning failed, deferring to manual setup:', err);
+      this.e911FlowState = 'complex';
+      this.render();
+    }
   }
 
   // ============================================================================
@@ -474,6 +602,7 @@ export class AccountOnboardingComponent extends BaseComponent {
           <canvas class="confetti-canvas" aria-hidden="true"></canvas>
           <h1 class="complete-title">${this.t('accountOnboarding.complete.title')}</h1>
           <p class="complete-subtitle">${this.t('accountOnboarding.complete.subtitle')}</p>
+          ${this.renderE911Panel()}
           ${this.renderLegalLinks()}
           <div style="margin-top:var(--ds-layout-spacing-lg)">
             <button class="btn btn-primary" data-action="exit">
@@ -483,6 +612,56 @@ export class AccountOnboardingComponent extends BaseComponent {
         </div>
       </div>
     `;
+  }
+
+  private renderE911Panel(): string {
+    const t = this.t.bind(this);
+
+    if (this.e911FlowState === 'running') {
+      return `<div class="e911-panel"><div class="e911-loading">${t('accountOnboarding.complete.e911.loading')}</div></div>`;
+    }
+
+    if (this.e911FlowState === 'simple') {
+      const loc = this.e911ProvisionedLocation;
+      const did = this.e911PrimaryDid;
+      const lines: string[] = [];
+
+      // Phone number assignment
+      if (did && loc) {
+        const phoneDisplay = did.phone_number ?? did.id;
+        lines.push(
+          `<div class="e911-detail">${this.escapeHtml(phoneDisplay)} ${t('accountOnboarding.complete.e911.primaryAssigned')} ${this.escapeHtml(loc.name)}</div>`
+        );
+      }
+
+      // Address standardized
+      if (this.e911ValidationResult?.adjusted) {
+        lines.push(
+          `<div class="e911-detail">${t('accountOnboarding.complete.e911.addressStandardized')}</div>`
+        );
+      }
+
+      // E911 status
+      const e911Status = this.e911ProvisionedLocation?.e911_status;
+      if (e911Status === 'provisioned') {
+        lines.push(
+          `<div class="e911-detail">${CHECK_CIRCLE_SVG} ${t('accountOnboarding.complete.e911.verified')}</div>`
+        );
+      } else if (e911Status === 'pending' || e911Status === 'binding') {
+        lines.push(
+          `<div class="e911-detail">${t('accountOnboarding.complete.e911.processing')}</div>`
+        );
+      }
+
+      return `<div class="e911-panel"><div class="inline-alert info">${lines.join('')}</div></div>`;
+    }
+
+    if (this.e911FlowState === 'complex' || this.e911FlowState === 'failed') {
+      return `<div class="e911-panel"><div class="inline-alert warning">${t('accountOnboarding.complete.e911.deferred')}</div></div>`;
+    }
+
+    // idle — no panel
+    return '';
   }
 
   private stopConfetti(): void {

@@ -134,6 +134,8 @@ export interface OnboardingLocation {
     longitude?: number;
     formatted_address?: string;
   };
+  primary_did_id?: string | null;
+  e911_status?: 'none' | 'pending' | 'binding' | 'provisioned' | 'failed';
   status: string;
   created_at: string;
   updated_at: string;
@@ -145,8 +147,9 @@ export interface CreateLocationRequest {
 }
 
 export interface UpdateLocationRequest {
-  name: string;
-  address: LocationAddressInput;
+  name?: string;
+  address?: LocationAddressInput;
+  primary_did_id?: string | null;
 }
 
 /**
@@ -164,4 +167,22 @@ export interface OnboardingEndpoint {
 
 export interface CreateEndpointRequest {
   name?: string;
+}
+
+export interface E911ValidationResult {
+  adjusted: boolean;
+  address?: {
+    house_number?: string;
+    street_name?: string;
+    street_suffix?: string;
+    pre_directional?: string;
+    post_directional?: string;
+    address_line_2?: string;
+    city?: string;
+    state_code?: string;
+    zip?: string;
+    plus_four?: string;
+    county?: string;
+    country?: string;
+  };
 }

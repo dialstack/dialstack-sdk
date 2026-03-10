@@ -56,6 +56,7 @@ import type {
   UpdateLocationRequest,
   OnboardingEndpoint,
   CreateEndpointRequest,
+  E911ValidationResult,
 } from '../types';
 
 const DEFAULT_API_URL = 'https://api.dialstack.ai';
@@ -1609,6 +1610,38 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
 
     const data = await response.json();
     return data.data ?? [];
+  }
+
+  // ===========================================================================
+  // E911 Methods (session-scoped)
+  // ===========================================================================
+
+  /**
+   * Validate a location's address for E911 emergency services
+   */
+  async validateLocationE911(locationId: string): Promise<E911ValidationResult> {
+    const response = await this.fetchApi(`/v1/locations/${locationId}/validate-e911`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to validate E911 address: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * Provision E911 emergency services for a location
+   */
+  async provisionLocationE911(locationId: string): Promise<OnboardingLocation> {
+    const response = await this.fetchApi(`/v1/locations/${locationId}/provision-e911`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to provision E911: ${response.status} ${errorText}`);
+    }
+    return response.json();
   }
 
   // ===========================================================================

@@ -59,6 +59,9 @@ const createMockDialstack = (): DialStackInstance => {
       listDECTBases: jest.fn().mockResolvedValue([]),
       listEndpoints: jest.fn().mockResolvedValue([]),
       listDECTHandsets: jest.fn().mockResolvedValue([]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({ data: [], next_page_url: null }),
+      validateLocationE911: jest.fn().mockResolvedValue({ adjusted: false, address: {} }),
+      provisionLocationE911: jest.fn().mockResolvedValue(mockLocation),
     } as unknown as Parameters<AccountOnboardingElement['setInstance']>[0];
     element.setInstance(instance);
     return element;
@@ -129,8 +132,8 @@ describe('AccountOnboarding (React wrapper)', () => {
       expect(stepRoot(element!)?.querySelector('[data-action="next"]')).toBeTruthy();
     });
 
-    // Navigate to complete: business-details → team-members → (done) → numbers → (done) → complete (3 next clicks)
-    for (let i = 0; i < 3; i += 1) {
+    // Navigate to complete: business-details → team-members → (done) → numbers → primary-did → (done) → complete (4 next clicks)
+    for (let i = 0; i < 4; i += 1) {
       const before = (stepRoot(element!) ?? element?.shadowRoot)?.innerHTML;
       clickAction(element!, 'next');
       await waitFor(() => {
