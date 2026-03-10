@@ -6,6 +6,25 @@ import { waitFor } from '@testing-library/react';
 import '../account-onboarding';
 import type { AccountOnboardingElement } from '../../types';
 
+const STEP_TAGS = [
+  'dialstack-onboarding-account',
+  'dialstack-onboarding-numbers',
+  'dialstack-onboarding-hardware',
+];
+
+/** Get the active (visible) step element's shadow root, or the wizard's own for loading/error/complete. */
+const stepRoot = (el: Element): ShadowRoot | null => {
+  // Steps live inside a container div — if that container is hidden, no step is active
+  const stepsContainer = el.shadowRoot?.lastElementChild as HTMLElement | null;
+  if (stepsContainer && stepsContainer.style.display !== 'none') {
+    for (const tag of STEP_TAGS) {
+      const step = stepsContainer.querySelector(tag) as HTMLElement | null;
+      if (step && step.style.display !== 'none' && step.shadowRoot) return step.shadowRoot;
+    }
+  }
+  return el.shadowRoot;
+};
+
 // Mock account data returned by getAccount()
 const mockAccount = {
   id: 'acct_01abc',
@@ -271,9 +290,17 @@ const createMockInstance = (overrides?: Record<string, unknown>) => {
 };
 
 const clickAction = (element: AccountOnboardingElement, action: string): void => {
-  const button = element.shadowRoot?.querySelector<HTMLButtonElement>(`[data-action="${action}"]`);
+  const button = stepRoot(element).querySelector<HTMLButtonElement>(`[data-action="${action}"]`);
   expect(button).not.toBeNull();
   button?.click();
+};
+
+/** Click through the per-step completion screen that appears after finishing a step. */
+const clickThroughStepComplete = async (element: AccountOnboardingElement): Promise<void> => {
+  await waitFor(() => {
+    expect(stepRoot(element).querySelector('[data-action="done"]')).not.toBeNull();
+  });
+  clickAction(element, 'done');
 };
 
 const mountComponent = async (
@@ -290,7 +317,7 @@ const mountComponent = async (
   element.setInstance(instance);
 
   await waitFor(() => {
-    expect(element.shadowRoot?.querySelector('[data-action="next"]')).toBeTruthy();
+    expect(stepRoot(element).querySelector('[data-action="next"]')).toBeTruthy();
   });
 
   return { element, instance };
@@ -302,10 +329,10 @@ const mountComponent = async (
  */
 const navigateToTeamMembers = async (element: AccountOnboardingElement): Promise<void> => {
   // Already on team-members?
-  if (element.shadowRoot?.querySelector('#new-user-name')) return;
+  if (stepRoot(element).querySelector('#new-user-name')) return;
 
   const fillInput = (id: string, value: string): void => {
-    const input = element.shadowRoot?.querySelector<HTMLInputElement>(`#${id}`);
+    const input = stepRoot(element).querySelector<HTMLInputElement>(`#${id}`);
     if (input && !input.value) {
       input.value = value;
       input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -316,18 +343,18 @@ const navigateToTeamMembers = async (element: AccountOnboardingElement): Promise
   fillInput('location-name', 'HQ');
 
   // If no address yet (search mode), switch to manual and fill
-  if (!element.shadowRoot?.querySelector('.address-confirmed')) {
-    const manualBtn = element.shadowRoot?.querySelector('[data-action="enter-manually"]');
+  if (!stepRoot(element).querySelector('.address-confirmed')) {
+    const manualBtn = stepRoot(element).querySelector('[data-action="enter-manually"]');
     if (manualBtn) {
       (manualBtn as HTMLElement).click();
       await waitFor(() => {
-        expect(element.shadowRoot?.querySelector('#manual-street')).not.toBeNull();
+        expect(stepRoot(element).querySelector('#manual-street')).not.toBeNull();
       });
       fillInput('manual-street', 'Main St');
       fillInput('manual-city', 'New York');
       fillInput('manual-postal-code', '10001');
 
-      const stateSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#manual-state');
+      const stateSelect = stepRoot(element).querySelector<HTMLSelectElement>('#manual-state');
       if (stateSelect && !stateSelect.value) {
         stateSelect.value = 'NY';
         stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
@@ -336,7 +363,7 @@ const navigateToTeamMembers = async (element: AccountOnboardingElement): Promise
   }
 
   // Set timezone if needed
-  const tzSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#account-timezone');
+  const tzSelect = stepRoot(element).querySelector<HTMLSelectElement>('#account-timezone');
   if (tzSelect && !tzSelect.value) {
     tzSelect.value = 'America/New_York';
     tzSelect.dispatchEvent(new Event('change', { bubbles: true }));
@@ -344,7 +371,7 @@ const navigateToTeamMembers = async (element: AccountOnboardingElement): Promise
 
   clickAction(element, 'next');
   await waitFor(() => {
-    expect(element.shadowRoot?.querySelector('#new-user-name')).not.toBeNull();
+    expect(stepRoot(element).querySelector('#new-user-name')).not.toBeNull();
   });
 };
 
@@ -352,18 +379,27 @@ const navigateToComplete = async (
   element: AccountOnboardingElement,
   nextClicks?: number
 ): Promise<void> => {
-  const clicks = nextClicks ?? 4; // default: business-details → team-members → numbers → hardware → complete
+  // default: business-details → team-members → (done) → numbers → (done) → hardware → (done) → complete
+  const clicks = nextClicks ?? 4;
   for (let i = 0; i < clicks; i += 1) {
-    const contentBefore = element.shadowRoot?.innerHTML;
+    const contentBefore = stepRoot(element).innerHTML;
     clickAction(element, 'next');
-    // Wait for content to change (account sub-step or top-level step transition)
+    // Wait for content to change (account sub-step or step completion screen)
     await waitFor(() => {
-      expect(element.shadowRoot?.innerHTML).not.toBe(contentBefore);
+      expect(stepRoot(element).innerHTML).not.toBe(contentBefore);
     });
+    // If a step completion screen appeared, click through it
+    const doneBtn = stepRoot(element).querySelector('[data-action="done"]');
+    if (doneBtn) {
+      (doneBtn as HTMLElement).click();
+      await waitFor(() => {
+        expect(stepRoot(element).innerHTML).not.toBe(contentBefore);
+      });
+    }
   }
 
   await waitFor(() => {
-    expect(element.shadowRoot?.querySelector('[data-action="exit"]')).toBeTruthy();
+    expect(stepRoot(element).querySelector('[data-action="exit"]')).toBeTruthy();
   });
 };
 
@@ -386,7 +422,7 @@ describe('AccountOnboardingComponent', () => {
     component.setInstance(createMockInstance());
     component.setOnExit(onExit);
     await waitFor(() => {
-      expect(component.shadowRoot?.querySelector('[data-action="next"]')).toBeTruthy();
+      expect(stepRoot(component).querySelector('[data-action="next"]')).toBeTruthy();
     });
 
     firstContainer.removeChild(component);
@@ -406,12 +442,11 @@ describe('AccountOnboardingComponent', () => {
 
     await navigateToComplete(component, 3);
 
-    const linkBeforeReset =
-      component.shadowRoot?.querySelector<HTMLAnchorElement>('.legal-links a');
+    const linkBeforeReset = stepRoot(component).querySelector<HTMLAnchorElement>('.legal-links a');
     expect(linkBeforeReset?.getAttribute('href')).toBe('https://example.com/terms');
 
     component.setFullTermsOfServiceUrl(undefined);
-    const linkAfterReset = component.shadowRoot?.querySelector('.legal-links a');
+    const linkAfterReset = stepRoot(component).querySelector('.legal-links a');
     expect(linkAfterReset).toBeNull();
   });
 
@@ -429,7 +464,7 @@ describe('AccountOnboardingComponent', () => {
     component.setCollectionOptions({ initialStep: 'hardware' });
 
     await waitFor(() => {
-      expect(component.shadowRoot?.textContent).toContain('Assign Devices');
+      expect(stepRoot(component).textContent).toContain('Assign Devices');
     });
   });
 
@@ -441,7 +476,7 @@ describe('AccountOnboardingComponent', () => {
     const { element } = await mountComponent();
 
     await waitFor(() => {
-      const emailInput = element.shadowRoot?.querySelector<HTMLInputElement>('#account-email');
+      const emailInput = stepRoot(element).querySelector<HTMLInputElement>('#account-email');
       expect(emailInput).not.toBeNull();
       expect(emailInput?.value).toBe('existing@example.com');
     });
@@ -452,9 +487,9 @@ describe('AccountOnboardingComponent', () => {
     await navigateToTeamMembers(element);
 
     await waitFor(() => {
-      const userRows = element.shadowRoot?.querySelectorAll('.user-table tbody tr');
+      const userRows = stepRoot(element).querySelectorAll('.user-table tbody tr');
       expect(userRows?.length).toBe(1);
-      expect(element.shadowRoot?.textContent).toContain('Alice');
+      expect(stepRoot(element).textContent).toContain('Alice');
     });
   });
 
@@ -463,7 +498,7 @@ describe('AccountOnboardingComponent', () => {
     await navigateToTeamMembers(element);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('1001');
+      expect(stepRoot(element).textContent).toContain('1001');
     });
   });
 
@@ -472,8 +507,8 @@ describe('AccountOnboardingComponent', () => {
     await navigateToTeamMembers(element);
 
     // Fill in the add user form
-    const nameInput = element.shadowRoot?.querySelector<HTMLInputElement>('#new-user-name');
-    const emailInput = element.shadowRoot?.querySelector<HTMLInputElement>('#new-user-email');
+    const nameInput = stepRoot(element).querySelector<HTMLInputElement>('#new-user-name');
+    const emailInput = stepRoot(element).querySelector<HTMLInputElement>('#new-user-email');
 
     if (nameInput) {
       nameInput.value = 'Bob';
@@ -499,7 +534,7 @@ describe('AccountOnboardingComponent', () => {
     await navigateToTeamMembers(element);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="remove-user"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="remove-user"]')).not.toBeNull();
     });
 
     clickAction(element, 'remove-user');
@@ -516,14 +551,14 @@ describe('AccountOnboardingComponent', () => {
     await navigateToTeamMembers(element);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#new-user-name')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#new-user-name')).not.toBeNull();
     });
 
     // Click add without filling name
     clickAction(element, 'add-user');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Name is required');
+      expect(stepRoot(element).textContent).toContain('Name is required');
     });
   });
 
@@ -534,16 +569,16 @@ describe('AccountOnboardingComponent', () => {
     await navigateToTeamMembers(element);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#new-user-name')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#new-user-name')).not.toBeNull();
     });
 
-    const nameInput = element.shadowRoot?.querySelector<HTMLInputElement>('#new-user-name');
+    const nameInput = stepRoot(element).querySelector<HTMLInputElement>('#new-user-name');
     if (nameInput) {
       nameInput.value = 'Duplicate';
       nameInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
 
-    const emailInput = element.shadowRoot?.querySelector<HTMLInputElement>('#new-user-email');
+    const emailInput = stepRoot(element).querySelector<HTMLInputElement>('#new-user-email');
     if (emailInput) {
       emailInput.value = 'alice@example.com';
       emailInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -552,7 +587,7 @@ describe('AccountOnboardingComponent', () => {
     clickAction(element, 'add-user');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('already exists');
+      expect(stepRoot(element).textContent).toContain('already exists');
     });
   });
 
@@ -565,11 +600,11 @@ describe('AccountOnboardingComponent', () => {
     await navigateToTeamMembers(element);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#new-user-name')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#new-user-name')).not.toBeNull();
     });
 
     const fillInput = (id: string, value: string): void => {
-      const input = element.shadowRoot?.querySelector<HTMLInputElement>(`#${id}`);
+      const input = stepRoot(element).querySelector<HTMLInputElement>(`#${id}`);
       if (input) {
         input.value = value;
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -586,7 +621,7 @@ describe('AccountOnboardingComponent', () => {
     });
 
     // Should show the extension error
-    expect(element.shadowRoot?.textContent).toContain('Extension conflict');
+    expect(stepRoot(element).textContent).toContain('Extension conflict');
   });
 
   it('validates company name required before advancing', async () => {
@@ -595,13 +630,13 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#account-name')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#account-name')).not.toBeNull();
     });
 
     clickAction(element, 'next');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Company name is required');
+      expect(stepRoot(element).textContent).toContain('Company name is required');
     });
   });
 
@@ -611,14 +646,14 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      const emailInput = element.shadowRoot?.querySelector<HTMLInputElement>('#account-email');
+      const emailInput = stepRoot(element).querySelector<HTMLInputElement>('#account-email');
       expect(emailInput).not.toBeNull();
     });
 
     clickAction(element, 'next');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Email is required');
+      expect(stepRoot(element).textContent).toContain('Email is required');
     });
   });
 
@@ -628,13 +663,13 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#account-phone')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#account-phone')).not.toBeNull();
     });
 
     clickAction(element, 'next');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Phone number is required');
+      expect(stepRoot(element).textContent).toContain('Phone number is required');
     });
   });
 
@@ -644,13 +679,13 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#account-primary-contact')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#account-primary-contact')).not.toBeNull();
     });
 
     clickAction(element, 'next');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Primary contact is required');
+      expect(stepRoot(element).textContent).toContain('Primary contact is required');
     });
   });
 
@@ -660,13 +695,13 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#account-phone')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#account-phone')).not.toBeNull();
     });
 
     clickAction(element, 'next');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Enter a valid US phone number');
+      expect(stepRoot(element).textContent).toContain('Enter a valid US phone number');
     });
   });
 
@@ -674,11 +709,11 @@ describe('AccountOnboardingComponent', () => {
     const { element, instance } = await mountComponent();
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#account-email')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#account-email')).not.toBeNull();
     });
 
     // Need to fill location for save to succeed
-    const locationInput = element.shadowRoot?.querySelector<HTMLInputElement>('#location-name');
+    const locationInput = stepRoot(element).querySelector<HTMLInputElement>('#location-name');
     if (locationInput) {
       locationInput.value = 'HQ';
       locationInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -688,11 +723,11 @@ describe('AccountOnboardingComponent', () => {
     clickAction(element, 'enter-manually');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#manual-street')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#manual-street')).not.toBeNull();
     });
 
     const fillInput = (id: string, value: string): void => {
-      const input = element.shadowRoot?.querySelector<HTMLInputElement>(`#${id}`);
+      const input = stepRoot(element).querySelector<HTMLInputElement>(`#${id}`);
       if (input) {
         input.value = value;
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -704,14 +739,14 @@ describe('AccountOnboardingComponent', () => {
     fillInput('manual-postal-code', '10001');
 
     // Set state via change event on select
-    const stateSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#manual-state');
+    const stateSelect = stepRoot(element).querySelector<HTMLSelectElement>('#manual-state');
     if (stateSelect) {
       stateSelect.value = 'NY';
       stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     // Set timezone (required)
-    const tzSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#account-timezone');
+    const tzSelect = stepRoot(element).querySelector<HTMLSelectElement>('#account-timezone');
     if (tzSelect) {
       tzSelect.value = 'America/New_York';
       tzSelect.dispatchEvent(new Event('change', { bubbles: true }));
@@ -737,9 +772,7 @@ describe('AccountOnboardingComponent', () => {
     clickAction(element, 'next');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain(
-        'Add at least one team member to continue.'
-      );
+      expect(stepRoot(element).textContent).toContain('Add at least one team member to continue.');
     });
   });
 
@@ -751,8 +784,8 @@ describe('AccountOnboardingComponent', () => {
     const { element } = await mountComponent();
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#location-name')).not.toBeNull();
-      expect(element.shadowRoot?.textContent).toContain('Business Location');
+      expect(stepRoot(element).querySelector('#location-name')).not.toBeNull();
+      expect(stepRoot(element).textContent).toContain('Business Location');
     });
   });
 
@@ -760,8 +793,8 @@ describe('AccountOnboardingComponent', () => {
     const { element } = await mountComponent();
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#address-search')).not.toBeNull();
-      expect(element.shadowRoot?.querySelector('[data-action="enter-manually"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#address-search')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="enter-manually"]')).not.toBeNull();
     });
   });
 
@@ -771,14 +804,14 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      const nameInput = element.shadowRoot?.querySelector<HTMLInputElement>('#location-name');
+      const nameInput = stepRoot(element).querySelector<HTMLInputElement>('#location-name');
       expect(nameInput?.value).toBe('Main Office');
     });
 
     // Should show confirmed address card (not search)
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('.address-confirmed')).not.toBeNull();
-      expect(element.shadowRoot?.querySelector('#address-search')).toBeNull();
+      expect(stepRoot(element).querySelector('.address-confirmed')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#address-search')).toBeNull();
     });
   });
 
@@ -786,16 +819,16 @@ describe('AccountOnboardingComponent', () => {
     const { element } = await mountComponent();
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="enter-manually"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="enter-manually"]')).not.toBeNull();
     });
 
     clickAction(element, 'enter-manually');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#manual-street')).not.toBeNull();
-      expect(element.shadowRoot?.querySelector('#manual-city')).not.toBeNull();
-      expect(element.shadowRoot?.querySelector('#manual-state')).not.toBeNull();
-      expect(element.shadowRoot?.querySelector('#manual-postal-code')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#manual-street')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#manual-city')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#manual-state')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#manual-postal-code')).not.toBeNull();
     });
   });
 
@@ -803,19 +836,19 @@ describe('AccountOnboardingComponent', () => {
     const { element } = await mountComponent();
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="enter-manually"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="enter-manually"]')).not.toBeNull();
     });
 
     clickAction(element, 'enter-manually');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="search-instead"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="search-instead"]')).not.toBeNull();
     });
 
     clickAction(element, 'search-instead');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#address-search')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#address-search')).not.toBeNull();
     });
   });
 
@@ -827,11 +860,11 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#address-search')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#address-search')).not.toBeNull();
     });
 
-    const input = element.shadowRoot!.querySelector<HTMLInputElement>('#address-search')!;
-    const dropdown = element.shadowRoot!.querySelector<HTMLElement>('.address-dropdown')!;
+    const input = stepRoot(element)!.querySelector<HTMLInputElement>('#address-search')!;
+    const dropdown = stepRoot(element)!.querySelector<HTMLElement>('.address-dropdown')!;
 
     // Type a query to trigger "No results"
     input.value = 'Nonexistent Place';
@@ -862,13 +895,13 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="edit-address"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="edit-address"]')).not.toBeNull();
     });
 
     clickAction(element, 'edit-address');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#manual-street')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#manual-street')).not.toBeNull();
     });
   });
 
@@ -876,14 +909,14 @@ describe('AccountOnboardingComponent', () => {
     const { element } = await mountComponent();
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#location-name')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#location-name')).not.toBeNull();
     });
 
     // Don't fill location name, just click next
     clickAction(element, 'next');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Location name is required');
+      expect(stepRoot(element).textContent).toContain('Location name is required');
     });
   });
 
@@ -891,11 +924,11 @@ describe('AccountOnboardingComponent', () => {
     const { element } = await mountComponent();
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#location-name')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#location-name')).not.toBeNull();
     });
 
     // Fill location name but no address
-    const nameInput = element.shadowRoot?.querySelector<HTMLInputElement>('#location-name');
+    const nameInput = stepRoot(element).querySelector<HTMLInputElement>('#location-name');
     if (nameInput) {
       nameInput.value = 'HQ';
       nameInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -904,7 +937,7 @@ describe('AccountOnboardingComponent', () => {
     clickAction(element, 'next');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Address is required');
+      expect(stepRoot(element).textContent).toContain('Address is required');
     });
   });
 
@@ -914,20 +947,20 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#address-search')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#address-search')).not.toBeNull();
     });
 
     // Switch to manual entry so timezone dropdown appears
     clickAction(element, 'enter-manually');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#account-timezone')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#account-timezone')).not.toBeNull();
     });
 
     clickAction(element, 'next');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Timezone is required');
+      expect(stepRoot(element).textContent).toContain('Timezone is required');
     });
   });
 
@@ -935,11 +968,11 @@ describe('AccountOnboardingComponent', () => {
     const { element, instance } = await mountComponent();
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#location-name')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#location-name')).not.toBeNull();
     });
 
     // Fill location name
-    const nameInput = element.shadowRoot?.querySelector<HTMLInputElement>('#location-name');
+    const nameInput = stepRoot(element).querySelector<HTMLInputElement>('#location-name');
     if (nameInput) {
       nameInput.value = 'HQ';
       nameInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -949,11 +982,11 @@ describe('AccountOnboardingComponent', () => {
     clickAction(element, 'enter-manually');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#manual-street')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#manual-street')).not.toBeNull();
     });
 
     const fillInput = (id: string, value: string): void => {
-      const input = element.shadowRoot?.querySelector<HTMLInputElement>(`#${id}`);
+      const input = stepRoot(element).querySelector<HTMLInputElement>(`#${id}`);
       if (input) {
         input.value = value;
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -965,14 +998,14 @@ describe('AccountOnboardingComponent', () => {
     fillInput('manual-city', 'Chicago');
     fillInput('manual-postal-code', '60601');
 
-    const stateSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#manual-state');
+    const stateSelect = stepRoot(element).querySelector<HTMLSelectElement>('#manual-state');
     if (stateSelect) {
       stateSelect.value = 'IL';
       stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     // Set timezone (required)
-    const tzSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#account-timezone');
+    const tzSelect = stepRoot(element).querySelector<HTMLSelectElement>('#account-timezone');
     if (tzSelect) {
       tzSelect.value = 'America/Chicago';
       tzSelect.dispatchEvent(new Event('change', { bubbles: true }));
@@ -1003,7 +1036,7 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('.address-confirmed')).not.toBeNull();
+      expect(stepRoot(element).querySelector('.address-confirmed')).not.toBeNull();
     });
 
     clickAction(element, 'next');
@@ -1035,7 +1068,7 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      const tzReadonly = element.shadowRoot?.querySelector('.timezone-readonly');
+      const tzReadonly = stepRoot(element).querySelector('.timezone-readonly');
       expect(tzReadonly).not.toBeNull();
       expect(tzReadonly?.textContent).toContain('Eastern');
     });
@@ -1047,17 +1080,17 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('.timezone-readonly')).not.toBeNull();
+      expect(stepRoot(element).querySelector('.timezone-readonly')).not.toBeNull();
     });
 
     // Edit the confirmed address to get into edit mode with timezone dropdown
     clickAction(element, 'edit-address');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#account-timezone')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#account-timezone')).not.toBeNull();
     });
 
-    const tzSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#account-timezone');
+    const tzSelect = stepRoot(element).querySelector<HTMLSelectElement>('#account-timezone');
     if (tzSelect) {
       tzSelect.value = 'America/Chicago';
       tzSelect.dispatchEvent(new Event('change', { bubbles: true }));
@@ -1078,14 +1111,14 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('.timezone-readonly')).not.toBeNull();
+      expect(stepRoot(element).querySelector('.timezone-readonly')).not.toBeNull();
     });
 
     // Click edit on confirmed address — timezone should be preserved in dropdown
     clickAction(element, 'edit-address');
 
     await waitFor(() => {
-      const tzSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#account-timezone');
+      const tzSelect = stepRoot(element).querySelector<HTMLSelectElement>('#account-timezone');
       expect(tzSelect).not.toBeNull();
       expect(tzSelect?.value).toBe('America/New_York');
     });
@@ -1101,22 +1134,22 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('.timezone-readonly')).not.toBeNull();
+      expect(stepRoot(element).querySelector('.timezone-readonly')).not.toBeNull();
     });
 
     // Edit the confirmed address
     clickAction(element, 'edit-address');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#manual-street')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#manual-street')).not.toBeNull();
     });
 
     // Switch to search mode
     clickAction(element, 'search-instead');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#address-search')).not.toBeNull();
-      const tzSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#account-timezone');
+      expect(stepRoot(element).querySelector('#address-search')).not.toBeNull();
+      const tzSelect = stepRoot(element).querySelector<HTMLSelectElement>('#account-timezone');
       expect(tzSelect).not.toBeNull();
       expect(tzSelect?.value).toBe('America/New_York');
     });
@@ -1125,7 +1158,7 @@ describe('AccountOnboardingComponent', () => {
     clickAction(element, 'enter-manually');
 
     await waitFor(() => {
-      const tzSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#account-timezone');
+      const tzSelect = stepRoot(element).querySelector<HTMLSelectElement>('#account-timezone');
       expect(tzSelect).not.toBeNull();
       expect(tzSelect?.value).toBe('America/New_York');
     });
@@ -1137,7 +1170,7 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      const tzSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#account-timezone');
+      const tzSelect = stepRoot(element).querySelector<HTMLSelectElement>('#account-timezone');
       expect(tzSelect).not.toBeNull();
       expect(tzSelect?.value).toBe('');
     });
@@ -1146,7 +1179,7 @@ describe('AccountOnboardingComponent', () => {
     clickAction(element, 'enter-manually');
 
     await waitFor(() => {
-      const tzSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#account-timezone');
+      const tzSelect = stepRoot(element).querySelector<HTMLSelectElement>('#account-timezone');
       expect(tzSelect).not.toBeNull();
       expect(tzSelect?.value).toBe('');
     });
@@ -1156,23 +1189,23 @@ describe('AccountOnboardingComponent', () => {
     const { element, instance } = await mountComponent();
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#address-search')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#address-search')).not.toBeNull();
     });
 
     // Simulate selecting a suggestion via delegated click (data-action="select-suggestion")
     const btn = document.createElement('button');
     btn.setAttribute('data-action', 'select-suggestion');
     btn.setAttribute('data-place-id', 'place_123');
-    element.shadowRoot?.querySelector('.address-autocomplete')?.appendChild(btn);
+    stepRoot(element).querySelector('.address-autocomplete')?.appendChild(btn);
     btn.click();
 
     // Wait for address to be confirmed (getPlaceDetails returns timezone: 'America/New_York')
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('.address-confirmed')).not.toBeNull();
+      expect(stepRoot(element).querySelector('.address-confirmed')).not.toBeNull();
     });
 
     // Fill location name
-    const nameInput = element.shadowRoot?.querySelector<HTMLInputElement>('#location-name');
+    const nameInput = stepRoot(element).querySelector<HTMLInputElement>('#location-name');
     if (nameInput) {
       nameInput.value = 'HQ';
       nameInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1204,15 +1237,15 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      const nameInput = element.shadowRoot?.querySelector<HTMLInputElement>('#account-name');
+      const nameInput = stepRoot(element).querySelector<HTMLInputElement>('#account-name');
       expect(nameInput).not.toBeNull();
       expect(nameInput?.value).toBe('Acme Corp');
 
-      const phoneInput = element.shadowRoot?.querySelector<HTMLInputElement>('#account-phone');
+      const phoneInput = stepRoot(element).querySelector<HTMLInputElement>('#account-phone');
       expect(phoneInput).not.toBeNull();
       expect(phoneInput?.value).toBe('(212) 555-0100');
 
-      const contactInput = element.shadowRoot?.querySelector<HTMLInputElement>(
+      const contactInput = stepRoot(element).querySelector<HTMLInputElement>(
         '#account-primary-contact'
       );
       expect(contactInput).not.toBeNull();
@@ -1226,11 +1259,11 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#account-name')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#account-name')).not.toBeNull();
     });
 
     const fillInput = (id: string, value: string): void => {
-      const input = element.shadowRoot?.querySelector<HTMLInputElement>(`#${id}`);
+      const input = stepRoot(element).querySelector<HTMLInputElement>(`#${id}`);
       if (input) {
         input.value = value;
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1261,7 +1294,7 @@ describe('AccountOnboardingComponent', () => {
     await navigateToTeamMembers(element);
 
     await waitFor(() => {
-      const extInput = element.shadowRoot?.querySelector<HTMLInputElement>('#new-user-extension');
+      const extInput = stepRoot(element).querySelector<HTMLInputElement>('#new-user-extension');
       expect(extInput).not.toBeNull();
       expect(extInput?.value).toBe('1002');
     });
@@ -1286,7 +1319,7 @@ describe('AccountOnboardingComponent', () => {
     await navigateToTeamMembers(element);
 
     await waitFor(() => {
-      const extInput = element.shadowRoot?.querySelector<HTMLInputElement>('#new-user-extension');
+      const extInput = stepRoot(element).querySelector<HTMLInputElement>('#new-user-extension');
       expect(extInput).not.toBeNull();
       expect(extInput?.value).toBe('10002');
     });
@@ -1297,7 +1330,7 @@ describe('AccountOnboardingComponent', () => {
     await navigateToTeamMembers(element);
 
     const fillInput = (id: string, value: string): void => {
-      const input = element.shadowRoot?.querySelector<HTMLInputElement>(`#${id}`);
+      const input = stepRoot(element).querySelector<HTMLInputElement>(`#${id}`);
       if (input) {
         input.value = value;
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1330,7 +1363,7 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('.address-confirmed')).not.toBeNull();
+      expect(stepRoot(element).querySelector('.address-confirmed')).not.toBeNull();
     });
 
     clickAction(element, 'next');
@@ -1354,11 +1387,11 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('.address-confirmed')).not.toBeNull();
+      expect(stepRoot(element).querySelector('.address-confirmed')).not.toBeNull();
     });
 
     // Change location name without clicking edit-address
-    const nameInput = element.shadowRoot?.querySelector<HTMLInputElement>('#location-name');
+    const nameInput = stepRoot(element).querySelector<HTMLInputElement>('#location-name');
     if (nameInput) {
       nameInput.value = 'Renamed Office';
       nameInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1398,25 +1431,25 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('.address-confirmed')).not.toBeNull();
+      expect(stepRoot(element).querySelector('.address-confirmed')).not.toBeNull();
     });
 
     // Click edit on confirmed address
     clickAction(element, 'edit-address');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#manual-street')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#manual-street')).not.toBeNull();
     });
 
     // Update location name
-    const locationInput = element.shadowRoot?.querySelector<HTMLInputElement>('#location-name');
+    const locationInput = stepRoot(element).querySelector<HTMLInputElement>('#location-name');
     if (locationInput) {
       locationInput.value = 'Updated Office';
       locationInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
 
     const fillInput = (id: string, value: string): void => {
-      const input = element.shadowRoot?.querySelector<HTMLInputElement>(`#${id}`);
+      const input = stepRoot(element).querySelector<HTMLInputElement>(`#${id}`);
       if (input) {
         input.value = value;
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1427,13 +1460,13 @@ describe('AccountOnboardingComponent', () => {
     fillInput('manual-city', 'Boston');
     fillInput('manual-postal-code', '02101');
 
-    const stateSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#manual-state');
+    const stateSelect = stepRoot(element).querySelector<HTMLSelectElement>('#manual-state');
     if (stateSelect) {
       stateSelect.value = 'MA';
       stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
-    const tzSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#account-timezone');
+    const tzSelect = stepRoot(element).querySelector<HTMLSelectElement>('#account-timezone');
     if (tzSelect) {
       tzSelect.value = 'America/New_York';
       tzSelect.dispatchEvent(new Event('change', { bubbles: true }));
@@ -1480,25 +1513,25 @@ describe('AccountOnboardingComponent', () => {
     });
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('.address-confirmed')).not.toBeNull();
+      expect(stepRoot(element).querySelector('.address-confirmed')).not.toBeNull();
     });
 
     // Click edit - should clear existing location and switch to manual fields
     clickAction(element, 'edit-address');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#manual-street')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#manual-street')).not.toBeNull();
     });
 
     // Fill manual fields and save - should call updateLocation (not createLocation)
-    const locationInput = element.shadowRoot?.querySelector<HTMLInputElement>('#location-name');
+    const locationInput = stepRoot(element).querySelector<HTMLInputElement>('#location-name');
     if (locationInput) {
       locationInput.value = 'New Office';
       locationInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
 
     const fillInput = (id: string, value: string): void => {
-      const input = element.shadowRoot?.querySelector<HTMLInputElement>(`#${id}`);
+      const input = stepRoot(element).querySelector<HTMLInputElement>(`#${id}`);
       if (input) {
         input.value = value;
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1509,14 +1542,14 @@ describe('AccountOnboardingComponent', () => {
     fillInput('manual-city', 'Boston');
     fillInput('manual-postal-code', '02101');
 
-    const stateSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#manual-state');
+    const stateSelect = stepRoot(element).querySelector<HTMLSelectElement>('#manual-state');
     if (stateSelect) {
       stateSelect.value = 'MA';
       stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     // Set timezone (required)
-    const tzSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#account-timezone');
+    const tzSelect = stepRoot(element).querySelector<HTMLSelectElement>('#account-timezone');
     if (tzSelect) {
       tzSelect.value = 'America/New_York';
       tzSelect.dispatchEvent(new Event('change', { bubbles: true }));
@@ -1547,16 +1580,18 @@ describe('AccountOnboardingComponent', () => {
   // ==========================================================================
 
   const navigateToHardware = async (element: AccountOnboardingElement): Promise<void> => {
-    // Account step: business-details → team-members → numbers → hardware
+    // Account step: business-details → team-members → (complete) → numbers
     await navigateToTeamMembers(element);
-    clickAction(element, 'next'); // team-members → numbers
+    clickAction(element, 'next'); // team-members → account complete screen
+    await clickThroughStepComplete(element); // advance to numbers
     await waitFor(() => {
-      const title = element.shadowRoot?.querySelector('.step-sidebar-title')?.textContent;
+      const title = stepRoot(element).querySelector('.step-sidebar-title')?.textContent;
       expect(title).toContain('Numbers');
     });
-    clickAction(element, 'next'); // numbers → hardware
+    clickAction(element, 'next'); // numbers → numbers complete screen
+    await clickThroughStepComplete(element); // advance to hardware
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Assign Devices');
+      expect(stepRoot(element).textContent).toContain('Assign Devices');
     });
   };
 
@@ -1574,69 +1609,13 @@ describe('AccountOnboardingComponent', () => {
     return result;
   };
 
-  /** Click the "+ Add Device" button to open the inline new-device form. */
-  const clickAddDevice = (element: AccountOnboardingElement): void => {
-    clickAction(element, 'hw-add-new');
-  };
-
-  /** Fill the inline form fields (only one form is open at a time). */
-  const fillInlineForm = (
-    element: AccountOnboardingElement,
-    opts: { mac?: string; userId?: string; isDectBase?: boolean; ipei?: string }
-  ): void => {
-    if (opts.mac !== undefined) {
-      const macInput = element.shadowRoot?.querySelector<HTMLInputElement>('#hw-edit-mac');
-      if (macInput) {
-        macInput.value = opts.mac;
-        macInput.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    }
-
-    if (opts.isDectBase) {
-      const checkbox =
-        element.shadowRoot?.querySelector<HTMLInputElement>('#hw-edit-dect-checkbox');
-      if (checkbox && !checkbox.checked) {
-        checkbox.checked = true;
-        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    }
-
-    if (opts.ipei !== undefined) {
-      const ipeiInput = element.shadowRoot?.querySelector<HTMLInputElement>('#hw-edit-ipei');
-      if (ipeiInput) {
-        ipeiInput.value = opts.ipei;
-        ipeiInput.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    }
-
-    if (opts.userId !== undefined) {
-      const userSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#hw-edit-user');
-      if (userSelect) {
-        userSelect.value = opts.userId;
-        userSelect.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    }
-  };
-
-  /** Click Save on the inline form. */
-  const clickSaveRow = (element: AccountOnboardingElement): void => {
-    clickAction(element, 'hw-save-row');
-  };
-
-  /** Click "+ Handset" on a DECT base row. */
-  const clickAddHandset = (element: AccountOnboardingElement, baseId: string): void => {
-    const btn = element.shadowRoot?.querySelector<HTMLButtonElement>(
-      `[data-action="hw-add-handset"][data-base-id="${baseId}"]`
-    );
-    expect(btn).not.toBeNull();
-    btn?.click();
-  };
-
-  it('renders hardware step with Add Device button', async () => {
+  it('shows no-devices placeholder when no devices available', async () => {
     const { element } = await mountHardwareStep();
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('+ Add Device');
+      expect(stepRoot(element).textContent).toContain(
+        'No devices are available for your account at the moment.'
+      );
     });
   });
 
@@ -1644,9 +1623,10 @@ describe('AccountOnboardingComponent', () => {
     const { element } = await mountHardwareStep();
 
     clickAction(element, 'next');
+    await clickThroughStepComplete(element);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Wahoo!');
+      expect(stepRoot(element).textContent).toContain('Wahoo!');
     });
   });
 
@@ -1660,197 +1640,197 @@ describe('AccountOnboardingComponent', () => {
     element.setCollectionOptions({ steps: { exclude: ['account', 'numbers'] } });
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('No team members found');
+      expect(stepRoot(element).textContent).toContain('No team members found');
     });
   });
 
-  it('adds a desk phone and assigns it to a user', async () => {
-    const createdDevice = { ...mockDevice, mac_address: '00:04:13:11:22:33' };
-    const listDevicesMock = jest
-      .fn()
-      .mockResolvedValueOnce([]) // initial load
-      .mockResolvedValue([createdDevice]); // after createDevice
-
-    const { element, instance } = await mountHardwareStep({
-      listDevices: listDevicesMock,
+  it('renders device cards with draggable attribute', async () => {
+    const unassignedDevice = { ...mockDevice, lines: [] };
+    const { element } = await mountHardwareStep({
+      listDevices: jest.fn().mockResolvedValue([unassignedDevice]),
+      listDeviceLines: jest.fn().mockResolvedValue([]),
       listEndpoints: jest.fn().mockResolvedValue([]),
     });
 
-    clickAddDevice(element);
-
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#hw-edit-mac')).not.toBeNull();
-    });
-
-    fillInlineForm(element, { mac: '000413112233', userId: 'user_01abc' });
-    clickSaveRow(element);
-
-    await waitFor(() => {
-      expect((instance as unknown as Record<string, jest.Mock>).createDevice).toHaveBeenCalledWith({
-        mac_address: '00:04:13:11:22:33',
-      });
-      expect(
-        (instance as unknown as Record<string, jest.Mock>).createEndpoint
-      ).toHaveBeenCalledWith('user_01abc');
+      const card = stepRoot(element).querySelector('.hw-device-card');
+      expect(card).not.toBeNull();
+      expect(card?.getAttribute('draggable')).toBe('true');
     });
   });
 
-  it('shows invalid MAC error for bad MAC', async () => {
-    const { element } = await mountHardwareStep();
-
-    clickAddDevice(element);
-
-    await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#hw-edit-mac')).not.toBeNull();
-    });
-
-    fillInlineForm(element, { mac: 'invalid', userId: 'user_01abc' });
-    clickSaveRow(element);
-
-    await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('valid 12-digit MAC');
-    });
-  });
-
-  it('shows duplicate MAC error from API 409', async () => {
+  it('renders team member table with drop zones', async () => {
     const { element } = await mountHardwareStep({
-      createDevice: jest.fn().mockRejectedValue(new Error('Failed to create device: 409 conflict')),
-    });
-
-    clickAddDevice(element);
-
-    await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#hw-edit-mac')).not.toBeNull();
-    });
-
-    fillInlineForm(element, { mac: '000413112233', userId: 'user_01abc' });
-    clickSaveRow(element);
-
-    await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('already registered');
-    });
-  });
-
-  it('adds a DECT base with handset and assigns to user', async () => {
-    const { element, instance } = await mountHardwareStep();
-
-    clickAddDevice(element);
-
-    await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#hw-edit-mac')).not.toBeNull();
-    });
-
-    fillInlineForm(element, {
-      mac: '000413DDEEFF',
-      userId: 'user_01abc',
-      isDectBase: true,
-      ipei: '03AABB1234567890CCDD',
-    });
-    clickSaveRow(element);
-
-    await waitFor(() => {
-      expect(
-        (instance as unknown as Record<string, jest.Mock>).createDECTBase
-      ).toHaveBeenCalledWith({ mac_address: '00:04:13:dd:ee:ff' });
-    });
-  });
-
-  it('requires user selection before adding device', async () => {
-    const { element } = await mountHardwareStep();
-
-    clickAddDevice(element);
-
-    await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#hw-edit-mac')).not.toBeNull();
-    });
-
-    fillInlineForm(element, { mac: '000413112233' });
-    // Don't select a user, just click save
-    clickSaveRow(element);
-
-    await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Please select a team member');
-    });
-  });
-
-  it('removes a device by deleting it entirely', async () => {
-    const { element, instance } = await mountHardwareStep({
       listDevices: jest.fn().mockResolvedValue([mockDevice]),
-      listDeviceLines: jest.fn().mockResolvedValue(mockDevice.lines!),
-      listEndpoints: jest.fn().mockResolvedValue([mockEndpoint]),
-    });
-
-    await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="remove-device"]')).not.toBeNull();
-    });
-
-    clickAction(element, 'remove-device');
-
-    await waitFor(() => {
-      expect((instance as unknown as Record<string, jest.Mock>).deleteDevice).toHaveBeenCalledWith(
-        'dev_01abc'
-      );
-    });
-  });
-
-  it('cancel closes the inline form', async () => {
-    const { element } = await mountHardwareStep();
-
-    clickAddDevice(element);
-
-    await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#hw-edit-mac')).not.toBeNull();
-    });
-
-    clickAction(element, 'hw-cancel-row');
-
-    await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#hw-edit-mac')).toBeNull();
-      expect(element.shadowRoot?.textContent).toContain('+ Add Device');
-    });
-  });
-
-  it('Add Handset opens inline form under base', async () => {
-    const { element } = await mountHardwareStep({
-      listDECTBases: jest.fn().mockResolvedValue([mockDectBase]),
-      listDECTHandsets: jest.fn().mockResolvedValue([]),
+      listDeviceLines: jest.fn().mockResolvedValue([]),
       listEndpoints: jest.fn().mockResolvedValue([]),
     });
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('DECT Base');
-    });
-
-    clickAddHandset(element, 'dectb_01abc');
-
-    await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#hw-edit-ipei')).not.toBeNull();
-      expect(element.shadowRoot?.querySelector('#hw-edit-user')).not.toBeNull();
+      const table = stepRoot(element).querySelector('.hw-team-table');
+      expect(table).not.toBeNull();
+      const dropZone = stepRoot(element).querySelector('.hw-drop-zone');
+      expect(dropZone).not.toBeNull();
+      expect(dropZone?.textContent).toContain('Drag and drop device here');
     });
   });
 
-  it('only one form open at a time — opening handset form closes new device form', async () => {
+  it('assigns device via drag-and-drop and shows badge chip', async () => {
     const { element } = await mountHardwareStep({
-      listDECTBases: jest.fn().mockResolvedValue([mockDectBase]),
-      listDECTHandsets: jest.fn().mockResolvedValue([]),
+      listDevices: jest.fn().mockResolvedValue([mockDevice]),
+      listDeviceLines: jest.fn().mockResolvedValue([]),
       listEndpoints: jest.fn().mockResolvedValue([]),
     });
 
-    // Open new device form
-    clickAddDevice(element);
-
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#hw-edit-mac')).not.toBeNull();
+      expect(stepRoot(element).querySelector('.hw-device-card')).not.toBeNull();
     });
 
-    // Now open handset form — should close the new device form
-    clickAddHandset(element, 'dectb_01abc');
+    // Simulate drag-and-drop
+    const card = stepRoot(element).querySelector('.hw-device-card')!;
+    const dropZone = stepRoot(element).querySelector('.hw-drop-zone')!;
+
+    const dragStartEvent = new Event('dragstart', { bubbles: true }) as DragEvent;
+    Object.defineProperty(dragStartEvent, 'dataTransfer', {
+      value: {
+        setData: jest.fn(),
+        getData: () => mockDevice.id,
+        effectAllowed: 'move',
+        dropEffect: 'move',
+      },
+    });
+    card.dispatchEvent(dragStartEvent);
+
+    const dropEvent = new Event('drop', { bubbles: true }) as DragEvent;
+    Object.defineProperty(dropEvent, 'dataTransfer', {
+      value: {
+        getData: () => mockDevice.id,
+      },
+    });
+    dropZone.dispatchEvent(dropEvent);
 
     await waitFor(() => {
-      // MAC input gone (new device form closed)
-      expect(element.shadowRoot?.querySelector('#hw-edit-mac')).toBeNull();
-      // IPEI input present (handset form open)
-      expect(element.shadowRoot?.querySelector('#hw-edit-ipei')).not.toBeNull();
+      const badge = stepRoot(element).querySelector('.hw-device-badge-chip');
+      expect(badge).not.toBeNull();
+      expect(badge?.textContent).toContain('Snom');
+    });
+  });
+
+  it('assigns device via click-to-assign and shows badge chip', async () => {
+    const { element } = await mountHardwareStep({
+      listDevices: jest.fn().mockResolvedValue([mockDevice]),
+      listDeviceLines: jest.fn().mockResolvedValue([]),
+      listEndpoints: jest.fn().mockResolvedValue([]),
+    });
+
+    await waitFor(() => {
+      expect(stepRoot(element).querySelector('.hw-device-card')).not.toBeNull();
+    });
+
+    // Click the device card to select it
+    const card = stepRoot(element).querySelector('.hw-device-card')!;
+    card.dispatchEvent(new Event('click', { bubbles: true }));
+
+    await waitFor(() => {
+      expect(stepRoot(element).querySelector('.hw-device-card--selected')).not.toBeNull();
+      expect(stepRoot(element).querySelector('.hw-drop-zone--selectable')).not.toBeNull();
+      expect(stepRoot(element).textContent).toContain('Click to assign');
+    });
+
+    // Click the drop zone to assign
+    const dropZone = stepRoot(element).querySelector('.hw-drop-zone')!;
+    dropZone.dispatchEvent(new Event('click', { bubbles: true }));
+
+    await waitFor(() => {
+      const badge = stepRoot(element).querySelector('.hw-device-badge-chip');
+      expect(badge).not.toBeNull();
+      expect(badge?.textContent).toContain('Snom');
+      // Card should no longer be in available devices
+      expect(stepRoot(element).querySelector('.hw-device-card')).toBeNull();
+    });
+  });
+
+  it('unassign removes badge and returns card to available', async () => {
+    const { element } = await mountHardwareStep({
+      listDevices: jest.fn().mockResolvedValue([mockDevice]),
+      listDeviceLines: jest.fn().mockResolvedValue([]),
+      listEndpoints: jest.fn().mockResolvedValue([]),
+    });
+
+    await waitFor(() => {
+      expect(stepRoot(element).querySelector('.hw-device-card')).not.toBeNull();
+    });
+
+    // Assign via drop
+    const card = stepRoot(element).querySelector('.hw-device-card')!;
+    const dropZone = stepRoot(element).querySelector('.hw-drop-zone')!;
+
+    const dragStartEvent = new Event('dragstart', { bubbles: true }) as DragEvent;
+    Object.defineProperty(dragStartEvent, 'dataTransfer', {
+      value: {
+        setData: jest.fn(),
+        getData: () => mockDevice.id,
+        effectAllowed: 'move',
+        dropEffect: 'move',
+      },
+    });
+    card.dispatchEvent(dragStartEvent);
+
+    const dropEvent = new Event('drop', { bubbles: true }) as DragEvent;
+    Object.defineProperty(dropEvent, 'dataTransfer', {
+      value: { getData: () => mockDevice.id },
+    });
+    dropZone.dispatchEvent(dropEvent);
+
+    await waitFor(() => {
+      expect(stepRoot(element).querySelector('.hw-device-badge-chip')).not.toBeNull();
+    });
+
+    // Now unassign
+    clickAction(element, 'hw-unassign');
+
+    await waitFor(() => {
+      expect(stepRoot(element).querySelector('.hw-device-badge-chip')).toBeNull();
+      // Card should be back
+      expect(stepRoot(element).querySelector('.hw-device-card')).not.toBeNull();
+    });
+  });
+
+  it('shows Assign & Complete when all devices assigned', async () => {
+    const { element } = await mountHardwareStep({
+      listDevices: jest.fn().mockResolvedValue([mockDevice]),
+      listDeviceLines: jest.fn().mockResolvedValue([]),
+      listEndpoints: jest.fn().mockResolvedValue([]),
+    });
+
+    await waitFor(() => {
+      expect(stepRoot(element).querySelector('.hw-device-card')).not.toBeNull();
+    });
+
+    // Assign the only device to the first user
+    const card = stepRoot(element).querySelector('.hw-device-card')!;
+    const dropZone = stepRoot(element).querySelector('.hw-drop-zone')!;
+
+    const dragStartEvent = new Event('dragstart', { bubbles: true }) as DragEvent;
+    Object.defineProperty(dragStartEvent, 'dataTransfer', {
+      value: {
+        setData: jest.fn(),
+        getData: () => mockDevice.id,
+        effectAllowed: 'move',
+        dropEffect: 'move',
+      },
+    });
+    card.dispatchEvent(dragStartEvent);
+
+    const dropEvent = new Event('drop', { bubbles: true }) as DragEvent;
+    Object.defineProperty(dropEvent, 'dataTransfer', {
+      value: { getData: () => mockDevice.id },
+    });
+    dropZone.dispatchEvent(dropEvent);
+
+    await waitFor(() => {
+      expect(stepRoot(element).textContent).toContain('Assign & Complete');
+      expect(stepRoot(element).textContent).toContain('All devices have been assigned');
     });
   });
 
@@ -1862,9 +1842,10 @@ describe('AccountOnboardingComponent', () => {
     element: AccountOnboardingElement,
     instance: ReturnType<typeof createMockInstance>
   ): Promise<void> => {
-    // Account step: business-details → team-members → numbers
+    // Account step: business-details → team-members → (complete) → numbers
     await navigateToTeamMembers(element);
-    clickAction(element, 'next'); // team-members → numbers
+    clickAction(element, 'next'); // team-members → account complete screen
+    await clickThroughStepComplete(element); // advance to numbers
     await waitFor(() => {
       expect(
         (instance as unknown as Record<string, jest.Mock>).listPhoneNumbers
@@ -1880,9 +1861,9 @@ describe('AccountOnboardingComponent', () => {
     await navigateToNumbers(element, instance);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('No telephone numbers yet');
-      expect(element.shadowRoot?.querySelector('[data-action="num-start-order"]')).not.toBeNull();
-      expect(element.shadowRoot?.querySelector('[data-action="num-start-port"]')).not.toBeNull();
+      expect(stepRoot(element).textContent).toContain('No telephone numbers yet');
+      expect(stepRoot(element).querySelector('[data-action="num-start-order"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="num-start-port"]')).not.toBeNull();
     });
   });
 
@@ -1911,8 +1892,8 @@ describe('AccountOnboardingComponent', () => {
     await navigateToNumbers(element, instance);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('(212) 555-1001');
-      expect(element.shadowRoot?.textContent).toContain('Active');
+      expect(stepRoot(element).textContent).toContain('(212) 555-1001');
+      expect(stepRoot(element).textContent).toContain('Active');
     });
   });
 
@@ -1924,14 +1905,14 @@ describe('AccountOnboardingComponent', () => {
     await navigateToNumbers(element, instance);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="num-start-order"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="num-start-order"]')).not.toBeNull();
     });
 
     clickAction(element, 'num-start-order');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Search Available Numbers');
-      expect(element.shadowRoot?.querySelector('#num-area-code')).not.toBeNull();
+      expect(stepRoot(element).textContent).toContain('Search Available Numbers');
+      expect(stepRoot(element).querySelector('#num-area-code')).not.toBeNull();
     });
   });
 
@@ -1961,16 +1942,16 @@ describe('AccountOnboardingComponent', () => {
     await navigateToNumbers(element, instance);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="num-start-order"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="num-start-order"]')).not.toBeNull();
     });
 
     clickAction(element, 'num-start-order');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#num-area-code')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#num-area-code')).not.toBeNull();
     });
 
-    const areaInput = element.shadowRoot?.querySelector<HTMLInputElement>('#num-area-code');
+    const areaInput = stepRoot(element).querySelector<HTMLInputElement>('#num-area-code');
     if (areaInput) {
       areaInput.value = '212';
       areaInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1979,8 +1960,8 @@ describe('AccountOnboardingComponent', () => {
     clickAction(element, 'num-search');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('(212) 555-9001');
-      expect(element.shadowRoot?.textContent).toContain('(212) 555-9002');
+      expect(stepRoot(element).textContent).toContain('(212) 555-9001');
+      expect(stepRoot(element).textContent).toContain('(212) 555-9002');
     });
   });
 
@@ -2003,23 +1984,23 @@ describe('AccountOnboardingComponent', () => {
     await navigateToNumbers(element, instance);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="num-start-order"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="num-start-order"]')).not.toBeNull();
     });
 
     clickAction(element, 'num-start-order');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#num-area-code')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#num-area-code')).not.toBeNull();
     });
 
     clickAction(element, 'num-search');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('(212) 555-9001');
+      expect(stepRoot(element).textContent).toContain('(212) 555-9001');
     });
 
     // Select the number via checkbox
-    const checkbox = element.shadowRoot?.querySelector<HTMLInputElement>(
+    const checkbox = stepRoot(element).querySelector<HTMLInputElement>(
       '[data-action="num-toggle-number"]'
     );
     checkbox?.click();
@@ -2028,7 +2009,7 @@ describe('AccountOnboardingComponent', () => {
     clickAction(element, 'num-confirm-order');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Confirm Your Order');
+      expect(stepRoot(element).textContent).toContain('Confirm Your Order');
     });
 
     // Place the order
@@ -2042,7 +2023,7 @@ describe('AccountOnboardingComponent', () => {
 
     // Should show order status
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Order Submitted');
+      expect(stepRoot(element).textContent).toContain('Order Submitted');
     });
   });
 
@@ -2054,14 +2035,14 @@ describe('AccountOnboardingComponent', () => {
     await navigateToNumbers(element, instance);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="num-start-port"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="num-start-port"]')).not.toBeNull();
     });
 
     clickAction(element, 'num-start-port');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Numbers to Port');
-      expect(element.shadowRoot?.querySelector('#num-port-phone-0')).not.toBeNull();
+      expect(stepRoot(element).textContent).toContain('Numbers to Port');
+      expect(stepRoot(element).querySelector('#num-port-phone-0')).not.toBeNull();
     });
   });
 
@@ -2073,26 +2054,26 @@ describe('AccountOnboardingComponent', () => {
     await navigateToNumbers(element, instance);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="num-start-port"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="num-start-port"]')).not.toBeNull();
     });
 
     clickAction(element, 'num-start-port');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#num-port-phone-0')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#num-port-phone-0')).not.toBeNull();
     });
 
     // Should not have a remove button when only one input
-    expect(element.shadowRoot?.querySelector('[data-action="num-remove-port-phone"]')).toBeNull();
+    expect(stepRoot(element).querySelector('[data-action="num-remove-port-phone"]')).toBeNull();
 
     // Add another
     clickAction(element, 'num-add-port-phone');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#num-port-phone-1')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#num-port-phone-1')).not.toBeNull();
       // Now remove buttons should appear
       expect(
-        element.shadowRoot?.querySelector('[data-action="num-remove-port-phone"]')
+        stepRoot(element).querySelector('[data-action="num-remove-port-phone"]')
       ).not.toBeNull();
     });
   });
@@ -2105,16 +2086,16 @@ describe('AccountOnboardingComponent', () => {
     await navigateToNumbers(element, instance);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="num-start-port"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="num-start-port"]')).not.toBeNull();
     });
 
     clickAction(element, 'num-start-port');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#num-port-phone-0')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#num-port-phone-0')).not.toBeNull();
     });
 
-    const phoneInput = element.shadowRoot?.querySelector<HTMLInputElement>('#num-port-phone-0');
+    const phoneInput = stepRoot(element).querySelector<HTMLInputElement>('#num-port-phone-0');
     if (phoneInput) {
       phoneInput.value = '(212) 555-1001';
       phoneInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -2126,8 +2107,8 @@ describe('AccountOnboardingComponent', () => {
       expect(
         (instance as unknown as Record<string, jest.Mock>).checkPortEligibility
       ).toHaveBeenCalled();
-      expect(element.shadowRoot?.textContent).toContain('Portable');
-      expect(element.shadowRoot?.textContent).toContain('OldCo');
+      expect(stepRoot(element).textContent).toContain('Portable');
+      expect(stepRoot(element).textContent).toContain('OldCo');
     });
   });
 
@@ -2139,16 +2120,16 @@ describe('AccountOnboardingComponent', () => {
     await navigateToNumbers(element, instance);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="num-start-port"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="num-start-port"]')).not.toBeNull();
     });
 
     clickAction(element, 'num-start-port');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#num-port-phone-0')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#num-port-phone-0')).not.toBeNull();
     });
 
-    const phoneInput = element.shadowRoot?.querySelector<HTMLInputElement>('#num-port-phone-0');
+    const phoneInput = stepRoot(element).querySelector<HTMLInputElement>('#num-port-phone-0');
     if (phoneInput) {
       phoneInput.value = '(212) 555-1001';
       phoneInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -2157,22 +2138,22 @@ describe('AccountOnboardingComponent', () => {
     clickAction(element, 'num-check-eligibility');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Portable');
+      expect(stepRoot(element).textContent).toContain('Portable');
     });
 
     clickAction(element, 'num-to-subscriber');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Subscriber Information');
-      expect(element.shadowRoot?.querySelector('#num-port-btn')).not.toBeNull();
+      expect(stepRoot(element).textContent).toContain('Subscriber Information');
+      expect(stepRoot(element).querySelector('#num-port-btn')).not.toBeNull();
     });
 
     // Try to advance without filling — should show validation errors
     clickAction(element, 'num-to-foc-date');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('BTN is required');
-      expect(element.shadowRoot?.textContent).toContain('Business name is required');
+      expect(stepRoot(element).textContent).toContain('BTN is required');
+      expect(stepRoot(element).textContent).toContain('Business name is required');
     });
   });
 
@@ -2184,19 +2165,19 @@ describe('AccountOnboardingComponent', () => {
     await navigateToNumbers(element, instance);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="num-start-order"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="num-start-order"]')).not.toBeNull();
     });
 
     clickAction(element, 'num-start-order');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Search Available Numbers');
+      expect(stepRoot(element).textContent).toContain('Search Available Numbers');
     });
 
     clickAction(element, 'num-back-to-overview');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="num-start-order"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="num-start-order"]')).not.toBeNull();
     });
   });
 
@@ -2209,7 +2190,7 @@ describe('AccountOnboardingComponent', () => {
 
     await waitFor(() => {
       // At overview, should have the main step "Next" button
-      expect(element.shadowRoot?.querySelector('[data-action="next"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="next"]')).not.toBeNull();
     });
 
     clickAction(element, 'num-start-order');
@@ -2217,7 +2198,7 @@ describe('AccountOnboardingComponent', () => {
     await waitFor(() => {
       // Inside order sub-flow, main "next" should NOT be visible
       // Instead, we have num-search and num-back-to-overview
-      expect(element.shadowRoot?.querySelector('[data-action="num-search"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="num-search"]')).not.toBeNull();
     });
   });
 
@@ -2229,14 +2210,15 @@ describe('AccountOnboardingComponent', () => {
     await navigateToNumbers(element, instance);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="next"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="next"]')).not.toBeNull();
     });
 
     clickAction(element, 'next');
+    await clickThroughStepComplete(element);
 
     // Should advance to hardware step
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Assign Devices');
+      expect(stepRoot(element).textContent).toContain('Assign Devices');
     });
   });
 
@@ -2249,8 +2231,8 @@ describe('AccountOnboardingComponent', () => {
     await navigateToNumbers(element, instance);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Network error');
-      expect(element.shadowRoot?.querySelector('[data-action="num-retry-load"]')).not.toBeNull();
+      expect(stepRoot(element).textContent).toContain('Network error');
+      expect(stepRoot(element).querySelector('[data-action="num-retry-load"]')).not.toBeNull();
     });
   });
 
@@ -2266,16 +2248,16 @@ describe('AccountOnboardingComponent', () => {
     await navigateToNumbers(element, instance);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="num-start-port"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="num-start-port"]')).not.toBeNull();
     });
 
     clickAction(element, 'num-start-port');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#num-port-phone-0')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#num-port-phone-0')).not.toBeNull();
     });
 
-    const phoneInput = element.shadowRoot?.querySelector<HTMLInputElement>('#num-port-phone-0');
+    const phoneInput = stepRoot(element).querySelector<HTMLInputElement>('#num-port-phone-0');
     if (phoneInput) {
       phoneInput.value = '(212) 555-1001';
       phoneInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -2284,8 +2266,8 @@ describe('AccountOnboardingComponent', () => {
     clickAction(element, 'num-check-eligibility');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Not Portable');
-      expect(element.shadowRoot?.textContent).toContain('None of the entered numbers are eligible');
+      expect(stepRoot(element).textContent).toContain('Not Portable');
+      expect(stepRoot(element).textContent).toContain('None of the entered numbers are eligible');
     });
   });
 
@@ -2297,17 +2279,17 @@ describe('AccountOnboardingComponent', () => {
     await navigateToNumbers(element, instance);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="num-start-port"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="num-start-port"]')).not.toBeNull();
     });
 
     clickAction(element, 'num-start-port');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#num-port-phone-0')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#num-port-phone-0')).not.toBeNull();
     });
 
     // Enter invalid number
-    const phoneInput = element.shadowRoot?.querySelector<HTMLInputElement>('#num-port-phone-0');
+    const phoneInput = stepRoot(element).querySelector<HTMLInputElement>('#num-port-phone-0');
     if (phoneInput) {
       phoneInput.value = '123';
       phoneInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -2316,7 +2298,7 @@ describe('AccountOnboardingComponent', () => {
     clickAction(element, 'num-check-eligibility');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Enter a valid US phone number');
+      expect(stepRoot(element).textContent).toContain('Enter a valid US phone number');
       expect(
         (instance as unknown as Record<string, jest.Mock>).checkPortEligibility
       ).not.toHaveBeenCalled();
@@ -2331,20 +2313,20 @@ describe('AccountOnboardingComponent', () => {
     await navigateToNumbers(element, instance);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="num-start-port"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="num-start-port"]')).not.toBeNull();
     });
 
     clickAction(element, 'num-start-port');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#num-port-phone-0')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#num-port-phone-0')).not.toBeNull();
     });
 
     // Click check without entering any number
     clickAction(element, 'num-check-eligibility');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('At least one phone number is required');
+      expect(stepRoot(element).textContent).toContain('At least one phone number is required');
     });
   });
 
@@ -2356,16 +2338,16 @@ describe('AccountOnboardingComponent', () => {
     await navigateToNumbers(element, instance);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="num-start-port"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="num-start-port"]')).not.toBeNull();
     });
 
     clickAction(element, 'num-start-port');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#num-port-phone-0')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#num-port-phone-0')).not.toBeNull();
     });
 
-    const phoneInput = element.shadowRoot?.querySelector<HTMLInputElement>('#num-port-phone-0');
+    const phoneInput = stepRoot(element).querySelector<HTMLInputElement>('#num-port-phone-0');
     if (phoneInput) {
       phoneInput.value = '(212) 555-1001';
       phoneInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -2374,18 +2356,18 @@ describe('AccountOnboardingComponent', () => {
     clickAction(element, 'num-check-eligibility');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Portable');
+      expect(stepRoot(element).textContent).toContain('Portable');
     });
 
     clickAction(element, 'num-to-subscriber');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('#num-port-btn')).not.toBeNull();
+      expect(stepRoot(element).querySelector('#num-port-btn')).not.toBeNull();
     });
 
     // Fill subscriber form
     const fillInput = (id: string, value: string): void => {
-      const input = element.shadowRoot?.querySelector<HTMLInputElement>(`#${id}`);
+      const input = stepRoot(element).querySelector<HTMLInputElement>(`#${id}`);
       if (input) {
         input.value = value;
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -2401,7 +2383,7 @@ describe('AccountOnboardingComponent', () => {
     fillInput('num-port-zip', '10001');
 
     // Select state
-    const stateSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#num-port-state');
+    const stateSelect = stepRoot(element).querySelector<HTMLSelectElement>('#num-port-state');
     if (stateSelect) {
       stateSelect.value = 'NY';
       stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
@@ -2410,7 +2392,7 @@ describe('AccountOnboardingComponent', () => {
     clickAction(element, 'num-to-foc-date');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Requested Port Date');
+      expect(stepRoot(element).textContent).toContain('Requested Port Date');
     });
 
     // Fill FOC date
@@ -2421,7 +2403,7 @@ describe('AccountOnboardingComponent', () => {
 
     fillInput('num-port-foc-date', dateStr!);
 
-    const timeSelect = element.shadowRoot?.querySelector<HTMLSelectElement>('#num-port-foc-time');
+    const timeSelect = stepRoot(element).querySelector<HTMLSelectElement>('#num-port-foc-time');
     if (timeSelect) {
       timeSelect.value = '10:00';
       timeSelect.dispatchEvent(new Event('change', { bubbles: true }));
@@ -2430,14 +2412,224 @@ describe('AccountOnboardingComponent', () => {
     clickAction(element, 'num-to-documents');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Supporting Documents');
+      expect(stepRoot(element).textContent).toContain('Supporting Documents');
     });
 
     // Try to advance to review without bill copy
     clickAction(element, 'num-to-review');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('A phone bill copy is required');
+      expect(stepRoot(element).textContent).toContain('A phone bill copy is required');
+    });
+  });
+
+  /**
+   * Helper: navigate through port flow to a given sub-step.
+   * Fills all required fields along the way.
+   */
+  const navigatePortFlowTo = async (
+    element: AccountOnboardingElement,
+    instance: ReturnType<typeof createMockInstance>,
+    targetStep: 'eligibility' | 'subscriber' | 'foc-date' | 'documents' | 'review' | 'submitted'
+  ): Promise<void> => {
+    await navigateToNumbers(element, instance);
+
+    await waitFor(() => {
+      expect(stepRoot(element).querySelector('[data-action="num-start-port"]')).not.toBeNull();
+    });
+
+    clickAction(element, 'num-start-port');
+
+    await waitFor(() => {
+      expect(stepRoot(element).querySelector('#num-port-phone-0')).not.toBeNull();
+    });
+
+    const fillInput = (id: string, value: string): void => {
+      const input = stepRoot(element).querySelector<HTMLInputElement>(`#${id}`);
+      if (input) {
+        input.value = value;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    };
+
+    fillInput('num-port-phone-0', '(212) 555-1001');
+    clickAction(element, 'num-check-eligibility');
+
+    await waitFor(() => {
+      expect(stepRoot(element).textContent).toContain('Portable');
+    });
+    if (targetStep === 'eligibility') return;
+
+    clickAction(element, 'num-to-subscriber');
+
+    await waitFor(() => {
+      expect(stepRoot(element).querySelector('#num-port-btn')).not.toBeNull();
+    });
+
+    fillInput('num-port-btn', '(212) 555-1001');
+    fillInput('num-port-business-name', 'Acme Corp');
+    fillInput('num-port-approver-name', 'John Doe');
+    fillInput('num-port-house-number', '123');
+    fillInput('num-port-street-name', 'Main St');
+    fillInput('num-port-city', 'New York');
+    fillInput('num-port-zip', '10001');
+
+    const stateSelect = stepRoot(element).querySelector<HTMLSelectElement>('#num-port-state');
+    if (stateSelect) {
+      stateSelect.value = 'NY';
+      stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (targetStep === 'subscriber') return;
+
+    clickAction(element, 'num-to-foc-date');
+
+    await waitFor(() => {
+      expect(stepRoot(element).textContent).toContain('Requested Port Date');
+    });
+
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 10);
+    fillInput('num-port-foc-date', futureDate.toISOString().split('T')[0]!);
+
+    const timeSelect = stepRoot(element).querySelector<HTMLSelectElement>('#num-port-foc-time');
+    if (timeSelect) {
+      timeSelect.value = '10:00';
+      timeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (targetStep === 'foc-date') return;
+
+    clickAction(element, 'num-to-documents');
+
+    await waitFor(() => {
+      expect(stepRoot(element).textContent).toContain('Supporting Documents');
+    });
+
+    // Simulate file upload for bill copy
+    const billInput = stepRoot(element).querySelector<HTMLInputElement>('#num-bill-copy-input');
+    if (billInput) {
+      const file = new File(['mock'], 'bill.pdf', { type: 'application/pdf' });
+      Object.defineProperty(billInput, 'files', { value: [file], configurable: true });
+      billInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (targetStep === 'documents') return;
+
+    clickAction(element, 'num-to-review');
+
+    await waitFor(() => {
+      expect(stepRoot(element).textContent).toContain('Review');
+    });
+    if (targetStep === 'review') return;
+
+    // Fill signature and submit
+    fillInput('num-port-signature', 'John Doe');
+    clickAction(element, 'num-submit-port');
+
+    await waitFor(() => {
+      expect(stepRoot(element).textContent).toContain('Port Request Submitted');
+    });
+  };
+
+  it('completes full port flow end-to-end and calls all API methods', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+    });
+
+    await navigatePortFlowTo(element, instance, 'submitted');
+
+    // Verify API calls
+    const mock = instance as unknown as Record<string, jest.Mock>;
+    expect(mock.checkPortEligibility).toHaveBeenCalled();
+    expect(mock.createPortOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phone_numbers: ['+12125551001'],
+        subscriber: expect.objectContaining({
+          business_name: 'Acme Corp',
+          approver_name: 'John Doe',
+        }),
+      })
+    );
+    expect(mock.uploadBillCopy).toHaveBeenCalledWith('po_01abc', expect.any(File));
+    expect(mock.approvePortOrder).toHaveBeenCalledWith(
+      'po_01abc',
+      expect.objectContaining({
+        signature: 'John Doe',
+      })
+    );
+    expect(mock.submitPortOrder).toHaveBeenCalledWith('po_01abc');
+
+    // Verify submitted screen
+    expect(stepRoot(element).textContent).toContain('Port Request Submitted');
+    expect(stepRoot(element).querySelector('[data-action="num-port-done"]')).not.toBeNull();
+  });
+
+  it('shows review screen with summary of all port details', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+    });
+
+    await navigatePortFlowTo(element, instance, 'review');
+
+    const content = stepRoot(element).textContent!;
+    expect(content).toContain('(212) 555-1001');
+    expect(content).toContain('Acme Corp');
+    expect(content).toContain('John Doe');
+    expect(content).toContain('bill.pdf');
+    expect(stepRoot(element).querySelector('#num-port-signature')).not.toBeNull();
+  });
+
+  it('validates signature required before port submission', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+    });
+
+    await navigatePortFlowTo(element, instance, 'review');
+
+    // Try to submit without signature
+    clickAction(element, 'num-submit-port');
+
+    await waitFor(() => {
+      expect(stepRoot(element).textContent).toContain('Signature is required');
+    });
+
+    const mock = instance as unknown as Record<string, jest.Mock>;
+    expect(mock.createPortOrder).not.toHaveBeenCalled();
+  });
+
+  it('returns to overview after port submission via port-done', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+    });
+
+    await navigatePortFlowTo(element, instance, 'submitted');
+
+    clickAction(element, 'num-port-done');
+
+    await waitFor(() => {
+      expect(stepRoot(element).querySelector('[data-action="num-start-order"]')).not.toBeNull();
+    });
+  });
+
+  it('shows port submission error when API fails', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      createPortOrder: jest.fn().mockRejectedValue(new Error('Network failure')),
+    });
+
+    await navigatePortFlowTo(element, instance, 'review');
+
+    const fillInput = (id: string, value: string): void => {
+      const input = stepRoot(element).querySelector<HTMLInputElement>(`#${id}`);
+      if (input) {
+        input.value = value;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    };
+
+    fillInput('num-port-signature', 'John Doe');
+    clickAction(element, 'num-submit-port');
+
+    await waitFor(() => {
+      expect(stepRoot(element).textContent).toContain('Network failure');
     });
   });
 
@@ -2449,14 +2641,14 @@ describe('AccountOnboardingComponent', () => {
     await navigateToNumbers(element, instance);
 
     await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="num-start-order"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="num-start-order"]')).not.toBeNull();
     });
 
     // Enter order sub-flow
     clickAction(element, 'num-start-order');
 
     await waitFor(() => {
-      expect(element.shadowRoot?.textContent).toContain('Search Available Numbers');
+      expect(stepRoot(element).textContent).toContain('Search Available Numbers');
     });
 
     // Navigate to hardware then back to numbers
@@ -2464,7 +2656,7 @@ describe('AccountOnboardingComponent', () => {
 
     await waitFor(() => {
       // Should be back at overview with action cards
-      expect(element.shadowRoot?.querySelector('[data-action="num-start-order"]')).not.toBeNull();
+      expect(stepRoot(element).querySelector('[data-action="num-start-order"]')).not.toBeNull();
     });
   });
 });

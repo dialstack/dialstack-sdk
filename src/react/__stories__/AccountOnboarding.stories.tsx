@@ -5,7 +5,7 @@ import { AccountOnboarding } from '../AccountOnboarding';
 type Props = React.ComponentProps<typeof AccountOnboarding> & DecoratorArgs;
 
 const meta: Meta<Props> = {
-  title: 'React/AccountOnboarding',
+  title: 'React/Onboarding/Wizard',
   component: AccountOnboarding,
 };
 

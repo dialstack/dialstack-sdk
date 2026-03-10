@@ -1,10 +1,9 @@
 /**
  * Account Onboarding Web Component - Multi-step onboarding wizard
  *
- * This is the orchestrator component. Step-specific logic lives in helpers:
- * - AccountStepHelper (account-onboarding-account.ts)
- * - NumbersStepHelper (account-onboarding-numbers.ts)
- * - HardwareStepHelper (account-onboarding-hardware.ts)
+ * Thin orchestrator that embeds standalone step components as child custom
+ * elements. Manages step visibility, navigation, and loading/error/complete
+ * screens. Step-specific rendering is fully owned by each step element.
  */
 
 import { BaseComponent } from '../base-component';
@@ -13,18 +12,27 @@ import type {
   AccountOnboardingClasses,
   AccountConfig,
   OnboardingCollectionOptions,
-  OnboardingUser,
-  ProvisionedDevice,
-  DECTBase,
+  AppearanceOptions,
+  FormattingOptions,
+  ComponentIcons,
+  LayoutVariant,
 } from '../../types';
-import type { Extension } from '../../types/dial-plan';
-import { parsePhoneNumberFromString } from 'libphonenumber-js';
-import { COMPONENT_STYLES } from './styles';
-import { CHECK_SVG, ERROR_SVG, BUILDING_SVG, PHONE_SVG, MONITOR_SVG, LOCATION_SVG } from './icons';
-import type { OnboardingHost } from './host';
-import { AccountStepHelper } from './account';
-import { NumbersStepHelper } from './numbers';
-import { HardwareStepHelper } from './hardware';
+import COMPONENT_STYLES from './styles.css';
+import { create as createConfetti } from 'canvas-confetti';
+import { ERROR_SVG } from './icons';
+import type { OnboardingStepBase } from './step-base';
+import type { Locale } from '../../locales';
+
+// Side-effect imports: register step custom elements
+import './step-account';
+import './step-numbers';
+import './step-hardware';
+
+const STEP_TAG_NAMES: Record<string, string> = {
+  account: 'dialstack-onboarding-account',
+  numbers: 'dialstack-onboarding-numbers',
+  hardware: 'dialstack-onboarding-hardware',
+};
 
 export class AccountOnboardingComponent extends BaseComponent {
   private static readonly ALL_STEPS: AccountOnboardingStep[] = [
@@ -38,10 +46,6 @@ export class AccountOnboardingComponent extends BaseComponent {
   private savedStepIndex = 0;
   private isLoading = true;
   private loadError: string | null = null;
-
-  // Shared state
-  private _users: OnboardingUser[] = [];
-  private _extensions: Extension[] = [];
   private _accountConfig: AccountConfig = {};
 
   // Collection options and URL props
@@ -58,86 +62,16 @@ export class AccountOnboardingComponent extends BaseComponent {
   private _onExit?: () => void;
   private _onStepChange?: (event: { step: AccountOnboardingStep }) => void;
 
-  // Step helpers (cast needed: BaseComponent marks instance/shadowRoot as protected,
-  // but helpers access them via the OnboardingHost interface)
-  private readonly host: OnboardingHost = this as unknown as OnboardingHost;
-  private account = new AccountStepHelper(this.host);
-  private numbers = new NumbersStepHelper(this.host);
-  private hardware = new HardwareStepHelper(this.host);
+  // Step element cache
+  private stepElements = new Map<string, OnboardingStepBase>();
 
-  // ============================================================================
-  // OnboardingHost interface
-  // ============================================================================
+  // Confetti animation
+  private confettiInstance: ReturnType<typeof createConfetti> | null = null;
 
-  get users(): OnboardingUser[] {
-    return this._users;
-  }
-
-  get extensions(): Extension[] {
-    return this._extensions;
-  }
-
-  get accountConfig(): AccountConfig {
-    return this._accountConfig;
-  }
-
-  setUsers(users: OnboardingUser[]): void {
-    this._users = users;
-  }
-
-  setExtensions(extensions: Extension[]): void {
-    this._extensions = extensions;
-  }
-
-  getExtensionForUser(userId: string): Extension | undefined {
-    return this._extensions.find((ext) => ext.target === userId);
-  }
-
-  getNextExtensionNumber(): string {
-    const configuredLength = this._accountConfig.extension_length;
-    const length =
-      typeof configuredLength === 'number' &&
-      Number.isInteger(configuredLength) &&
-      configuredLength > 0
-        ? configuredLength
-        : 4;
-    const base = Math.pow(10, length - 1) + 1;
-    const max = Math.pow(10, length) - 1;
-    const existing = new Set(this._extensions.map((ext) => ext.number));
-    let next = base;
-    while (existing.has(String(next)) && next <= max) {
-      next += 1;
-    }
-    return String(next);
-  }
-
-  renderStepFooter(): string {
-    const steps = this.getActiveSteps();
-    const idx = steps.indexOf(this.currentStep);
-    const hasPrev = idx > 0;
-    const hasNext = idx < steps.length - 1;
-
-    if (!hasPrev && hasNext) {
-      return `
-        <div class="footer-bar footer-bar-end">
-          <button class="btn btn-primary" data-action="next">
-            ${this.t('accountOnboarding.nav.next')} &rarr;
-          </button>
-        </div>`;
-    }
-    if (hasPrev && hasNext) {
-      return `
-        <div class="footer-bar">
-          <button class="btn btn-ghost" data-action="back">
-            &larr; ${this.t('accountOnboarding.nav.back')}
-          </button>
-          <button class="btn btn-primary" data-action="next">
-            ${this.t('accountOnboarding.nav.next')} &rarr;
-          </button>
-        </div>`;
-    }
-    return '';
-  }
+  // Persistent DOM nodes (created once in initialize)
+  private styleEl: HTMLStyleElement | null = null;
+  private htmlContainer: HTMLDivElement | null = null;
+  private stepsContainer: HTMLDivElement | null = null;
 
   // ============================================================================
   // Lifecycle
@@ -150,6 +84,22 @@ export class AccountOnboardingComponent extends BaseComponent {
 
   protected initialize(): void {
     if (this.isInitialized) return;
+
+    if (!this.shadowRoot) return;
+
+    // Build persistent DOM structure
+    this.styleEl = document.createElement('style');
+    this.shadowRoot.appendChild(this.styleEl);
+
+    this.htmlContainer = document.createElement('div');
+    this.htmlContainer.setAttribute('part', 'container');
+    this.htmlContainer.setAttribute('role', 'region');
+    this.shadowRoot.appendChild(this.htmlContainer);
+
+    this.stepsContainer = document.createElement('div');
+    this.stepsContainer.style.display = 'none';
+    this.shadowRoot.appendChild(this.stepsContainer);
+
     this.attachDelegatedClickHandler();
     this.render();
     this.isInitialized = true;
@@ -157,7 +107,12 @@ export class AccountOnboardingComponent extends BaseComponent {
   }
 
   protected override cleanup(): void {
-    this.numbers.numStopOrderPoll();
+    this.stopConfetti();
+    for (const el of this.stepElements.values()) {
+      el.destroy();
+    }
+    this.stepElements.clear();
+
     if (!this._exitFired) {
       this._exitFired = true;
       this._onExit?.();
@@ -177,50 +132,8 @@ export class AccountOnboardingComponent extends BaseComponent {
     try {
       if (!this.instance) throw new Error('Not initialized');
 
-      const [accountData, users, extensions, locations, devicesResult, dectBasesResult] =
-        await Promise.all([
-          this.instance.getAccount(),
-          this.instance.listUsers(),
-          this.instance.listExtensions(),
-          this.instance.listLocations(),
-          this.instance.listDevices().catch(() => [] as ProvisionedDevice[]),
-          this.instance.listDECTBases().catch(() => [] as DECTBase[]),
-        ]);
-
-      // Populate shared state
-      this._users = users ?? [];
-      this._extensions = extensions ?? [];
+      const accountData = await this.instance.getAccount();
       this._accountConfig = accountData.config ?? {};
-
-      // Populate account helper
-      this.account.accountEmail = accountData.email ?? '';
-      this.account.accountName = accountData.name ?? '';
-      const phoneRaw = accountData.phone ?? '';
-      const phoneParsed = phoneRaw ? parsePhoneNumberFromString(phoneRaw, 'US') : null;
-      this.account.accountPhone = phoneParsed ? phoneParsed.formatNational() : phoneRaw;
-      this.account.accountPrimaryContact = accountData.primary_contact_name ?? '';
-      this.account.accountTimezone = accountData.config?.timezone ?? '';
-      this.account.resetNewUserExtension();
-
-      // Populate hardware helper
-      this.hardware.devices = devicesResult ?? [];
-      this.hardware.dectBases = dectBasesResult ?? [];
-
-      if (locations.length > 0) {
-        const loc = locations[0]!;
-        this.account.existingLocation = loc;
-        this.account.locationName = loc.name;
-        this.account.addressMode = 'confirmed';
-        if (loc.address) {
-          this.account.manualAddress = {
-            addressNumber: loc.address.address_number ?? '',
-            street: loc.address.street ?? '',
-            city: loc.address.city ?? '',
-            state: loc.address.state ?? '',
-            postalCode: loc.address.postal_code ?? '',
-          };
-        }
-      }
 
       this.isLoading = false;
 
@@ -253,6 +166,76 @@ export class AccountOnboardingComponent extends BaseComponent {
   }
 
   // ============================================================================
+  // Step Element Management
+  // ============================================================================
+
+  private getOrCreateStep(step: AccountOnboardingStep): OnboardingStepBase {
+    let el = this.stepElements.get(step);
+    if (el) return el;
+
+    const tagName = STEP_TAG_NAMES[step];
+    if (!tagName) throw new Error(`Unknown step: ${step}`);
+
+    el = document.createElement(tagName) as OnboardingStepBase;
+
+    // Forward instance and configuration
+    if (this.instance) el.setInstance(this.instance);
+    el.setLayoutVariant(this.layoutVariant);
+    el.setLocale(this.locale);
+    el.setFormatting(this.formatting);
+    el.setIcons(this.icons);
+    if (this.appearance) {
+      el.dispatchEvent(
+        new CustomEvent('dialstack-appearance-update', {
+          detail: { appearance: this.appearance },
+        })
+      );
+    }
+
+    // Configure navigation callbacks
+    this.configureStepNavigation(step, el);
+
+    // Append to steps container (hidden by default)
+    el.style.display = 'none';
+    this.stepsContainer?.appendChild(el);
+    this.stepElements.set(step, el);
+
+    return el;
+  }
+
+  private configureStepNavigation(step: AccountOnboardingStep, el: OnboardingStepBase): void {
+    const activeSteps = this.getActiveSteps();
+    const idx = activeSteps.indexOf(step);
+    const hasPrev = idx > 0;
+
+    el.setShowBack(hasPrev);
+
+    el.setOnComplete(() => {
+      const steps = this.getActiveSteps();
+      const currentIdx = steps.indexOf(step);
+      const nextStep = steps[currentIdx + 1];
+      if (nextStep) {
+        this.navigateToStep(nextStep);
+      }
+    });
+
+    el.setOnBack(() => {
+      const steps = this.getActiveSteps();
+      const currentIdx = steps.indexOf(step);
+      const prevStep = steps[currentIdx - 1];
+      if (prevStep) {
+        this.navigateToStep(prevStep);
+      }
+    });
+  }
+
+  private reconfigureNavigation(): void {
+    for (const [step, el] of this.stepElements) {
+      this.configureStepNavigation(step as AccountOnboardingStep, el);
+    }
+  }
+
+  // ============================================================================
   // Public Setters
   // ============================================================================
 
@@ -277,6 +260,7 @@ export class AccountOnboardingComponent extends BaseComponent {
     if (!activeSteps.includes(this.currentStep)) {
       this.currentStep = activeSteps[0] ?? 'complete';
     }
+    this.reconfigureNavigation();
     const initial = this.collectionOptions?.initialStep;
     if (initial && !this.isLoading && !this.loadError && activeSteps.includes(initial)) {
       this.navigateToStep(initial);
@@ -304,6 +288,47 @@ export class AccountOnboardingComponent extends BaseComponent {
     this.privacyPolicyUrl = this.sanitizeUrl(url);
     if (this.isInitialized) {
       this.render();
+    }
+  }
+
+  // Prop forwarding to step elements
+
+  override setLayoutVariant(variant: LayoutVariant): void {
+    super.setLayoutVariant(variant);
+    for (const el of this.stepElements.values()) {
+      el.setLayoutVariant(variant);
+    }
+  }
+
+  override setLocale(locale: Locale): void {
+    super.setLocale(locale);
+    for (const el of this.stepElements.values()) {
+      el.setLocale(locale);
+    }
+  }
+
+  override setFormatting(formatting: FormattingOptions): void {
+    super.setFormatting(formatting);
+    for (const el of this.stepElements.values()) {
+      el.setFormatting(formatting);
+    }
+  }
+
+  override setIcons(icons: ComponentIcons): void {
+    super.setIcons(icons);
+    for (const el of this.stepElements.values()) {
+      el.setIcons(icons);
+    }
+  }
+
+  protected override onAppearanceUpdate(appearance: AppearanceOptions): void {
+    super.onAppearanceUpdate(appearance);
+    for (const el of this.stepElements.values()) {
+      el.dispatchEvent(
+        new CustomEvent('dialstack-appearance-update', {
+          detail: { appearance },
+        })
+      );
     }
   }
 
@@ -343,9 +368,6 @@ export class AccountOnboardingComponent extends BaseComponent {
 
   navigateToStep(step: AccountOnboardingStep): void {
     if (step === this.currentStep) return;
-    if (this.currentStep === 'account') {
-      this.account.accountSubStep = 'business-details';
-    }
     this.currentStep = step;
     this._onStepChange?.({ step });
     this.render();
@@ -359,16 +381,6 @@ export class AccountOnboardingComponent extends BaseComponent {
         .updateAccount({ config: { ...this._accountConfig, onboarding_step: step } })
         .catch((err) => console.warn('Failed to persist onboarding step:', err));
     }
-
-    // Lazy-load numbers data
-    if (step === 'numbers' && !this.numbers.hasLoadedNumbers()) {
-      this.numbers.loadNumbersData();
-    }
-
-    // Lazy-load hardware data
-    if (step === 'hardware' && this.hardware.userEndpointMap.size === 0) {
-      this.hardware.loadHardwareData();
-    }
   }
 
   // ============================================================================
@@ -377,64 +389,52 @@ export class AccountOnboardingComponent extends BaseComponent {
 
   // Note: All content rendered via innerHTML comes from internal i18n strings
   // (this.t()) and static SVG constants — no user-supplied data is interpolated
-  // without escaping. User-supplied data (emails, names, addresses) is escaped
-  // via this.escapeHtml(). The address dropdown uses safe DOM APIs (textContent,
-  // createElement) instead of innerHTML.
+  // without escaping. User-supplied data is escaped via this.escapeHtml().
   protected render(): void {
-    if (!this.shadowRoot) return;
+    if (!this.shadowRoot || !this.styleEl || !this.htmlContainer || !this.stepsContainer) return;
 
     const styles = this.applyAppearanceStyles();
+    this.styleEl.textContent = `${styles}\n${COMPONENT_STYLES}`;
 
-    let content: string;
-    if (this.isLoading) {
-      content = this.renderLoadingState();
-    } else if (this.loadError) {
-      content = this.renderErrorState();
-    } else if (this.currentStep === 'complete') {
-      content = this.renderCompleteStep();
+    this.htmlContainer.className = `container ${this.getClassNames()}`;
+    this.htmlContainer.setAttribute('aria-label', this.t('accountOnboarding.title'));
+
+    const showStepElement = !this.isLoading && !this.loadError && this.currentStep !== 'complete';
+
+    if (showStepElement) {
+      this.stopConfetti();
+      // Show steps container, hide html container
+      this.htmlContainer.style.display = 'none';
+      this.stepsContainer.style.display = '';
+
+      // Toggle visibility of step elements
+      const activeEl = this.getOrCreateStep(this.currentStep);
+      for (const [step, el] of this.stepElements) {
+        el.style.display = step === this.currentStep ? '' : 'none';
+      }
+
+      // Forward container class to active step element
+      activeEl.setClasses(this.classes);
     } else {
-      const renderStepContent = (step: AccountOnboardingStep): string => {
-        switch (step) {
-          case 'account':
-            return this.account.renderAccountStep();
-          case 'numbers':
-            return this.numbers.renderNumbersStep();
-          case 'hardware':
-            return this.hardware.renderHardwareStep();
-          default:
-            return '';
-        }
-      };
+      // Show html container, hide steps container
+      this.htmlContainer.style.display = '';
+      this.stepsContainer.style.display = 'none';
 
-      content = `
-        <div class="step-layout">
-          ${this.renderStepSidebar()}
-          <div class="step-content">
-            ${renderStepContent(this.currentStep)}
-          </div>
-        </div>`;
-    }
+      let content: string;
+      if (this.isLoading) {
+        content = this.renderLoadingState();
+      } else if (this.loadError) {
+        content = this.renderErrorState();
+      } else {
+        content = this.renderCompleteStep();
+      }
 
-    // Note: All content rendered via innerHTML comes from internal i18n strings
-    // and static SVG constants — user-supplied data is escaped via escapeHtml().
-    this.shadowRoot.innerHTML = `
-      <style>
-        ${styles}
-        ${COMPONENT_STYLES}
-      </style>
-      <div class="container ${this.getClassNames()}" part="container"
-           role="region" aria-label="${this.t('accountOnboarding.title')}">
-        ${content}
-      </div>
-    `;
+      // Safe: all content from internal i18n strings and static SVGs
+      this.htmlContainer.innerHTML = content;
 
-    if (!this.isLoading && !this.loadError) {
-      if (this.currentStep === 'account') {
-        this.account.attachInputListeners();
-      } else if (this.currentStep === 'numbers') {
-        this.numbers.attachInputListeners();
-      } else if (this.currentStep === 'hardware') {
-        this.hardware.attachInputListeners();
+      // Kick off confetti animation on complete screen
+      if (!this.isLoading && !this.loadError) {
+        this.startConfettiAnimation();
       }
     }
   }
@@ -467,151 +467,11 @@ export class AccountOnboardingComponent extends BaseComponent {
     `;
   }
 
-  private renderStepSidebar(): string {
-    type SidebarSubStep = { key: string; label: string; description?: string };
-    let title: string;
-    let icon: string;
-    let subSteps: SidebarSubStep[];
-    let activeKey: string | null;
-
-    switch (this.currentStep) {
-      case 'account':
-        title = this.t('accountOnboarding.steps.account');
-        icon = BUILDING_SVG;
-        subSteps = [
-          {
-            key: 'business-details',
-            label: this.t('accountOnboarding.sidebar.businessDetails'),
-            description: this.t('accountOnboarding.sidebar.businessDetailsDesc'),
-          },
-          {
-            key: 'team-members',
-            label: this.t('accountOnboarding.sidebar.teamMembers'),
-            description: this.t('accountOnboarding.sidebar.teamMembersDesc'),
-          },
-        ];
-        activeKey = this.account.accountSubStep;
-        break;
-      case 'numbers':
-        title = this.t('accountOnboarding.steps.numbers');
-        icon = PHONE_SVG;
-        subSteps = [
-          {
-            key: 'options',
-            label: this.t('accountOnboarding.sidebar.numberOptions'),
-            description: this.t('accountOnboarding.sidebar.numberOptionsDesc'),
-          },
-          {
-            key: 'setup',
-            label: this.t('accountOnboarding.sidebar.numberSetup'),
-            description: this.t('accountOnboarding.sidebar.numberSetupDesc'),
-          },
-          {
-            key: 'verification',
-            label: this.t('accountOnboarding.sidebar.verification'),
-            description: this.t('accountOnboarding.sidebar.verificationDesc'),
-          },
-        ];
-        activeKey = this.numbers.getSidebarActiveKey();
-        break;
-      case 'hardware':
-        title = this.t('accountOnboarding.steps.hardware');
-        icon = MONITOR_SVG;
-        subSteps = [
-          {
-            key: 'device-assignment',
-            label: this.t('accountOnboarding.sidebar.deviceAssignment'),
-            description: this.t('accountOnboarding.sidebar.deviceAssignmentDesc'),
-          },
-          {
-            key: 'final-completion',
-            label: this.t('accountOnboarding.sidebar.finalCompletion'),
-            description: this.t('accountOnboarding.sidebar.finalCompletionDesc'),
-          },
-        ];
-        activeKey = 'device-assignment';
-        break;
-      default:
-        return '';
-    }
-
-    const activeIdx =
-      activeKey != null ? subSteps.findIndex((s) => s.key === activeKey) : subSteps.length;
-    const timelineItems = subSteps
-      .map((s, i) => {
-        const status = i < activeIdx ? 'completed' : i === activeIdx ? 'active' : '';
-        const dotContent = i < activeIdx ? CHECK_SVG : '';
-        return `
-          <div class="step-timeline-item ${status}">
-            <div class="step-timeline-dot">${dotContent}</div>
-            <div class="step-timeline-text">
-              <span class="step-timeline-label">${s.label}</span>
-              ${s.description ? `<span class="step-timeline-desc">${s.description}</span>` : ''}
-            </div>
-          </div>`;
-      })
-      .join('');
-
-    // Shipping address section for hardware step
-    let sidebarExtra = '';
-    if (this.currentStep === 'hardware' && this.account.existingLocation?.address) {
-      const addr = this.account.existingLocation.address;
-      const streetLine = [addr.address_number, addr.street].filter(Boolean).join(' ');
-      const regionPart = [addr.state, addr.postal_code].filter(Boolean).join(' ');
-      const cityLine = [addr.city, regionPart].filter(Boolean).join(', ');
-      sidebarExtra = `
-        <div class="sidebar-section">
-          <div class="sidebar-section-header">
-            <div class="sidebar-section-icon">${LOCATION_SVG}</div>
-            <span class="sidebar-section-title">${this.t('accountOnboarding.hardware.shippingAddress')}</span>
-          </div>
-          <div class="sidebar-section-text">
-            ${streetLine ? `${this.escapeHtml(streetLine)}<br>` : ''}
-            ${this.account.locationName ? `${this.escapeHtml(this.account.locationName)}<br>` : ''}
-            ${cityLine ? this.escapeHtml(cityLine) : ''}
-          </div>
-        </div>`;
-    }
-
-    return `
-      <aside class="step-sidebar" aria-label="${title}">
-        <div class="step-sidebar-header">
-          <div class="step-sidebar-icon">${icon}</div>
-          <span class="step-sidebar-title">${title}</span>
-        </div>
-        <div class="step-timeline">
-          ${timelineItems}
-        </div>
-        ${sidebarExtra}
-      </aside>
-    `;
-  }
-
   private renderCompleteStep(): string {
-    // Generate confetti pieces with varied positions, colors, delays
-    const confettiColors = [
-      '#e91e63',
-      '#9c27b0',
-      '#2196f3',
-      '#4caf50',
-      '#ff9800',
-      '#ffeb3b',
-      '#00bcd4',
-      '#ff5722',
-    ];
-    const confettiPieces = Array.from({ length: 40 }, (_, i) => {
-      const color = confettiColors[i % confettiColors.length];
-      const left = Math.round((i * 2.5 + Math.random() * 2) % 100);
-      const delay = (Math.random() * 2).toFixed(1);
-      const rotation = Math.round(Math.random() * 360);
-      const size = 8 + Math.round(Math.random() * 8);
-      return `<div class="confetti-piece" style="left:${left}%;top:${Math.round(Math.random() * 30)}%;background:${color};animation-delay:${delay}s;width:${size}px;height:${size}px;transform:rotate(${rotation}deg)"></div>`;
-    }).join('');
-
     return `
       <div class="${this.classes.stepComplete || ''}" part="step-complete">
         <div class="confetti-container">
-          ${confettiPieces}
+          <canvas class="confetti-canvas" aria-hidden="true"></canvas>
           <h1 class="complete-title">${this.t('accountOnboarding.complete.title')}</h1>
           <p class="complete-subtitle">${this.t('accountOnboarding.complete.subtitle')}</p>
           ${this.renderLegalLinks()}
@@ -623,6 +483,69 @@ export class AccountOnboardingComponent extends BaseComponent {
         </div>
       </div>
     `;
+  }
+
+  private stopConfetti(): void {
+    if (this.confettiInstance) {
+      try {
+        this.confettiInstance.reset();
+      } catch {
+        // Canvas may not support getContext in test environments
+      }
+      this.confettiInstance = null;
+    }
+  }
+
+  private startConfettiAnimation(): void {
+    this.stopConfetti();
+
+    const canvas = this.htmlContainer?.querySelector<HTMLCanvasElement>('.confetti-canvas');
+    if (!canvas) return;
+
+    const container = canvas.parentElement;
+    if (!container) return;
+    canvas.width = container.clientWidth || 300;
+    canvas.height = container.clientHeight || 150;
+
+    const fire = createConfetti(canvas, { resize: true });
+    this.confettiInstance = fire;
+
+    const colors = [
+      '#e91e63',
+      '#9c27b0',
+      '#2196f3',
+      '#4caf50',
+      '#ff9800',
+      '#ffeb3b',
+      '#00bcd4',
+      '#ff5722',
+    ];
+
+    // Center cannon burst — two volleys for a fuller effect
+    fire({
+      particleCount: 80,
+      spread: 70,
+      origin: { x: 0.5, y: 0.6 },
+      colors,
+      startVelocity: 45,
+      gravity: 1.2,
+      ticks: 300,
+      scalar: 1.1,
+    });
+
+    // Slight delay for a second volley with different spread
+    setTimeout(() => {
+      fire({
+        particleCount: 50,
+        spread: 100,
+        origin: { x: 0.5, y: 0.6 },
+        colors,
+        startVelocity: 35,
+        gravity: 1,
+        ticks: 250,
+        scalar: 0.9,
+      });
+    }, 150);
   }
 
   private renderLegalLinks(): string {
@@ -664,18 +587,6 @@ export class AccountOnboardingComponent extends BaseComponent {
   private attachDelegatedClickHandler(): void {
     if (!this.shadowRoot) return;
 
-    this.shadowRoot.addEventListener('keydown', (ev) => {
-      const e = ev as KeyboardEvent;
-      if (e.key === 'Enter' || e.key === ' ') {
-        const target = e.target as HTMLElement;
-        const actionEl = target.closest<HTMLElement>('[data-action]');
-        if (actionEl) {
-          e.preventDefault();
-          actionEl.click();
-        }
-      }
-    });
-
     this.shadowRoot.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
       const actionEl = target.closest<HTMLElement>('[data-action]');
@@ -683,54 +594,7 @@ export class AccountOnboardingComponent extends BaseComponent {
 
       const action = actionEl.dataset.action!;
 
-      // Delegate to step helpers first
-      if (this.account.handleAction(action, actionEl)) return;
-      if (this.numbers.handleAction(action, actionEl)) return;
-      if (this.hardware.handleAction(action, actionEl)) return;
-
-      // Shared actions
       switch (action) {
-        case 'next': {
-          if (this.currentStep === 'account') {
-            this.account.handleNext();
-          } else {
-            const steps = this.getActiveSteps();
-            const idx = steps.indexOf(this.currentStep);
-            const nextStep = steps[idx + 1];
-            if (nextStep) {
-              this.navigateToStep(nextStep);
-            }
-          }
-          break;
-        }
-        case 'back': {
-          if (this.currentStep === 'account') {
-            if (!this.account.handleBack()) {
-              const steps = this.getActiveSteps();
-              const idx = steps.indexOf(this.currentStep);
-              const prevStep = steps[idx - 1];
-              if (prevStep) {
-                this.navigateToStep(prevStep);
-              }
-            }
-          } else {
-            const steps = this.getActiveSteps();
-            const idx = steps.indexOf(this.currentStep);
-            const prevStep = steps[idx - 1];
-            if (prevStep) {
-              this.navigateToStep(prevStep);
-            }
-          }
-          break;
-        }
-        case 'go-to-step': {
-          const steps = this.getActiveSteps();
-          const step = actionEl.dataset.step as AccountOnboardingStep;
-          if (step && steps.includes(step)) {
-            this.navigateToStep(step);
-          }
-          break;
-        }
         case 'exit':
           if (!this._exitFired) {
             this._exitFired = true;

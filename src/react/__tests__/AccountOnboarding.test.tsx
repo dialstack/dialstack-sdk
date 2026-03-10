@@ -71,10 +71,36 @@ const createMockDialstack = (): DialStackInstance => {
   };
 };
 
+const STEP_TAGS = [
+  'dialstack-onboarding-account',
+  'dialstack-onboarding-numbers',
+  'dialstack-onboarding-hardware',
+];
+
+const stepRoot = (el: Element): ShadowRoot | null => {
+  const stepsContainer = el.shadowRoot?.lastElementChild as HTMLElement | null;
+  if (stepsContainer && stepsContainer.style.display !== 'none') {
+    for (const tag of STEP_TAGS) {
+      const step = stepsContainer.querySelector(tag) as HTMLElement | null;
+      if (step && step.style.display !== 'none' && step.shadowRoot) return step.shadowRoot;
+    }
+  }
+  return el.shadowRoot;
+};
+
 const clickAction = (element: AccountOnboardingElement, action: string): void => {
-  const button = element.shadowRoot?.querySelector<HTMLButtonElement>(`[data-action="${action}"]`);
-  expect(button).not.toBeNull();
-  button?.click();
+  const root = stepRoot(element) ?? element.shadowRoot;
+  const button = root?.querySelector<HTMLButtonElement>(`[data-action="${action}"]`);
+  if (!button) {
+    // Fall back to wizard shadow root for wizard-level actions (exit, retry)
+    const fallback = element.shadowRoot?.querySelector<HTMLButtonElement>(
+      `[data-action="${action}"]`
+    );
+    expect(fallback).not.toBeNull();
+    fallback?.click();
+    return;
+  }
+  button.click();
 };
 
 describe('AccountOnboarding (React wrapper)', () => {
@@ -100,16 +126,26 @@ describe('AccountOnboarding (React wrapper)', () => {
     expect(element).not.toBeNull();
 
     await waitFor(() => {
-      expect(element?.shadowRoot?.querySelector('[data-action="next"]')).toBeTruthy();
+      expect(stepRoot(element!)?.querySelector('[data-action="next"]')).toBeTruthy();
     });
 
-    // Navigate to complete: business-details → team-members → numbers → complete (3 clicks)
+    // Navigate to complete: business-details → team-members → (done) → numbers → (done) → complete (3 next clicks)
     for (let i = 0; i < 3; i += 1) {
-      const before = element?.shadowRoot?.innerHTML;
+      const before = (stepRoot(element!) ?? element?.shadowRoot)?.innerHTML;
       clickAction(element!, 'next');
       await waitFor(() => {
-        expect(element?.shadowRoot?.innerHTML).not.toBe(before);
+        const after = (stepRoot(element!) ?? element?.shadowRoot)?.innerHTML;
+        expect(after).not.toBe(before);
       });
+      // Click through step completion screen if one appeared
+      const doneBtn = stepRoot(element!)?.querySelector('[data-action="done"]');
+      if (doneBtn) {
+        (doneBtn as HTMLElement).click();
+        await waitFor(() => {
+          const after = (stepRoot(element!) ?? element?.shadowRoot)?.innerHTML;
+          expect(after).not.toBe(before);
+        });
+      }
     }
 
     await waitFor(() => {

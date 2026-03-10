@@ -8,8 +8,24 @@ import pkg from './package.json' with { type: 'json' };
 
 const production = !process.env.ROLLUP_WATCH;
 
+// Inline plugin: import local .css files as exported strings
+function cssRawPlugin() {
+  return {
+    name: 'css-raw',
+    async load(id) {
+      if (id.endsWith('.css') && !id.includes('node_modules')) {
+        const fs = await import('node:fs/promises');
+        const content = await fs.readFile(id, 'utf-8');
+        return `export default ${JSON.stringify(content)};`;
+      }
+      return null;
+    },
+  };
+}
+
 // Shared plugins for browser builds
 const browserPlugins = (excludeServer = true) => [
+  cssRawPlugin(),
   replace({
     preventAssignment: true,
     values: {
@@ -47,7 +63,7 @@ export default [
   // Browser SDK (with side effects - auto-registers components)
   {
     input: 'src/index.ts',
-    external: ['react', 'react-dom', /\.css$/],
+    external: (id) => /^react(-dom)?$/.test(id) || (/\.css$/.test(id) && id.includes('node_modules')),
     output: [
       {
         file: 'dist/sdk.cjs',
@@ -76,7 +92,7 @@ export default [
   // Pure SDK (no side effects - for SSR/testing)
   {
     input: 'src/pure.ts',
-    external: ['react', 'react-dom', /\.css$/],
+    external: (id) => /^react(-dom)?$/.test(id) || (/\.css$/.test(id) && id.includes('node_modules')),
     output: [
       {
         file: 'dist/pure.cjs',

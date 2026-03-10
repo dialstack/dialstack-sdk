@@ -51,7 +51,52 @@ export function createMockInstance(
 ): DialStackInstanceImpl {
   const empty = options.empty ?? false;
   const mockOrders = new Map<string, NumberOrder>();
-  const mockDevices: ProvisionedDevice[] = [];
+  const mockDeviceModels: Array<{ vendor: string; model: string; count: number }> = [
+    { vendor: 'snom', model: 'D785', count: 3 },
+    { vendor: 'yealink', model: 'T48S', count: 1 },
+    { vendor: 'poly', model: 'VVX 450', count: 4 },
+    { vendor: 'grandstream', model: 'GRP2616', count: 2 },
+    { vendor: 'cisco', model: '8845', count: 2 },
+    { vendor: 'fanvil', model: 'X6U', count: 3 },
+  ];
+
+  let devIdx = 0;
+  const mockDevices: ProvisionedDevice[] = empty
+    ? []
+    : mockDeviceModels.flatMap((m) =>
+        Array.from({ length: m.count }, () => {
+          devIdx++;
+          return {
+            id: `dev_mock${String(devIdx).padStart(3, '0')}`,
+            mac_address: `00:04:13:${devIdx.toString(16).padStart(2, '0')}:00:01`,
+            vendor: m.vendor,
+            model: m.model,
+            status: 'pending-sync' as const,
+            lines: [],
+            created_at: '2025-01-01T00:00:00Z',
+            updated_at: '2025-01-01T00:00:00Z',
+          };
+        })
+      );
+
+  const mockExtensions: Extension[] = empty
+    ? []
+    : [
+        {
+          number: '1001',
+          target: 'usr_mock01',
+          status: 'active' as const,
+          created_at: '2025-01-01T00:00:00Z',
+          updated_at: '2025-01-01T00:00:00Z',
+        },
+        {
+          number: '1002',
+          target: 'usr_mock02',
+          status: 'active' as const,
+          created_at: '2025-01-02T00:00:00Z',
+          updated_at: '2025-01-02T00:00:00Z',
+        },
+      ];
 
   const instance: DialStackInstanceImpl = {
     getAppearance: () => appearance,
@@ -369,7 +414,7 @@ export function createMockInstance(
     uploadCSR: async () => {},
 
     // Routing target resolution
-    listExtensions: async () => [],
+    listExtensions: async () => [...mockExtensions],
     getCallerID: async (_phoneNumberId: string) => ({ caller_id_name: 'ACME Corp' }),
     resolveRoutingTarget: async (target: string) => ({
       id: target,

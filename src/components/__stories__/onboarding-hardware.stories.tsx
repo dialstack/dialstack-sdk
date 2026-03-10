@@ -1,11 +1,11 @@
-import '../../components/account-onboarding';
+import '../../components/account-onboarding/step-hardware';
 import type { Meta, StoryObj } from '@storybook/react';
 import { WebComponentStory } from './WebComponentStory';
 
 const meta: Meta<typeof WebComponentStory> = {
-  title: 'Web Components/Onboarding/Wizard',
+  title: 'Web Components/Onboarding/Hardware',
   component: WebComponentStory,
-  args: { tagName: 'account-onboarding' },
+  args: { tagName: 'onboarding-hardware' },
 };
 
 export default meta;

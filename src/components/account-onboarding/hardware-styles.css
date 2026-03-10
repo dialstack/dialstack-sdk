@@ -1,0 +1,359 @@
+/* ── HW Step: Available Devices Section ── */
+.hw-available-devices {
+  margin-bottom: var(--ds-layout-spacing-lg);
+}
+
+.hw-available-devices-label {
+  font-size: var(--ds-font-size-small);
+  font-weight: var(--ds-font-weight-bold);
+  color: var(--ds-color-text);
+  margin-bottom: var(--ds-spacing-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.hw-device-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-spacing-sm);
+}
+
+.hw-device-stack {
+  position: relative;
+}
+
+.hw-stack-count {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  z-index: 100;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--ds-border-radius-round);
+  background: var(--ds-color-primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: var(--ds-font-weight-bold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.hw-device-card {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-sm);
+  padding: 10px 14px;
+  border: 1px solid var(--ds-color-border);
+  border-radius: 10px;
+  background: var(--ds-color-background);
+  cursor: grab;
+  transition:
+    opacity var(--ds-transition-duration),
+    box-shadow var(--ds-transition-duration);
+  user-select: none;
+  position: relative;
+}
+
+.hw-device-card--stacked {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+}
+
+.hw-device-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.hw-device-card.dragging {
+  opacity: 0.4;
+}
+
+.hw-device-stack:has(.dragging) .hw-device-card--stacked {
+  visibility: hidden;
+}
+
+.hw-device-card--selected {
+  border-color: var(--ds-color-primary);
+  background: color-mix(in srgb, var(--ds-color-primary) 6%, var(--ds-color-background));
+}
+
+.hw-device-card__handle {
+  color: var(--ds-color-text-secondary);
+  opacity: 0.4;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.hw-device-card__icon {
+  color: var(--ds-color-primary);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.hw-device-card__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.hw-device-card__label {
+  font-size: var(--ds-font-size-small);
+  font-weight: var(--ds-font-weight-medium);
+  color: var(--ds-color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hw-device-card__type {
+  font-size: 11px;
+  color: var(--ds-color-text-secondary);
+}
+
+.hw-all-assigned {
+  font-size: var(--ds-font-size-small);
+  color: var(--ds-color-success);
+  font-weight: var(--ds-font-weight-medium);
+  padding: var(--ds-spacing-sm) 0;
+}
+
+/* ── HW Step: Team Table ── */
+.hw-team-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: var(--ds-layout-spacing-md);
+  font-size: var(--ds-font-size-small);
+}
+
+.hw-team-table th {
+  text-align: left;
+  font-weight: var(--ds-font-weight-medium);
+  color: var(--ds-color-text-secondary);
+  padding: var(--ds-spacing-xs) var(--ds-spacing-sm);
+  border-bottom: 1px solid var(--ds-color-border);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+.hw-team-table td {
+  padding: var(--ds-spacing-sm) var(--ds-spacing-sm);
+  border-bottom: 1px solid var(--ds-color-border-subtle);
+  vertical-align: middle;
+}
+
+.hw-team-name {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-sm);
+}
+
+.hw-team-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ds-border-radius-round);
+  background: var(--ds-color-surface-subtle);
+  color: var(--ds-color-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: var(--ds-font-weight-bold);
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.hw-team-name-text {
+  font-weight: var(--ds-font-weight-medium);
+  color: var(--ds-color-text);
+}
+
+/* ── HW Step: Drop Zone ── */
+.hw-drop-zone {
+  min-height: 36px;
+  border: 1.5px dashed var(--ds-color-border);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ds-spacing-xs) var(--ds-spacing-sm);
+  transition:
+    border-color var(--ds-transition-duration),
+    background var(--ds-transition-duration);
+}
+
+.hw-drop-zone.drag-over,
+.hw-drop-zone--selectable {
+  border-color: var(--ds-color-primary);
+  background: color-mix(in srgb, var(--ds-color-primary) 6%, transparent);
+}
+
+.hw-drop-zone--selectable {
+  cursor: pointer;
+  border-style: solid;
+}
+
+.hw-drop-zone__placeholder {
+  font-size: var(--ds-font-size-small);
+  color: var(--ds-color-text-secondary);
+  opacity: 0.6;
+}
+
+/* ── HW Step: Device Badge Chip ── */
+.hw-device-badge-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-spacing-xs);
+  padding: 4px 10px;
+  border-radius: 100px;
+  background: var(--ds-color-primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: var(--ds-font-weight-medium);
+}
+
+.hw-device-badge-chip__remove {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  padding: 0;
+  margin-left: 2px;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+}
+
+.hw-device-badge-chip__remove:hover {
+  color: #fff;
+}
+
+/* ── HW Step: Legacy Device List (add device form) ── */
+.hw-device-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-xs);
+  margin-bottom: var(--ds-layout-spacing-md);
+}
+
+.hw-device-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--ds-layout-spacing-sm);
+  background: var(--ds-color-surface-subtle);
+  border-radius: 6px;
+  border: 1px solid var(--ds-color-border-subtle);
+}
+
+.hw-device-row__info {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-xs);
+  flex: 1;
+  min-width: 0;
+}
+
+.hw-device-row__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-xs);
+  flex-shrink: 0;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.hw-device-badge {
+  font-size: var(--ds-font-size-small);
+  color: var(--ds-color-text);
+  font-weight: var(--ds-font-weight-medium);
+}
+
+.hw-device-mac {
+  font-size: var(--ds-font-size-small);
+  color: var(--ds-color-text-secondary);
+  font-family: monospace;
+}
+
+.hw-device-user {
+  font-size: var(--ds-font-size-small);
+  color: var(--ds-color-text-secondary);
+}
+
+.hw-dect-group {
+  border: 1px solid var(--ds-color-border-subtle);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.hw-device-row--base {
+  border: none;
+  border-radius: 0;
+}
+
+.hw-device-row--handset {
+  border: none;
+  border-radius: 0;
+  border-top: 1px solid var(--ds-color-border-subtle);
+  padding-left: calc(var(--ds-layout-spacing-sm) + var(--ds-layout-spacing-sm));
+}
+
+.hw-device-row--editing {
+  border: none;
+  border-radius: 0;
+  border-top: 1px solid var(--ds-color-border-subtle);
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.hw-inline-form {
+  display: flex;
+  gap: var(--ds-layout-spacing-sm);
+  align-items: end;
+}
+
+.hw-inline-form .form-group {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.hw-device-row--add {
+  background: none;
+  border: none;
+  justify-content: center;
+  padding: var(--ds-layout-spacing-md);
+}
+
+.hw-dect-base-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-xs);
+}
+
+.form-check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-spacing-xs);
+  font-size: var(--ds-font-size-base);
+  color: var(--ds-color-text);
+  cursor: pointer;
+}
+
+.form-check-label input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.btn-sm {
+  font-size: var(--ds-font-size-small);
+  padding: 2px var(--ds-spacing-xs);
+}
