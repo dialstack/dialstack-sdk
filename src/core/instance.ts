@@ -64,6 +64,16 @@ const SESSION_REFRESH_BUFFER_MS = 5 * 60 * 1000; // Refresh 5 minutes before exp
 const MIN_REFRESH_INTERVAL_MS = 30 * 1000; // Minimum 30 seconds between refreshes
 const SESSION_RETRY_INTERVAL_MS = 1 * 60 * 1000; // 1 minute retry on error
 
+export type RoutingTargetType = 'user' | 'dial_plan' | 'voice_app' | 'ring_group';
+
+/** Canonical mapping from TypeID prefix to API path and routing target type. */
+export const ROUTING_TARGET_TYPES: Record<string, { path: string; type: RoutingTargetType }> = {
+  user: { path: '/v1/users', type: 'user' },
+  dp: { path: '/v1/dialplans', type: 'dial_plan' },
+  va: { path: '/v1/voice_apps', type: 'voice_app' },
+  rg: { path: '/v1/ring_groups', type: 'ring_group' },
+} as const;
+
 /**
  * Internal implementation of DialStack SDK instance
  */
@@ -413,15 +423,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     name: string | null;
     type: 'user' | 'dial_plan' | 'voice_app' | 'ring_group';
   } | null> {
-    const prefixMap: Record<
-      string,
-      { path: string; type: 'user' | 'dial_plan' | 'voice_app' | 'ring_group' }
-    > = {
-      user: { path: '/v1/users', type: 'user' },
-      dp: { path: '/v1/dialplans', type: 'dial_plan' },
-      va: { path: '/v1/voice_apps', type: 'voice_app' },
-      rg: { path: '/v1/ring_groups', type: 'ring_group' },
-    };
+    const prefixMap = ROUTING_TARGET_TYPES;
 
     const lastUnderscore = target.lastIndexOf('_');
     if (lastUnderscore < 1) return null;
