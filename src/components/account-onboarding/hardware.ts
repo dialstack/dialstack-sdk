@@ -3,7 +3,7 @@
  * Supports drag-and-drop device assignment to team members.
  */
 
-import type { ProvisionedDevice, DECTBase, DECTHandset, OnboardingEndpoint } from '../../types';
+import type { Device, DECTBase, DECTHandset, OnboardingEndpoint } from '../../types';
 import { DRAG_HANDLE_SVG, DESK_PHONE_SVG, CORDLESS_SVG } from './icons';
 import type { OnboardingHost } from './host';
 
@@ -19,7 +19,7 @@ interface AssignableDevice {
 
 export class HardwareStepHelper {
   // Hardware state
-  devices: ProvisionedDevice[] = [];
+  devices: Device[] = [];
   dectBases: DECTBase[] = [];
   dectHandsets: Map<string, DECTHandset[]> = new Map();
   userEndpointMap: Map<string, OnboardingEndpoint[]> = new Map();
@@ -68,7 +68,7 @@ export class HardwareStepHelper {
 
     await Promise.all(
       this.devices.map(async (dev) => {
-        dev.lines = await this.host.instance!.listDeviceLines(dev.id);
+        dev.lines = await this.host.instance!.listDeskphoneLines(dev.id);
       })
     );
   }
@@ -252,7 +252,7 @@ export class HardwareStepHelper {
           const lines = dev?.lines ?? [];
           const existingLine = lines.find((l) => l.endpoint_id === endpoint.id);
           if (!existingLine) {
-            await this.host.instance.createDeviceLine(deviceId, {
+            await this.host.instance.createDeskphoneLine(deviceId, {
               endpoint_id: endpoint.id,
             });
           }
@@ -291,8 +291,8 @@ export class HardwareStepHelper {
 
     try {
       if (deviceType === 'deskphone') {
-        await this.host.instance.deleteDevice(deviceId);
-        this.devices = await this.host.instance.listDevices();
+        await this.host.instance.deleteDeskphone(deviceId);
+        this.devices = await this.host.instance.listDevices({ type: 'deskphone' });
         await this.hydrateDeviceLines();
       } else {
         await this.host.instance.deleteDECTHandset(baseId, deviceId);

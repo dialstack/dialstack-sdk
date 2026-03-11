@@ -131,9 +131,9 @@ export async function loadDialstackAndInitialize(
     getPhoneNumberOrder: (orderId) => {
       return instance.getPhoneNumberOrder(orderId);
     },
-    // Device methods
-    createDevice: (data) => {
-      return instance.createDevice(data);
+    // Deskphone methods
+    createDeskphone: (data) => {
+      return instance.createDeskphone(data);
     },
     getDevice: (id) => {
       return instance.getDevice(id);
@@ -141,14 +141,14 @@ export async function loadDialstackAndInitialize(
     listDevices: (options) => {
       return instance.listDevices(options);
     },
-    updateDevice: (id, data) => {
-      return instance.updateDevice(id, data);
+    updateDeskphone: (id, data) => {
+      return instance.updateDeskphone(id, data);
     },
-    deleteDevice: (id) => {
-      return instance.deleteDevice(id);
+    deleteDeskphone: (id) => {
+      return instance.deleteDeskphone(id);
     },
-    listProvisioningEvents: (deviceId, options) => {
-      return instance.listProvisioningEvents(deviceId, options);
+    listDeskphoneProvisioningEvents: (deskphoneId, options) => {
+      return instance.listDeskphoneProvisioningEvents(deskphoneId, options);
     },
     // Number porting methods
     checkPortEligibility: (phoneNumbers) => {
@@ -265,18 +265,18 @@ export async function loadDialstackAndInitialize(
     provisionLocationE911: (locationId) => {
       return instance.provisionLocationE911(locationId);
     },
-    // Device line methods
-    createDeviceLine: (deviceId, data) => {
-      return instance.createDeviceLine(deviceId, data);
+    // Deskphone line methods
+    createDeskphoneLine: (deskphoneId, data) => {
+      return instance.createDeskphoneLine(deskphoneId, data);
     },
-    listDeviceLines: (deviceId) => {
-      return instance.listDeviceLines(deviceId);
+    listDeskphoneLines: (deskphoneId) => {
+      return instance.listDeskphoneLines(deskphoneId);
     },
-    updateDeviceLine: (deviceId, lineId, data) => {
-      return instance.updateDeviceLine(deviceId, lineId, data);
+    updateDeskphoneLine: (deskphoneId, lineId, data) => {
+      return instance.updateDeskphoneLine(deskphoneId, lineId, data);
     },
-    deleteDeviceLine: (deviceId, lineId) => {
-      return instance.deleteDeviceLine(deviceId, lineId);
+    deleteDeskphoneLine: (deskphoneId, lineId) => {
+      return instance.deleteDeskphoneLine(deskphoneId, lineId);
     },
     // Endpoint methods
     createEndpoint: (userId, request) => {

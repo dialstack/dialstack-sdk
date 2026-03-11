@@ -18,11 +18,12 @@ import type {
 } from './phone-number-ordering';
 import type {
   DeviceLine,
+  Device,
   ProvisionedDevice,
-  CreateDeviceRequest,
-  UpdateDeviceRequest,
-  CreateDeviceLineRequest,
-  UpdateDeviceLineRequest,
+  CreateDeskphoneRequest,
+  UpdateDeskphoneRequest,
+  CreateDeskphoneLineRequest,
+  UpdateDeskphoneLineRequest,
   DeviceListOptions,
   ProvisioningEvent,
   ProvisioningEventListOptions,
@@ -423,107 +424,107 @@ export interface DialStackInstance {
   getPhoneNumberOrder(orderId: string): Promise<NumberOrder>;
 
   // ===========================================================================
-  // Device Methods
+  // Deskphone Methods
   // ===========================================================================
 
   /**
-   * Create a new provisioned device
+   * Create a new provisioned deskphone
    *
-   * @param data - Device creation data
-   * @returns Promise resolving to the created device
+   * @param data - Deskphone creation data
+   * @returns Promise resolving to the created deskphone
    *
    * @example
    * ```typescript
-   * const device = await dialstack.createDevice({
+   * const deskphone = await dialstack.createDeskphone({
    *   mac_address: '00:04:13:aa:bb:cc',
    *   model: 'D785',
    * });
    * ```
    */
-  createDevice(data: CreateDeviceRequest): Promise<ProvisionedDevice>;
+  createDeskphone(data: CreateDeskphoneRequest): Promise<ProvisionedDevice>;
 
   /**
-   * Get a device by ID
+   * Get a device by ID (deskphone or DECT base)
    *
-   * @param id - Device ID (e.g., 'dev_01abc...')
-   * @returns Promise resolving to the device
+   * @param id - Device ID (e.g., 'dev_01abc...' or 'dectb_01abc...')
+   * @returns Promise resolving to the unified device
    */
-  getDevice(id: string): Promise<ProvisionedDevice>;
+  getDevice(id: string): Promise<Device>;
 
   /**
-   * List all devices
+   * List all devices (deskphones and DECT bases)
    *
-   * @param options - Optional pagination options
-   * @returns Promise resolving to an array of devices
+   * @param options - Optional pagination and filter options
+   * @returns Promise resolving to an array of unified devices
    */
-  listDevices(options?: DeviceListOptions): Promise<ProvisionedDevice[]>;
+  listDevices(options?: DeviceListOptions): Promise<Device[]>;
 
   /**
-   * Update a device
+   * Update a deskphone
    *
-   * @param id - Device ID
+   * @param id - Deskphone ID
    * @param data - Update data
-   * @returns Promise resolving to the updated device
+   * @returns Promise resolving to the updated deskphone
    */
-  updateDevice(id: string, data: UpdateDeviceRequest): Promise<ProvisionedDevice>;
+  updateDeskphone(id: string, data: UpdateDeskphoneRequest): Promise<ProvisionedDevice>;
 
   /**
-   * Delete a device
+   * Delete a deskphone
    *
-   * @param id - Device ID
+   * @param id - Deskphone ID
    */
-  deleteDevice(id: string): Promise<void>;
+  deleteDeskphone(id: string): Promise<void>;
 
   /**
-   * List provisioning events for a device
+   * List provisioning events for a deskphone
    *
-   * @param deviceId - Device ID
+   * @param deskphoneId - Deskphone ID
    * @param options - Optional pagination and filter options
    * @returns Promise resolving to an array of provisioning events
    */
-  listProvisioningEvents(
-    deviceId: string,
+  listDeskphoneProvisioningEvents(
+    deskphoneId: string,
     options?: ProvisioningEventListOptions
   ): Promise<ProvisioningEvent[]>;
 
   /**
-   * Create a device line (assign an endpoint to a device)
+   * Create a deskphone line (assign an endpoint to a deskphone)
    *
-   * @param deviceId - Device ID
+   * @param deskphoneId - Deskphone ID
    * @param data - Line creation data
    * @returns Promise resolving to the created line
    */
-  createDeviceLine(deviceId: string, data: CreateDeviceLineRequest): Promise<DeviceLine>;
+  createDeskphoneLine(deskphoneId: string, data: CreateDeskphoneLineRequest): Promise<DeviceLine>;
 
   /**
-   * Update a device line (atomically reassign endpoint)
+   * Update a deskphone line (atomically reassign endpoint)
    *
-   * @param deviceId - Device ID
+   * @param deskphoneId - Deskphone ID
    * @param lineId - Line ID
    * @param data - Update data with new endpoint_id
    * @returns Promise resolving to the updated line
    */
-  updateDeviceLine(
-    deviceId: string,
+  updateDeskphoneLine(
+    deskphoneId: string,
     lineId: string,
-    data: UpdateDeviceLineRequest
+    data: UpdateDeskphoneLineRequest
   ): Promise<DeviceLine>;
 
   /**
-   * List all lines for a device
+   * List all lines for a deskphone
    *
-   * @param deviceId - Device ID
-   * @returns Promise resolving to array of device lines
+   * @param deskphoneId - Deskphone ID
+   * @returns Promise resolving to array of deskphone lines
    */
-  listDeviceLines(deviceId: string): Promise<DeviceLine[]>;
+  listDeskphoneLines(deskphoneId: string): Promise<DeviceLine[]>;
 
   /**
-   * Delete a device line
+   * Delete a deskphone line
    *
-   * @param deviceId - Device ID
+   * @param deskphoneId - Deskphone ID
    * @param lineId - Line ID
    */
-  deleteDeviceLine(deviceId: string, lineId: string): Promise<void>;
+  deleteDeskphoneLine(deskphoneId: string, lineId: string): Promise<void>;
 
   // ===========================================================================
   // Number Porting Methods

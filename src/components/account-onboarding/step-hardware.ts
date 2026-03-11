@@ -4,12 +4,7 @@
  * Internal only — not exported from the public SDK API.
  */
 
-import type {
-  AccountOnboardingStep,
-  OnboardingLocation,
-  ProvisionedDevice,
-  DECTBase,
-} from '../../types';
+import type { AccountOnboardingStep, OnboardingLocation, Device, DECTBase } from '../../types';
 import { MONITOR_SVG, LOCATION_SVG } from './icons';
 import { HardwareStepHelper } from './hardware';
 import HARDWARE_STEP_STYLES from './hardware-styles.css';
@@ -32,7 +27,7 @@ export class OnboardingHardwareStep extends OnboardingStepBase {
         this.instance.getAccount(),
         this.instance.listUsers(),
         this.instance.listExtensions(),
-        this.instance.listDevices().catch(() => [] as ProvisionedDevice[]),
+        this.instance.listDevices({ type: 'deskphone' }).catch(() => [] as Device[]),
         this.instance.listDECTBases().catch(() => [] as DECTBase[]),
         this.instance.listLocations(),
       ]);

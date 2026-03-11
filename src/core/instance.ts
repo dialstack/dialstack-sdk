@@ -24,11 +24,12 @@ import type {
   PaginatedResponse,
   DIDItem,
   DeviceLine,
+  Device,
   ProvisionedDevice,
-  CreateDeviceRequest,
-  UpdateDeviceRequest,
-  CreateDeviceLineRequest,
-  UpdateDeviceLineRequest,
+  CreateDeskphoneRequest,
+  UpdateDeskphoneRequest,
+  CreateDeskphoneLineRequest,
+  UpdateDeskphoneLineRequest,
   DeviceListOptions,
   ProvisioningEvent,
   ProvisioningEventListOptions,
@@ -888,28 +889,28 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   }
 
   // ===========================================================================
-  // Device Methods
+  // Deskphone Methods
   // ===========================================================================
 
   /**
-   * Create a new provisioned device
+   * Create a new provisioned deskphone
    */
-  async createDevice(data: CreateDeviceRequest): Promise<ProvisionedDevice> {
-    const response = await this.fetchApi('/v1/devices', {
+  async createDeskphone(data: CreateDeskphoneRequest): Promise<ProvisionedDevice> {
+    const response = await this.fetchApi('/v1/deskphones', {
       method: 'POST',
       body: JSON.stringify(data),
     });
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Failed to create device: ${response.status} ${errorText}`);
+      throw new Error(`Failed to create deskphone: ${response.status} ${errorText}`);
     }
     return response.json();
   }
 
   /**
-   * Get a device by ID
+   * Get a device by ID (deskphone or DECT base)
    */
-  async getDevice(id: string): Promise<ProvisionedDevice> {
+  async getDevice(id: string): Promise<Device> {
     const response = await this.fetchApi(`/v1/devices/${id}`);
     if (!response.ok) {
       const errorText = await response.text();
@@ -919,9 +920,9 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   }
 
   /**
-   * List all devices
+   * List all devices (deskphones and DECT bases)
    */
-  async listDevices(options?: DeviceListOptions): Promise<ProvisionedDevice[]> {
+  async listDevices(options?: DeviceListOptions): Promise<Device[]> {
     const params = new URLSearchParams();
     if (options?.limit) {
       params.set('limit', options.limit.toString());
@@ -931,6 +932,9 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     }
     if (options?.ending_before) {
       params.set('ending_before', options.ending_before);
+    }
+    if (options?.type) {
+      params.set('type', options.type);
     }
 
     const queryString = params.toString();
@@ -947,98 +951,101 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   }
 
   /**
-   * Update a device
+   * Update a deskphone
    */
-  async updateDevice(id: string, data: UpdateDeviceRequest): Promise<ProvisionedDevice> {
-    const response = await this.fetchApi(`/v1/devices/${id}`, {
+  async updateDeskphone(id: string, data: UpdateDeskphoneRequest): Promise<ProvisionedDevice> {
+    const response = await this.fetchApi(`/v1/deskphones/${id}`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Failed to update device: ${response.status} ${errorText}`);
+      throw new Error(`Failed to update deskphone: ${response.status} ${errorText}`);
     }
     return response.json();
   }
 
   /**
-   * Delete a device
+   * Delete a deskphone
    */
-  async deleteDevice(id: string): Promise<void> {
-    const response = await this.fetchApi(`/v1/devices/${id}`, {
+  async deleteDeskphone(id: string): Promise<void> {
+    const response = await this.fetchApi(`/v1/deskphones/${id}`, {
       method: 'DELETE',
     });
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Failed to delete device: ${response.status} ${errorText}`);
+      throw new Error(`Failed to delete deskphone: ${response.status} ${errorText}`);
     }
   }
 
   /**
-   * Create a device line (assign an endpoint to a device)
+   * Create a deskphone line (assign an endpoint to a deskphone)
    */
-  async createDeviceLine(deviceId: string, data: CreateDeviceLineRequest): Promise<DeviceLine> {
-    const response = await this.fetchApi(`/v1/devices/${deviceId}/lines`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to create device line: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Update a device line (atomically reassign endpoint)
-   */
-  async updateDeviceLine(
-    deviceId: string,
-    lineId: string,
-    data: UpdateDeviceLineRequest
+  async createDeskphoneLine(
+    deskphoneId: string,
+    data: CreateDeskphoneLineRequest
   ): Promise<DeviceLine> {
-    const response = await this.fetchApi(`/v1/devices/${deviceId}/lines/${lineId}`, {
+    const response = await this.fetchApi(`/v1/deskphones/${deskphoneId}/lines`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Failed to update device line: ${response.status} ${errorText}`);
+      throw new Error(`Failed to create deskphone line: ${response.status} ${errorText}`);
     }
     return response.json();
   }
 
   /**
-   * List all lines for a device
+   * Update a deskphone line (atomically reassign endpoint)
    */
-  async listDeviceLines(deviceId: string): Promise<DeviceLine[]> {
-    const response = await this.fetchApi(`/v1/devices/${deviceId}/lines`);
+  async updateDeskphoneLine(
+    deskphoneId: string,
+    lineId: string,
+    data: UpdateDeskphoneLineRequest
+  ): Promise<DeviceLine> {
+    const response = await this.fetchApi(`/v1/deskphones/${deskphoneId}/lines/${lineId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Failed to list device lines: ${response.status} ${errorText}`);
+      throw new Error(`Failed to update deskphone line: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  /**
+   * List all lines for a deskphone
+   */
+  async listDeskphoneLines(deskphoneId: string): Promise<DeviceLine[]> {
+    const response = await this.fetchApi(`/v1/deskphones/${deskphoneId}/lines`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to list deskphone lines: ${response.status} ${errorText}`);
     }
     const data = await response.json();
     return data.data ?? [];
   }
 
   /**
-   * Delete a device line
+   * Delete a deskphone line
    */
-  async deleteDeviceLine(deviceId: string, lineId: string): Promise<void> {
-    const response = await this.fetchApi(`/v1/devices/${deviceId}/lines/${lineId}`, {
+  async deleteDeskphoneLine(deskphoneId: string, lineId: string): Promise<void> {
+    const response = await this.fetchApi(`/v1/deskphones/${deskphoneId}/lines/${lineId}`, {
       method: 'DELETE',
     });
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Failed to delete device line: ${response.status} ${errorText}`);
+      throw new Error(`Failed to delete deskphone line: ${response.status} ${errorText}`);
     }
   }
 
   /**
-   * List provisioning events for a device
+   * List provisioning events for a deskphone
    */
-  async listProvisioningEvents(
-    deviceId: string,
+  async listDeskphoneProvisioningEvents(
+    deskphoneId: string,
     options?: ProvisioningEventListOptions
   ): Promise<ProvisioningEvent[]> {
     const params = new URLSearchParams();
@@ -1060,8 +1067,8 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
 
     const queryString = params.toString();
     const path = queryString
-      ? `/v1/devices/${deviceId}/events?${queryString}`
-      : `/v1/devices/${deviceId}/events`;
+      ? `/v1/deskphones/${deskphoneId}/events?${queryString}`
+      : `/v1/deskphones/${deskphoneId}/events`;
 
     const response = await this.fetchApi(path);
     if (!response.ok) {

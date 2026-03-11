@@ -105,17 +105,20 @@ export type {
 export type {
   DeviceSettings,
   AbstractSettings,
+  DeviceType,
+  Device,
   DeviceStatus,
   DeviceLine,
   ProvisionedDevice,
-  CreateDeviceRequest,
-  UpdateDeviceRequest,
-  CreateDeviceLineRequest,
-  UpdateDeviceLineRequest,
+  CreateDeskphoneRequest,
+  UpdateDeskphoneRequest,
+  CreateDeskphoneLineRequest,
+  UpdateDeskphoneLineRequest,
   DeviceListOptions,
   ProvisioningEvent,
   ProvisioningEventListOptions,
 } from './types';
+export { isDeskphone, isDECTBase } from './types';
 
 // DECT types
 export type {

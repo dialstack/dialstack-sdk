@@ -5,6 +5,82 @@
  */
 
 import type { DeviceSettings } from './provisioning';
+import type { MulticellRole, DECTHandset } from './dect';
+
+// ============================================================================
+// Device Type (unified API)
+// ============================================================================
+
+/**
+ * Discriminator for the unified `/v1/devices` endpoint.
+ */
+export type DeviceType = 'deskphone' | 'dect_base';
+
+// ============================================================================
+// Device
+// ============================================================================
+
+/**
+ * A device returned by `GET /v1/devices` or `GET /v1/devices/:id`.
+ * The `type` field discriminates between deskphones and DECT bases.
+ * Type-specific fields are present only for the corresponding type.
+ *
+ * Use the `isDeskphone()` and `isDECTBase()` type guards for safe narrowing.
+ */
+export interface Device {
+  /** TypeID with `dev_` or `dectb_` prefix */
+  id: string;
+  /** Device type discriminator */
+  type: DeviceType;
+  /** Hardware MAC address (e.g., "00:04:13:aa:bb:cc") */
+  mac_address: string;
+  /** Detected vendor (e.g., "snom", "yealink") */
+  vendor: string;
+  /** Device model (e.g., "D785", "M700") */
+  model?: string;
+  /** Current provisioning status */
+  status: DeviceStatus;
+  /** Device-specific settings overrides */
+  overrides?: DeviceSettings;
+  /** Last known IP address from provisioning request */
+  current_ip_address?: string;
+  /** ISO 8601 timestamp of last successful config fetch */
+  last_provisioned_at?: string;
+  /** ISO 8601 timestamp */
+  created_at: string;
+  /** ISO 8601 timestamp */
+  updated_at: string;
+
+  // Deskphone-specific fields (present when type === 'deskphone')
+  /** TypeID of the primary line */
+  primary_line_id?: string;
+  /** Configured lines on this device */
+  lines?: DeviceLine[];
+
+  // DECT base-specific fields (present when type === 'dect_base')
+  /** Role in multicell deployment */
+  multicell_role?: MulticellRole;
+  /** Maximum number of handsets this base supports */
+  max_handsets?: number;
+  /** Current firmware version */
+  firmware_version?: string;
+  /** Associated handsets (when eager-loaded) */
+  handsets?: DECTHandset[];
+}
+
+/**
+ * Type guard: returns true if the device is a deskphone.
+ */
+export function isDeskphone(device: Device): boolean {
+  return device.type === 'deskphone';
+}
+
+/**
+ * Type guard: returns true if the device is a DECT base station.
+ */
+export function isDECTBase(device: Device): boolean {
+  return device.type === 'dect_base';
+}
 
 // ============================================================================
 // Device Status
@@ -48,6 +124,8 @@ export interface DeviceLine {
 
 /**
  * A provisioned device (desk phone, DECT base, etc.).
+ * @deprecated Use `Device` from the `/v1/devices` endpoint instead.
+ * Still used for create/update return types that hit `/v1/deskphones`.
  */
 export interface ProvisionedDevice {
   /** TypeID with `dev_` prefix */
@@ -83,9 +161,9 @@ export interface ProvisionedDevice {
 // ============================================================================
 
 /**
- * Request payload for creating a new device.
+ * Request payload for creating a new deskphone.
  */
-export interface CreateDeviceRequest {
+export interface CreateDeskphoneRequest {
   /** Hardware MAC address (e.g., "00:04:13:aa:bb:cc") */
   mac_address: string;
   /** Device model (optional, can be auto-detected) */
@@ -95,9 +173,9 @@ export interface CreateDeviceRequest {
 }
 
 /**
- * Request payload for updating a device.
+ * Request payload for updating a deskphone.
  */
-export interface UpdateDeviceRequest {
+export interface UpdateDeskphoneRequest {
   /** Device model */
   model?: string;
   /** Device status */
@@ -120,6 +198,8 @@ export interface DeviceListOptions {
   starting_after?: string;
   /** Cursor for backward pagination (device ID to end before) */
   ending_before?: string;
+  /** Filter by device type ('deskphone' or 'dect_base') */
+  type?: DeviceType;
 }
 
 // ============================================================================
@@ -147,17 +227,17 @@ export interface ProvisioningEvent {
 }
 
 /**
- * Request payload for creating a device line.
+ * Request payload for creating a deskphone line.
  */
-export interface CreateDeviceLineRequest {
+export interface CreateDeskphoneLineRequest {
   /** TypeID of the endpoint to assign */
   endpoint_id: string;
 }
 
 /**
- * Request payload for updating a device line (reassigning endpoint).
+ * Request payload for updating a deskphone line (reassigning endpoint).
  */
-export interface UpdateDeviceLineRequest {
+export interface UpdateDeskphoneLineRequest {
   /** TypeID of the new endpoint to assign */
   endpoint_id: string;
 }

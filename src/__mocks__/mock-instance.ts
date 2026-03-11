@@ -6,11 +6,11 @@ import type { CallEventMap, CallEventHandler } from '../types/callbacks';
 import type { ComponentTagName, ComponentElement } from '../types/components';
 import type { CreatePortOrderRequest, ApprovePortOrderRequest } from '../types/number-porting';
 import type {
-  CreateDeviceRequest,
-  UpdateDeviceRequest,
+  CreateDeskphoneRequest,
+  UpdateDeskphoneRequest,
   DeviceListOptions,
   ProvisioningEventListOptions,
-  ProvisionedDevice,
+  Device,
 } from '../types/device';
 import type {
   CreateDECTBaseRequest,
@@ -29,7 +29,7 @@ import type {
   UpdateLocationRequest,
 } from '../types/account-onboarding';
 import type { Extension } from '../types/dial-plan';
-import type { CreateDeviceLineRequest, DeviceLine } from '../types/device';
+import type { CreateDeskphoneLineRequest, DeviceLine } from '../types/device';
 import type { OnboardingEndpoint, CreateEndpointRequest } from '../types/account-onboarding';
 import {
   MOCK_CALLS,
@@ -61,13 +61,14 @@ export function createMockInstance(
   ];
 
   let devIdx = 0;
-  const mockDevices: ProvisionedDevice[] = empty
+  const mockDevices: Device[] = empty
     ? []
     : mockDeviceModels.flatMap((m) =>
         Array.from({ length: m.count }, () => {
           devIdx++;
           return {
             id: `dev_mock${String(devIdx).padStart(3, '0')}`,
+            type: 'deskphone' as const,
             mac_address: `00:04:13:${devIdx.toString(16).padStart(2, '0')}:00:01`,
             vendor: m.vendor,
             model: m.model,
@@ -393,14 +394,14 @@ export function createMockInstance(
       };
     },
     listEndpoints: async (_userId: string): Promise<OnboardingEndpoint[]> => [],
-    createDeviceLine: async (
-      deviceId: string,
-      data: CreateDeviceLineRequest
+    createDeskphoneLine: async (
+      deskphoneId: string,
+      data: CreateDeskphoneLineRequest
     ): Promise<DeviceLine> => {
       await delay();
       return {
         id: 'dln_' + Math.random().toString(36).slice(2, 10),
-        device_id: deviceId,
+        device_id: deskphoneId,
         line_number: 1,
         endpoint_id: data.endpoint_id,
       };
@@ -469,10 +470,11 @@ export function createMockInstance(
     cancelPortOrder: async (_orderId: string) => {
       await delay();
     },
-    createDevice: async (data: CreateDeviceRequest) => {
+    createDeskphone: async (data: CreateDeskphoneRequest) => {
       await delay();
-      const dev: ProvisionedDevice = {
+      const dev: Device = {
         id: 'dev_' + Math.random().toString(36).slice(2, 10),
+        type: 'deskphone',
         mac_address: data.mac_address,
         vendor: 'snom',
         model: 'D785',
@@ -487,13 +489,13 @@ export function createMockInstance(
       throw new Error('Not implemented in mock');
     },
     listDevices: async (_options?: DeviceListOptions) => [...mockDevices],
-    listDeviceLines: async (_deviceId: string): Promise<DeviceLine[]> => [],
-    updateDevice: async (_id: string, _data: UpdateDeviceRequest) => {
+    listDeskphoneLines: async (_deskphoneId: string): Promise<DeviceLine[]> => [],
+    updateDeskphone: async (_id: string, _data: UpdateDeskphoneRequest) => {
       throw new Error('Not implemented in mock');
     },
-    deleteDevice: async (_id: string) => {},
-    listProvisioningEvents: async (
-      _deviceId: string,
+    deleteDeskphone: async (_id: string) => {},
+    listDeskphoneProvisioningEvents: async (
+      _deskphoneId: string,
       _options?: ProvisioningEventListOptions
     ) => [],
     createDECTBase: async (_data: CreateDECTBaseRequest) => {

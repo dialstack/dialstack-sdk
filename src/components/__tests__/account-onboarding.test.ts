@@ -83,6 +83,7 @@ const mockLocation = {
 
 const mockDevice = {
   id: 'dev_01abc',
+  type: 'deskphone' as const,
   mac_address: '00:04:13:aa:bb:cc',
   vendor: 'snom',
   status: 'pending-sync' as const,
@@ -177,11 +178,11 @@ const createMockInstance = (overrides?: Record<string, unknown>) => {
     updateLocation: jest.fn().mockResolvedValue(mockLocation),
     // Hardware methods
     listDevices: jest.fn().mockResolvedValue([]),
-    listDeviceLines: jest.fn().mockResolvedValue([]),
-    createDevice: jest.fn().mockResolvedValue(mockDevice),
-    deleteDevice: jest.fn().mockResolvedValue(undefined),
-    createDeviceLine: jest.fn().mockResolvedValue(mockDevice.lines![0]),
-    deleteDeviceLine: jest.fn().mockResolvedValue(undefined),
+    listDeskphoneLines: jest.fn().mockResolvedValue([]),
+    createDeskphone: jest.fn().mockResolvedValue(mockDevice),
+    deleteDeskphone: jest.fn().mockResolvedValue(undefined),
+    createDeskphoneLine: jest.fn().mockResolvedValue(mockDevice.lines![0]),
+    deleteDeskphoneLine: jest.fn().mockResolvedValue(undefined),
     listDECTBases: jest.fn().mockResolvedValue([]),
     createDECTBase: jest.fn().mockResolvedValue(mockDectBase),
     deleteDECTBase: jest.fn().mockResolvedValue(undefined),
@@ -1680,7 +1681,7 @@ describe('AccountOnboardingComponent', () => {
     const unassignedDevice = { ...mockDevice, lines: [] };
     const { element } = await mountHardwareStep({
       listDevices: jest.fn().mockResolvedValue([unassignedDevice]),
-      listDeviceLines: jest.fn().mockResolvedValue([]),
+      listDeskphoneLines: jest.fn().mockResolvedValue([]),
       listEndpoints: jest.fn().mockResolvedValue([]),
     });
 
@@ -1694,7 +1695,7 @@ describe('AccountOnboardingComponent', () => {
   it('renders team member table with drop zones', async () => {
     const { element } = await mountHardwareStep({
       listDevices: jest.fn().mockResolvedValue([mockDevice]),
-      listDeviceLines: jest.fn().mockResolvedValue([]),
+      listDeskphoneLines: jest.fn().mockResolvedValue([]),
       listEndpoints: jest.fn().mockResolvedValue([]),
     });
 
@@ -1710,7 +1711,7 @@ describe('AccountOnboardingComponent', () => {
   it('assigns device via drag-and-drop and shows badge chip', async () => {
     const { element } = await mountHardwareStep({
       listDevices: jest.fn().mockResolvedValue([mockDevice]),
-      listDeviceLines: jest.fn().mockResolvedValue([]),
+      listDeskphoneLines: jest.fn().mockResolvedValue([]),
       listEndpoints: jest.fn().mockResolvedValue([]),
     });
 
@@ -1751,7 +1752,7 @@ describe('AccountOnboardingComponent', () => {
   it('assigns device via click-to-assign and shows badge chip', async () => {
     const { element } = await mountHardwareStep({
       listDevices: jest.fn().mockResolvedValue([mockDevice]),
-      listDeviceLines: jest.fn().mockResolvedValue([]),
+      listDeskphoneLines: jest.fn().mockResolvedValue([]),
       listEndpoints: jest.fn().mockResolvedValue([]),
     });
 
@@ -1785,7 +1786,7 @@ describe('AccountOnboardingComponent', () => {
   it('unassign removes badge and returns card to available', async () => {
     const { element } = await mountHardwareStep({
       listDevices: jest.fn().mockResolvedValue([mockDevice]),
-      listDeviceLines: jest.fn().mockResolvedValue([]),
+      listDeskphoneLines: jest.fn().mockResolvedValue([]),
       listEndpoints: jest.fn().mockResolvedValue([]),
     });
 
@@ -1831,7 +1832,7 @@ describe('AccountOnboardingComponent', () => {
   it('shows Assign & Complete when all devices assigned', async () => {
     const { element } = await mountHardwareStep({
       listDevices: jest.fn().mockResolvedValue([mockDevice]),
-      listDeviceLines: jest.fn().mockResolvedValue([]),
+      listDeskphoneLines: jest.fn().mockResolvedValue([]),
       listEndpoints: jest.fn().mockResolvedValue([]),
     });
 
