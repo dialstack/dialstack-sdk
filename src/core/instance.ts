@@ -59,6 +59,19 @@ import type {
   E911ValidationResult,
 } from '../types';
 
+/**
+ * Error thrown by SDK API calls, carrying the HTTP status code.
+ */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 const DEFAULT_API_URL = 'https://api.dialstack.ai';
 const DEFAULT_SESSION_DURATION_MS = 60 * 60 * 1000; // 1 hour default
 const SESSION_REFRESH_BUFFER_MS = 5 * 60 * 1000; // Refresh 5 minutes before expiry
@@ -401,6 +414,24 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       throw new Error(`Failed to get caller ID: ${response.status} ${errorText}`);
     }
     return response.json();
+  }
+
+  /**
+   * Update the caller ID (CNAM) for a phone number
+   */
+  async updateCallerID(phoneNumberId: string, displayName: string): Promise<void> {
+    const response = await this.fetchApi(`/v1/phone-numbers/${phoneNumberId}/caller-id`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ display_name: displayName, visibility: 'PUBLIC' }),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new ApiError(
+        `Failed to update caller ID: ${response.status} ${errorText}`,
+        response.status
+      );
+    }
   }
 
   /**

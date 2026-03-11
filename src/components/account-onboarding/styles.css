@@ -267,6 +267,12 @@
   justify-content: flex-end;
 }
 
+.footer-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-sm);
+}
+
 /* ── Buttons ── */
 .btn {
   display: inline-flex;
@@ -318,6 +324,19 @@
 
 .btn-secondary:hover:not(:disabled) {
   background: var(--ds-color-surface-subtle);
+}
+
+.btn-warning {
+  background: var(--ds-color-warning, #e9a820);
+  color: #fff;
+  border-radius: 100px;
+  min-width: 150px;
+  height: 44px;
+  padding: 0 28px;
+}
+
+.btn-warning:hover:not(:disabled) {
+  opacity: 0.9;
 }
 
 /* ── Center State (loading, error) ── */

@@ -111,6 +111,7 @@ const mockDID = {
   id: 'did_01abc',
   phone_number: '+12125551001',
   status: 'active' as const,
+  caller_id_name: 'ACME Corp',
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
 };
@@ -120,6 +121,7 @@ const mockAccountDID = {
   id: 'did_02acct',
   phone_number: '+12125550100',
   status: 'active' as const,
+  caller_id_name: 'ACME Corp',
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
 };
@@ -404,6 +406,7 @@ const navigateToComplete = async (
   nextClicks?: number
 ): Promise<void> => {
   // default: business-details → team-members → (done) → numbers → primary-did → (done) → hardware → (done) → complete
+  // with DIDs: business-details → team-members → (done) → numbers → primary-did → caller-id → (done) → hardware → (done) → complete (6 clicks)
   const clicks = nextClicks ?? 5;
   for (let i = 0; i < clicks; i += 1) {
     const contentBefore = stepRoot(element).innerHTML;
@@ -1605,6 +1608,7 @@ describe('AccountOnboardingComponent', () => {
 
   const navigateToHardware = async (element: AccountOnboardingElement): Promise<void> => {
     // Account step: business-details → team-members → (complete) → numbers → primary-did → (complete) → hardware
+    // Note: when DIDs are present, caller-id sub-step appears after primary-did (use navigateToComplete with extra clicks instead)
     await navigateToTeamMembers(element);
     clickAction(element, 'next'); // team-members → account complete screen
     await clickThroughStepComplete(element); // advance to numbers
@@ -2140,7 +2144,12 @@ describe('AccountOnboardingComponent', () => {
   });
 
   it('auto-selects matching DID on page 2 of paginated response', async () => {
-    const page1DID = { ...mockDID, id: 'did_page1', phone_number: '+13105550101' };
+    const page1DID = {
+      ...mockDID,
+      id: 'did_page1',
+      phone_number: '+13105550101',
+      caller_id_name: 'ACME Corp',
+    };
     const provisionedLocation = {
       ...mockLocation,
       primary_did_id: 'did_02acct',
@@ -2190,8 +2199,8 @@ describe('AccountOnboardingComponent', () => {
     );
     expect(checked?.value).toBe('did_02acct');
 
-    // Navigate to complete (2 more clicks: primary-did→hardware→complete)
-    await navigateToComplete(element, 2);
+    // Navigate to complete (3 more clicks: primary-did→caller-id→hardware→complete)
+    await navigateToComplete(element, 3);
 
     await waitFor(() => {
       expect(stepRoot(element)?.querySelector('[data-action="exit"]')).toBeTruthy();
@@ -2242,8 +2251,8 @@ describe('AccountOnboardingComponent', () => {
     otherRadio!.checked = true;
     otherRadio!.dispatchEvent(new Event('change', { bubbles: true }));
 
-    // Navigate to complete (2 more clicks: primary-did→hardware→complete)
-    await navigateToComplete(element, 2);
+    // Navigate to complete (3 more clicks: primary-did→caller-id→hardware→complete)
+    await navigateToComplete(element, 3);
 
     await waitFor(() => {
       const text = stepRoot(element)?.textContent ?? '';
@@ -2253,6 +2262,348 @@ describe('AccountOnboardingComponent', () => {
     // Should have used the manually selected DID, not the account-phone matched one
     expect(instance.updateLocation).toHaveBeenCalledWith('loc_01abc', {
       primary_did_id: 'did_01abc',
+    });
+  });
+
+  // ============================================================================
+  // Caller ID Sub-Step Tests
+  // ============================================================================
+
+  /** Navigate to the caller-id sub-step (overview → primary-did → caller-id). */
+  const navigateToCallerId = async (
+    element: AccountOnboardingElement,
+    instance: ReturnType<typeof createMockInstance>
+  ): Promise<void> => {
+    await navigateToPrimaryDID(element, instance);
+    clickAction(element, 'next'); // primary-did → caller-id
+    await waitFor(() => {
+      expect(stepRoot(element)?.querySelector('.num-cid-section')).not.toBeNull();
+    });
+  };
+
+  it('renders caller ID cards for each active DID', async () => {
+    const didWithoutCnam = { ...mockDID, caller_id_name: null };
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [didWithoutCnam, mockAccountDID],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+    });
+
+    await navigateToCallerId(element, instance);
+
+    const cards = stepRoot(element)?.querySelectorAll('.num-cid-card');
+    expect(cards?.length).toBe(2);
+  });
+
+  it('pre-fills and marks submitted for DIDs with existing caller_id_name', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [mockDID], // has caller_id_name: 'ACME Corp'
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+    });
+
+    await navigateToCallerId(element, instance);
+
+    const input = stepRoot(element)?.querySelector<HTMLInputElement>(
+      `[data-cid-input="${mockDID.id}"]`
+    );
+    expect(input?.value).toBe('ACME Corp');
+
+    // Status should show submitted checkmark
+    const status = stepRoot(element)?.querySelector('.num-cid-status-submitted');
+    expect(status).not.toBeNull();
+  });
+
+  it('skips caller-id sub-step when no active DIDs exist', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+    });
+
+    await navigateToPrimaryDID(element, instance);
+
+    // Next from primary-did should skip caller-id and advance to step completion
+    clickAction(element, 'next');
+    await waitFor(() => {
+      // Should be on step complete or next step — not on caller-id
+      expect(stepRoot(element)?.querySelector('.num-cid-section')).toBeNull();
+    });
+  });
+
+  it('submits caller ID via Next button and calls updateCallerID', async () => {
+    const didWithoutCnam = { ...mockDID, id: 'did_nocnam', caller_id_name: null };
+    const updateCallerID = jest.fn().mockResolvedValue(undefined);
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [didWithoutCnam],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+      updateCallerID,
+    });
+
+    await navigateToCallerId(element, instance);
+
+    // Type a caller ID name
+    const input = stepRoot(element)?.querySelector<HTMLInputElement>(
+      '[data-cid-input="did_nocnam"]'
+    );
+    expect(input).not.toBeNull();
+    input!.value = 'Test Corp';
+    input!.dispatchEvent(new Event('input', { bubbles: true }));
+
+    // Click Next to trigger bulk submission
+    clickAction(element, 'next');
+
+    await waitFor(() => {
+      expect(updateCallerID).toHaveBeenCalledWith('did_nocnam', 'Test Corp');
+    });
+  });
+
+  it('shows validation error when Next is clicked with invalid caller ID', async () => {
+    const didWithoutCnam = { ...mockDID, id: 'did_invalid', caller_id_name: null };
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [didWithoutCnam],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+    });
+
+    await navigateToCallerId(element, instance);
+
+    // Type invalid characters
+    const input = stepRoot(element)?.querySelector<HTMLInputElement>(
+      '[data-cid-input="did_invalid"]'
+    );
+    input!.value = 'Test@Corp!';
+    input!.dispatchEvent(new Event('input', { bubbles: true }));
+
+    // Click Next to trigger validation
+    clickAction(element, 'next');
+
+    await waitFor(() => {
+      const error = stepRoot(element)?.querySelector('.num-cid-status-error');
+      expect(error).not.toBeNull();
+      expect(error?.textContent).toContain('letters, numbers, spaces, and hyphens');
+    });
+  });
+
+  it('Next triggers bulk submission when caller IDs are not yet submitted', async () => {
+    const didWithoutCnam = { ...mockDID, id: 'did_block', caller_id_name: null };
+    const updateCallerID = jest.fn().mockResolvedValue(undefined);
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [didWithoutCnam],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+      updateCallerID,
+    });
+
+    await navigateToCallerId(element, instance);
+
+    // Type a valid caller ID name
+    const input = stepRoot(element)?.querySelector<HTMLInputElement>(
+      '[data-cid-input="did_block"]'
+    );
+    input!.value = 'My Corp';
+    input!.dispatchEvent(new Event('input', { bubbles: true }));
+
+    // Click Next — triggers submission
+    clickAction(element, 'next');
+
+    await waitFor(() => {
+      expect(updateCallerID).toHaveBeenCalledWith('did_block', 'My Corp');
+    });
+  });
+
+  it('advances immediately when all caller IDs are pre-submitted', async () => {
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [mockDID], // has caller_id_name: 'ACME Corp' → pre-submitted
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+    });
+
+    await navigateToCallerId(element, instance);
+
+    // Next should advance past caller-id immediately
+    clickAction(element, 'next');
+    await waitFor(() => {
+      expect(stepRoot(element)?.querySelector('.num-cid-section')).toBeNull();
+    });
+  });
+
+  it('shows skip button after mixed results (some succeed, some fail)', async () => {
+    const did1 = { ...mockDID, id: 'did_ok', caller_id_name: null };
+    const did2 = { ...mockDID, id: 'did_fail', phone_number: '+12125551002', caller_id_name: null };
+    const updateCallerID = jest.fn().mockImplementation((id: string) => {
+      if (id === 'did_fail') return Promise.reject(new Error('API error'));
+      return Promise.resolve(undefined);
+    });
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [did1, did2],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+      updateCallerID,
+    });
+
+    await navigateToCallerId(element, instance);
+
+    // Fill both inputs
+    const input1 = stepRoot(element)?.querySelector<HTMLInputElement>('[data-cid-input="did_ok"]');
+    input1!.value = 'OK Corp';
+    input1!.dispatchEvent(new Event('input', { bubbles: true }));
+    const input2 = stepRoot(element)?.querySelector<HTMLInputElement>(
+      '[data-cid-input="did_fail"]'
+    );
+    input2!.value = 'Fail Corp';
+    input2!.dispatchEvent(new Event('input', { bubbles: true }));
+
+    // Click Next
+    clickAction(element, 'next');
+
+    await waitFor(() => {
+      // Skip button should appear in the footer after partial failure
+      const skipBtn = stepRoot(element)?.querySelector('[data-action="num-cid-skip"]');
+      expect(skipBtn).not.toBeNull();
+      // Inline error should be visible on the failed card
+      const error = stepRoot(element)?.querySelector('.num-cid-status-error');
+      expect(error).not.toBeNull();
+    });
+  });
+
+  it('skip after error advances to next step', async () => {
+    const didWithoutCnam = { ...mockDID, id: 'did_skip', caller_id_name: null };
+    const updateCallerID = jest.fn().mockRejectedValue(new Error('fail'));
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [didWithoutCnam],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+      updateCallerID,
+    });
+
+    await navigateToCallerId(element, instance);
+
+    // Fill and trigger Next
+    const input = stepRoot(element)?.querySelector<HTMLInputElement>('[data-cid-input="did_skip"]');
+    input!.value = 'Skip Corp';
+    input!.dispatchEvent(new Event('input', { bubbles: true }));
+    clickAction(element, 'next');
+
+    // Wait for error + skip button
+    await waitFor(() => {
+      expect(stepRoot(element)?.querySelector('[data-action="num-cid-skip"]')).not.toBeNull();
+    });
+
+    // Click skip
+    const skipBtn = stepRoot(element)?.querySelector<HTMLButtonElement>(
+      '[data-action="num-cid-skip"]'
+    );
+    skipBtn!.click();
+
+    // Should advance past caller-id
+    await waitFor(() => {
+      expect(stepRoot(element)?.querySelector('.num-cid-section')).toBeNull();
+    });
+  });
+
+  it('retries only errored DIDs on second Next press', async () => {
+    const did1 = { ...mockDID, id: 'did_ok2', caller_id_name: null };
+    const did2 = {
+      ...mockDID,
+      id: 'did_retry',
+      phone_number: '+12125551003',
+      caller_id_name: null,
+    };
+    let callCount = 0;
+    const updateCallerID = jest.fn().mockImplementation((id: string) => {
+      if (id === 'did_retry') {
+        callCount++;
+        if (callCount <= 1) return Promise.reject(new Error('fail'));
+      }
+      return Promise.resolve(undefined);
+    });
+    const { element, instance } = await mountComponent({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [did1, did2],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+      updateCallerID,
+    });
+
+    await navigateToCallerId(element, instance);
+
+    // Fill both
+    const input1 = stepRoot(element)?.querySelector<HTMLInputElement>('[data-cid-input="did_ok2"]');
+    input1!.value = 'OK Corp';
+    input1!.dispatchEvent(new Event('input', { bubbles: true }));
+    const input2 = stepRoot(element)?.querySelector<HTMLInputElement>(
+      '[data-cid-input="did_retry"]'
+    );
+    input2!.value = 'Retry Corp';
+    input2!.dispatchEvent(new Event('input', { bubbles: true }));
+
+    // First Next — did_ok2 succeeds, did_retry fails
+    clickAction(element, 'next');
+    await waitFor(() => {
+      expect(stepRoot(element)?.querySelector('[data-action="num-cid-skip"]')).not.toBeNull();
+    });
+
+    // Reset updateCallerID call tracking to verify only errored DID is re-submitted
+    updateCallerID.mockClear();
+
+    // Edit the errored input to clear the error and bring back the Next button
+    const retryInput = stepRoot(element)?.querySelector<HTMLInputElement>(
+      '[data-cid-input="did_retry"]'
+    );
+    retryInput!.value = 'Retry Corp';
+    retryInput!.dispatchEvent(new Event('input', { bubbles: true }));
+
+    // Wait for Next button to reappear (Skip is gone since all errors are cleared)
+    await waitFor(() => {
+      expect(stepRoot(element)?.querySelector('[data-action="next"]')).not.toBeNull();
+    });
+
+    // Second Next — only did_retry should be re-submitted
+    clickAction(element, 'next');
+    await waitFor(() => {
+      expect(updateCallerID).toHaveBeenCalledTimes(1);
+      expect(updateCallerID).toHaveBeenCalledWith('did_retry', 'Retry Corp');
     });
   });
 
@@ -3100,7 +3451,7 @@ describe('AccountOnboardingComponent', () => {
       provisionLocationE911: jest.fn().mockResolvedValue(provisionedLocation),
     });
 
-    await navigateToComplete(element);
+    await navigateToComplete(element, 6);
 
     await waitFor(() => {
       // E911 panel should appear with disclosure
@@ -3130,7 +3481,7 @@ describe('AccountOnboardingComponent', () => {
       }),
     });
 
-    await navigateToComplete(element);
+    await navigateToComplete(element, 6);
 
     await waitFor(() => {
       const text = element.shadowRoot?.textContent ?? '';
@@ -3159,7 +3510,7 @@ describe('AccountOnboardingComponent', () => {
       }),
     });
 
-    await navigateToComplete(element);
+    await navigateToComplete(element, 6);
 
     await waitFor(() => {
       const text = element.shadowRoot?.textContent ?? '';
@@ -3183,7 +3534,7 @@ describe('AccountOnboardingComponent', () => {
       validateLocationE911: jest.fn().mockRejectedValue(new Error('Validation failed')),
     });
 
-    await navigateToComplete(element);
+    await navigateToComplete(element, 6);
 
     await waitFor(() => {
       const text = element.shadowRoot?.textContent ?? '';
@@ -3216,7 +3567,7 @@ describe('AccountOnboardingComponent', () => {
       provisionLocationE911: jest.fn().mockResolvedValue(provisionedLocation),
     });
 
-    await navigateToComplete(element);
+    await navigateToComplete(element, 6);
 
     await waitFor(() => {
       const text = element.shadowRoot?.textContent ?? '';
@@ -3251,7 +3602,7 @@ describe('AccountOnboardingComponent', () => {
       provisionLocationE911: jest.fn().mockResolvedValue(provisionedLocation),
     });
 
-    await navigateToComplete(element);
+    await navigateToComplete(element, 6);
 
     await waitFor(() => {
       const text = element.shadowRoot?.textContent ?? '';

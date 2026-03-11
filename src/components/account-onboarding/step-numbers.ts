@@ -77,6 +77,11 @@ export class OnboardingNumbersStep extends OnboardingStepBase {
           description: this.t('accountOnboarding.sidebar.primaryNumberDesc'),
         },
         {
+          key: 'caller-id',
+          label: this.t('accountOnboarding.sidebar.callerId'),
+          description: this.t('accountOnboarding.sidebar.callerIdDesc'),
+        },
+        {
           key: 'setup',
           label: this.t('accountOnboarding.sidebar.numberSetup'),
           description: this.t('accountOnboarding.sidebar.numberSetupDesc'),

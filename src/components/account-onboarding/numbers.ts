@@ -16,11 +16,13 @@ import type {
 import { AsYouType, parsePhoneNumberFromString } from 'libphonenumber-js';
 import { US_STATES } from '../../constants/us-states';
 import { SUCCESS_SVG, ERROR_SVG, PORT_SVG, PLUS_CIRCLE_SVG } from './icons';
+import { ApiError } from '../../core/instance';
 import type { OnboardingHost } from './host';
 
 export type NumSubStep =
   | 'overview'
   | 'primary-did'
+  | 'caller-id'
   | 'order-search'
   | 'order-results'
   | 'order-confirm'
@@ -95,6 +97,12 @@ export class NumbersStepHelper {
   primaryDIDAutoMatched = false;
   private isLoadingDIDs = false;
   private hasAttemptedDIDLoad = false;
+
+  // Caller ID state
+  private callerIdInputs = new Map<string, string>();
+  private callerIdStatuses = new Map<string, 'idle' | 'submitting' | 'submitted' | 'error'>();
+  private callerIdErrors = new Map<string, string>();
+  private callerIdBulkAttempted = false;
 
   constructor(private host: OnboardingHost) {}
 
@@ -590,6 +598,7 @@ export class NumbersStepHelper {
   getSidebarActiveKey(): string | null {
     if (this.numSubStep === 'overview') return 'options';
     if (this.numSubStep === 'primary-did') return 'primary-did';
+    if (this.numSubStep === 'caller-id') return 'caller-id';
     if (this.numSubStep === 'port-submitted') return null;
     if (this.numSubStep === 'order-status') {
       const done =
@@ -606,7 +615,7 @@ export class NumbersStepHelper {
 
   handleAction(action: string, actionEl: HTMLElement): boolean {
     switch (action) {
-      // Sub-step navigation: overview → primary-did → (next main step)
+      // Sub-step navigation: overview → primary-did → caller-id → (next main step)
       case 'next':
         if (this.host.currentStep === 'numbers' && this.numSubStep === 'overview') {
           this.numSubStep = 'primary-did';
@@ -618,9 +627,37 @@ export class NumbersStepHelper {
           }
           return true;
         }
-        // primary-did 'next' falls through to main handler (advances to next main step)
+        if (this.host.currentStep === 'numbers' && this.numSubStep === 'primary-did') {
+          // Skip caller-id if no active DIDs
+          if (this.activeDIDs.length === 0) return false;
+          // Initialize on first visit or reconcile if new DIDs appeared
+          const allDIDsCovered = this.activeDIDs.every((d) => this.callerIdInputs.has(d.id));
+          if (!allDIDsCovered) {
+            this.initCallerIdInputs();
+          }
+          this.numSubStep = 'caller-id';
+          this.host.render();
+          return true;
+        }
+        if (this.host.currentStep === 'numbers' && this.numSubStep === 'caller-id') {
+          if (this.allCallerIdsSubmitted()) return false; // all done — advance
+          // If any are currently submitting, block silently (in progress)
+          const anySubmitting = this.activeDIDs.some(
+            (did) => this.callerIdStatuses.get(did.id) === 'submitting'
+          );
+          if (anySubmitting) return true;
+          // Otherwise trigger bulk submission
+          this.submitAllFromNext();
+          return true;
+        }
         return false;
       case 'back':
+        if (this.host.currentStep === 'numbers' && this.numSubStep === 'caller-id') {
+          this.callerIdBulkAttempted = false;
+          this.numSubStep = 'primary-did';
+          this.host.render();
+          return true;
+        }
         if (this.host.currentStep === 'numbers' && this.numSubStep === 'primary-did') {
           this.numSubStep = 'overview';
           this.host.render();
@@ -804,6 +841,14 @@ export class NumbersStepHelper {
         this.numSubStep = 'overview';
         this.loadNumbersData();
         return true;
+      case 'num-cid-skip': {
+        const steps = this.host.getActiveSteps();
+        const nextStep = steps[steps.indexOf('numbers') + 1];
+        if (nextStep) {
+          this.host.navigateToStep(nextStep);
+        }
+        return true;
+      }
       default:
         return false;
     }
@@ -971,6 +1016,34 @@ export class NumbersStepHelper {
         this.host.render();
       });
     }
+
+    // Caller ID inputs
+    if (this.numSubStep === 'caller-id') {
+      const cidInputs = this.host.shadowRoot.querySelectorAll<HTMLInputElement>('[data-cid-input]');
+      for (const input of cidInputs) {
+        const didId = input.dataset.cidInput;
+        if (!didId) continue;
+        input.addEventListener('input', () => {
+          this.callerIdInputs.set(didId, input.value);
+          this.callerIdErrors.delete(didId);
+          // Reset status on edit so Next will re-submit; full re-render
+          // keeps DOM in sync without fragile manual querySelector cleanup
+          const currentStatus = this.callerIdStatuses.get(didId);
+          if (currentStatus === 'submitted' || currentStatus === 'error') {
+            this.callerIdStatuses.set(didId, 'idle');
+            this.host.render();
+            return;
+          }
+          // Update char counter
+          const counter = this.host.shadowRoot?.querySelector(`[data-cid-counter="${didId}"]`);
+          if (counter) {
+            counter.textContent = this.host.t('accountOnboarding.numbers.callerId.charCount', {
+              count: input.value.length,
+            });
+          }
+        });
+      }
+    }
   }
 
   // ============================================================================
@@ -985,6 +1058,9 @@ export class NumbersStepHelper {
         break;
       case 'primary-did':
         subContent = this.renderPrimaryDIDSection();
+        break;
+      case 'caller-id':
+        subContent = this.renderCallerIdSection();
         break;
       case 'order-search':
         subContent = this.renderNumOrderSearch();
@@ -1021,7 +1097,10 @@ export class NumbersStepHelper {
         break;
     }
 
-    const showOuterHeader = this.numSubStep === 'overview' || this.numSubStep === 'primary-did';
+    const showOuterHeader =
+      this.numSubStep === 'overview' ||
+      this.numSubStep === 'primary-did' ||
+      this.numSubStep === 'caller-id';
     return `
       <div class="card ${this.host.classes.stepNumbers || ''}" part="step-numbers">
         ${
@@ -1032,8 +1111,30 @@ export class NumbersStepHelper {
         }
         ${subContent}
       </div>
-      ${showOuterHeader ? this.host.renderStepFooter() : ''}
+      ${showOuterHeader ? this.renderNumbersFooter() : ''}
     `;
+  }
+
+  /**
+   * Footer for the numbers step — swaps Next for Skip after a failed bulk caller-id attempt.
+   */
+  private renderNumbersFooter(): string {
+    if (
+      this.numSubStep === 'caller-id' &&
+      this.callerIdBulkAttempted &&
+      this.activeDIDs.some((did) => this.callerIdStatuses.get(did.id) === 'error')
+    ) {
+      return `
+        <div class="footer-bar">
+          <button class="btn btn-ghost" data-action="back">
+            &larr; ${this.host.t('accountOnboarding.nav.back')}
+          </button>
+          <button class="btn btn-warning" data-action="num-cid-skip">
+            ${this.host.t('accountOnboarding.numbers.callerId.skipCallerId')} &rarr;
+          </button>
+        </div>`;
+    }
+    return this.host.renderStepFooter();
   }
 
   private renderPrimaryDIDSection(): string {
@@ -1093,6 +1194,190 @@ export class NumbersStepHelper {
         <h3 class="section-heading">${t('accountOnboarding.numbers.primaryNumber.heading')}</h3>
         <p class="section-description">${t('accountOnboarding.numbers.primaryNumber.description')}</p>
         ${primaryDIDHtml}
+      </div>`;
+  }
+
+  // ============================================================================
+  // Caller ID
+  // ============================================================================
+
+  private initCallerIdInputs(): void {
+    this.callerIdInputs.clear();
+    this.callerIdStatuses.clear();
+    this.callerIdErrors.clear();
+    this.callerIdBulkAttempted = false;
+    for (const did of this.activeDIDs) {
+      const existing = did.caller_id_name ?? '';
+      this.callerIdInputs.set(did.id, existing);
+      this.callerIdStatuses.set(did.id, existing ? 'submitted' : 'idle');
+    }
+  }
+
+  private validateCallerIdName(name: string): string | null {
+    if (!name.trim()) return this.host.t('accountOnboarding.numbers.callerId.validation.required');
+    if (name.length > 15)
+      return this.host.t('accountOnboarding.numbers.callerId.validation.tooLong');
+    if (!/^[A-Za-z0-9 -]+$/.test(name))
+      return this.host.t('accountOnboarding.numbers.callerId.validation.invalidChars');
+    return null;
+  }
+
+  /**
+   * Core caller ID submission — validates, calls API, updates status maps.
+   * Does NOT call this.host.render() so callers can batch renders.
+   */
+  private async submitCallerIdNoRender(didId: string): Promise<void> {
+    const name = this.callerIdInputs.get(didId) ?? '';
+    const error = this.validateCallerIdName(name);
+    if (error) {
+      this.callerIdErrors.set(didId, error);
+      this.callerIdStatuses.set(didId, 'error');
+      return;
+    }
+
+    this.callerIdStatuses.set(didId, 'submitting');
+    this.callerIdErrors.delete(didId);
+
+    try {
+      const trimmed = name.trim();
+      await this.host.instance!.updateCallerID(didId, trimmed);
+      this.callerIdStatuses.set(didId, 'submitted');
+      // Persist back so re-init from activeDIDs won't revert
+      const did = this.activeDIDs.find((d) => d.id === didId);
+      if (did) did.caller_id_name = trimmed;
+    } catch (err) {
+      // 409 from Bandwidth LIDB (number already has CNAM or update in progress)
+      if (err instanceof ApiError && err.status === 409) {
+        this.callerIdErrors.set(
+          didId,
+          this.host.t('accountOnboarding.numbers.callerId.error.conflict')
+        );
+      } else {
+        this.callerIdErrors.set(
+          didId,
+          this.host.t('accountOnboarding.numbers.callerId.error.submitFailed')
+        );
+      }
+      this.callerIdStatuses.set(didId, 'error');
+    }
+  }
+
+  /**
+   * Triggered when Next is pressed on caller-id sub-step.
+   * Validates all, submits in parallel, auto-advances on full success.
+   */
+  private async submitAllFromNext(): Promise<void> {
+    const pending = this.activeDIDs.filter(
+      (did) => this.callerIdStatuses.get(did.id) !== 'submitted'
+    );
+
+    // Validate all first — if any fail, show errors without API calls
+    let hasValidationError = false;
+    for (const did of pending) {
+      const name = this.callerIdInputs.get(did.id) ?? '';
+      const error = this.validateCallerIdName(name);
+      if (error) {
+        this.callerIdErrors.set(did.id, error);
+        this.callerIdStatuses.set(did.id, 'error');
+        hasValidationError = true;
+      }
+    }
+    if (hasValidationError) {
+      this.callerIdBulkAttempted = true;
+      this.host.render();
+      return;
+    }
+
+    // Set all pending to submitting and render once (shows spinners)
+    for (const did of pending) {
+      this.callerIdStatuses.set(did.id, 'submitting');
+      this.callerIdErrors.delete(did.id);
+    }
+    this.host.render();
+
+    // Fire all in parallel
+    await Promise.all(pending.map((did) => this.submitCallerIdNoRender(did.id)));
+    this.callerIdBulkAttempted = true;
+    this.host.render();
+
+    // Guard: only auto-advance if user is still on caller-id (they may have clicked Back)
+    if (
+      this.host.currentStep === 'numbers' &&
+      this.numSubStep === 'caller-id' &&
+      this.allCallerIdsSubmitted()
+    ) {
+      const steps = this.host.getActiveSteps();
+      const nextStep = steps[steps.indexOf('numbers') + 1];
+      if (nextStep) {
+        this.host.navigateToStep(nextStep);
+      }
+    }
+  }
+
+  private allCallerIdsSubmitted(): boolean {
+    return this.activeDIDs.every((did) => this.callerIdStatuses.get(did.id) === 'submitted');
+  }
+
+  private renderCallerIdSection(): string {
+    const t = (key: string, params?: Record<string, string | number>): string =>
+      this.host.t(key, params);
+
+    if (this.activeDIDs.length === 0) {
+      return `<div class="inline-alert info">${t('accountOnboarding.numbers.callerId.noDIDs')}</div>`;
+    }
+
+    const cards = this.activeDIDs
+      .map((did) => {
+        const inputVal = this.callerIdInputs.get(did.id) ?? '';
+        const status = this.callerIdStatuses.get(did.id) ?? 'idle';
+        const error = this.callerIdErrors.get(did.id);
+        const formatted =
+          parsePhoneNumberFromString(did.phone_number, 'US')?.formatNational() ?? did.phone_number;
+        const isSubmitting = status === 'submitting';
+        const isSubmitted = status === 'submitted';
+
+        let statusHtml = '';
+        if (isSubmitting) {
+          statusHtml = `<span class="num-cid-status-submitting"><span class="spinner"></span> ${t('accountOnboarding.numbers.callerId.submitting')}</span>`;
+        } else if (isSubmitted) {
+          statusHtml = `<span class="num-cid-status-submitted">${SUCCESS_SVG} ${t('accountOnboarding.numbers.callerId.submitted')}</span>`;
+        } else if (status === 'error' && error) {
+          statusHtml = `<span class="num-cid-status-error">${this.host.escapeHtml(error)}</span>`;
+        }
+
+        return `
+          <div class="num-cid-card">
+            <div class="num-cid-card-header">
+              <span class="num-cid-phone">${this.host.escapeHtml(formatted)}</span>
+            </div>
+            <div class="num-cid-input-wrapper">
+              <label class="form-label">${t('accountOnboarding.numbers.callerId.inputLabel')}</label>
+              <div class="num-cid-input-row">
+                <input
+                  type="text"
+                  class="form-input num-cid-input"
+                  data-cid-input="${this.host.escapeHtml(did.id)}"
+                  value="${this.host.escapeHtml(inputVal)}"
+                  placeholder="${t('accountOnboarding.numbers.callerId.inputPlaceholder')}"
+                  maxlength="15"
+                  ${isSubmitting ? 'disabled' : ''}
+                />
+                <span class="num-cid-char-count" data-cid-counter="${this.host.escapeHtml(did.id)}">${t('accountOnboarding.numbers.callerId.charCount', { count: inputVal.length })}</span>
+              </div>
+              <p class="form-help">${t('accountOnboarding.numbers.callerId.inputHelp')}</p>
+            </div>
+            <div class="num-cid-card-footer">
+              ${statusHtml}
+            </div>
+          </div>`;
+      })
+      .join('');
+
+    return `
+      <div class="num-cid-section">
+        <h3 class="section-heading">${t('accountOnboarding.numbers.callerId.title')}</h3>
+        <p class="section-description">${t('accountOnboarding.numbers.callerId.subtitle')}</p>
+        ${cards}
       </div>`;
   }
 

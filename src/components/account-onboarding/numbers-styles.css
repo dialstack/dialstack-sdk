@@ -479,3 +479,105 @@
   background: color-mix(in srgb, var(--ds-color-primary) 12%, transparent);
   color: var(--ds-color-primary);
 }
+
+/* ── Caller ID ── */
+.num-cid-section {
+  margin-top: var(--ds-layout-spacing-sm);
+}
+
+.num-cid-card {
+  border: 1px solid var(--ds-color-border);
+  border-radius: 12px;
+  padding: var(--ds-layout-spacing-sm) var(--ds-layout-spacing-md);
+  margin-bottom: var(--ds-layout-spacing-sm);
+  background: var(--ds-color-background);
+}
+
+.num-cid-card-header {
+  margin-bottom: var(--ds-spacing-sm);
+}
+
+.num-cid-phone {
+  font-weight: var(--ds-font-weight-bold);
+  font-size: var(--ds-font-size-base);
+  color: var(--ds-color-text);
+}
+
+.num-cid-input-wrapper {
+  margin-bottom: var(--ds-spacing-sm);
+}
+
+.num-cid-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-sm);
+}
+
+.num-cid-input {
+  flex: 1;
+}
+
+.num-cid-char-count {
+  font-size: var(--ds-font-size-small);
+  color: var(--ds-color-text-secondary);
+  white-space: nowrap;
+}
+
+.num-cid-card-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-sm);
+}
+
+.num-cid-status-submitting {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--ds-font-size-small);
+  color: var(--ds-color-text-secondary);
+  font-weight: var(--ds-font-weight-medium);
+}
+
+.num-cid-status-submitting .spinner {
+  width: 16px;
+  height: 16px;
+}
+
+.num-cid-status-submitted {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--ds-font-size-small);
+  color: var(--ds-color-success);
+  font-weight: var(--ds-font-weight-medium);
+}
+
+.num-cid-status-submitted svg {
+  width: 16px;
+  height: 16px;
+}
+
+.num-cid-status-error {
+  font-size: var(--ds-font-size-small);
+  color: var(--ds-color-danger);
+}
+
+.num-cid-dl-info {
+  margin-top: var(--ds-layout-spacing-md);
+  padding: var(--ds-layout-spacing-sm);
+  background: var(--ds-color-surface-subtle);
+  border-radius: 8px;
+}
+
+.num-cid-dl-info h4 {
+  font-size: var(--ds-font-size-base);
+  font-weight: var(--ds-font-weight-bold);
+  margin: 0 0 var(--ds-spacing-xs) 0;
+  color: var(--ds-color-text);
+}
+
+.num-cid-dl-info p {
+  font-size: var(--ds-font-size-small);
+  color: var(--ds-color-text-secondary);
+  margin: 0;
+}
