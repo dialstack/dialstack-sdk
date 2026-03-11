@@ -434,6 +434,47 @@
   gap: var(--ds-layout-spacing-sm);
 }
 
+.primary-did-section {
+  margin-top: var(--ds-layout-spacing-sm);
+}
+
+.primary-did-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-spacing-sm);
+}
+
+.primary-did-option {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-sm);
+  padding: var(--ds-spacing-sm) var(--ds-layout-spacing-sm);
+  border: 1px solid var(--ds-color-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.primary-did-option:hover {
+  border-color: var(--ds-color-primary);
+  background: color-mix(in srgb, var(--ds-color-primary) 4%, transparent);
+}
+
+.primary-did-option.selected {
+  border-color: var(--ds-color-primary);
+  background: color-mix(in srgb, var(--ds-color-primary) 8%, transparent);
+}
+
+.primary-did-badge {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: var(--ds-color-surface);
+  color: var(--ds-color-text-muted);
+}
+
 .primary-did-badge.auto-matched {
   background: color-mix(in srgb, var(--ds-color-primary) 12%, transparent);
   color: var(--ds-color-primary);
