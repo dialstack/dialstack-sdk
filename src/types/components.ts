@@ -222,7 +222,9 @@ export interface CallLog {
   did_id?: string;
   direction: 'inbound' | 'outbound' | 'internal';
   from_number: string;
+  from_label?: string | null;
   to_number: string;
+  to_label?: string | null;
   started_at: string;
   answered_at?: string;
   ended_at?: string;

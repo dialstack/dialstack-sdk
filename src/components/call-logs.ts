@@ -308,6 +308,15 @@ export class CallLogsComponent extends BaseComponent {
   }
 
   /**
+   * Format a call party (from/to) with optional label.
+   * Extensions show as "106 (Front Desk)", external numbers get phone formatting.
+   */
+  private formatCallParty(number: string, label?: string | null): string {
+    if (label) return `${this.escapeHtml(number)} (${this.escapeHtml(label)})`;
+    return this.formatPhoneNumber(number);
+  }
+
+  /**
    * Get color class for call direction
    */
   private getDirectionClass(direction: string): string {
@@ -654,8 +663,8 @@ export class CallLogsComponent extends BaseComponent {
           <tr data-call-id="${call.id}" tabindex="0" role="row" part="table-row"${rowClassStr}>
             ${showDate ? `<td part="cell cell-date">${this.formatDate(call.started_at)}</td>` : ''}
             ${showDirection ? `<td part="cell cell-direction"><span class="badge ${this.getDirectionClass(call.direction)}" part="badge badge-direction">${this.formatDirection(call.direction)}</span></td>` : ''}
-            ${showFrom ? `<td part="cell cell-from">${this.formatPhoneNumber(call.from_number)}</td>` : ''}
-            ${showTo ? `<td part="cell cell-to">${this.formatPhoneNumber(call.to_number)}</td>` : ''}
+            ${showFrom ? `<td part="cell cell-from">${this.formatCallParty(call.from_number, call.from_label)}</td>` : ''}
+            ${showTo ? `<td part="cell cell-to">${this.formatCallParty(call.to_number, call.to_label)}</td>` : ''}
             ${showDuration ? `<td part="cell cell-duration">${this.formatDuration(call.duration_seconds || 0)}</td>` : ''}
             ${showStatus ? `<td part="cell cell-status"><span class="badge ${this.getStatusClass(call.status)}" part="badge badge-status">${this.formatStatus(call.status)}</span></td>` : ''}
             ${showQuality ? `<td part="cell cell-quality"><span class="badge ${this.getMosClass(mos)}" part="badge badge-quality" title="${this.getMosTooltip(mos)}">${this.formatMos(mos)}</span></td>` : ''}
