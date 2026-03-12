@@ -1,6 +1,6 @@
 .portal-layout {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
   width: 100%;
 }
 
@@ -129,6 +129,11 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
+.portal-overview {
+  flex: 1;
+  overflow: hidden;
+}
+
 .portal-main {
   flex: 1;
   overflow-y: auto;
@@ -199,4 +204,9 @@
   color: rgba(240, 240, 255, 0.6);
   text-transform: uppercase;
   font-weight: 500;
+}
+
+/* Overview active state */
+.portal-nav-link.active {
+  background: #4c3c8e;
 }

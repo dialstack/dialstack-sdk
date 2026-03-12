@@ -17,7 +17,20 @@ import type {
   LayoutVariant,
 } from '../../types';
 import PORTAL_STYLES from './styles.css';
-import { BUILDING_SVG, PHONE_SVG, MONITOR_SVG } from '../account-onboarding/icons';
+import SPLASH_STYLES from './splash-styles.css';
+import OVERVIEW_STYLES from './overview-styles.css';
+import { ONBOARDING_STEPS } from '../account-onboarding/constants';
+import {
+  STEP_ICONS,
+  STEP_I18N_KEYS,
+  OVERVIEW_SVG,
+  BACK_SVG,
+  HELP_SVG,
+  CHECK_SVG_WHITE,
+  CIRCUMFERENCE,
+} from './constants';
+import { renderSplashScreen } from './splash-screen';
+import { renderOverviewScreen } from './overview-screen';
 import type { AccountOnboardingComponent } from '../account-onboarding';
 import type { Locale } from '../../locales';
 import type { OnboardingProgressStore, StepName } from '../account-onboarding/progress-store';
@@ -25,31 +38,9 @@ import type { OnboardingProgressStore, StepName } from '../account-onboarding/pr
 // Ensure the inner wizard component is registered
 import '../account-onboarding';
 
-const STEP_ICONS: Record<string, string> = {
-  account: BUILDING_SVG,
-  numbers: PHONE_SVG,
-  hardware: MONITOR_SVG,
-};
-
-const STEP_I18N_KEYS: Record<string, string> = {
-  account: 'accountOnboarding.steps.account',
-  numbers: 'accountOnboarding.steps.numbers',
-  hardware: 'accountOnboarding.steps.hardware',
-};
-
-// Lucide: layout-grid
-const DASHBOARD_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>`;
-// Lucide: arrow-left
-const BACK_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>`;
-// Lucide: circle-help
-const HELP_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>`;
-// Lucide: check
-const CHECK_SVG_WHITE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`;
-
-const CIRCUMFERENCE = 2 * Math.PI * 16; // ~100.53
-
 export class OnboardingPortalComponent extends BaseComponent {
   protected override classes: OnboardingPortalClasses = {};
+  private viewMode: 'splash' | 'overview' | 'wizard' = 'splash';
   private currentStep: AccountOnboardingStep = 'account';
   private activeSteps: AccountOnboardingStep[] = [];
   private _progressStore: OnboardingProgressStore | null = null;
@@ -62,11 +53,11 @@ export class OnboardingPortalComponent extends BaseComponent {
   private styleEl: HTMLStyleElement | null = null;
   private sidebarEl: HTMLElement | null = null;
   private mainEl: HTMLDivElement | null = null;
+  private overviewEl: HTMLDivElement | null = null;
 
   // Callbacks
   private _onExit?: () => void;
   private _onStepChange?: (event: { step: AccountOnboardingStep }) => void;
-  private _onOverviewClick?: () => void;
   private _onBack?: () => void;
   private _backLabel: string | undefined;
 
@@ -97,6 +88,11 @@ export class OnboardingPortalComponent extends BaseComponent {
     this.sidebarEl = document.createElement('aside');
     this.sidebarEl.className = 'portal-sidebar';
     layout.appendChild(this.sidebarEl);
+
+    // Overview container — sibling of mainEl so it can take full width/height
+    this.overviewEl = document.createElement('div');
+    this.overviewEl.className = 'portal-overview';
+    layout.appendChild(this.overviewEl);
 
     this.mainEl = document.createElement('div');
     this.mainEl.className = 'portal-main';
@@ -160,6 +156,7 @@ export class OnboardingPortalComponent extends BaseComponent {
       this.currentStep = event.step;
       this._onStepChange?.(event);
       this.renderSidebar();
+      if (this.viewMode === 'overview') this.renderMainArea();
     });
 
     this.innerWizard.setOnSubStepProgress(() => {
@@ -179,22 +176,61 @@ export class OnboardingPortalComponent extends BaseComponent {
       }
 
       this.renderSidebar();
+      if (this.viewMode === 'overview') this.renderMainArea();
     });
 
+    // Keyboard accessibility: Enter/Space activates role="button" elements
+    const activateOnKeydown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        const target = e.target as HTMLElement;
+        if (target.getAttribute('role') === 'button') {
+          e.preventDefault();
+          target.click();
+        }
+      }
+    };
+
     // Attach sidebar click handler
+    this.sidebarEl.addEventListener('keydown', activateOnKeydown);
     this.sidebarEl.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
       const stepEl = target.closest<HTMLElement>('[data-step]');
       if (stepEl) {
         const step = stepEl.dataset.step as AccountOnboardingStep;
+        this.viewMode = 'wizard';
         this.innerWizard?.navigateToStep(step);
+        this.renderMainArea();
+        this.renderSidebar();
         return;
       }
       const actionEl = target.closest<HTMLElement>('[data-action]');
       if (actionEl?.dataset.action === 'overview') {
-        this._onOverviewClick?.();
+        this.viewMode = 'overview';
+        this.renderMainArea();
+        this.renderSidebar();
       } else if (actionEl?.dataset.action === 'back') {
         this._onBack?.();
+      }
+    });
+
+    // Attach overview click handler (delegated)
+    this.overviewEl.addEventListener('keydown', activateOnKeydown);
+    this.overviewEl.addEventListener('click', (e) => {
+      const actionEl = (e.target as HTMLElement).closest<HTMLElement>('[data-action]');
+      if (!actionEl) return;
+      const action = actionEl.dataset.action;
+      if (action === 'go-to-step') {
+        const step = actionEl.dataset.step as AccountOnboardingStep;
+        this.viewMode = 'wizard';
+        this.innerWizard?.navigateToStep(step);
+        this.renderMainArea();
+        this.renderSidebar();
+      } else if (action === 'start-onboarding') {
+        this.viewMode = 'wizard';
+        const firstStep = this.activeSteps.find((s) => s !== 'final_complete') ?? 'account';
+        this.innerWizard?.navigateToStep(firstStep);
+        this.renderMainArea();
+        this.renderSidebar();
       }
     });
 
@@ -220,14 +256,32 @@ export class OnboardingPortalComponent extends BaseComponent {
    * Lazily acquire the progress store from the wizard (created after data loads).
    * Called from both onStepChange and onSubStepProgress callbacks to ensure the
    * portal picks up the store on the first event, whichever fires first.
+   *
+   * After acquiring, if still on the splash screen and any progress exists,
+   * auto-transition to the overview (splash is a one-time gate).
    */
   private acquireProgressStore(): void {
     if (this._progressStore || !this.innerWizard) return;
     const store = this.innerWizard.getProgressStore();
     if (!store) return;
     this._progressStore = store;
-    this._storeUnsubscribe = store.subscribe(() => this.renderSidebar());
+    this._storeUnsubscribe = store.subscribe(() => {
+      this.renderSidebar();
+      if (this.viewMode === 'overview') this.renderMainArea();
+    });
     this.activeSteps = this.innerWizard.getActiveSteps();
+
+    // Auto-transition past splash if any progress exists
+    if (this.viewMode === 'splash') {
+      const hasProgress = ONBOARDING_STEPS.some(
+        (s) => store.getStepProgressPercent(s) > 0 || store.isStepComplete(s)
+      );
+      if (hasProgress) {
+        this.viewMode = 'overview';
+        this.renderMainArea();
+        this.renderSidebar();
+      }
+    }
   }
 
   // ============================================================================
@@ -246,10 +300,6 @@ export class OnboardingPortalComponent extends BaseComponent {
 
   setOnStepChange(cb: (event: { step: AccountOnboardingStep }) => void): void {
     this._onStepChange = cb;
-  }
-
-  setOnOverviewClick(cb: (() => void) | undefined): void {
-    this._onOverviewClick = cb;
   }
 
   setOnBack(cb: (() => void) | undefined): void {
@@ -327,7 +377,7 @@ export class OnboardingPortalComponent extends BaseComponent {
     if (!this.shadowRoot || !this.styleEl) return;
 
     const styles = this.applyAppearanceStyles();
-    this.styleEl.textContent = `${styles}\n${PORTAL_STYLES}`;
+    this.styleEl.textContent = `${styles}\n${PORTAL_STYLES}\n${SPLASH_STYLES}\n${OVERVIEW_STYLES}`;
 
     if (this.sidebarEl) {
       this.sidebarEl.className = `portal-sidebar ${this.classes.sidebar ?? ''}`.trim();
@@ -337,6 +387,7 @@ export class OnboardingPortalComponent extends BaseComponent {
     }
 
     this.renderSidebar();
+    this.renderMainArea();
   }
 
   private renderSidebar(): void {
@@ -352,7 +403,7 @@ export class OnboardingPortalComponent extends BaseComponent {
 
     // Build sidebar using DOM methods to avoid innerHTML XSS concerns.
     // All text content comes from internal i18n strings; SVG icons are
-    // static constants defined in this module.
+    // static constants defined in constants.ts.
     this.sidebarEl.textContent = '';
 
     // Logo
@@ -368,17 +419,19 @@ export class OnboardingPortalComponent extends BaseComponent {
     }
     this.sidebarEl.appendChild(logoDiv);
 
-    // Dashboard link
-    const dashLink = document.createElement('div');
-    dashLink.className = 'portal-nav-link';
-    dashLink.setAttribute('data-action', 'overview');
-    dashLink.setAttribute('role', 'button');
-    dashLink.setAttribute('tabindex', '0');
-    dashLink.innerHTML = `<span class="portal-nav-icon">${DASHBOARD_SVG}</span>`;
-    const dashLabel = document.createElement('span');
-    dashLabel.textContent = this.t('onboardingPortal.dashboard');
-    dashLink.appendChild(dashLabel);
-    this.sidebarEl.appendChild(dashLink);
+    // Overview link — active only when viewMode is 'overview' (not during splash)
+    const overviewLink = document.createElement('div');
+    const isOverviewActive = this.viewMode === 'overview';
+    overviewLink.className = `portal-nav-link${isOverviewActive ? ' active' : ''}`;
+    overviewLink.setAttribute('data-action', 'overview');
+    overviewLink.setAttribute('role', 'button');
+    overviewLink.setAttribute('tabindex', '0');
+    // SAFETY: OVERVIEW_SVG is a static constant defined in constants.ts
+    overviewLink.innerHTML = `<span class="portal-nav-icon">${OVERVIEW_SVG}</span>`;
+    const overviewLabel = document.createElement('span');
+    overviewLabel.textContent = this.t('onboardingPortal.overview.label');
+    overviewLink.appendChild(overviewLabel);
+    this.sidebarEl.appendChild(overviewLink);
 
     // Steps label
     const stepsLabelDiv = document.createElement('div');
@@ -387,7 +440,7 @@ export class OnboardingPortalComponent extends BaseComponent {
     this.sidebarEl.appendChild(stepsLabelDiv);
 
     for (const step of stepsWithoutComplete) {
-      const isActive = step === this.currentStep;
+      const isActive = this.viewMode === 'wizard' && step === this.currentStep;
       const isCompleted = this._progressStore?.isStepComplete(step as StepName) ?? false;
 
       const item = document.createElement('div');
@@ -401,6 +454,7 @@ export class OnboardingPortalComponent extends BaseComponent {
       // Icon (static SVG constant)
       const iconSpan = document.createElement('span');
       iconSpan.className = 'portal-step-icon';
+      // SAFETY: STEP_ICONS values are static SVG constants from account-onboarding/icons.ts
       iconSpan.innerHTML = STEP_ICONS[step] ?? '';
       item.appendChild(iconSpan);
 
@@ -432,7 +486,7 @@ export class OnboardingPortalComponent extends BaseComponent {
     backLink.setAttribute('data-action', 'back');
     backLink.setAttribute('role', 'button');
     backLink.setAttribute('tabindex', '0');
-    // BACK_SVG is a static constant defined in this module, not user input
+    // SAFETY: BACK_SVG is a static constant defined in constants.ts
     backLink.innerHTML = `<span class="portal-nav-icon">${BACK_SVG}</span>`;
     const backLabelEl = document.createElement('span');
     backLabelEl.textContent = this._backLabel ?? this.t('onboardingPortal.back');
@@ -443,6 +497,7 @@ export class OnboardingPortalComponent extends BaseComponent {
     helpLink.className = 'portal-footer-link';
     helpLink.setAttribute('role', 'button');
     helpLink.setAttribute('tabindex', '0');
+    // SAFETY: HELP_SVG is a static constant defined in constants.ts
     helpLink.innerHTML = `<span class="portal-nav-icon">${HELP_SVG}</span>`;
     const helpLabel = document.createElement('span');
     helpLabel.textContent = this.t('onboardingPortal.helpSupport');
@@ -450,6 +505,26 @@ export class OnboardingPortalComponent extends BaseComponent {
     footer.appendChild(helpLink);
 
     this.sidebarEl.appendChild(footer);
+  }
+
+  private renderMainArea(): void {
+    if (!this.overviewEl || !this.mainEl) return;
+    if (this.viewMode === 'splash') {
+      this.mainEl.style.display = 'none';
+      this.overviewEl.style.display = '';
+      // Splash is static; skip re-render if already mounted
+      if (!this.overviewEl.firstChild) {
+        renderSplashScreen(this.overviewEl, (key) => this.t(key));
+      }
+    } else if (this.viewMode === 'overview') {
+      this.mainEl.style.display = 'none';
+      this.overviewEl.style.display = '';
+      const stepsToShow = this.activeSteps.filter((s): s is StepName => s !== 'final_complete');
+      renderOverviewScreen(this.overviewEl, (key) => this.t(key), this._progressStore, stepsToShow);
+    } else {
+      this.overviewEl.style.display = 'none';
+      this.mainEl.style.display = '';
+    }
   }
 
   private renderStepIndicator(step: AccountOnboardingStep, isCompleted: boolean): string {

@@ -1,0 +1,239 @@
+.overview-container {
+  padding: 40px 48px;
+  overflow-y: auto;
+  height: 100%;
+  background: #f0f0ff;
+  box-sizing: border-box;
+}
+
+.overview-header {
+  margin-bottom: 32px;
+}
+
+.overview-header h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1c1247;
+  margin: 0 0 8px;
+}
+
+.overview-header p {
+  font-size: 16px;
+  color: #6b6b80;
+  margin: 0;
+}
+
+/* Progress card */
+.overview-progress-card {
+  background: #fff;
+  border: 1px solid #e0dff0;
+  border-radius: 16px;
+  padding: 24px 28px;
+  margin-bottom: 32px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.overview-progress-info {
+  flex: 1;
+}
+
+.overview-progress-info h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1c1247;
+  margin: 0 0 12px;
+}
+
+.overview-progress-bar-track {
+  background: #cac5ff;
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.overview-progress-bar-fill {
+  background: #692cff;
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.3s ease;
+}
+
+.overview-progress-subtitle {
+  font-size: 14px;
+  color: #6b6b80;
+  margin: 0;
+}
+
+.overview-progress-pct {
+  font-size: 36px;
+  font-weight: 700;
+  color: #692cff;
+  flex-shrink: 0;
+}
+
+/* Steps title */
+.overview-steps-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1c1247;
+  margin: 0 0 20px;
+}
+
+/* Step cards grid */
+.overview-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-bottom: 32px;
+}
+
+.overview-card {
+  background: #fff;
+  border: 1px solid #e0dff0;
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.overview-card-icon {
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  background: #ffeaf5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.overview-card-icon svg {
+  width: 28px;
+  height: 28px;
+  color: #c94198;
+}
+
+.overview-card-icon--complete {
+  background: #30a46c;
+}
+
+.overview-card-icon--complete svg {
+  width: 32px;
+  height: 32px;
+  color: #fff;
+}
+
+.overview-card h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1c1247;
+  margin: 0;
+}
+
+.overview-card p {
+  font-size: 14px;
+  color: #6b6b80;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.overview-card-progress {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.overview-card-progress-label {
+  font-size: 16px;
+  color: #333;
+  flex: 1;
+}
+
+.overview-card-progress-track {
+  width: 100%;
+  background: #cac5ff;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.overview-card-progress-fill {
+  background: #692cff;
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.overview-card-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #692cff;
+  color: #fff;
+  border: none;
+  border-radius: 24px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  align-self: flex-start;
+}
+
+.overview-card-btn:hover {
+  background: #5a22e0;
+}
+
+/* Help card */
+.overview-help-card {
+  background: #fff;
+  border: 1px solid #e0dff0;
+  border-radius: 16px;
+  padding: 28px;
+}
+
+.overview-help-card h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1c1247;
+  margin: 0 0 6px;
+}
+
+.overview-help-card p {
+  font-size: 14px;
+  color: #6b6b80;
+  margin: 0 0 16px;
+}
+
+.overview-help-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.overview-help-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: #692cff;
+  border: 1.5px solid #692cff;
+  border-radius: 24px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.overview-help-btn:hover {
+  background: #692cff;
+  color: #fff;
+}

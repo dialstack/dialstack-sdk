@@ -64,7 +64,6 @@ export interface OnboardingPortalElement extends Omit<BaseComponentElement, 'set
   setFullTermsOfServiceUrl: (url?: string | null) => void;
   setRecipientTermsOfServiceUrl: (url?: string | null) => void;
   setPrivacyPolicyUrl: (url?: string | null) => void;
-  setOnOverviewClick: (cb: (() => void) | undefined) => void;
   setOnBack: (cb: (() => void) | undefined) => void;
   setBackLabel: (label: string | undefined) => void;
   setLogoHtml: (html: string | undefined) => void;

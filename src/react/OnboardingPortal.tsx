@@ -30,7 +30,6 @@ export interface OnboardingPortalProps {
   onLoadError?: (event: LoadError) => void;
   onExit?: () => void;
   onStepChange?: (event: { step: AccountOnboardingStep }) => void;
-  onOverviewClick?: () => void;
   onBack?: () => void;
   backLabel?: string;
   logoHtml?: string;
@@ -52,7 +51,6 @@ export const OnboardingPortal: React.FC<OnboardingPortalProps> = ({
   onLoadError,
   onExit,
   onStepChange,
-  onOverviewClick,
   onBack,
   backLabel,
   logoHtml,
@@ -105,7 +103,6 @@ export const OnboardingPortal: React.FC<OnboardingPortalProps> = ({
   useUpdateWithSetter(componentInstance, onLoadError, (c, v) => c.setOnLoadError(v));
   useUpdateWithSetter(componentInstance, onExit, (c, v) => c.setOnExit(v));
   useUpdateWithSetter(componentInstance, onStepChange, (c, v) => c.setOnStepChange(v));
-  useUpdateWithSetter(componentInstance, onOverviewClick, (c, v) => c.setOnOverviewClick(v));
   useUpdateWithSetter(componentInstance, onBack, (c, v) => c.setOnBack(v));
 
   return <div ref={containerRef} className={className} style={style} />;
