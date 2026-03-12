@@ -15,6 +15,8 @@ import type { Extension } from '../../types/dial-plan';
 import COMPONENT_STYLES from './styles.css';
 import { CHECK_SVG, ERROR_SVG, SUCCESS_SVG } from './icons';
 import type { OnboardingHost } from './host';
+import { SIDEBAR_GROUPS, type StepName, type SidebarGroup } from './constants';
+import type { OnboardingProgressStore } from './progress-store';
 
 export interface SidebarConfig {
   title: string;
@@ -40,6 +42,14 @@ export abstract class OnboardingStepBase extends BaseComponent {
   // Callbacks
   private _onComplete?: () => void;
   protected _onBack?: () => void;
+  private _onRender?: () => void;
+  private _onSubStepChange?: (substep: string) => void;
+
+  // Pending substep restore (set before loadData, applied after)
+  private _pendingSubStep?: string;
+
+  // Progress store (shared with wizard and portal)
+  protected _progressStore: OnboardingProgressStore | null = null;
 
   // Back button visibility (controlled by wizard when embedded)
   private _showBack = false;
@@ -104,11 +114,20 @@ export abstract class OnboardingStepBase extends BaseComponent {
   navigateToStep(_step: AccountOnboardingStep): void {
     this.isComplete = true;
     this.cleanupStep();
+    this.notifySubStepChange('complete');
     this.render();
   }
 
   getActiveSteps(): AccountOnboardingStep[] {
-    return [this.stepName, 'complete'];
+    return [this.stepName, 'final_complete'];
+  }
+
+  notifySubStepChange(substep: string): void {
+    this._onSubStepChange?.(substep);
+  }
+
+  removeSubSteps(substeps: string[]): void {
+    this._progressStore?.removeSubSteps(this.stepName as StepName, substeps);
   }
 
   renderStepFooter(): string {
@@ -135,6 +154,36 @@ export abstract class OnboardingStepBase extends BaseComponent {
   // Public setters
   // ============================================================================
 
+  getProgress(): { activeIndex: number; totalSubSteps: number } {
+    const config = this.getSidebarConfig();
+    if (this.isComplete) {
+      return { activeIndex: config.subSteps.length, totalSubSteps: config.subSteps.length };
+    }
+    const idx =
+      config.activeKey != null
+        ? config.subSteps.findIndex((s) => s.key === config.activeKey)
+        : config.subSteps.length;
+    return { activeIndex: idx < 0 ? 0 : idx, totalSubSteps: config.subSteps.length };
+  }
+
+  setOnSubStepChange(cb: ((substep: string) => void) | undefined): void {
+    this._onSubStepChange = cb;
+  }
+
+  setProgressStore(store: OnboardingProgressStore): void {
+    this._progressStore = store;
+    // Register sidebar mapping so the store can derive progress
+    store.registerSidebarMapping(this.stepName as StepName, this.getSidebarGroups());
+  }
+
+  setPendingSubStep(substep: string): void {
+    this._pendingSubStep = substep;
+  }
+
+  setOnRender(cb: (() => void) | undefined): void {
+    this._onRender = cb;
+  }
+
   setOnComplete(cb: (() => void) | undefined): void {
     this._onComplete = cb;
   }
@@ -155,6 +204,16 @@ export abstract class OnboardingStepBase extends BaseComponent {
     if (this.isInitialized) {
       this.render();
     }
+  }
+
+  /**
+   * Re-run loadData() and re-render without the initial loading spinner.
+   * Used by the wizard to refresh stale data when navigating to a cached step.
+   */
+  async refreshData(): Promise<void> {
+    if (!this.instance) return;
+    await this.loadData();
+    this.render();
   }
 
   // ============================================================================
@@ -182,6 +241,14 @@ export abstract class OnboardingStepBase extends BaseComponent {
     try {
       if (!this.instance) throw new Error('Not initialized');
       await this.loadData();
+      if (this._pendingSubStep) {
+        if (this._pendingSubStep === 'complete') {
+          this.isComplete = true;
+        } else {
+          this.restoreSubStep(this._pendingSubStep);
+        }
+        this._pendingSubStep = undefined;
+      }
       this.isLoading = false;
       this.render();
     } catch (err) {
@@ -240,6 +307,8 @@ export abstract class OnboardingStepBase extends BaseComponent {
     if (!this.isLoading && !this.loadError && !this.isComplete) {
       this.attachStepInputListeners();
     }
+
+    this._onRender?.();
   }
 
   private renderLoadingState(): string {
@@ -387,6 +456,18 @@ export abstract class OnboardingStepBase extends BaseComponent {
   protected abstract handleBack(): boolean;
   protected abstract getSidebarConfig(): SidebarConfig;
   protected abstract getStepStyles(): string;
+  /**
+   * Return sidebar group mappings for this step.
+   * Used by the progress store to derive completion percentages.
+   */
+  protected getSidebarGroups(): SidebarGroup[] {
+    return SIDEBAR_GROUPS[this.stepName as StepName] ?? [];
+  }
+
+  protected restoreSubStep(_substep: string): void {
+    // Override in subclasses to restore substep position on reload
+  }
+
   protected cleanupStep(): void {
     // Override in subclasses if needed
   }

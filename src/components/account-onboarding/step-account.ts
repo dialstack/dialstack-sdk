@@ -61,6 +61,12 @@ export class OnboardingAccountStep extends OnboardingStepBase {
     }
   }
 
+  protected override restoreSubStep(substep: string): void {
+    if (substep === 'team-members') {
+      this.account.accountSubStep = 'team-members';
+    }
+  }
+
   protected renderStepContent(): string {
     return this.account.renderAccountStep();
   }

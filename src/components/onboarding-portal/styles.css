@@ -1,0 +1,202 @@
+.portal-layout {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.portal-sidebar {
+  width: 300px;
+  background: #1c1247;
+  color: #f0f0ff;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  flex-shrink: 0;
+}
+
+.portal-logo {
+  padding: 24px 16px;
+}
+
+.portal-nav-link {
+  display: flex;
+  gap: 12px;
+  height: 48px;
+  align-items: center;
+  padding: 0 16px;
+  border-radius: 14px;
+  color: #f0f0ff;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.portal-nav-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.portal-nav-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.portal-steps-label {
+  font-size: 14px;
+  letter-spacing: 0.6px;
+  color: rgba(240, 240, 255, 0.6);
+  padding: 24px 16px 8px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.portal-step-item {
+  display: flex;
+  gap: 12px;
+  height: 48px;
+  align-items: center;
+  padding: 0 16px;
+  border-radius: 14px;
+  cursor: pointer;
+  color: rgba(240, 240, 255, 0.7);
+  font-size: 16px;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.portal-step-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.portal-step-item.active {
+  background: #4c3c8e;
+  color: #fff;
+}
+
+.portal-step-item.completed {
+  color: #f0f0ff;
+}
+
+.portal-step-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.portal-step-name {
+  flex: 1;
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.portal-step-indicator {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.portal-sidebar-footer {
+  margin-top: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 17px;
+}
+
+.portal-footer-link {
+  display: flex;
+  gap: 12px;
+  height: 40px;
+  align-items: center;
+  padding: 0 16px;
+  border-radius: 14px;
+  color: rgba(240, 240, 255, 0.6);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.portal-footer-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.portal-main {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  align-items: center;
+}
+
+.portal-main > * {
+  width: 100%;
+}
+
+.progress-ring {
+  width: 28px;
+  height: 28px;
+}
+
+.check-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #30a46c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.check-circle svg {
+  width: 14px;
+  height: 14px;
+  color: #fff;
+}
+
+/* Collapse animation for step items and label */
+@keyframes collapse {
+  to {
+    height: 0;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin: 0;
+  }
+}
+
+.portal-step-item.collapsing,
+.portal-steps-label.collapsing {
+  animation: collapse 0.3s ease-in forwards;
+  overflow: hidden;
+}
+
+/* Fade-in animation for completed item */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.portal-step-item.fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+/* Completed item label — matches .portal-steps-label typography */
+.portal-completed-label {
+  font-size: 14px;
+  letter-spacing: 0.6px;
+  color: rgba(240, 240, 255, 0.6);
+  text-transform: uppercase;
+  font-weight: 500;
+}

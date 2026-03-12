@@ -53,6 +53,7 @@ export type {
   AccountOnboardingStep,
   OnboardingCollectionOptions,
   AccountOnboardingClasses,
+  OnboardingPortalClasses,
   OnboardingUser,
   // Custom render types
   VoicemailRowRenderer,
@@ -82,6 +83,7 @@ export { DialPlanViewer } from './react/DialPlanViewer';
 export { PhoneNumberOrdering } from './react/PhoneNumberOrdering';
 export { PhoneNumbers } from './react/PhoneNumbers';
 export { AccountOnboarding } from './react/AccountOnboarding';
+export { OnboardingPortal } from './react/OnboardingPortal';
 
 export type { DialstackComponentsProviderProps } from './react/DialstackComponentsProvider';
 export type { CallLogsProps } from './react/CallLogs';
@@ -90,6 +92,7 @@ export type { CallHistoryProps } from './react/CallHistory';
 export type { PhoneNumberOrderingProps } from './react/PhoneNumberOrdering';
 export type { PhoneNumbersProps } from './react/PhoneNumbers';
 export type { AccountOnboardingProps } from './react/AccountOnboarding';
+export type { OnboardingPortalProps } from './react/OnboardingPortal';
 export type {
   DialPlan,
   DialPlanNode,

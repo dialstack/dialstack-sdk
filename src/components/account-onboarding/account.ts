@@ -9,8 +9,7 @@ import { US_STATES } from '../../constants/us-states';
 import { US_TIMEZONES } from '../../constants/us-timezones';
 import { CHECK_CIRCLE_SVG, TRASH_SVG } from './icons';
 import type { OnboardingHost } from './host';
-
-export type AccountSubStep = 'business-details' | 'team-members';
+import type { AccountSubStep } from './constants';
 
 export class AccountStepHelper {
   accountSubStep: AccountSubStep = 'business-details';
@@ -396,6 +395,7 @@ export class AccountStepHelper {
 
       this.isSavingAccount = false;
       this.accountSubStep = 'team-members';
+      this.host.notifySubStepChange('team-members');
       this.host.render();
     } catch (err) {
       this.isSavingAccount = false;
@@ -582,6 +582,7 @@ export class AccountStepHelper {
   handleBack(): boolean {
     if (this.accountSubStep === 'team-members') {
       this.accountSubStep = 'business-details';
+      this.host.notifySubStepChange('business-details');
       this.host.render();
       return true;
     }

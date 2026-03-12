@@ -317,4 +317,5 @@ export function registerComponents(): void {
   import('../components/voicemails');
   import('../components/phone-number-ordering');
   import('../components/phone-numbers');
+  import('../components/onboarding-portal');
 }

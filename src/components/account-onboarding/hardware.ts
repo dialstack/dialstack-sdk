@@ -31,6 +31,19 @@ export class HardwareStepHelper {
 
   private hwActionError: string | null = null;
 
+  // Snapshot of initial device→record mappings from API, used to detect reassignments
+  private initialDeviceRecords = new Map<
+    string,
+    {
+      type: 'line' | 'dect';
+      recordId: string;
+      endpointId: string;
+      deviceId: string;
+      baseId?: string;
+      handsetId?: string;
+    }
+  >();
+
   constructor(private host: OnboardingHost) {}
 
   // ============================================================================
@@ -103,6 +116,7 @@ export class HardwareStepHelper {
   /** Pre-populate assignments from existing API data (resume case). */
   private initAssignmentsFromData(): void {
     const endpointToUser = this.getEndpointToUserMap();
+    this.initialDeviceRecords.clear();
 
     // Desk phones
     for (const dev of this.devices) {
@@ -110,16 +124,30 @@ export class HardwareStepHelper {
       const assignedLine = lines.find((l) => l.endpoint_id && endpointToUser.has(l.endpoint_id));
       if (assignedLine) {
         this.deviceAssignments.set(dev.id, endpointToUser.get(assignedLine.endpoint_id!)!);
+        this.initialDeviceRecords.set(dev.id, {
+          type: 'line',
+          recordId: assignedLine.id,
+          endpointId: assignedLine.endpoint_id!,
+          deviceId: dev.id,
+        });
       }
     }
 
     // DECT handsets
-    for (const [, handsets] of this.dectHandsets.entries()) {
+    for (const [baseId, handsets] of this.dectHandsets.entries()) {
       for (const hs of handsets) {
         const exts = hs.extensions ?? [];
         const ext = exts.find((e) => endpointToUser.has(e.endpoint_id));
         if (ext) {
           this.deviceAssignments.set(hs.id, endpointToUser.get(ext.endpoint_id)!);
+          this.initialDeviceRecords.set(hs.id, {
+            type: 'dect',
+            recordId: ext.id,
+            endpointId: ext.endpoint_id,
+            deviceId: hs.id,
+            baseId,
+            handsetId: hs.id,
+          });
         }
       }
     }
@@ -240,6 +268,22 @@ export class HardwareStepHelper {
       // Find all assignable devices for lookup
       const allDevices = this.getAllAssignableDevices();
 
+      // Remove stale assignments: devices that were assigned in the API but are
+      // now unassigned or reassigned to a different user
+      for (const [deviceId, initial] of this.initialDeviceRecords.entries()) {
+        const currentUserId = this.deviceAssignments.get(deviceId);
+        if (!currentUserId) {
+          // Device was unassigned — delete old record
+          await this.deleteDeviceRecord(initial);
+          continue;
+        }
+        const currentEndpoint = await this.ensureEndpoint(currentUserId);
+        if (currentEndpoint.id !== initial.endpointId) {
+          // Reassigned to different user — delete old record before creating new one
+          await this.deleteDeviceRecord(initial);
+        }
+      }
+
       for (const [deviceId, userId] of this.deviceAssignments.entries()) {
         const device = allDevices.find((d) => d.id === deviceId);
         if (!device) continue;
@@ -252,7 +296,7 @@ export class HardwareStepHelper {
           const lines = dev?.lines ?? [];
           const existingLine = lines.find((l) => l.endpoint_id === endpoint.id);
           if (!existingLine) {
-            await this.host.instance.createDeskphoneLine(deviceId, {
+            await this.host.instance!.createDeskphoneLine(deviceId, {
               endpoint_id: endpoint.id,
             });
           }
@@ -263,7 +307,7 @@ export class HardwareStepHelper {
           const exts = hs?.extensions ?? [];
           const existingExt = exts.find((e) => e.endpoint_id === endpoint.id);
           if (!existingExt) {
-            await this.host.instance.createDECTExtension(device.baseId, deviceId, {
+            await this.host.instance!.createDECTExtension(device.baseId, deviceId, {
               endpoint_id: endpoint.id,
             });
           }
@@ -271,12 +315,31 @@ export class HardwareStepHelper {
       }
 
       this.selectedDeviceId = null;
-      this.host.navigateToStep('complete');
+      this.host.navigateToStep('final_complete');
     } catch (err) {
       this.hwActionError = err instanceof Error ? err.message : String(err);
     } finally {
       this.hwSubmitting = false;
       this.host.render();
+    }
+  }
+
+  private async deleteDeviceRecord(record: {
+    type: 'line' | 'dect';
+    recordId: string;
+    deviceId: string;
+    baseId?: string;
+    handsetId?: string;
+  }): Promise<void> {
+    if (!this.host.instance) return;
+    if (record.type === 'line') {
+      await this.host.instance.deleteDeskphoneLine(record.deviceId, record.recordId);
+    } else if (record.baseId && record.handsetId) {
+      await this.host.instance.deleteDECTExtension(
+        record.baseId,
+        record.handsetId,
+        record.recordId
+      );
     }
   }
 

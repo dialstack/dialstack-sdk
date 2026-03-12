@@ -36,6 +36,14 @@ export class OnboardingNumbersStep extends OnboardingStepBase {
     await this.numbers.loadNumbersData();
   }
 
+  protected override restoreSubStep(substep: string): void {
+    const safePoints = new Set(['overview', 'order-status', 'port-submitted']);
+    if (safePoints.has(substep)) {
+      this.numbers.numSubStep = substep as 'overview' | 'order-status' | 'port-submitted';
+    }
+    // All other substeps depend on ephemeral form state — fall back to overview (default)
+  }
+
   protected renderStepContent(): string {
     return this.numbers.renderNumbersStep();
   }
@@ -67,7 +75,7 @@ export class OnboardingNumbersStep extends OnboardingStepBase {
   }
 
   protected handleNext(): void {
-    this.navigateToStep('complete');
+    this.navigateToStep('final_complete');
   }
 
   protected handleBack(): boolean {

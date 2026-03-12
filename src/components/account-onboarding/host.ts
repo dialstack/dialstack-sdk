@@ -42,6 +42,10 @@ export interface OnboardingHost {
   getExtensionForUser(userId: string): Extension | undefined;
   getNextExtensionNumber(): string;
 
+  // Substep persistence
+  notifySubStepChange(substep: string): void;
+  removeSubSteps(substeps: string[]): void;
+
   // Step footer (used by hardware and numbers overview)
   renderStepFooter(): string;
 }

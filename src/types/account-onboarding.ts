@@ -5,7 +5,7 @@
 import type { BaseComponentClasses } from './appearance';
 import type { BaseComponentElement } from './components';
 
-export type AccountOnboardingStep = 'account' | 'numbers' | 'hardware' | 'complete';
+export type AccountOnboardingStep = 'account' | 'numbers' | 'hardware' | 'final_complete';
 
 /**
  * Options to control which onboarding steps are presented.
@@ -13,17 +13,22 @@ export type AccountOnboardingStep = 'account' | 'numbers' | 'hardware' | 'comple
  * - `include` scopes collection to only the listed steps.
  * - `exclude` hides the listed steps.
  * - When both are set, `include` is applied first, then `exclude` removes from that result.
- * - The `complete` step is always shown regardless of these options.
+ * - The `final_complete` step is always shown regardless of these options.
  */
 export interface OnboardingCollectionOptions {
   steps?: {
-    /** Show only these steps (the `complete` step is always included). */
+    /** Show only these steps (the `final_complete` step is always included). */
     include?: AccountOnboardingStep[];
     /** Hide these steps, preventing the user from seeing them. */
     exclude?: AccountOnboardingStep[];
   };
   /** Jump straight to this step after data loads. Useful for development. */
   initialStep?: AccountOnboardingStep;
+}
+
+export interface OnboardingPortalClasses extends BaseComponentClasses {
+  sidebar?: string;
+  mainContent?: string;
 }
 
 export interface AccountOnboardingClasses extends BaseComponentClasses {
@@ -41,6 +46,28 @@ export interface AccountOnboardingElement extends Omit<BaseComponentElement, 'se
   setFullTermsOfServiceUrl: (url?: string | null) => void;
   setRecipientTermsOfServiceUrl: (url?: string | null) => void;
   setPrivacyPolicyUrl: (url?: string | null) => void;
+  getCurrentStep: () => AccountOnboardingStep;
+  getActiveSteps: () => AccountOnboardingStep[];
+  getActiveStepElement: () => {
+    getProgress: () => { activeIndex: number; totalSubSteps: number };
+  } | null;
+  getSavedStepIndex: () => number;
+  navigateToStep: (step: AccountOnboardingStep) => void;
+  setOnSubStepProgress: (cb: (() => void) | undefined) => void;
+}
+
+export interface OnboardingPortalElement extends Omit<BaseComponentElement, 'setClasses'> {
+  setClasses: (classes: OnboardingPortalClasses) => void;
+  setOnExit: (cb: () => void) => void;
+  setOnStepChange: (cb: (event: { step: AccountOnboardingStep }) => void) => void;
+  setCollectionOptions: (options?: OnboardingCollectionOptions | null) => void;
+  setFullTermsOfServiceUrl: (url?: string | null) => void;
+  setRecipientTermsOfServiceUrl: (url?: string | null) => void;
+  setPrivacyPolicyUrl: (url?: string | null) => void;
+  setOnOverviewClick: (cb: (() => void) | undefined) => void;
+  setOnBack: (cb: (() => void) | undefined) => void;
+  setBackLabel: (label: string | undefined) => void;
+  setLogoHtml: (html: string | undefined) => void;
 }
 
 export interface AccountConfig {
@@ -49,7 +76,12 @@ export interface AccountConfig {
   transcription_enabled?: boolean;
   timezone?: string;
   max_phone_numbers?: number;
-  onboarding_step?: AccountOnboardingStep;
+  onboarding_progress?: {
+    current_step?: AccountOnboardingStep;
+    account?: string[];
+    numbers?: string[];
+    hardware?: string[];
+  };
 }
 
 export interface Account {

@@ -578,7 +578,7 @@
 /* ── Confetti for complete screen ── */
 .confetti-container {
   position: relative;
-  min-height: 400px;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;

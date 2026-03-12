@@ -20,22 +20,7 @@ import { US_STATES } from '../../constants/us-states';
 import { SUCCESS_SVG, ERROR_SVG, PORT_SVG, PLUS_CIRCLE_SVG, CHECK_CIRCLE_SVG } from './icons';
 import { ApiError } from '../../core/instance';
 import type { OnboardingHost } from './host';
-
-export type NumSubStep =
-  | 'overview'
-  | 'primary-did'
-  | 'caller-id'
-  | 'order-search'
-  | 'order-results'
-  | 'order-confirm'
-  | 'order-status'
-  | 'port-numbers'
-  | 'port-eligibility'
-  | 'port-subscriber'
-  | 'port-foc-date'
-  | 'port-documents'
-  | 'port-review'
-  | 'port-submitted';
+import { SIDEBAR_GROUPS, type NumSubStep } from './constants';
 
 export class NumbersStepHelper {
   // Sub-step
@@ -114,6 +99,11 @@ export class NumbersStepHelper {
   private callerIdBulkAttempted = false;
 
   constructor(private host: OnboardingHost) {}
+
+  private setSubStep(sub: NumSubStep): void {
+    this.numSubStep = sub;
+    this.host.notifySubStepChange(sub);
+  }
 
   // ============================================================================
   // Data Loading
@@ -300,7 +290,7 @@ export class NumbersStepHelper {
       const results = await this.host.instance.searchAvailableNumbers(opts as never);
       this.numOrderAvailableNumbers = results;
       this.numOrderIsSearching = false;
-      this.numSubStep = 'order-results';
+      this.setSubStep('order-results');
       this.host.render();
     } catch (err) {
       this.numOrderError = err instanceof Error ? err.message : String(err);
@@ -321,7 +311,7 @@ export class NumbersStepHelper {
         Array.from(this.numOrderSelectedNumbers)
       );
       this.numOrderCurrentOrder = order;
-      this.numSubStep = 'order-status';
+      this.setSubStep('order-status');
       this.numOrderPollCount = 0;
       this.host.render();
       this.numStartOrderPoll(order.id);
@@ -418,7 +408,7 @@ export class NumbersStepHelper {
       const result = await this.host.instance.checkPortEligibility(validNumbers);
       this.numPortEligibilityResult = result;
       this.numPortIsCheckingEligibility = false;
-      this.numSubStep = 'port-eligibility';
+      this.setSubStep('port-eligibility');
       this.host.render();
     } catch (err) {
       this.numPortEligibilityError = err instanceof Error ? err.message : String(err);
@@ -555,7 +545,7 @@ export class NumbersStepHelper {
 
       this.numPortCurrentOrder = submitted;
       this.numPortIsSubmitting = false;
-      this.numSubStep = 'port-submitted';
+      this.setSubStep('port-submitted');
       this.host.render();
     } catch (err) {
       this.numPortSubmitError = err instanceof Error ? err.message : String(err);
@@ -633,7 +623,7 @@ export class NumbersStepHelper {
       // Sub-step navigation: overview → primary-did → caller-id → (next main step)
       case 'next':
         if (this.host.currentStep === 'numbers' && this.numSubStep === 'overview') {
-          this.numSubStep = 'primary-did';
+          this.setSubStep('primary-did');
           // Only load DIDs on first visit; preserve user selection on back/forth
           if (!this.hasAttemptedDIDLoad && !this.isLoadingDIDs) {
             this.loadActiveDIDs();
@@ -650,7 +640,7 @@ export class NumbersStepHelper {
           if (!allDIDsCovered) {
             this.initCallerIdInputs();
           }
-          this.numSubStep = 'caller-id';
+          this.setSubStep('caller-id');
           this.host.render();
           return true;
         }
@@ -684,17 +674,19 @@ export class NumbersStepHelper {
         return true;
       case 'num-start-order':
         this.numResetOrderFlow();
-        this.numSubStep = 'order-search';
+        this.setSubStep('order-search');
         this.host.render();
         return true;
       case 'num-start-port':
         this.numResetPortFlow();
-        this.numSubStep = 'port-numbers';
+        this.setSubStep('port-numbers');
         this.host.render();
         return true;
       case 'num-back-to-overview':
         this.numResetOrderFlow();
         this.numResetPortFlow();
+        this.host.removeSubSteps(SIDEBAR_GROUPS.numbers.flatMap((g) => g.substeps));
+        // Set substep directly — don't notify (which would re-mark overview as complete)
         this.numSubStep = 'overview';
         this.loadNumbersData();
         return true;
@@ -713,7 +705,7 @@ export class NumbersStepHelper {
         this.numSearchNumbers();
         return true;
       case 'num-back-to-search':
-        this.numSubStep = 'order-search';
+        this.setSubStep('order-search');
         this.host.render();
         return true;
       case 'num-toggle-number': {
@@ -740,12 +732,12 @@ export class NumbersStepHelper {
         return true;
       case 'num-confirm-order':
         if (this.numOrderSelectedNumbers.size > 0) {
-          this.numSubStep = 'order-confirm';
+          this.setSubStep('order-confirm');
           this.host.render();
         }
         return true;
       case 'num-back-to-results':
-        this.numSubStep = 'order-results';
+        this.setSubStep('order-results');
         this.host.render();
         return true;
       case 'num-place-order':
@@ -758,7 +750,7 @@ export class NumbersStepHelper {
         if (nextStep) {
           this.host.navigateToStep(nextStep);
         } else {
-          this.numSubStep = 'overview';
+          this.setSubStep('overview');
           this.loadNumbersData();
         }
         return true;
@@ -779,39 +771,39 @@ export class NumbersStepHelper {
         this.numCheckPortEligibility();
         return true;
       case 'num-back-to-port-numbers':
-        this.numSubStep = 'port-numbers';
+        this.setSubStep('port-numbers');
         this.host.render();
         return true;
       case 'num-to-subscriber':
-        this.numSubStep = 'port-subscriber';
+        this.setSubStep('port-subscriber');
         this.host.render();
         return true;
       case 'num-back-to-eligibility':
-        this.numSubStep = 'port-eligibility';
+        this.setSubStep('port-eligibility');
         this.host.render();
         return true;
       case 'num-to-foc-date':
         if (this.numValidateSubscriber()) {
-          this.numSubStep = 'port-foc-date';
+          this.setSubStep('port-foc-date');
           this.host.render();
         } else {
           this.host.render();
         }
         return true;
       case 'num-back-to-subscriber':
-        this.numSubStep = 'port-subscriber';
+        this.setSubStep('port-subscriber');
         this.host.render();
         return true;
       case 'num-to-documents':
         if (this.numValidateFocDate()) {
-          this.numSubStep = 'port-documents';
+          this.setSubStep('port-documents');
           this.host.render();
         } else {
           this.host.render();
         }
         return true;
       case 'num-back-to-foc-date':
-        this.numSubStep = 'port-foc-date';
+        this.setSubStep('port-foc-date');
         this.host.render();
         return true;
       case 'num-upload-bill': {
@@ -833,12 +825,12 @@ export class NumbersStepHelper {
           this.host.render();
         } else {
           this.numPortDocUploadError = null;
-          this.numSubStep = 'port-review';
+          this.setSubStep('port-review');
           this.host.render();
         }
         return true;
       case 'num-back-to-documents':
-        this.numSubStep = 'port-documents';
+        this.setSubStep('port-documents');
         this.host.render();
         return true;
       case 'num-submit-port':
@@ -853,7 +845,7 @@ export class NumbersStepHelper {
         return true;
       case 'num-port-done':
         this.numResetPortFlow();
-        this.numSubStep = 'overview';
+        this.setSubStep('overview');
         this.loadNumbersData();
         return true;
       case 'num-cid-skip': {

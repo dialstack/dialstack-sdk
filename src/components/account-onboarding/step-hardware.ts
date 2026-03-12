@@ -60,7 +60,7 @@ export class OnboardingHardwareStep extends OnboardingStepBase {
   }
 
   protected handleNext(): void {
-    this.navigateToStep('complete');
+    this.navigateToStep('final_complete');
   }
 
   protected handleBack(): boolean {

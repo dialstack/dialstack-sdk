@@ -633,6 +633,13 @@ export const en = {
       privacyPolicy: 'Privacy Policy',
     },
   },
+  onboardingPortal: {
+    dashboard: 'Dashboard',
+    onboardingFlows: 'ONBOARDING FLOWS',
+    back: 'Back',
+    helpSupport: 'Help & Support',
+    onboardingComplete: 'Onboarding complete',
+  },
   dialPlan: {
     title: 'Dial Plan',
     loading: 'Loading dial plan...',

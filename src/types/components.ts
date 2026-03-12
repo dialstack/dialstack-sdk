@@ -13,7 +13,7 @@ import type {
 } from './appearance';
 import type { PhoneNumberOrderingElement } from './phone-number-ordering';
 import type { PhoneNumbersElement } from './phone-numbers';
-import type { AccountOnboardingElement } from './account-onboarding';
+import type { AccountOnboardingElement, OnboardingPortalElement } from './account-onboarding';
 import type { LoaderStart, LoadError } from './callbacks';
 import type { DialStackInstanceImpl } from './core';
 
@@ -390,7 +390,8 @@ export type ComponentTagName =
   | 'call-history'
   | 'phone-number-ordering'
   | 'phone-numbers'
-  | 'account-onboarding';
+  | 'account-onboarding'
+  | 'onboarding-portal';
 
 /**
  * Web Component element types mapped by tag name
@@ -402,4 +403,5 @@ export interface ComponentElement {
   'phone-number-ordering': PhoneNumberOrderingElement;
   'phone-numbers': PhoneNumbersElement;
   'account-onboarding': AccountOnboardingElement;
+  'onboarding-portal': OnboardingPortalElement;
 }

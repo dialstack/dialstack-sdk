@@ -22,6 +22,8 @@ import { create as createConfetti } from 'canvas-confetti';
 import { ERROR_SVG } from './icons';
 import type { OnboardingStepBase } from './step-base';
 import type { Locale } from '../../locales';
+import { OnboardingProgressStore } from './progress-store';
+import { ONBOARDING_STEPS } from './constants';
 
 // Side-effect imports: register step custom elements
 import './step-account';
@@ -36,17 +38,15 @@ const STEP_TAG_NAMES: Record<string, string> = {
 
 export class AccountOnboardingComponent extends BaseComponent {
   private static readonly ALL_STEPS: AccountOnboardingStep[] = [
-    'account',
-    'numbers',
-    'hardware',
-    'complete',
+    ...ONBOARDING_STEPS,
+    'final_complete',
   ];
 
   private currentStep: AccountOnboardingStep = 'account';
-  private savedStepIndex = 0;
   private isLoading = true;
   private loadError: string | null = null;
   private _accountConfig: AccountConfig = {};
+  private _progressStore: OnboardingProgressStore | null = null;
 
   // Collection options and URL props
   private collectionOptions: OnboardingCollectionOptions | null = null;
@@ -61,6 +61,7 @@ export class AccountOnboardingComponent extends BaseComponent {
   // Callbacks
   private _onExit?: () => void;
   private _onStepChange?: (event: { step: AccountOnboardingStep }) => void;
+  private _onSubStepProgress?: () => void;
 
   // Step element cache
   private stepElements = new Map<string, OnboardingStepBase>();
@@ -123,6 +124,10 @@ export class AccountOnboardingComponent extends BaseComponent {
   // Data Loading
   // ============================================================================
 
+  getProgressStore(): OnboardingProgressStore | null {
+    return this._progressStore;
+  }
+
   private async loadOnboardingData(): Promise<void> {
     this.isLoading = true;
     this.loadError = null;
@@ -137,12 +142,22 @@ export class AccountOnboardingComponent extends BaseComponent {
 
       this.isLoading = false;
 
-      // Restore saved onboarding step from account config
+      // Create progress store with DB sync
+      const store = new OnboardingProgressStore((progress) => {
+        if (!this.instance) return;
+        const config = { ...this._accountConfig, onboarding_progress: progress };
+        this._accountConfig = config;
+        this.instance
+          .updateAccount({ config })
+          .catch((err) => console.warn('Failed to persist progress:', err));
+      });
+      store.hydrate(accountData.config?.onboarding_progress);
+      this._progressStore = store;
+
+      // Restore saved step
       const activeSteps = this.getActiveSteps();
-      const savedStep = accountData.config?.onboarding_step;
-      if (savedStep && savedStep !== 'complete' && activeSteps.includes(savedStep)) {
-        const idx = activeSteps.indexOf(savedStep);
-        this.savedStepIndex = idx;
+      const savedStep = store.getCurrentStep();
+      if (savedStep && savedStep !== 'final_complete' && activeSteps.includes(savedStep)) {
         this.navigateToStep(savedStep);
       }
 
@@ -192,8 +207,28 @@ export class AccountOnboardingComponent extends BaseComponent {
       );
     }
 
+    // Forward progress store for sidebar mapping registration and substep restore
+    if (this._progressStore) {
+      el.setProgressStore(this._progressStore);
+
+      // Derive pending substep from completed state for UI position restore
+      if (step !== 'final_complete') {
+        const completed = this._progressStore.getCompletedSubSteps(step);
+        if (this._progressStore.isStepComplete(step)) {
+          el.setPendingSubStep('complete');
+        } else if (completed.size > 0) {
+          // Find the last completed substep to restore position after it
+          const last = [...completed].pop();
+          if (last) el.setPendingSubStep(last);
+        }
+      }
+    }
+
     // Configure navigation callbacks
     this.configureStepNavigation(step, el);
+
+    // Wire sub-step progress reporting
+    el.setOnRender(() => this._onSubStepProgress?.());
 
     // Append to steps container (hidden by default)
     el.style.display = 'none';
@@ -210,7 +245,21 @@ export class AccountOnboardingComponent extends BaseComponent {
 
     el.setShowBack(hasPrev);
 
+    el.setOnSubStepChange((substep) => {
+      if (step !== 'final_complete') {
+        if (substep === 'complete') {
+          this._progressStore?.markStepComplete(step);
+        } else {
+          this._progressStore?.completeSubStep(step, substep);
+        }
+      }
+    });
+
     el.setOnComplete(() => {
+      if (step !== 'final_complete') {
+        this._progressStore?.markStepComplete(step);
+      }
+
       const steps = this.getActiveSteps();
       const currentIdx = steps.indexOf(step);
       const nextStep = steps[currentIdx + 1];
@@ -254,11 +303,32 @@ export class AccountOnboardingComponent extends BaseComponent {
     this._onStepChange = cb;
   }
 
+  setOnSubStepProgress(cb: (() => void) | undefined): void {
+    this._onSubStepProgress = cb;
+  }
+
+  getCurrentStep(): AccountOnboardingStep {
+    return this.currentStep;
+  }
+
+  getActiveStepElement(): OnboardingStepBase | null {
+    return this.stepElements.get(this.currentStep) ?? null;
+  }
+
+  getSavedProgress(): Record<string, number> {
+    if (!this._progressStore) return {};
+    const result: Record<string, number> = {};
+    for (const step of ONBOARDING_STEPS) {
+      result[step] = this._progressStore.getStepProgressPercent(step);
+    }
+    return result;
+  }
+
   setCollectionOptions(options?: OnboardingCollectionOptions | null): void {
     this.collectionOptions = options ?? null;
     const activeSteps = this.getActiveSteps();
     if (!activeSteps.includes(this.currentStep)) {
-      this.currentStep = activeSteps[0] ?? 'complete';
+      this.currentStep = activeSteps[0] ?? 'final_complete';
     }
     this.reconfigureNavigation();
     const initial = this.collectionOptions?.initialStep;
@@ -352,14 +422,14 @@ export class AccountOnboardingComponent extends BaseComponent {
 
   getActiveSteps(): AccountOnboardingStep[] {
     const opts = this.collectionOptions?.steps;
-    let steps = AccountOnboardingComponent.ALL_STEPS.filter((s) => s !== 'complete');
+    let steps = AccountOnboardingComponent.ALL_STEPS.filter((s) => s !== 'final_complete');
     if (opts?.include) {
       steps = steps.filter((s) => opts.include!.includes(s));
     }
     if (opts?.exclude) {
       steps = steps.filter((s) => !opts.exclude!.includes(s));
     }
-    return [...steps, 'complete'];
+    return [...steps, 'final_complete'];
   }
 
   // ============================================================================
@@ -372,15 +442,8 @@ export class AccountOnboardingComponent extends BaseComponent {
     this._onStepChange?.({ step });
     this.render();
 
-    // Persist progress (fire-and-forget)
-    const activeSteps = this.getActiveSteps();
-    const stepIdx = activeSteps.indexOf(step);
-    if (stepIdx > this.savedStepIndex && this.instance) {
-      this.savedStepIndex = stepIdx;
-      this.instance
-        .updateAccount({ config: { ...this._accountConfig, onboarding_step: step } })
-        .catch((err) => console.warn('Failed to persist onboarding step:', err));
-    }
+    // Store handles persistence
+    this._progressStore?.setCurrentStep(step);
   }
 
   // ============================================================================
@@ -399,7 +462,8 @@ export class AccountOnboardingComponent extends BaseComponent {
     this.htmlContainer.className = `container ${this.getClassNames()}`;
     this.htmlContainer.setAttribute('aria-label', this.t('accountOnboarding.title'));
 
-    const showStepElement = !this.isLoading && !this.loadError && this.currentStep !== 'complete';
+    const showStepElement =
+      !this.isLoading && !this.loadError && this.currentStep !== 'final_complete';
 
     if (showStepElement) {
       this.stopConfetti();
@@ -408,7 +472,11 @@ export class AccountOnboardingComponent extends BaseComponent {
       this.stepsContainer.style.display = '';
 
       // Toggle visibility of step elements
+      const wasCached = this.stepElements.has(this.currentStep);
       const activeEl = this.getOrCreateStep(this.currentStep);
+      if (wasCached) {
+        activeEl.refreshData();
+      }
       for (const [step, el] of this.stepElements) {
         el.style.display = step === this.currentStep ? '' : 'none';
       }
@@ -506,6 +574,9 @@ export class AccountOnboardingComponent extends BaseComponent {
     if (!container) return;
     canvas.width = container.clientWidth || 300;
     canvas.height = container.clientHeight || 150;
+
+    // Guard: canvas-confetti crashes if getContext('2d') returns null (e.g. jsdom)
+    if (!canvas.getContext('2d')) return;
 
     const fire = createConfetti(canvas, { resize: true });
     this.confettiInstance = fire;
