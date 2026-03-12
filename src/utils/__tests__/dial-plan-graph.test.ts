@@ -25,7 +25,6 @@ describe('dial-plan-graph', () => {
           schedule_id: 'sched_1',
           open: 'reception',
           closed: 'voicemail',
-          holiday: 'voicemail',
         },
       },
       {
@@ -98,13 +97,6 @@ describe('dial-plan-graph', () => {
       );
       expect(closedEdge).toBeDefined();
       expect(closedEdge?.target).toBe('voicemail');
-
-      // Check for holiday exit edge
-      const holidayEdge = edges.find(
-        (e) => e.source === 'check_hours' && e.sourceHandle === 'holiday'
-      );
-      expect(holidayEdge).toBeDefined();
-      expect(holidayEdge?.target).toBe('voicemail');
     });
 
     it('should create edges for internal dial next exits', () => {
@@ -172,7 +164,6 @@ describe('dial-plan-graph', () => {
     it('should return correct labels for schedule exits', () => {
       expect(getEdgeLabel('open')).toBe('Open');
       expect(getEdgeLabel('closed')).toBe('Closed');
-      expect(getEdgeLabel('holiday')).toBe('Holiday');
     });
 
     it('should return correct labels for internal dial exits', () => {
@@ -253,7 +244,6 @@ describe('dial-plan-graph', () => {
               schedule_id: 'sched_1',
               open: 'nonexistent',
               closed: undefined,
-              holiday: undefined,
             },
           },
         ],

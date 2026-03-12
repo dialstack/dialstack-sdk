@@ -2,7 +2,7 @@
  * Schedule Node Component
  *
  * Represents a schedule-based routing node in a dial plan. Displays as a
- * diamond/decision shape with three output handles for open, closed, and holiday exits.
+ * diamond/decision shape with two output handles for open and closed exits.
  */
 
 import React, { memo } from 'react';
@@ -18,7 +18,6 @@ export const ScheduleNode = memo(function ScheduleNode({
   // Use locale strings with fallbacks
   const openLabel = data.locale?.exits.open ?? 'Open';
   const closedLabel = data.locale?.exits.closed ?? 'Closed';
-  const holidayLabel = data.locale?.exits.holiday ?? 'Holiday';
 
   return (
     <div
@@ -61,15 +60,6 @@ export const ScheduleNode = memo(function ScheduleNode({
             position={Position.Right}
             id="closed"
             className="ds-dial-plan-handle ds-dial-plan-handle--closed"
-          />
-        </div>
-        <div className="ds-dial-plan-node__exit-row">
-          <span className="ds-dial-plan-node__exit-label">{holidayLabel}</span>
-          <Handle
-            type="source"
-            position={Position.Right}
-            id="holiday"
-            className="ds-dial-plan-handle ds-dial-plan-handle--holiday"
           />
         </div>
       </div>

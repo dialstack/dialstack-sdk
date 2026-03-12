@@ -678,7 +678,6 @@ export const en = {
     exits: {
       open: 'Open',
       closed: 'Closed',
-      holiday: 'Holiday',
       next: 'No Answer',
       timeout: 'Timeout',
     },

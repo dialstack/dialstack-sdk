@@ -43,7 +43,6 @@ const defaultDialPlanLocale: DialPlanLocale = {
   exits: {
     open: 'Open',
     closed: 'Closed',
-    holiday: 'Holiday',
     next: 'No Answer',
     timeout: 'Timeout',
   },

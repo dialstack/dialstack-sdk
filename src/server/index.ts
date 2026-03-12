@@ -296,7 +296,6 @@ export interface ScheduleNodeConfig {
   schedule_id: string;
   open?: string;
   closed?: string;
-  holiday?: string;
 }
 
 export interface InternalDialNodeConfig {

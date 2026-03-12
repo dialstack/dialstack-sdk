@@ -11,17 +11,15 @@
 
 /**
  * Configuration for a schedule node that routes calls based on time schedules.
- * Has three possible exits: open (business hours), closed, and holiday.
+ * Has two possible exits: open (business hours) and closed (including holidays).
  */
 export interface ScheduleNodeConfig {
   /** Reference to the schedule definition */
   schedule_id: string;
   /** Node ID to route to when schedule is open */
   open?: string;
-  /** Node ID to route to when schedule is closed */
+  /** Node ID to route to when schedule is closed or on holiday */
   closed?: string;
-  /** Node ID to route to on holidays */
-  holiday?: string;
 }
 
 /**
@@ -112,7 +110,6 @@ export interface DialPlanLocale {
   exits: {
     open: string;
     closed: string;
-    holiday: string;
     next: string;
     timeout: string;
   };
@@ -187,7 +184,7 @@ export interface InternalDialNodeData extends Record<string, unknown> {
 export type GraphNodeData = StartNodeData | ScheduleNodeData | InternalDialNodeData;
 
 /** Edge labels for schedule exits */
-export type ScheduleExitType = 'open' | 'closed' | 'holiday';
+export type ScheduleExitType = 'open' | 'closed';
 
 /** Edge labels for internal dial exits */
 export type InternalDialExitType = 'next' | 'timeout';

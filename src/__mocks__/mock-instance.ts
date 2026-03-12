@@ -124,7 +124,6 @@ export function createMockInstance(
                   schedule_id: 'sched_01abc',
                   open: 'dial_01',
                   closed: undefined,
-                  holiday: undefined,
                 },
               },
               {

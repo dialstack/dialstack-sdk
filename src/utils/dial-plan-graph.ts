@@ -66,8 +66,6 @@ export function getEdgeLabel(exitType: string): string {
       return 'Open';
     case 'closed':
       return 'Closed';
-    case 'holiday':
-      return 'Holiday';
     case 'next':
       return 'No Answer';
     case 'timeout':
@@ -196,10 +194,9 @@ function createEdgesForNode(node: DialPlanNode, nodeMap: Map<string, DialPlanNod
   switch (node.type) {
     case 'schedule': {
       const config = (node as ScheduleNode).config;
-      const exits: Array<{ key: 'open' | 'closed' | 'holiday'; target?: string }> = [
+      const exits: Array<{ key: 'open' | 'closed'; target?: string }> = [
         { key: 'open', target: config.open },
         { key: 'closed', target: config.closed },
-        { key: 'holiday', target: config.holiday },
       ];
 
       for (const exit of exits) {
@@ -240,9 +237,8 @@ function createEdgesForNode(node: DialPlanNode, nodeMap: Map<string, DialPlanNod
 
 /** Y offset in pixels for nodes connected to each exit type */
 const EXIT_OFFSETS: Record<string, number> = {
-  open: -100, // Move up significantly
-  closed: 50, // Move down slightly
-  holiday: 100, // Move down significantly
+  open: -75, // Move up
+  closed: 75, // Move down
   next: 50, // Move down slightly
 };
 
@@ -300,7 +296,7 @@ export function applyAutoLayout(nodes: DialPlanGraphNode[], edges: Edge[]): Tran
 
 /**
  * Adjust node Y positions based on which source handles their incoming edges connect from.
- * Nodes connected to 'open' exits move up, nodes connected to 'holiday' exits move down.
+ * Nodes connected to 'open' exits move up, nodes connected to 'closed' exits move down.
  */
 function adjustNodePositionsForExits(
   nodes: DialPlanGraphNode[],

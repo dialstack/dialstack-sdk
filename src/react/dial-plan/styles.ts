@@ -208,10 +208,6 @@ export const dialPlanStyles = `
   background: var(--ds-color-warning, #f59e0b);
 }
 
-.ds-dial-plan-handle--holiday {
-  background: var(--ds-color-info, #0ea5e9);
-}
-
 .ds-dial-plan-handle--next {
   background: var(--ds-color-text-secondary, #64748b);
 }
