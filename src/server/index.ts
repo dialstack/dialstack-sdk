@@ -358,6 +358,7 @@ export interface RingGroup {
   name: string;
   timeout_seconds: number;
   ignore_forwarding: boolean;
+  confirm_external: boolean;
   members: RingGroupMember[];
   created_at: string;
   updated_at: string;
@@ -375,12 +376,14 @@ export interface RingGroupCreateParams {
   name: string;
   timeout_seconds?: number;
   ignore_forwarding?: boolean;
+  confirm_external?: boolean;
 }
 
 export interface RingGroupUpdateParams {
   name?: string;
   timeout_seconds?: number;
   ignore_forwarding?: boolean;
+  confirm_external?: boolean;
 }
 
 export interface RingGroupListParams {
