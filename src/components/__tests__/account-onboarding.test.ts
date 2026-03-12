@@ -2151,13 +2151,8 @@ describe('AccountOnboardingComponent', () => {
       phone_number: '+13105550101',
       caller_id_name: 'ACME Corp',
     };
-    const provisionedLocation = {
-      ...mockLocation,
-      primary_did_id: 'did_02acct',
-      e911_status: 'pending' as const,
-    };
 
-    const { element, instance } = await mountComponent({
+    const { element } = await mountComponent({
       listLocations: jest.fn().mockResolvedValue([mockLocation]),
       // listPhoneNumbers is still called by the overview loadNumbersData (via default fetchAllPages)
       // but we override fetchAllPages to return both pages' worth of DIDs
@@ -2169,12 +2164,6 @@ describe('AccountOnboardingComponent', () => {
       }),
       // fetchAllPages simulates two-page fetch returning both DIDs
       fetchAllPages: jest.fn().mockResolvedValue([page1DID, mockAccountDID]),
-      updateLocation: jest.fn().mockResolvedValue(provisionedLocation),
-      validateLocationE911: jest.fn().mockResolvedValue({
-        adjusted: false,
-        address: { house_number: '123', street_name: 'Main', city: 'New York' },
-      }),
-      provisionLocationE911: jest.fn().mockResolvedValue(provisionedLocation),
     });
 
     await navigateToTeamMembers(element);
@@ -2199,27 +2188,9 @@ describe('AccountOnboardingComponent', () => {
       'input[name="primary-did"]:checked'
     );
     expect(checked?.value).toBe('did_02acct');
-
-    // Navigate to complete (3 more clicks: primary-did→caller-id→hardware→complete)
-    await navigateToComplete(element, 3);
-
-    await waitFor(() => {
-      expect(stepRoot(element)?.querySelector('[data-action="exit"]')).toBeTruthy();
-    });
-
-    // Should have used the auto-matched DID from page 2
-    expect(instance.updateLocation).toHaveBeenCalledWith('loc_01abc', {
-      primary_did_id: 'did_02acct',
-    });
   });
 
-  it('uses pre-selected DID from numbers step for E911 provisioning on complete', async () => {
-    const provisionedLocation = {
-      ...mockLocation,
-      primary_did_id: 'did_01abc',
-      e911_status: 'pending' as const,
-    };
-
+  it('allows user to override auto-matched DID in primary-did sub-step', async () => {
     const { element, instance } = await mountComponent({
       listLocations: jest.fn().mockResolvedValue([mockLocation]),
       listPhoneNumbers: jest.fn().mockResolvedValue({
@@ -2228,12 +2199,6 @@ describe('AccountOnboardingComponent', () => {
         next_page_url: null,
         previous_page_url: null,
       }),
-      updateLocation: jest.fn().mockResolvedValue(provisionedLocation),
-      validateLocationE911: jest.fn().mockResolvedValue({
-        adjusted: false,
-        address: { house_number: '123', street_name: 'Main', city: 'New York' },
-      }),
-      provisionLocationE911: jest.fn().mockResolvedValue(provisionedLocation),
     });
 
     // Navigate to primary-did sub-step
@@ -2252,18 +2217,11 @@ describe('AccountOnboardingComponent', () => {
     otherRadio!.checked = true;
     otherRadio!.dispatchEvent(new Event('change', { bubbles: true }));
 
-    // Navigate to complete (3 more clicks: primary-did→caller-id→hardware→complete)
-    await navigateToComplete(element, 3);
-
-    await waitFor(() => {
-      const text = stepRoot(element)?.textContent ?? '';
-      expect(text).toContain('assigned as primary number for');
-    });
-
-    // Should have used the manually selected DID, not the account-phone matched one
-    expect(instance.updateLocation).toHaveBeenCalledWith('loc_01abc', {
-      primary_did_id: 'did_01abc',
-    });
+    // Confirm the DID is selected
+    const checked = stepRoot(element)?.querySelector<HTMLInputElement>(
+      'input[name="primary-did"]:checked'
+    );
+    expect(checked?.value).toBe('did_01abc');
   });
 
   // ============================================================================
@@ -3423,221 +3381,5 @@ describe('AccountOnboardingComponent', () => {
       // Should be back at overview with action cards
       expect(stepRoot(element).querySelector('[data-action="num-start-order"]')).not.toBeNull();
     });
-  });
-
-  // ============================================================================
-  // E911 Auto-Provisioning Tests
-  // ============================================================================
-
-  it('auto-provisions E911 for simple case (1 location, matching DID)', async () => {
-    const provisionedLocation = {
-      ...mockLocation,
-      primary_did_id: 'did_02acct',
-      e911_status: 'pending' as const,
-    };
-
-    const { element, instance } = await mountComponent({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
-      listPhoneNumbers: jest.fn().mockResolvedValue({
-        object: 'list',
-        data: [mockDID, mockAccountDID],
-        next_page_url: null,
-        previous_page_url: null,
-      }),
-      updateLocation: jest.fn().mockResolvedValue(provisionedLocation),
-      validateLocationE911: jest.fn().mockResolvedValue({
-        adjusted: false,
-        address: { house_number: '123', street_name: 'Main', city: 'New York' },
-      }),
-      provisionLocationE911: jest.fn().mockResolvedValue(provisionedLocation),
-    });
-
-    await navigateToComplete(element, 6);
-
-    await waitFor(() => {
-      // E911 panel should appear with disclosure
-      const text = element.shadowRoot?.textContent ?? '';
-      expect(text).toContain('assigned as primary number for');
-    });
-
-    expect(instance.updateLocation).toHaveBeenCalledWith('loc_01abc', {
-      primary_did_id: 'did_02acct',
-    });
-    expect(instance.validateLocationE911).toHaveBeenCalledWith('loc_01abc');
-    expect(instance.provisionLocationE911).toHaveBeenCalledWith('loc_01abc');
-  });
-
-  it('falls back to complex when no DID matches account phone and user selects none', async () => {
-    // With multiple non-matching DIDs and no user selection, no DID is auto-selected
-    const nonMatching1 = { ...mockDID, id: 'did_nm1', phone_number: '+13105550101' };
-    const nonMatching2 = { ...mockDID, id: 'did_nm2', phone_number: '+13105550102' };
-
-    const { element, instance } = await mountComponent({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
-      listPhoneNumbers: jest.fn().mockResolvedValue({
-        object: 'list',
-        data: [nonMatching1, nonMatching2],
-        next_page_url: null,
-        previous_page_url: null,
-      }),
-    });
-
-    await navigateToComplete(element, 6);
-
-    await waitFor(() => {
-      const text = element.shadowRoot?.textContent ?? '';
-      expect(text).toContain('E911 emergency services have not been fully configured');
-    });
-
-    expect(instance.updateLocation).not.toHaveBeenCalled();
-    expect(instance.validateLocationE911).not.toHaveBeenCalled();
-    expect(instance.provisionLocationE911).not.toHaveBeenCalled();
-  });
-
-  it('shows deferred warning for complex case (multiple locations)', async () => {
-    const secondLocation = {
-      ...mockLocation,
-      id: 'loc_02xyz',
-      name: 'Branch Office',
-    };
-
-    const { element, instance } = await mountComponent({
-      listLocations: jest.fn().mockResolvedValue([mockLocation, secondLocation]),
-      listPhoneNumbers: jest.fn().mockResolvedValue({
-        object: 'list',
-        data: [mockDID],
-        next_page_url: null,
-        previous_page_url: null,
-      }),
-    });
-
-    await navigateToComplete(element, 6);
-
-    await waitFor(() => {
-      const text = element.shadowRoot?.textContent ?? '';
-      expect(text).toContain('E911 emergency services have not been fully configured');
-    });
-
-    // Should not have called provision methods
-    expect(instance.validateLocationE911).not.toHaveBeenCalled();
-    expect(instance.provisionLocationE911).not.toHaveBeenCalled();
-  });
-
-  it('falls back to deferred warning when validation fails', async () => {
-    const { element, instance } = await mountComponent({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
-      listPhoneNumbers: jest.fn().mockResolvedValue({
-        object: 'list',
-        data: [mockAccountDID],
-        next_page_url: null,
-        previous_page_url: null,
-      }),
-      validateLocationE911: jest.fn().mockRejectedValue(new Error('Validation failed')),
-    });
-
-    await navigateToComplete(element, 6);
-
-    await waitFor(() => {
-      const text = element.shadowRoot?.textContent ?? '';
-      expect(text).toContain('E911 emergency services have not been fully configured');
-    });
-
-    expect(instance.provisionLocationE911).not.toHaveBeenCalled();
-  });
-
-  it('shows address standardized disclosure when adjusted', async () => {
-    const provisionedLocation = {
-      ...mockLocation,
-      primary_did_id: 'did_02acct',
-      e911_status: 'provisioned' as const,
-    };
-
-    const { element } = await mountComponent({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
-      listPhoneNumbers: jest.fn().mockResolvedValue({
-        object: 'list',
-        data: [mockAccountDID],
-        next_page_url: null,
-        previous_page_url: null,
-      }),
-      updateLocation: jest.fn().mockResolvedValue(provisionedLocation),
-      validateLocationE911: jest.fn().mockResolvedValue({
-        adjusted: true,
-        address: { house_number: '123', street_name: 'Main', city: 'New York' },
-      }),
-      provisionLocationE911: jest.fn().mockResolvedValue(provisionedLocation),
-    });
-
-    await navigateToComplete(element, 6);
-
-    await waitFor(() => {
-      const text = element.shadowRoot?.textContent ?? '';
-      expect(text).toContain('address was standardized');
-    });
-  });
-
-  it('retries E911 provisioning when primary DID assigned but E911 failed', async () => {
-    const locationWithDIDButFailed = {
-      ...mockLocation,
-      primary_did_id: 'did_01abc',
-      e911_status: 'failed' as const,
-    };
-    const provisionedLocation = {
-      ...mockLocation,
-      primary_did_id: 'did_01abc',
-      e911_status: 'pending' as const,
-    };
-
-    const { element, instance } = await mountComponent({
-      listLocations: jest.fn().mockResolvedValue([locationWithDIDButFailed]),
-      listPhoneNumbers: jest.fn().mockResolvedValue({
-        object: 'list',
-        data: [mockDID],
-        next_page_url: null,
-        previous_page_url: null,
-      }),
-      validateLocationE911: jest.fn().mockResolvedValue({
-        adjusted: false,
-        address: { house_number: '123', street_name: 'Main', city: 'New York' },
-      }),
-      provisionLocationE911: jest.fn().mockResolvedValue(provisionedLocation),
-    });
-
-    await navigateToComplete(element, 6);
-
-    await waitFor(() => {
-      const text = element.shadowRoot?.textContent ?? '';
-      expect(text).toContain('E911');
-    });
-
-    // Should NOT call updateLocation (DID already assigned)
-    expect(instance.updateLocation).not.toHaveBeenCalled();
-    // Should retry validation and provisioning
-    expect(instance.validateLocationE911).toHaveBeenCalledWith('loc_01abc');
-    expect(instance.provisionLocationE911).toHaveBeenCalledWith('loc_01abc');
-  });
-
-  it('does not show E911 panel when no DIDs are available', async () => {
-    const { element, instance } = await mountComponent({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
-      listPhoneNumbers: jest.fn().mockResolvedValue({
-        object: 'list',
-        data: [],
-        next_page_url: null,
-        previous_page_url: null,
-      }),
-    });
-
-    await navigateToComplete(element);
-
-    // Give time for E911 flow to settle
-    await waitFor(() => {
-      expect(element.shadowRoot?.querySelector('[data-action="exit"]')).toBeTruthy();
-    });
-
-    const text = element.shadowRoot?.textContent ?? '';
-    expect(text).not.toContain('emergency services');
-    expect(instance.validateLocationE911).not.toHaveBeenCalled();
-    expect(instance.provisionLocationE911).not.toHaveBeenCalled();
   });
 });

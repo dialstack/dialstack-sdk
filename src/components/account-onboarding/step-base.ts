@@ -34,7 +34,7 @@ export abstract class OnboardingStepBase extends BaseComponent {
 
   protected isLoading = true;
   protected loadError: string | null = null;
-  private isComplete = false;
+  protected isComplete = false;
   protected override classes: AccountOnboardingClasses = {};
 
   // Callbacks
@@ -253,7 +253,7 @@ export abstract class OnboardingStepBase extends BaseComponent {
     `;
   }
 
-  private renderCompleteState(): string {
+  protected renderCompleteState(): string {
     return `
       <div class="card" part="step-complete">
         <h2 class="section-title">${this.t('accountOnboarding.stepComplete.title')}</h2>

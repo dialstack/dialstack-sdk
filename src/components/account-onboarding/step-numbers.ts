@@ -18,11 +18,6 @@ export class OnboardingNumbersStep extends OnboardingStepBase {
     return 'numbers';
   }
 
-  /** Exposes the user's primary DID selection to the orchestrator (used for E911). */
-  get selectedPrimaryDIDId(): string | null {
-    return this.numbers.selectedPrimaryDIDId;
-  }
-
   protected async loadData(): Promise<void> {
     if (!this.instance) throw new Error('Not initialized');
 
@@ -51,6 +46,24 @@ export class OnboardingNumbersStep extends OnboardingStepBase {
 
   protected handleStepAction(action: string, actionEl: HTMLElement): boolean {
     return this.numbers.handleAction(action, actionEl);
+  }
+
+  override navigateToStep(_step: AccountOnboardingStep): void {
+    this.isComplete = true;
+    this.cleanupStep();
+    this.render(); // Shows complete state with E911 "running" spinner
+    this.numbers
+      .tryAutoProvisionE911()
+      .then(() => {
+        if (!this.isDestroyed() && this.isConnected) this.render();
+      })
+      .catch(() => {
+        /* already handled inside tryAutoProvisionE911 */
+      });
+  }
+
+  protected override renderCompleteState(): string {
+    return this.numbers.renderNumbersCompleteState();
   }
 
   protected handleNext(): void {

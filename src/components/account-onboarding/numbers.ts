@@ -12,10 +12,12 @@ import type {
   DIDItem,
   PhoneNumberItem,
   PhoneNumberStatus,
+  E911ValidationResult,
+  OnboardingLocation,
 } from '../../types';
 import { AsYouType, parsePhoneNumberFromString } from 'libphonenumber-js';
 import { US_STATES } from '../../constants/us-states';
-import { SUCCESS_SVG, ERROR_SVG, PORT_SVG, PLUS_CIRCLE_SVG } from './icons';
+import { SUCCESS_SVG, ERROR_SVG, PORT_SVG, PLUS_CIRCLE_SVG, CHECK_CIRCLE_SVG } from './icons';
 import { ApiError } from '../../core/instance';
 import type { OnboardingHost } from './host';
 
@@ -97,6 +99,13 @@ export class NumbersStepHelper {
   primaryDIDAutoMatched = false;
   private isLoadingDIDs = false;
   private hasAttemptedDIDLoad = false;
+
+  // E911 state
+  e911FlowState: 'idle' | 'running' | 'simple' | 'complex' | 'failed' = 'idle';
+  private e911ValidationResult: E911ValidationResult | null = null;
+  private e911ProvisionedLocation: OnboardingLocation | null = null;
+  private e911PrimaryDid: DIDItem | null = null;
+  private e911Generation = 0;
 
   // Caller ID state
   private callerIdInputs = new Map<string, string>();
@@ -347,6 +356,12 @@ export class NumbersStepHelper {
       clearTimeout(this.numOrderPollTimer);
       this.numOrderPollTimer = null;
     }
+    this.cancelE911();
+  }
+
+  /** Cancel any in-flight E911 provisioning via generation mismatch. */
+  private cancelE911(): void {
+    this.e911Generation++;
   }
 
   private numResetOrderFlow(): void {
@@ -2117,5 +2132,199 @@ export class NumbersStepHelper {
           ${t('accountOnboarding.numbers.port.backToOverview')}
         </button>
       </div>`;
+  }
+
+  // ============================================================================
+  // E911 Auto-Provisioning
+  // ============================================================================
+
+  /**
+   * Attempt automatic E911 provisioning for the simple case:
+   * exactly 1 location, at least 1 active DID, location has no primary DID.
+   * Falls back to 'complex' state for all other cases.
+   */
+  async tryAutoProvisionE911(): Promise<void> {
+    if (!this.host.instance || this.e911FlowState === 'running') return;
+
+    // Increment generation — cleanupStep() also increments to cancel in-flight work
+    const gen = ++this.e911Generation;
+    this.e911FlowState = 'running';
+    this.host.render();
+
+    // Abort if the generation changed (cleanup/disconnect/destroy) or component detached
+    const cancelled = () => this.e911Generation !== gen;
+
+    try {
+      // Fetch active DIDs fresh
+      const activeDIDs = await this.host.instance.fetchAllPages<DIDItem>((opts) =>
+        this.host.instance!.listPhoneNumbers({ ...opts, status: 'active' })
+      );
+      if (cancelled()) return;
+
+      // No DIDs → nothing to do
+      if (activeDIDs.length === 0) {
+        this.e911FlowState = 'idle';
+        this.host.render();
+        return;
+      }
+
+      // Check simple case: exactly 1 location
+      const locations = await this.host.instance!.listLocations();
+      if (cancelled()) return;
+      if (locations.length !== 1) {
+        this.e911FlowState = 'complex';
+        this.host.render();
+        return;
+      }
+
+      const location = locations[0]!;
+      if (location.primary_did_id) {
+        this.e911PrimaryDid = activeDIDs.find((d) => d.id === location.primary_did_id) ?? null;
+
+        // Already provisioned or in progress — show status directly
+        if (
+          location.e911_status === 'provisioned' ||
+          location.e911_status === 'pending' ||
+          location.e911_status === 'binding'
+        ) {
+          this.e911ProvisionedLocation = location;
+          this.e911FlowState = 'simple';
+          this.host.render();
+          return;
+        }
+
+        // Failed or none — retry provisioning
+        if (location.e911_status === 'none' || location.e911_status === 'failed') {
+          try {
+            const validationResult = await this.host.instance!.validateLocationE911(location.id);
+            if (cancelled()) return;
+            this.e911ValidationResult = validationResult;
+            const provisionedLocation = await this.host.instance!.provisionLocationE911(
+              location.id
+            );
+            if (cancelled()) return;
+            this.e911ProvisionedLocation = provisionedLocation;
+            this.e911FlowState = 'simple';
+            this.host.render();
+            return;
+          } catch (retryErr) {
+            console.warn('[dialstack] E911 retry provisioning failed:', retryErr);
+          }
+        }
+        if (cancelled()) return;
+        this.e911FlowState = 'complex';
+        this.host.render();
+        return;
+      }
+
+      // Use the DID pre-selected in the numbers step, or fall back to account phone matching
+      let selectedDID: DIDItem | undefined;
+      const selectedId = this.selectedPrimaryDIDId;
+      if (selectedId) {
+        selectedDID = activeDIDs.find((d) => d.id === selectedId);
+      }
+      if (!selectedDID) {
+        const parsed = parsePhoneNumberFromString(this.host.accountPhone, 'US');
+        const e164Phone = parsed?.number;
+        selectedDID = e164Phone ? activeDIDs.find((d) => d.phone_number === e164Phone) : undefined;
+      }
+
+      if (!selectedDID) {
+        this.e911FlowState = 'complex';
+        this.host.render();
+        return;
+      }
+
+      // Assign primary DID to location
+      await this.host.instance!.updateLocation(location.id, { primary_did_id: selectedDID.id });
+      if (cancelled()) return;
+
+      // Validate E911 address
+      const validationResult = await this.host.instance!.validateLocationE911(location.id);
+      if (cancelled()) return;
+      this.e911ValidationResult = validationResult;
+
+      // Provision E911
+      const provisionedLocation = await this.host.instance!.provisionLocationE911(location.id);
+      if (cancelled()) return;
+      this.e911ProvisionedLocation = provisionedLocation;
+      this.e911PrimaryDid = selectedDID;
+      this.e911FlowState = 'simple';
+      this.host.render();
+    } catch (err) {
+      if (cancelled()) return;
+      console.warn('[dialstack] E911 auto-provisioning failed, deferring to manual setup:', err);
+      this.e911FlowState = 'complex';
+      this.host.render();
+    }
+  }
+
+  renderE911Panel(): string {
+    const t = this.host.t.bind(this.host);
+
+    if (this.e911FlowState === 'running') {
+      return `<div class="e911-panel"><div class="e911-loading">${t('accountOnboarding.complete.e911.loading')}</div></div>`;
+    }
+
+    if (this.e911FlowState === 'simple') {
+      const loc = this.e911ProvisionedLocation;
+      const did = this.e911PrimaryDid;
+      const lines: string[] = [];
+
+      // Phone number assignment
+      if (did && loc) {
+        const phoneDisplay = did.phone_number ?? did.id;
+        lines.push(
+          `<div class="e911-detail">${this.host.escapeHtml(phoneDisplay)} ${t('accountOnboarding.complete.e911.primaryAssigned')} ${this.host.escapeHtml(loc.name)}</div>`
+        );
+      }
+
+      // Address standardized
+      if (this.e911ValidationResult?.adjusted) {
+        lines.push(
+          `<div class="e911-detail">${t('accountOnboarding.complete.e911.addressStandardized')}</div>`
+        );
+      }
+
+      // E911 status
+      const e911Status = this.e911ProvisionedLocation?.e911_status;
+      if (e911Status === 'provisioned') {
+        lines.push(
+          `<div class="e911-detail">${CHECK_CIRCLE_SVG} ${t('accountOnboarding.complete.e911.verified')}</div>`
+        );
+      } else if (e911Status === 'pending' || e911Status === 'binding') {
+        lines.push(
+          `<div class="e911-detail">${t('accountOnboarding.complete.e911.processing')}</div>`
+        );
+      }
+
+      return `<div class="e911-panel"><div class="inline-alert info">${lines.join('')}</div></div>`;
+    }
+
+    if (this.e911FlowState === 'complex' || this.e911FlowState === 'failed') {
+      return `<div class="e911-panel"><div class="inline-alert warning">${t('accountOnboarding.complete.e911.deferred')}</div></div>`;
+    }
+
+    // idle — no panel
+    return '';
+  }
+
+  renderNumbersCompleteState(): string {
+    const t = this.host.t.bind(this.host);
+    return `
+      <div class="card" part="step-complete">
+        <h2 class="section-title">${t('accountOnboarding.stepComplete.title')}</h2>
+        <p class="section-subtitle">${t('accountOnboarding.stepComplete.subtitle')}</p>
+        <div class="placeholder" style="min-height:80px">
+          <div class="step-complete-icon">${SUCCESS_SVG}</div>
+        </div>
+        ${this.renderE911Panel()}
+        <div class="footer-bar footer-bar-end">
+          <button class="btn btn-primary" data-action="done">
+            ${t('accountOnboarding.stepComplete.done')}
+          </button>
+        </div>
+      </div>
+    `;
   }
 }
