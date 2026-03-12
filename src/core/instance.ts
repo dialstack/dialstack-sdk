@@ -85,7 +85,7 @@ export type RoutingTargetType = 'user' | 'dial_plan' | 'voice_app' | 'ring_group
 export const ROUTING_TARGET_TYPES: Record<string, { path: string; type: RoutingTargetType }> = {
   user: { path: '/v1/users', type: 'user' },
   dp: { path: '/v1/dialplans', type: 'dial_plan' },
-  va: { path: '/v1/voice_apps', type: 'voice_app' },
+  va: { path: '/v1/voice-apps', type: 'voice_app' },
   rg: { path: '/v1/ring_groups', type: 'ring_group' },
 } as const;
 

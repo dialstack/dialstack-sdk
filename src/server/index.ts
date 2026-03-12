@@ -929,14 +929,14 @@ export class DialStack {
       params: VoiceAppCreateParams,
       options: RequestOptions & { dialstackAccount: string }
     ): Promise<VoiceApp> => {
-      return this._request('POST', '/v1/voice_apps', params, options);
+      return this._request('POST', '/v1/voice-apps', params, options);
     },
 
     retrieve: (
       voiceAppId: string,
       options: RequestOptions & { dialstackAccount: string }
     ): Promise<VoiceApp> => {
-      return this._request('GET', `/v1/voice_apps/${voiceAppId}`, undefined, options);
+      return this._request('GET', `/v1/voice-apps/${voiceAppId}`, undefined, options);
     },
 
     update: (
@@ -944,14 +944,14 @@ export class DialStack {
       params: VoiceAppUpdateParams,
       options: RequestOptions & { dialstackAccount: string }
     ): Promise<VoiceApp> => {
-      return this._request('POST', `/v1/voice_apps/${voiceAppId}`, params, options);
+      return this._request('POST', `/v1/voice-apps/${voiceAppId}`, params, options);
     },
 
     del: (
       voiceAppId: string,
       options: RequestOptions & { dialstackAccount: string }
     ): Promise<void> => {
-      return this._request('DELETE', `/v1/voice_apps/${voiceAppId}`, undefined, options);
+      return this._request('DELETE', `/v1/voice-apps/${voiceAppId}`, undefined, options);
     },
 
     list: (
@@ -963,7 +963,7 @@ export class DialStack {
       if (params?.page) queryParams.set('page', params.page);
 
       const query = queryParams.toString();
-      const path = `/v1/voice_apps${query ? `?${query}` : ''}`;
+      const path = `/v1/voice-apps${query ? `?${query}` : ''}`;
 
       const fetchPage = (url: string): Promise<ListResponse<VoiceApp>> => {
         return this._request('GET', url, undefined, options);
