@@ -190,6 +190,117 @@
   background: #5a22e0;
 }
 
+/* Phone status card */
+.overview-phone-status {
+  background: var(--ds-color-background);
+  border: 1px solid var(--ds-color-border);
+  border-radius: 20px;
+  padding: 30px;
+  margin-bottom: 32px;
+}
+
+.overview-phone-status-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ds-color-text);
+  letter-spacing: -0.2px;
+  margin: 0;
+}
+
+.overview-phone-status-subtitle {
+  font-size: 16px;
+  color: var(--ds-color-text-secondary);
+  letter-spacing: -0.32px;
+  line-height: 28px;
+  margin: 4px 0 0;
+}
+
+.overview-phone-status-header {
+  display: grid;
+  grid-template-columns: 42% 35% 23%;
+  padding: 16px 9px 8px;
+}
+
+.overview-phone-status-header span {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ds-color-text-secondary);
+  line-height: 20px;
+}
+
+.overview-phone-status-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.overview-phone-status-row {
+  display: grid;
+  grid-template-columns: 42% 35% 23%;
+  align-items: center;
+  border: 1px solid var(--ds-color-border);
+  border-radius: 6px;
+  height: 58px;
+  padding-left: 9px;
+}
+
+.overview-phone-status-phone {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.overview-phone-status-phone-icon {
+  width: 32px;
+  height: 32px;
+  background: var(--ds-color-surface-subtle);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.overview-phone-status-phone-icon svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ds-color-primary);
+}
+
+.overview-phone-status-phone-text {
+  font-size: 14px;
+  color: var(--ds-color-text);
+  letter-spacing: 0.4875px;
+}
+
+.overview-phone-status-type {
+  font-size: 14px;
+  color: var(--ds-color-text);
+  letter-spacing: -0.28px;
+}
+
+.overview-phone-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
+  border-radius: 6px;
+  padding: 0 12px;
+  height: 30px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.overview-phone-status-badge--processing {
+  background: color-mix(in srgb, var(--ds-color-warning, #e9a820) 15%, transparent);
+  color: var(--ds-color-warning, #b07d18);
+}
+
+.overview-phone-status-badge--complete {
+  background: color-mix(in srgb, var(--ds-color-success) 15%, transparent);
+  color: var(--ds-color-success);
+}
+
 /* Help card */
 .overview-help-card {
   background: #fff;

@@ -68,31 +68,75 @@
 }
 
 .num-overview-list {
-  width: 100%;
-  border-collapse: collapse;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin-bottom: var(--ds-layout-spacing-md);
 }
 
-.num-overview-list th,
-.num-overview-list td {
-  text-align: left;
-  padding: var(--ds-spacing-sm) var(--ds-spacing-md);
-  border-bottom: 1px solid var(--ds-color-border-subtle);
+.num-overview-header {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
   font-size: var(--ds-font-size-small);
-}
-
-.num-overview-list th {
   color: var(--ds-color-text-secondary);
   font-weight: var(--ds-font-weight-medium);
+  line-height: 20px;
+  margin-bottom: 2px;
+}
+
+.num-overview-row {
+  display: flex;
+  align-items: center;
+  padding: 12px 10px;
+  border: 1px solid var(--ds-color-border);
+  border-radius: 6px;
+}
+
+.num-overview-cell.num-overview-phone {
+  flex: 0 0 42%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--ds-font-size-small);
+  color: var(--ds-color-text);
+}
+
+.num-overview-phone-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--ds-color-surface-subtle);
+  color: var(--ds-color-primary);
+  flex-shrink: 0;
+}
+
+.num-overview-phone-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.num-overview-cell.num-overview-type {
+  flex: 0 0 35%;
+  font-size: var(--ds-font-size-small);
+  color: var(--ds-color-text);
+}
+
+.num-overview-cell.num-overview-status {
+  flex: 1;
 }
 
 .num-status-badge {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 11px;
+  padding: 3px 12px;
+  border-radius: 6px;
+  font-size: 12px;
   font-weight: var(--ds-font-weight-medium);
   text-transform: capitalize;
+  line-height: 24px;
 }
 
 .num-status-active {

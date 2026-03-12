@@ -1,6 +1,7 @@
 import type { DialStackInstanceImpl } from '../types/core';
 import type { AppearanceOptions, UpdateOptions } from '../types/appearance';
 import type { SearchAvailableNumbersOptions, NumberOrder } from '../types/phone-number-ordering';
+import type { DIDItem, PaginatedResponse } from '../types';
 import type { DialPlan } from '../types/dial-plan';
 import type { CallEventMap, CallEventHandler } from '../types/callbacks';
 import type { ComponentTagName, ComponentElement } from '../types/components';
@@ -51,6 +52,7 @@ export function createMockInstance(
 ): DialStackInstanceImpl {
   const empty = options.empty ?? false;
   const mockOrders = new Map<string, NumberOrder>();
+  const mockDIDs: DIDItem[] = empty ? [] : [...MOCK_PHONE_NUMBERS.data];
   const mockDeviceModels: Array<{ vendor: string; model: string; count: number }> = [
     { vendor: 'snom', model: 'D785', count: 3 },
     { vendor: 'yealink', model: 'T48S', count: 1 },
@@ -182,7 +184,18 @@ export function createMockInstance(
     ) => {},
 
     // Phone numbers component uses these typed methods
-    listPhoneNumbers: async () => (empty ? MOCK_EMPTY_RESPONSE : MOCK_PHONE_NUMBERS),
+    listPhoneNumbers: async (options?: { status?: string }) => {
+      const filtered = options?.status
+        ? mockDIDs.filter((d) => d.status === options.status)
+        : mockDIDs;
+      return {
+        object: 'list',
+        url: '/v1/phone-numbers',
+        data: filtered,
+        next_page_url: null,
+        previous_page_url: null,
+      } as PaginatedResponse<DIDItem>;
+    },
     listNumberOrders: async () => MOCK_EMPTY_RESPONSE,
     listPortOrders: async () => MOCK_EMPTY_RESPONSE,
 
@@ -211,6 +224,19 @@ export function createMockInstance(
       setTimeout(() => {
         order.status = 'complete';
         order.completed_numbers = phoneNumbers;
+        // Add ordered numbers as active DIDs
+        for (const pn of phoneNumbers) {
+          const id = 'did_' + Math.random().toString(36).slice(2, 10);
+          mockDIDs.push({
+            id,
+            phone_number: pn,
+            status: 'active',
+            outbound_enabled: true,
+            routing_target: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        }
       }, 3000);
       return order;
     },
@@ -406,9 +432,10 @@ export function createMockInstance(
       };
     },
     fetchAllPages: async <T>(
-      _fetcher: (opts: { offset: number; limit: number }) => Promise<T[]>
+      fetcher: (opts: { limit: number }) => Promise<{ data: T[] }>
     ): Promise<T[]> => {
-      return [];
+      const result = await fetcher({ limit: 100 });
+      return result.data;
     },
     uploadBillCopy: async () => {},
     uploadCSR: async () => {},
@@ -421,6 +448,11 @@ export function createMockInstance(
       name: target.startsWith('rg_') ? 'Main Ring Group' : 'Alice Smith',
       type: (target.startsWith('rg_') ? 'ring_group' : 'user') as 'ring_group' | 'user',
     }),
+    updateCallerID: async (phoneNumberId: string, displayName: string) => {
+      await delay();
+      const did = mockDIDs.find((d) => d.id === phoneNumberId);
+      if (did) did.caller_id_name = displayName;
+    },
 
     checkPortEligibility: async (phoneNumbers: string[]) => {
       await delay();

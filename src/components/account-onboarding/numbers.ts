@@ -17,10 +17,100 @@ import type {
 } from '../../types';
 import { AsYouType, parsePhoneNumberFromString } from 'libphonenumber-js';
 import { US_STATES } from '../../constants/us-states';
-import { SUCCESS_SVG, ERROR_SVG, PORT_SVG, PLUS_CIRCLE_SVG, CHECK_CIRCLE_SVG } from './icons';
+import {
+  SUCCESS_SVG,
+  ERROR_SVG,
+  PORT_SVG,
+  PLUS_CIRCLE_SVG,
+  CHECK_CIRCLE_SVG,
+  PHONE_SVG,
+} from './icons';
 import { ApiError } from '../../core/instance';
 import type { OnboardingHost } from './host';
 import { SIDEBAR_GROUPS, type NumSubStep } from './constants';
+
+/**
+ * Merge DIDs, number orders, and port orders into a unified PhoneNumberItem list.
+ * Pure function — extracted for reuse in the onboarding portal overview.
+ */
+export function mergePhoneNumbers(
+  dids: DIDItem[],
+  orders: NumberOrder[],
+  ports: PortOrder[]
+): PhoneNumberItem[] {
+  const map = new Map<string, PhoneNumberItem>();
+
+  const activePortNumbers = new Set<string>();
+  for (const port of ports) {
+    if (port.status !== 'complete' && port.status !== 'cancelled') {
+      for (const num of port.details.phone_numbers) {
+        activePortNumbers.add(num);
+      }
+    }
+  }
+
+  for (const did of dids) {
+    if (did.status === 'inactive' && activePortNumbers.has(did.phone_number)) continue;
+    map.set(did.phone_number, {
+      phone_number: did.phone_number,
+      status: did.status as PhoneNumberStatus,
+      number_class: did.number_class,
+      expires_at: did.expires_at,
+      outbound_enabled: did.outbound_enabled,
+      caller_id_name: did.caller_id_name,
+      routing_target: did.routing_target,
+      source: 'did',
+      created_at: did.created_at,
+      updated_at: did.updated_at,
+    });
+  }
+
+  for (const order of orders) {
+    if (order.status !== 'pending' && order.status !== 'partial') continue;
+    for (const num of order.phone_numbers) {
+      if (order.completed_numbers.includes(num)) continue;
+      if (map.has(num)) continue;
+      const isFailed = order.failed_numbers.includes(num);
+      map.set(num, {
+        phone_number: num,
+        status: isFailed ? 'order_failed' : 'ordering',
+        outbound_enabled: null,
+        source: 'number_order',
+        created_at: order.created_at,
+        updated_at: order.updated_at,
+        order_id: order.id,
+      });
+    }
+  }
+
+  for (const port of ports) {
+    if (port.status === 'complete' || port.status === 'cancelled') continue;
+    const portStatusMap: Record<string, PhoneNumberStatus> = {
+      draft: 'porting_draft',
+      approved: 'porting_approved',
+      submitted: 'porting_submitted',
+      exception: 'porting_exception',
+      foc: 'porting_foc',
+    };
+    const portStatus = portStatusMap[port.status] || 'porting_draft';
+    for (const num of port.details.phone_numbers) {
+      if (map.has(num)) continue;
+      map.set(num, {
+        phone_number: num,
+        status: portStatus,
+        outbound_enabled: null,
+        carrier: port.details.losing_carrier?.name,
+        transfer_date: port.details.actual_foc_date || port.details.requested_foc_date,
+        source: 'port_order',
+        created_at: port.created_at,
+        updated_at: port.updated_at,
+        port_order_id: port.id,
+      });
+    }
+  }
+
+  return Array.from(map.values()).sort((a, b) => a.phone_number.localeCompare(b.phone_number));
+}
 
 export class NumbersStepHelper {
   // Sub-step
@@ -186,78 +276,7 @@ export class NumbersStepHelper {
     orders: NumberOrder[],
     ports: PortOrder[]
   ): PhoneNumberItem[] {
-    const map = new Map<string, PhoneNumberItem>();
-
-    const activePortNumbers = new Set<string>();
-    for (const port of ports) {
-      if (port.status !== 'complete' && port.status !== 'cancelled') {
-        for (const num of port.details.phone_numbers) {
-          activePortNumbers.add(num);
-        }
-      }
-    }
-
-    for (const did of dids) {
-      if (did.status === 'inactive' && activePortNumbers.has(did.phone_number)) continue;
-      map.set(did.phone_number, {
-        phone_number: did.phone_number,
-        status: did.status as PhoneNumberStatus,
-        number_class: did.number_class,
-        expires_at: did.expires_at,
-        outbound_enabled: did.outbound_enabled,
-        caller_id_name: did.caller_id_name,
-        routing_target: did.routing_target,
-        source: 'did',
-        created_at: did.created_at,
-        updated_at: did.updated_at,
-      });
-    }
-
-    for (const order of orders) {
-      if (order.status !== 'pending' && order.status !== 'partial') continue;
-      for (const num of order.phone_numbers) {
-        if (order.completed_numbers.includes(num)) continue;
-        if (map.has(num)) continue;
-        const isFailed = order.failed_numbers.includes(num);
-        map.set(num, {
-          phone_number: num,
-          status: isFailed ? 'order_failed' : 'ordering',
-          outbound_enabled: null,
-          source: 'number_order',
-          created_at: order.created_at,
-          updated_at: order.updated_at,
-          order_id: order.id,
-        });
-      }
-    }
-
-    for (const port of ports) {
-      if (port.status === 'complete' || port.status === 'cancelled') continue;
-      const portStatusMap: Record<string, PhoneNumberStatus> = {
-        draft: 'porting_draft',
-        approved: 'porting_approved',
-        submitted: 'porting_submitted',
-        exception: 'porting_exception',
-        foc: 'porting_foc',
-      };
-      const portStatus = portStatusMap[port.status] || 'porting_draft';
-      for (const num of port.details.phone_numbers) {
-        if (map.has(num)) continue;
-        map.set(num, {
-          phone_number: num,
-          status: portStatus,
-          outbound_enabled: null,
-          carrier: port.details.losing_carrier?.name,
-          transfer_date: port.details.actual_foc_date || port.details.requested_foc_date,
-          source: 'port_order',
-          created_at: port.created_at,
-          updated_at: port.updated_at,
-          port_order_id: port.id,
-        });
-      }
-    }
-
-    return Array.from(map.values()).sort((a, b) => a.phone_number.localeCompare(b.phone_number));
+    return mergePhoneNumbers(dids, orders, ports);
   }
 
   // ============================================================================
@@ -604,13 +623,8 @@ export class NumbersStepHelper {
     if (this.numSubStep === 'overview') return 'options';
     if (this.numSubStep === 'primary-did') return 'primary-did';
     if (this.numSubStep === 'caller-id') return 'caller-id';
-    if (this.numSubStep === 'port-submitted') return null;
-    if (this.numSubStep === 'order-status') {
-      const done =
-        this.numOrderCurrentOrder &&
-        (this.numOrderCurrentOrder.status !== 'pending' || this.numOrderPollCount >= 5);
-      return done ? null : 'verification';
-    }
+    if (this.numSubStep === 'order-status' || this.numSubStep === 'port-submitted')
+      return 'verification';
     return 'setup';
   }
 
@@ -621,6 +635,7 @@ export class NumbersStepHelper {
   handleAction(action: string, actionEl: HTMLElement): boolean {
     switch (action) {
       // Sub-step navigation: overview → primary-did → caller-id → (next main step)
+      // Order/port flows are entered via action buttons, then return to primary-did
       case 'next':
         if (this.host.currentStep === 'numbers' && this.numSubStep === 'overview') {
           this.setSubStep('primary-did');
@@ -745,14 +760,9 @@ export class NumbersStepHelper {
         return true;
       case 'num-order-done': {
         this.numResetOrderFlow();
-        const steps = this.host.getActiveSteps();
-        const nextStep = steps[steps.indexOf('numbers') + 1];
-        if (nextStep) {
-          this.host.navigateToStep(nextStep);
-        } else {
-          this.setSubStep('overview');
-          this.loadNumbersData();
-        }
+        this.setSubStep('primary-did');
+        // Refresh DIDs since we just ordered new numbers
+        this.loadActiveDIDs();
         return true;
       }
       case 'num-add-port-phone':
@@ -1406,7 +1416,7 @@ export class NumbersStepHelper {
         </button>`;
     }
 
-    let tableHtml: string;
+    let listHtml: string;
     if (this.numPhoneNumbers.length > 0) {
       const rows = this.numPhoneNumbers
         .map((item) => {
@@ -1414,34 +1424,37 @@ export class NumbersStepHelper {
           const sourceKey = `accountOnboarding.numbers.source.${item.source}`;
           const badgeClass = this.numGetStatusBadgeClass(item.status);
           return `
-          <tr>
-            <td>${this.numFormatPhone(item.phone_number)}</td>
-            <td><span class="num-status-badge ${badgeClass}">${t(statusKey)}</span></td>
-            <td>${t(sourceKey)}</td>
-          </tr>`;
+          <div class="num-overview-row">
+            <div class="num-overview-cell num-overview-phone">
+              <span class="num-overview-phone-icon">${PHONE_SVG}</span>
+              ${this.numFormatPhone(item.phone_number)}
+            </div>
+            <div class="num-overview-cell num-overview-type">${t(sourceKey)}</div>
+            <div class="num-overview-cell num-overview-status">
+              <span class="num-status-badge ${badgeClass}">${t(statusKey)}</span>
+            </div>
+          </div>`;
         })
         .join('');
 
-      tableHtml = `
-        <table class="num-overview-list">
-          <thead>
-            <tr>
-              <th>${t('accountOnboarding.numbers.overview.phoneNumber')}</th>
-              <th>${t('accountOnboarding.numbers.overview.status')}</th>
-              <th>${t('accountOnboarding.numbers.overview.source')}</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>`;
+      listHtml = `
+        <div class="num-overview-list">
+          <div class="num-overview-header">
+            <div class="num-overview-cell num-overview-phone">${t('accountOnboarding.numbers.overview.phoneNumber')}</div>
+            <div class="num-overview-cell num-overview-type">${t('accountOnboarding.numbers.overview.type')}</div>
+            <div class="num-overview-cell num-overview-status">${t('accountOnboarding.numbers.overview.status')}</div>
+          </div>
+          ${rows}
+        </div>`;
     } else {
-      tableHtml = `
+      listHtml = `
         <p class="section-description" style="text-align:center;padding:var(--ds-layout-spacing-md) 0">
           ${t('accountOnboarding.numbers.overview.empty')}
         </p>`;
     }
 
     return `
-      ${tableHtml}
+      ${listHtml}
       <div class="num-action-cards">
         <div class="num-action-card" data-action="num-start-port" tabindex="0" role="button">
           <div class="num-action-card-icon">${PORT_SVG}</div>

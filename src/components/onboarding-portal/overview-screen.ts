@@ -1,12 +1,16 @@
 import { STEP_ICONS, STEP_I18N_KEYS, STEP_DESC_KEYS, CHECK_SVG_WHITE } from './constants';
 import { ONBOARDING_STEPS } from '../account-onboarding/constants';
+import { PHONE_SVG } from '../account-onboarding/icons';
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import type { OnboardingProgressStore, StepName } from '../account-onboarding/progress-store';
+import type { PhoneNumberItem } from '../../types';
 
 export function renderOverviewScreen(
   container: HTMLElement,
   t: (key: string) => string,
   progressStore: OnboardingProgressStore | null,
-  activeSteps?: StepName[]
+  activeSteps?: StepName[],
+  phoneNumbers?: PhoneNumberItem[]
 ): void {
   const steps = activeSteps?.length ? activeSteps : ONBOARDING_STEPS;
   container.textContent = '';
@@ -127,17 +131,93 @@ export function renderOverviewScreen(
 
     card.appendChild(cardProgress);
 
-    // Button
+    // Button — invisible when step is complete to preserve card height alignment
     const btn = document.createElement('button');
     btn.className = 'overview-card-btn';
     btn.setAttribute('data-action', 'go-to-step');
     btn.setAttribute('data-step', step);
     btn.textContent = `${t('onboardingPortal.overview.completeSetup')} \u2192`;
+    if (isComplete) btn.style.visibility = 'hidden';
     card.appendChild(btn);
 
     cardsGrid.appendChild(card);
   }
   wrapper.appendChild(cardsGrid);
+
+  // Phone number status card
+  if (phoneNumbers && phoneNumbers.length > 0) {
+    const phoneCard = document.createElement('div');
+    phoneCard.className = 'overview-phone-status';
+
+    const phoneTitle = document.createElement('h3');
+    phoneTitle.className = 'overview-phone-status-title';
+    phoneTitle.textContent = t('onboardingPortal.overview.phoneStatusTitle');
+    phoneCard.appendChild(phoneTitle);
+
+    const phoneSub = document.createElement('p');
+    phoneSub.className = 'overview-phone-status-subtitle';
+    phoneSub.textContent = t('onboardingPortal.overview.phoneStatusSubtitle');
+    phoneCard.appendChild(phoneSub);
+
+    // Column headers
+    const colHeader = document.createElement('div');
+    colHeader.className = 'overview-phone-status-header';
+    for (const key of ['phoneStatusNumber', 'phoneStatusType', 'phoneStatusStatus'] as const) {
+      const span = document.createElement('span');
+      span.textContent = t(`onboardingPortal.overview.${key}`);
+      colHeader.appendChild(span);
+    }
+    phoneCard.appendChild(colHeader);
+
+    // Rows
+    const rows = document.createElement('div');
+    rows.className = 'overview-phone-status-rows';
+
+    for (const item of phoneNumbers) {
+      const row = document.createElement('div');
+      row.className = 'overview-phone-status-row';
+
+      // Phone number cell
+      const phoneCell = document.createElement('div');
+      phoneCell.className = 'overview-phone-status-phone';
+
+      const iconCircle = document.createElement('div');
+      iconCircle.className = 'overview-phone-status-phone-icon';
+      // SAFETY: PHONE_SVG is a static constant defined in account-onboarding/icons.ts
+      iconCircle.innerHTML = PHONE_SVG;
+      phoneCell.appendChild(iconCircle);
+
+      const phoneText = document.createElement('span');
+      phoneText.className = 'overview-phone-status-phone-text';
+      const parsed = parsePhoneNumberFromString(item.phone_number, 'US');
+      phoneText.textContent = parsed?.formatNational() ?? item.phone_number;
+      phoneCell.appendChild(phoneText);
+      row.appendChild(phoneCell);
+
+      // Type cell
+      const typeCell = document.createElement('span');
+      typeCell.className = 'overview-phone-status-type';
+      typeCell.textContent =
+        item.source === 'port_order'
+          ? t('onboardingPortal.overview.phoneStatusTypePort')
+          : t('onboardingPortal.overview.phoneStatusTypeNew');
+      row.appendChild(typeCell);
+
+      // Status badge
+      const isComplete = item.status === 'active';
+      const badge = document.createElement('span');
+      badge.className = `overview-phone-status-badge overview-phone-status-badge--${isComplete ? 'complete' : 'processing'}`;
+      badge.textContent = isComplete
+        ? t('onboardingPortal.overview.phoneStatusComplete')
+        : t('onboardingPortal.overview.phoneStatusProcessing');
+      row.appendChild(badge);
+
+      rows.appendChild(row);
+    }
+
+    phoneCard.appendChild(rows);
+    wrapper.appendChild(phoneCard);
+  }
 
   // Help card
   const helpCard = document.createElement('div');

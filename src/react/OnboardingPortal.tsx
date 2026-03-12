@@ -28,7 +28,6 @@ export interface OnboardingPortalProps {
   classes?: OnboardingPortalClasses;
   onLoaderStart?: (event: LoaderStart) => void;
   onLoadError?: (event: LoadError) => void;
-  onExit?: () => void;
   onStepChange?: (event: { step: AccountOnboardingStep }) => void;
   onBack?: () => void;
   backLabel?: string;
@@ -49,7 +48,6 @@ export const OnboardingPortal: React.FC<OnboardingPortalProps> = ({
   classes,
   onLoaderStart,
   onLoadError,
-  onExit,
   onStepChange,
   onBack,
   backLabel,
@@ -101,7 +99,6 @@ export const OnboardingPortal: React.FC<OnboardingPortalProps> = ({
   // Sync callbacks
   useUpdateWithSetter(componentInstance, onLoaderStart, (c, v) => c.setOnLoaderStart(v));
   useUpdateWithSetter(componentInstance, onLoadError, (c, v) => c.setOnLoadError(v));
-  useUpdateWithSetter(componentInstance, onExit, (c, v) => c.setOnExit(v));
   useUpdateWithSetter(componentInstance, onStepChange, (c, v) => c.setOnStepChange(v));
   useUpdateWithSetter(componentInstance, onBack, (c, v) => c.setOnBack(v));
 

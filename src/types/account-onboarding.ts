@@ -58,7 +58,6 @@ export interface AccountOnboardingElement extends Omit<BaseComponentElement, 'se
 
 export interface OnboardingPortalElement extends Omit<BaseComponentElement, 'setClasses'> {
   setClasses: (classes: OnboardingPortalClasses) => void;
-  setOnExit: (cb: () => void) => void;
   setOnStepChange: (cb: (event: { step: AccountOnboardingStep }) => void) => void;
   setCollectionOptions: (options?: OnboardingCollectionOptions | null) => void;
   setFullTermsOfServiceUrl: (url?: string | null) => void;

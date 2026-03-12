@@ -37,9 +37,13 @@ export class OnboardingNumbersStep extends OnboardingStepBase {
   }
 
   protected override restoreSubStep(substep: string): void {
-    const safePoints = new Set(['overview', 'order-status', 'port-submitted']);
+    const safePoints = new Set(['overview', 'order-status', 'port-submitted', 'primary-did']);
     if (safePoints.has(substep)) {
-      this.numbers.numSubStep = substep as 'overview' | 'order-status' | 'port-submitted';
+      this.numbers.numSubStep = substep as
+        | 'overview'
+        | 'order-status'
+        | 'port-submitted'
+        | 'primary-did';
     }
     // All other substeps depend on ephemeral form state — fall back to overview (default)
   }
@@ -93,16 +97,6 @@ export class OnboardingNumbersStep extends OnboardingStepBase {
           description: this.t('accountOnboarding.sidebar.numberOptionsDesc'),
         },
         {
-          key: 'primary-did',
-          label: this.t('accountOnboarding.sidebar.primaryNumber'),
-          description: this.t('accountOnboarding.sidebar.primaryNumberDesc'),
-        },
-        {
-          key: 'caller-id',
-          label: this.t('accountOnboarding.sidebar.callerId'),
-          description: this.t('accountOnboarding.sidebar.callerIdDesc'),
-        },
-        {
           key: 'setup',
           label: this.t('accountOnboarding.sidebar.numberSetup'),
           description: this.t('accountOnboarding.sidebar.numberSetupDesc'),
@@ -111,6 +105,16 @@ export class OnboardingNumbersStep extends OnboardingStepBase {
           key: 'verification',
           label: this.t('accountOnboarding.sidebar.verification'),
           description: this.t('accountOnboarding.sidebar.verificationDesc'),
+        },
+        {
+          key: 'primary-did',
+          label: this.t('accountOnboarding.sidebar.primaryNumber'),
+          description: this.t('accountOnboarding.sidebar.primaryNumberDesc'),
+        },
+        {
+          key: 'caller-id',
+          label: this.t('accountOnboarding.sidebar.callerId'),
+          description: this.t('accountOnboarding.sidebar.callerIdDesc'),
         },
       ],
       activeKey: this.numbers.getSidebarActiveKey(),

@@ -2,6 +2,7 @@ import { renderOverviewScreen } from '../onboarding-portal/overview-screen';
 import { OnboardingProgressStore } from '../account-onboarding/progress-store';
 import { SIDEBAR_GROUPS } from '../account-onboarding/constants';
 import type { StepName } from '../account-onboarding/progress-store';
+import type { PhoneNumberItem } from '../../types';
 
 /** Simple translator — returns the key, except flowsComplete which needs placeholders. */
 const t = (key: string) =>
@@ -150,6 +151,84 @@ describe('renderOverviewScreen', () => {
       renderOverviewScreen(container, t, store, ['account']);
       const track = container.querySelector('.overview-card-progress-track');
       expect(track!.getAttribute('aria-valuenow')).toBe('100');
+    });
+  });
+
+  describe('phone number status card', () => {
+    const makePhone = (overrides: Partial<PhoneNumberItem> = {}): PhoneNumberItem => ({
+      phone_number: '+12125551234',
+      status: 'ordering',
+      outbound_enabled: null,
+      source: 'number_order',
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+      ...overrides,
+    });
+
+    it('does not render when phoneNumbers is undefined', () => {
+      renderOverviewScreen(container, t, null);
+      expect(container.querySelector('.overview-phone-status')).toBeNull();
+    });
+
+    it('does not render when phoneNumbers is empty', () => {
+      renderOverviewScreen(container, t, null, undefined, []);
+      expect(container.querySelector('.overview-phone-status')).toBeNull();
+    });
+
+    it('renders card with title and subtitle', () => {
+      renderOverviewScreen(container, t, null, undefined, [makePhone()]);
+      const card = container.querySelector('.overview-phone-status');
+      expect(card).not.toBeNull();
+      expect(card!.querySelector('.overview-phone-status-title')!.textContent).toBe(
+        'onboardingPortal.overview.phoneStatusTitle'
+      );
+      expect(card!.querySelector('.overview-phone-status-subtitle')!.textContent).toBe(
+        'onboardingPortal.overview.phoneStatusSubtitle'
+      );
+    });
+
+    it('renders correct number of rows', () => {
+      const phones = [makePhone(), makePhone({ phone_number: '+12125555678' })];
+      renderOverviewScreen(container, t, null, undefined, phones);
+      const rows = container.querySelectorAll('.overview-phone-status-row');
+      expect(rows).toHaveLength(2);
+    });
+
+    it('shows "Port" type for port_order source', () => {
+      renderOverviewScreen(container, t, null, undefined, [
+        makePhone({ source: 'port_order', status: 'porting_submitted' }),
+      ]);
+      const type = container.querySelector('.overview-phone-status-type');
+      expect(type!.textContent).toBe('onboardingPortal.overview.phoneStatusTypePort');
+    });
+
+    it('shows "New" type for non-port sources', () => {
+      renderOverviewScreen(container, t, null, undefined, [makePhone({ source: 'number_order' })]);
+      const type = container.querySelector('.overview-phone-status-type');
+      expect(type!.textContent).toBe('onboardingPortal.overview.phoneStatusTypeNew');
+    });
+
+    it('shows "Complete" badge for active status', () => {
+      renderOverviewScreen(container, t, null, undefined, [
+        makePhone({ status: 'active', source: 'did' }),
+      ]);
+      const badge = container.querySelector('.overview-phone-status-badge');
+      expect(badge!.textContent).toBe('onboardingPortal.overview.phoneStatusComplete');
+      expect(badge!.classList.contains('overview-phone-status-badge--complete')).toBe(true);
+    });
+
+    it('shows "Processing" badge for non-active status', () => {
+      renderOverviewScreen(container, t, null, undefined, [makePhone({ status: 'ordering' })]);
+      const badge = container.querySelector('.overview-phone-status-badge');
+      expect(badge!.textContent).toBe('onboardingPortal.overview.phoneStatusProcessing');
+      expect(badge!.classList.contains('overview-phone-status-badge--processing')).toBe(true);
+    });
+
+    it('formats E.164 phone numbers to national format', () => {
+      renderOverviewScreen(container, t, null, undefined, [makePhone()]);
+      const phoneText = container.querySelector('.overview-phone-status-phone-text');
+      // +12125551234 → (212) 555-1234
+      expect(phoneText!.textContent).toBe('(212) 555-1234');
     });
   });
 });

@@ -20,6 +20,8 @@ import PORTAL_STYLES from './styles.css';
 import SPLASH_STYLES from './splash-styles.css';
 import OVERVIEW_STYLES from './overview-styles.css';
 import { ONBOARDING_STEPS } from '../account-onboarding/constants';
+import { mergePhoneNumbers } from '../account-onboarding/numbers';
+import type { DIDItem, NumberOrder, PortOrder, PhoneNumberItem } from '../../types';
 import {
   STEP_ICONS,
   STEP_I18N_KEYS,
@@ -45,6 +47,7 @@ export class OnboardingPortalComponent extends BaseComponent {
   private activeSteps: AccountOnboardingStep[] = [];
   private _progressStore: OnboardingProgressStore | null = null;
   private _storeUnsubscribe: (() => void) | null = null;
+  private _phoneNumbers: PhoneNumberItem[] = [];
 
   // Inner wizard element
   private innerWizard: AccountOnboardingComponent | null = null;
@@ -56,7 +59,6 @@ export class OnboardingPortalComponent extends BaseComponent {
   private overviewEl: HTMLDivElement | null = null;
 
   // Callbacks
-  private _onExit?: () => void;
   private _onStepChange?: (event: { step: AccountOnboardingStep }) => void;
   private _onBack?: () => void;
   private _backLabel: string | undefined;
@@ -134,8 +136,12 @@ export class OnboardingPortalComponent extends BaseComponent {
       this.innerWizard.setPrivacyPolicyUrl(this._privacyPolicyUrl);
     }
 
-    // Wire callbacks
-    this.innerWizard.setOnExit(() => this._onExit?.());
+    // Wire callbacks — "Finish" on the wahoo screen goes to overview, not exit
+    this.innerWizard.setOnExit(() => {
+      this.viewMode = 'overview';
+      this.renderMainArea();
+      this.renderSidebar();
+    });
     this.innerWizard.setOnStepChange((event) => {
       this.acquireProgressStore();
       // If the wizard tries to go to 'complete' but not all steps are done,
@@ -282,6 +288,27 @@ export class OnboardingPortalComponent extends BaseComponent {
         this.renderSidebar();
       }
     }
+
+    // Fetch phone numbers for the overview status card
+    this.fetchPhoneNumbers();
+  }
+
+  private async fetchPhoneNumbers(): Promise<void> {
+    if (!this.instance) return;
+    // Only fetch if the numbers step is active
+    if (!this.activeSteps.includes('numbers')) return;
+
+    try {
+      const [dids, orders, ports] = await Promise.all([
+        this.instance.fetchAllPages<DIDItem>((opts) => this.instance!.listPhoneNumbers(opts)),
+        this.instance.fetchAllPages<NumberOrder>((opts) => this.instance!.listNumberOrders(opts)),
+        this.instance.fetchAllPages<PortOrder>((opts) => this.instance!.listPortOrders(opts)),
+      ]);
+      this._phoneNumbers = mergePhoneNumbers(dids, orders, ports);
+      if (this.viewMode === 'overview') this.renderMainArea();
+    } catch {
+      // Non-critical — overview still works without phone numbers
+    }
   }
 
   // ============================================================================
@@ -291,11 +318,6 @@ export class OnboardingPortalComponent extends BaseComponent {
   override setClasses(classes: OnboardingPortalClasses): void {
     this.classes = { ...this.classes, ...classes };
     if (this.isInitialized) this.render();
-  }
-
-  setOnExit(cb: () => void): void {
-    this._onExit = cb;
-    this.innerWizard?.setOnExit(cb);
   }
 
   setOnStepChange(cb: (event: { step: AccountOnboardingStep }) => void): void {
@@ -520,7 +542,13 @@ export class OnboardingPortalComponent extends BaseComponent {
       this.mainEl.style.display = 'none';
       this.overviewEl.style.display = '';
       const stepsToShow = this.activeSteps.filter((s): s is StepName => s !== 'final_complete');
-      renderOverviewScreen(this.overviewEl, (key) => this.t(key), this._progressStore, stepsToShow);
+      renderOverviewScreen(
+        this.overviewEl,
+        (key) => this.t(key),
+        this._progressStore,
+        stepsToShow,
+        this._phoneNumbers
+      );
     } else {
       this.overviewEl.style.display = 'none';
       this.mainEl.style.display = '';

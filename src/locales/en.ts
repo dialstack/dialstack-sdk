@@ -375,6 +375,7 @@ export const en = {
         portExistingDesc:
           'Transfer your current business number to DialStack. This typically takes 5–10 business days.',
         phoneNumber: 'Phone Number',
+        type: 'Type',
         status: 'Status',
         source: 'Source',
         loadError: 'Failed to load telephone numbers. Please try again.',
@@ -654,6 +655,15 @@ export const en = {
       accountDesc: 'Set up your business profile, add team members, and configure your dial plan',
       numbersDesc: 'Port existing numbers or request new business lines',
       hardwareDesc: 'Assign phones to team members and track delivery',
+      phoneStatusTitle: 'Phone number status',
+      phoneStatusSubtitle: 'Track the status of your phone numbers',
+      phoneStatusNumber: 'Phone Number',
+      phoneStatusType: 'Type',
+      phoneStatusStatus: 'Status',
+      phoneStatusTypeNew: 'New',
+      phoneStatusTypePort: 'Port',
+      phoneStatusProcessing: 'Processing',
+      phoneStatusComplete: 'Complete',
     },
     splash: {
       title: 'Welcome\nto DialStack',
