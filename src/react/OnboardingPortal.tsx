@@ -32,6 +32,7 @@ export interface OnboardingPortalProps {
   onBack?: () => void;
   backLabel?: string;
   logoHtml?: string;
+  platformName?: string;
   collectionOptions?: OnboardingCollectionOptions;
   fullTermsOfServiceUrl?: string;
   recipientTermsOfServiceUrl?: string;
@@ -52,6 +53,7 @@ export const OnboardingPortal: React.FC<OnboardingPortalProps> = ({
   onBack,
   backLabel,
   logoHtml,
+  platformName,
   collectionOptions,
   fullTermsOfServiceUrl,
   recipientTermsOfServiceUrl,
@@ -95,6 +97,11 @@ export const OnboardingPortal: React.FC<OnboardingPortalProps> = ({
     if (!componentInstance) return;
     componentInstance.setLogoHtml(logoHtml);
   }, [componentInstance, logoHtml]);
+
+  React.useEffect(() => {
+    if (!componentInstance) return;
+    componentInstance.setPlatformName(platformName);
+  }, [componentInstance, platformName]);
 
   // Sync callbacks
   useUpdateWithSetter(componentInstance, onLoaderStart, (c, v) => c.setOnLoaderStart(v));

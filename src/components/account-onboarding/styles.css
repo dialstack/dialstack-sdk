@@ -152,6 +152,8 @@
 /* Right content column */
 .step-content {
   min-width: 0;
+  max-height: calc(100dvh - 80px);
+  overflow-y: auto;
 }
 
 /* Ghost button for back */

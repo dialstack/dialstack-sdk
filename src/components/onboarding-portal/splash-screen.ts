@@ -5,7 +5,15 @@ import {
 } from './splash-illustration';
 import { ARROW_RIGHT_SVG } from './constants';
 
-export function renderSplashScreen(container: HTMLElement, t: (key: string) => string): void {
+export interface SplashScreenOptions {
+  logoHtml?: string;
+}
+
+export function renderSplashScreen(
+  container: HTMLElement,
+  t: (key: string) => string,
+  options?: SplashScreenOptions
+): void {
   container.textContent = '';
 
   const wrapper = document.createElement('div');
@@ -16,6 +24,9 @@ export function renderSplashScreen(container: HTMLElement, t: (key: string) => s
   bgShape.className = 'splash-bg-shape';
   // SAFETY: SPLASH_BG_SHAPE_SVG is a static constant defined in this package
   bgShape.innerHTML = SPLASH_BG_SHAPE_SVG;
+  // Apply portal theme color to the shape
+  const shapePath = bgShape.querySelector('path');
+  if (shapePath) shapePath.setAttribute('fill', 'var(--ds-portal-splash-shape)');
   wrapper.appendChild(bgShape);
 
   // Left content
@@ -51,6 +62,43 @@ export function renderSplashScreen(container: HTMLElement, t: (key: string) => s
   const visual = document.createElement('div');
   visual.className = 'splash-visual';
   visual.innerHTML = SPLASH_ILLUSTRATION_SVG;
+
+  // Replace AudioBars with consumer's logo if provided
+  const audioBars = visual.querySelector('#AudioBars');
+  if (audioBars && options?.logoHtml) {
+    const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+    // Place on the laptop screen with matching rotation (5.58deg matches laptop perspective)
+    const size = 70;
+    const cx = 529.87 + 17; // center of original AudioBars
+    const cy = 368.43 + 18.5;
+    fo.setAttribute('x', String(cx - size / 2));
+    fo.setAttribute('y', String(cy - size / 2));
+    fo.setAttribute('width', String(size));
+    fo.setAttribute('height', String(size));
+    fo.setAttribute('transform', `rotate(5.58, ${cx}, ${cy})`);
+    const logoBody = document.createElement('div');
+    logoBody.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+    logoBody.style.cssText =
+      'display:flex;align-items:center;justify-content:center;width:100%;height:100%';
+    // Extract only the icon/image from logoHtml (skip text labels) for the small laptop area
+    const temp = document.createElement('div');
+    temp.innerHTML = options.logoHtml;
+    const img = temp.querySelector('img') || temp.querySelector('svg');
+    if (img) {
+      (img as HTMLElement).style.cssText = 'width:100%;height:100%;object-fit:contain';
+      logoBody.appendChild(img);
+    } else {
+      // SAFETY: logoHtml is set by the SDK consumer (developer), not end-user input
+      logoBody.innerHTML = options.logoHtml;
+    }
+    fo.appendChild(logoBody);
+    audioBars.replaceWith(fo);
+  } else if (audioBars) {
+    // Recolor audio bars to match primary color
+    const rects = audioBars.querySelectorAll('rect');
+    rects.forEach((rect) => rect.setAttribute('fill', 'var(--ds-color-primary, #692CFF)'));
+  }
+
   wrapper.appendChild(visual);
 
   // Floating step chips (staggered layout matching Figma)

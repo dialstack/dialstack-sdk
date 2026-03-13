@@ -71,7 +71,6 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-bottom: var(--ds-layout-spacing-md);
 }
 
 .num-overview-header {

@@ -361,7 +361,7 @@ export const en = {
         },
         directoryListing: {
           title: 'Directory Listing (DA/DL)',
-          info: 'To update your directory listing, contact DialStack support.',
+          info: 'To update your directory listing, contact {platformName} support.',
         },
         noDIDs: 'No active phone numbers to configure.',
       },
@@ -373,7 +373,7 @@ export const en = {
           'Get new business phone numbers instantly. Choose from available numbers in your area.',
         portExisting: 'Port Existing Number',
         portExistingDesc:
-          'Transfer your current business number to DialStack. This typically takes 5–10 business days.',
+          'Transfer your current business number to {platformName}. This typically takes 5–10 business days.',
         phoneNumber: 'Phone Number',
         type: 'Type',
         status: 'Status',
@@ -447,7 +447,7 @@ export const en = {
       },
       port: {
         numbersTitle: 'Numbers to Port',
-        numbersSubtitle: 'Enter the phone numbers you want to transfer to DialStack.',
+        numbersSubtitle: 'Enter the phone numbers you want to transfer to {platformName}.',
         phoneLabel: 'Phone Number',
         phonePlaceholder: '(555) 123-4567',
         addAnother: 'Add another number',
@@ -517,7 +517,8 @@ export const en = {
         documentsSection: 'Documents',
         signatureLabel: 'Electronic Signature',
         signaturePlaceholder: 'Type your full legal name',
-        signatureHelp: 'By signing, you authorize the transfer of the listed numbers to DialStack.',
+        signatureHelp:
+          'By signing, you authorize the transfer of the listed numbers to {platformName}.',
         approve: 'Approve & Submit',
         submitting: 'Submitting...',
         submittedTitle: 'Port Request Submitted',
@@ -666,7 +667,7 @@ export const en = {
       phoneStatusComplete: 'Complete',
     },
     splash: {
-      title: 'Welcome\nto DialStack',
+      title: 'Welcome\nto {platformName}',
       subtitle: "Let's get your business set up in 3 easy steps",
       start: 'Start Onboarding',
       step1: 'Account Details',

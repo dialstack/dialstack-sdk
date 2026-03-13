@@ -46,6 +46,7 @@ export interface AccountOnboardingElement extends Omit<BaseComponentElement, 'se
   setFullTermsOfServiceUrl: (url?: string | null) => void;
   setRecipientTermsOfServiceUrl: (url?: string | null) => void;
   setPrivacyPolicyUrl: (url?: string | null) => void;
+  setPlatformName: (name: string | undefined) => void;
   getCurrentStep: () => AccountOnboardingStep;
   getActiveSteps: () => AccountOnboardingStep[];
   getActiveStepElement: () => {
@@ -63,6 +64,7 @@ export interface OnboardingPortalElement extends Omit<BaseComponentElement, 'set
   setFullTermsOfServiceUrl: (url?: string | null) => void;
   setRecipientTermsOfServiceUrl: (url?: string | null) => void;
   setPrivacyPolicyUrl: (url?: string | null) => void;
+  setPlatformName: (name: string | undefined) => void;
   setOnBack: (cb: (() => void) | undefined) => void;
   setBackLabel: (label: string | undefined) => void;
   setLogoHtml: (html: string | undefined) => void;

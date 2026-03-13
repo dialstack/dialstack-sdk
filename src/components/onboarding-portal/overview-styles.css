@@ -2,7 +2,7 @@
   padding: 40px 48px;
   overflow-y: auto;
   height: 100%;
-  background: #f0f0ff;
+  background: color-mix(in srgb, var(--ds-color-primary, #692cff) 5%, #f8f8ff);
   box-sizing: border-box;
 }
 
@@ -13,7 +13,7 @@
 .overview-header h1 {
   font-size: 28px;
   font-weight: 700;
-  color: #1c1247;
+  color: var(--ds-portal-sidebar-bg, #1c1247);
   margin: 0 0 8px;
 }
 
@@ -42,12 +42,12 @@
 .overview-progress-info h3 {
   font-size: 16px;
   font-weight: 600;
-  color: #1c1247;
+  color: var(--ds-portal-sidebar-bg, #1c1247);
   margin: 0 0 12px;
 }
 
 .overview-progress-bar-track {
-  background: #cac5ff;
+  background: var(--ds-portal-splash-shelf, #cac5ff);
   height: 12px;
   border-radius: 6px;
   overflow: hidden;
@@ -55,7 +55,7 @@
 }
 
 .overview-progress-bar-fill {
-  background: #692cff;
+  background: var(--ds-color-primary, #692cff);
   height: 100%;
   border-radius: 6px;
   transition: width 0.3s ease;
@@ -70,7 +70,7 @@
 .overview-progress-pct {
   font-size: 36px;
   font-weight: 700;
-  color: #692cff;
+  color: var(--ds-color-primary, #692cff);
   flex-shrink: 0;
 }
 
@@ -78,7 +78,7 @@
 .overview-steps-title {
   font-size: 18px;
   font-weight: 600;
-  color: #1c1247;
+  color: var(--ds-portal-sidebar-bg, #1c1247);
   margin: 0 0 20px;
 }
 
@@ -104,7 +104,7 @@
   width: 66px;
   height: 66px;
   border-radius: 50%;
-  background: #ffeaf5;
+  background: color-mix(in srgb, var(--ds-color-primary, #692cff) 15%, white);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -114,7 +114,7 @@
 .overview-card-icon svg {
   width: 28px;
   height: 28px;
-  color: #c94198;
+  color: var(--ds-color-primary, #692cff);
 }
 
 .overview-card-icon--complete {
@@ -130,7 +130,7 @@
 .overview-card h4 {
   font-size: 16px;
   font-weight: 600;
-  color: #1c1247;
+  color: var(--ds-portal-sidebar-bg, #1c1247);
   margin: 0;
 }
 
@@ -157,14 +157,14 @@
 
 .overview-card-progress-track {
   width: 100%;
-  background: #cac5ff;
+  background: var(--ds-portal-splash-shelf, #cac5ff);
   height: 6px;
   border-radius: 3px;
   overflow: hidden;
 }
 
 .overview-card-progress-fill {
-  background: #692cff;
+  background: var(--ds-color-primary, #692cff);
   height: 100%;
   border-radius: 3px;
   transition: width 0.3s ease;
@@ -174,7 +174,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #692cff;
+  background: var(--ds-color-primary, #692cff);
   color: #fff;
   border: none;
   border-radius: 24px;
@@ -187,7 +187,7 @@
 }
 
 .overview-card-btn:hover {
-  background: #5a22e0;
+  background: var(--ds-color-primary-hover, #5a22e0);
 }
 
 /* Phone status card */
@@ -312,7 +312,7 @@
 .overview-help-card h3 {
   font-size: 18px;
   font-weight: 600;
-  color: #1c1247;
+  color: var(--ds-portal-sidebar-bg, #1c1247);
   margin: 0 0 6px;
 }
 
@@ -332,8 +332,8 @@
   align-items: center;
   gap: 6px;
   background: transparent;
-  color: #692cff;
-  border: 1.5px solid #692cff;
+  color: var(--ds-color-primary, #692cff);
+  border: 1.5px solid var(--ds-color-primary, #692cff);
   border-radius: 24px;
   padding: 10px 20px;
   font-size: 14px;
@@ -345,6 +345,6 @@
 }
 
 .overview-help-btn:hover {
-  background: #692cff;
+  background: var(--ds-color-primary, #692cff);
   color: #fff;
 }

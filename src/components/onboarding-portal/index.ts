@@ -65,6 +65,7 @@ export class OnboardingPortalComponent extends BaseComponent {
 
   // Configurable content
   private _logoHtml: string | undefined;
+  private _platformName: string | undefined;
 
   // Props to forward
   private _collectionOptions: OnboardingCollectionOptions | null = null;
@@ -121,6 +122,9 @@ export class OnboardingPortalComponent extends BaseComponent {
         })
       );
     }
+
+    // Forward white-labeling
+    if (this._platformName) this.innerWizard.setPlatformName(this._platformName);
 
     // Forward stored props
     if (this._collectionOptions !== null) {
@@ -202,6 +206,8 @@ export class OnboardingPortalComponent extends BaseComponent {
       const target = e.target as HTMLElement;
       const stepEl = target.closest<HTMLElement>('[data-step]');
       if (stepEl) {
+        // Don't allow navigating to completed steps
+        if (stepEl.classList.contains('completed')) return;
         const step = stepEl.dataset.step as AccountOnboardingStep;
         this.viewMode = 'wizard';
         this.innerWizard?.navigateToStep(step);
@@ -335,7 +341,15 @@ export class OnboardingPortalComponent extends BaseComponent {
 
   setLogoHtml(html: string | undefined): void {
     this._logoHtml = html;
+    if (this.viewMode === 'splash' && this.overviewEl) this.overviewEl.textContent = '';
     if (this.isInitialized) this.renderSidebar();
+  }
+
+  setPlatformName(name: string | undefined): void {
+    this._platformName = name;
+    this.innerWizard?.setPlatformName(name);
+    if (this.viewMode === 'splash' && this.overviewEl) this.overviewEl.textContent = '';
+    if (this.isInitialized) this.render();
   }
 
   setCollectionOptions(options?: OnboardingCollectionOptions | null): void {
@@ -392,6 +406,46 @@ export class OnboardingPortalComponent extends BaseComponent {
   }
 
   // ============================================================================
+  // Helpers
+  // ============================================================================
+
+  /** Translate with platformName always injected. */
+  private tp(key: string, params?: Record<string, string | number>): string {
+    return this.t(key, { platformName: this._platformName ?? 'DialStack', ...params });
+  }
+
+  /** Validate that a string looks like a safe CSS color value. */
+  private isValidCssColor(value: string): boolean {
+    return !/[{};]/.test(value);
+  }
+
+  /** Generate portal-specific CSS variables with auto-derived defaults. */
+  private getPortalCssVars(): string {
+    const raw = this.appearance?.variables?.colorPrimary;
+    const colorPrimary = raw && this.isValidCssColor(raw) ? raw : undefined;
+
+    // Use the brand color directly for portal chrome.
+    // Sidebar and splash use the primary color itself (not mixed/desaturated).
+    // Falls back to original DialStack values when no primary is set.
+    const sidebarBg = colorPrimary ?? '#1c1247';
+    const sidebarActive = colorPrimary
+      ? `color-mix(in srgb, ${colorPrimary}, white 20%)`
+      : '#4c3c8e';
+    const splashBg = colorPrimary ? `color-mix(in srgb, ${colorPrimary}, black 15%)` : '#2d2065';
+    const splashShape = colorPrimary ? `color-mix(in srgb, ${colorPrimary}, white 30%)` : '#8A7ACE';
+    const splashShelf = colorPrimary ? `color-mix(in srgb, ${colorPrimary}, white 70%)` : '#d1c6ff';
+
+    return `
+      :host {
+        --ds-portal-sidebar-bg: ${sidebarBg};
+        --ds-portal-sidebar-active: ${sidebarActive};
+        --ds-portal-splash-bg: ${splashBg};
+        --ds-portal-splash-shape: ${splashShape};
+        --ds-portal-splash-shelf: ${splashShelf};
+      }`;
+  }
+
+  // ============================================================================
   // Render
   // ============================================================================
 
@@ -399,7 +453,8 @@ export class OnboardingPortalComponent extends BaseComponent {
     if (!this.shadowRoot || !this.styleEl) return;
 
     const styles = this.applyAppearanceStyles();
-    this.styleEl.textContent = `${styles}\n${PORTAL_STYLES}\n${SPLASH_STYLES}\n${OVERVIEW_STYLES}`;
+    const portalVars = this.getPortalCssVars();
+    this.styleEl.textContent = `${styles}\n${portalVars}\n${PORTAL_STYLES}\n${SPLASH_STYLES}\n${OVERVIEW_STYLES}`;
 
     if (this.sidebarEl) {
       this.sidebarEl.className = `portal-sidebar ${this.classes.sidebar ?? ''}`.trim();
@@ -437,7 +492,7 @@ export class OnboardingPortalComponent extends BaseComponent {
     } else {
       logoDiv.style.fontSize = '20px';
       logoDiv.style.fontWeight = '700';
-      logoDiv.textContent = 'DialStack';
+      logoDiv.textContent = this._platformName ?? 'DialStack';
     }
     this.sidebarEl.appendChild(logoDiv);
 
@@ -470,8 +525,10 @@ export class OnboardingPortalComponent extends BaseComponent {
       if (isActive) item.classList.add('active');
       if (isCompleted) item.classList.add('completed');
       item.setAttribute('data-step', step);
-      item.setAttribute('role', 'button');
-      item.setAttribute('tabindex', '0');
+      if (!isCompleted) {
+        item.setAttribute('role', 'button');
+        item.setAttribute('tabindex', '0');
+      }
 
       // Icon (static SVG constant)
       const iconSpan = document.createElement('span');
@@ -536,7 +593,9 @@ export class OnboardingPortalComponent extends BaseComponent {
       this.overviewEl.style.display = '';
       // Splash is static; skip re-render if already mounted
       if (!this.overviewEl.firstChild) {
-        renderSplashScreen(this.overviewEl, (key) => this.t(key));
+        renderSplashScreen(this.overviewEl, (key) => this.tp(key), {
+          logoHtml: this._logoHtml,
+        });
       }
     } else if (this.viewMode === 'overview') {
       this.mainEl.style.display = 'none';

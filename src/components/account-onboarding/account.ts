@@ -582,7 +582,8 @@ export class AccountStepHelper {
   handleBack(): boolean {
     if (this.accountSubStep === 'team-members') {
       this.accountSubStep = 'business-details';
-      this.host.notifySubStepChange('business-details');
+      // Don't call notifySubStepChange here — that marks the substep as complete.
+      // Just re-render to show the previous sub-step.
       this.host.render();
       return true;
     }

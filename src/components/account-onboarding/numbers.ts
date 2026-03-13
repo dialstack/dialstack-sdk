@@ -1133,7 +1133,7 @@ export class NumbersStepHelper {
   }
 
   /**
-   * Footer for the numbers step — swaps Next for Skip after a failed bulk caller-id attempt.
+   * Footer for the numbers step — adds Skip alongside Next after a failed bulk caller-id attempt.
    */
   private renderNumbersFooter(): string {
     if (
@@ -1146,9 +1146,14 @@ export class NumbersStepHelper {
           <button class="btn btn-ghost" data-action="back">
             &larr; ${this.host.t('accountOnboarding.nav.back')}
           </button>
-          <button class="btn btn-warning" data-action="num-cid-skip">
-            ${this.host.t('accountOnboarding.numbers.callerId.skipCallerId')} &rarr;
-          </button>
+          <div class="footer-bar-actions">
+            <button class="btn btn-warning" data-action="num-cid-skip">
+              ${this.host.t('accountOnboarding.numbers.callerId.skipCallerId')}
+            </button>
+            <button class="btn btn-primary" data-action="next">
+              ${this.host.t('accountOnboarding.nav.next')} &rarr;
+            </button>
+          </div>
         </div>`;
     }
     return this.host.renderStepFooter();
@@ -1231,7 +1236,7 @@ export class NumbersStepHelper {
   }
 
   private validateCallerIdName(name: string): string | null {
-    if (!name.trim()) return this.host.t('accountOnboarding.numbers.callerId.validation.required');
+    if (!name.trim()) return null; // empty is fine — caller ID is optional
     if (name.length > 15)
       return this.host.t('accountOnboarding.numbers.callerId.validation.tooLong');
     if (!/^[A-Za-z0-9 -]+$/.test(name))
@@ -1245,6 +1250,8 @@ export class NumbersStepHelper {
    */
   private async submitCallerIdNoRender(didId: string): Promise<void> {
     const name = this.callerIdInputs.get(didId) ?? '';
+    // Skip empty — caller ID is optional
+    if (!name.trim()) return;
     const error = this.validateCallerIdName(name);
     if (error) {
       this.callerIdErrors.set(didId, error);
@@ -1284,11 +1291,26 @@ export class NumbersStepHelper {
    * Validates all, submits in parallel, auto-advances on full success.
    */
   private async submitAllFromNext(): Promise<void> {
+    // Only submit DIDs that the user actually filled in (caller ID is optional)
     const pending = this.activeDIDs.filter(
-      (did) => this.callerIdStatuses.get(did.id) !== 'submitted'
+      (did) =>
+        this.callerIdStatuses.get(did.id) !== 'submitted' &&
+        (this.callerIdInputs.get(did.id) ?? '').trim() !== ''
     );
 
-    // Validate all first — if any fail, show errors without API calls
+    // Nothing to submit — advance immediately
+    if (pending.length === 0) {
+      this.callerIdBulkAttempted = true;
+      this.host.render();
+      if (this.allCallerIdsSubmitted()) {
+        const steps = this.host.getActiveSteps();
+        const nextStep = steps[steps.indexOf('numbers') + 1];
+        if (nextStep) this.host.navigateToStep(nextStep);
+      }
+      return;
+    }
+
+    // Validate filled inputs — if any fail, show errors without API calls
     let hasValidationError = false;
     for (const did of pending) {
       const name = this.callerIdInputs.get(did.id) ?? '';
@@ -1332,7 +1354,13 @@ export class NumbersStepHelper {
   }
 
   private allCallerIdsSubmitted(): boolean {
-    return this.activeDIDs.every((did) => this.callerIdStatuses.get(did.id) === 'submitted');
+    return this.activeDIDs.every((did) => {
+      const status = this.callerIdStatuses.get(did.id);
+      if (status === 'submitted') return true;
+      // Empty inputs don't need submission — caller ID is optional
+      const input = (this.callerIdInputs.get(did.id) ?? '').trim();
+      return input === '' && (status === 'idle' || !status);
+    });
   }
 
   private renderCallerIdSection(): string {
@@ -1438,7 +1466,7 @@ export class NumbersStepHelper {
         .join('');
 
       listHtml = `
-        <div class="num-overview-list">
+        <div class="num-overview-list" style="margin-top:var(--ds-layout-spacing-lg)">
           <div class="num-overview-header">
             <div class="num-overview-cell num-overview-phone">${t('accountOnboarding.numbers.overview.phoneNumber')}</div>
             <div class="num-overview-cell num-overview-type">${t('accountOnboarding.numbers.overview.type')}</div>
@@ -1454,7 +1482,6 @@ export class NumbersStepHelper {
     }
 
     return `
-      ${listHtml}
       <div class="num-action-cards">
         <div class="num-action-card" data-action="num-start-port" tabindex="0" role="button">
           <div class="num-action-card-icon">${PORT_SVG}</div>
@@ -1470,7 +1497,8 @@ export class NumbersStepHelper {
             <div class="num-action-card-desc">${t('accountOnboarding.numbers.overview.requestNewDesc')}</div>
           </div>
         </div>
-      </div>`;
+      </div>
+      ${listHtml}`;
   }
 
   private renderNumOrderSearch(): string {

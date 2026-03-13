@@ -1,9 +1,11 @@
 .splash-container {
-  background: #2d2065;
+  background: var(--ds-portal-splash-bg);
   height: 100%;
   position: relative;
   overflow: hidden;
   box-sizing: border-box;
+  container-name: portal;
+  container-type: size;
 }
 
 .splash-bg-shape {
@@ -46,7 +48,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  background: #692cff;
+  background: var(--ds-color-primary, #692cff);
   color: #fff;
   border: none;
   border-radius: 100px;
@@ -61,7 +63,7 @@
 }
 
 .splash-btn:hover {
-  background: #5a22e0;
+  background: var(--ds-color-primary-hover, #5a22e0);
 }
 
 .splash-btn svg {
@@ -90,7 +92,7 @@
   right: 0;
   left: 32.1%;
   height: 92px;
-  background: #d1c6ff;
+  background: var(--ds-portal-splash-shelf);
   border-top-left-radius: 57px;
   z-index: 1;
 }
@@ -118,6 +120,13 @@
   display: flex;
   flex-direction: column;
   gap: 38px;
+}
+
+@container portal (max-height: 920px) {
+  .splash-chips {
+    left: 35%;
+    bottom: 14%;
+  }
 }
 
 .splash-chip {
@@ -160,5 +169,5 @@
 .splash-chip-label {
   font-size: 18px;
   font-weight: 600;
-  color: #2d2065;
+  color: var(--ds-portal-splash-bg);
 }

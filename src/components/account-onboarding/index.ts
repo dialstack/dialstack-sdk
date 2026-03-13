@@ -48,6 +48,9 @@ export class AccountOnboardingComponent extends BaseComponent {
   private _accountConfig: AccountConfig = {};
   private _progressStore: OnboardingProgressStore | null = null;
 
+  // White-labeling
+  private _platformName: string | undefined;
+
   // Collection options and URL props
   private collectionOptions: OnboardingCollectionOptions | null = null;
   private _exitFired = false;
@@ -199,6 +202,7 @@ export class AccountOnboardingComponent extends BaseComponent {
     el.setLocale(this.locale);
     el.setFormatting(this.formatting);
     el.setIcons(this.icons);
+    if (this._platformName) el.setPlatformName(this._platformName);
     if (this.appearance) {
       el.dispatchEvent(
         new CustomEvent('dialstack-appearance-update', {
@@ -322,6 +326,13 @@ export class AccountOnboardingComponent extends BaseComponent {
       result[step] = this._progressStore.getStepProgressPercent(step);
     }
     return result;
+  }
+
+  setPlatformName(name: string | undefined): void {
+    this._platformName = name;
+    for (const el of this.stepElements.values()) {
+      el.setPlatformName(name);
+    }
   }
 
   setCollectionOptions(options?: OnboardingCollectionOptions | null): void {

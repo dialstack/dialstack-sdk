@@ -30,3 +30,32 @@ type Story = StoryObj<typeof WebComponentStory>;
 
 export const Default: Story = {};
 export const DarkTheme: Story = { args: { theme: 'dark' } };
+
+// White-labeled story with custom branding
+const CUSTOM_LOGO_HTML = `<div style="display:flex;align-items:center;gap:8px">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<circle cx="12" cy="12" r="10" fill="#00A67E"/>
+<path d="M8 12l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+<span style="font-size:20px;font-weight:700;color:#f0f0ff">Acme Telecom</span>
+</div>`;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const setupWhiteLabel = (el: any) => {
+  el.setLogoHtml(CUSTOM_LOGO_HTML);
+  el.setPlatformName('Acme Telecom');
+  el.dispatchEvent(
+    new CustomEvent('dialstack-appearance-update', {
+      detail: {
+        appearance: {
+          theme: 'light',
+          variables: { colorPrimary: '#00A67E', colorPrimaryHover: '#008F6D' },
+        },
+      },
+    })
+  );
+};
+
+export const WhiteLabeled: Story = {
+  args: { setup: setupWhiteLabel },
+};

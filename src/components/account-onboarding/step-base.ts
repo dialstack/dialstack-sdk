@@ -54,6 +54,9 @@ export abstract class OnboardingStepBase extends BaseComponent {
   // Back button visibility (controlled by wizard when embedded)
   private _showBack = false;
 
+  // Platform name for white-labeling
+  private _platformName: string | undefined;
+
   // Host reference for passing to helpers (same pattern as orchestrator)
   protected readonly host: OnboardingHost = this as unknown as OnboardingHost;
 
@@ -197,6 +200,16 @@ export abstract class OnboardingStepBase extends BaseComponent {
     if (this.isInitialized) {
       this.render();
     }
+  }
+
+  setPlatformName(name: string | undefined): void {
+    this._platformName = name;
+    if (this.isInitialized) this.render();
+  }
+
+  protected override t(key: string, params?: Record<string, string | number>): string {
+    const merged = { platformName: this._platformName ?? 'DialStack', ...params };
+    return super.t(key, merged);
   }
 
   override setClasses(classes: AccountOnboardingClasses): void {
