@@ -111,6 +111,6 @@
     "@xyflow/react": "^12.10.1",
     "canvas-confetti": "^1.9.4",
     "dagre": "^0.8.5",
-    "libphonenumber-js": "^1.12.38"
+    "libphonenumber-js": "^1.12.40"
   }
 }
