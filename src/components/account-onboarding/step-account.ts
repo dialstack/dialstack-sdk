@@ -6,9 +6,10 @@
 
 import type { AccountOnboardingStep } from '../../types';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
-import { BUILDING_SVG } from './icons';
 import { AccountStepHelper } from './account';
 import ACCOUNT_STEP_STYLES from './account-styles.css';
+import { ACCOUNT_SUBSTEPS } from './constants';
+import { BUILDING_SVG } from './icons';
 import { OnboardingStepBase } from './step-base';
 import type { SidebarConfig } from './step-base';
 
@@ -59,6 +60,10 @@ export class OnboardingAccountStep extends OnboardingStepBase {
         };
       }
     }
+  }
+
+  protected override resetToFirstSubStep(): void {
+    this.account.accountSubStep = ACCOUNT_SUBSTEPS[0];
   }
 
   protected override restoreSubStep(substep: string): void {

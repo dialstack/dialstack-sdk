@@ -7,7 +7,7 @@ import { AsYouType, parsePhoneNumberFromString } from 'libphonenumber-js';
 import { debounce } from '../../utils/debounce';
 import { US_STATES } from '../../constants/us-states';
 import { US_TIMEZONES } from '../../constants/us-timezones';
-import { CHECK_CIRCLE_SVG, TRASH_SVG } from './icons';
+import { CHECK_CIRCLE_SVG, TRASH_SVG, USER_SVG } from './icons';
 import type { OnboardingHost } from './host';
 import type { AccountSubStep } from './constants';
 
@@ -787,7 +787,7 @@ export class AccountStepHelper {
                 const extDisplay = ext ? this.host.escapeHtml(ext.number) : '—';
                 return `
                 <tr>
-                  <td class="user-table-name">${this.host.escapeHtml(u.name ?? '')}</td>
+                  <td class="user-table-name"><span class="user-avatar">${USER_SVG}</span>${this.host.escapeHtml(u.name ?? '')}</td>
                   <td>${this.host.escapeHtml(u.email ?? '')}</td>
                   <td>${extDisplay}</td>
                   <td class="user-table-role">${t('accountOnboarding.account.users.roleAdmin')}</td>

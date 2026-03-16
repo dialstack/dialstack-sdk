@@ -114,8 +114,15 @@ export function renderOverviewScreen(
 
     const cardLabel = document.createElement('span');
     cardLabel.className = 'overview-card-progress-label';
-    cardLabel.textContent = isComplete ? t('onboardingPortal.overview.complete') : `${stepPct}%`;
+    cardLabel.textContent = isComplete
+      ? t('onboardingPortal.overview.complete')
+      : t('onboardingPortal.overview.progress');
     cardProgress.appendChild(cardLabel);
+
+    const cardPct = document.createElement('span');
+    cardPct.className = 'overview-card-progress-pct';
+    cardPct.textContent = `${stepPct}%`;
+    cardProgress.appendChild(cardPct);
 
     const cardTrack = document.createElement('div');
     cardTrack.className = 'overview-card-progress-track';
@@ -131,13 +138,20 @@ export function renderOverviewScreen(
 
     card.appendChild(cardProgress);
 
-    // Button — invisible when step is complete to preserve card height alignment
+    // Button
     const btn = document.createElement('button');
-    btn.className = 'overview-card-btn';
     btn.setAttribute('data-action', 'go-to-step');
     btn.setAttribute('data-step', step);
-    btn.textContent = `${t('onboardingPortal.overview.completeSetup')} \u2192`;
-    if (isComplete) btn.style.visibility = 'hidden';
+    if (isComplete) {
+      btn.className = 'overview-card-btn overview-card-btn--review';
+      btn.textContent = t('onboardingPortal.overview.review');
+    } else {
+      btn.className = 'overview-card-btn';
+      btn.textContent =
+        stepPct > 0
+          ? `${t('onboardingPortal.overview.continueSetup')} \u2192`
+          : `${t('onboardingPortal.overview.completeSetup')} \u2192`;
+    }
     card.appendChild(btn);
 
     cardsGrid.appendChild(card);

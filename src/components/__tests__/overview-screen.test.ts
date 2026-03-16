@@ -107,13 +107,15 @@ describe('renderOverviewScreen', () => {
       const store = createStore();
       renderOverviewScreen(container, t, store);
       const labels = container.querySelectorAll('.overview-card-progress-label');
-      expect(labels[0]!.textContent).toBe('0%');
+      expect(labels[0]!.textContent).toBe('onboardingPortal.overview.progress');
+      const pcts = container.querySelectorAll('.overview-card-progress-pct');
+      expect(pcts[0]!.textContent).toBe('0%');
     });
 
-    it('does not render duplicate percentage element', () => {
-      renderOverviewScreen(container, t, null);
+    it('renders percentage element for each step card', () => {
+      renderOverviewScreen(container, t, createStore());
       const pctElements = container.querySelectorAll('.overview-card-progress-pct');
-      expect(pctElements).toHaveLength(0);
+      expect(pctElements.length).toBeGreaterThan(0);
     });
   });
 

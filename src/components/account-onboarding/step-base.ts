@@ -13,7 +13,7 @@ import type {
 } from '../../types';
 import type { Extension } from '../../types/dial-plan';
 import COMPONENT_STYLES from './styles.css';
-import { CHECK_SVG, ERROR_SVG, SUCCESS_SVG } from './icons';
+import { CHECK_SVG, CHECK_SVG_WHITE, ERROR_SVG } from './icons';
 import type { OnboardingHost } from './host';
 import { SIDEBAR_GROUPS, type StepName, type SidebarGroup } from './constants';
 import type { OnboardingProgressStore } from './progress-store';
@@ -336,15 +336,13 @@ export abstract class OnboardingStepBase extends BaseComponent {
   }
 
   protected renderCompleteState(): string {
+    const stepLabel = this.t(`accountOnboarding.steps.${this.stepName}`);
     return `
       <div class="card" part="step-complete">
-        <h2 class="section-title">${this.t('accountOnboarding.stepComplete.title')}</h2>
-        <p class="section-subtitle">${this.t('accountOnboarding.stepComplete.subtitle')}</p>
-        <div class="placeholder" style="min-height:80px">
-          <div class="step-complete-icon">${SUCCESS_SVG}</div>
-        </div>
-        <div class="footer-bar footer-bar-end">
-          <button class="btn btn-primary" data-action="done">
+        <div class="placeholder" style="min-height:200px">
+          <div class="complete-icon-circle">${CHECK_SVG_WHITE}</div>
+          <h2 class="section-title">${this.t('accountOnboarding.stepComplete.title', { stepName: stepLabel })}</h2>
+          <button class="btn btn-primary" data-action="done" style="margin-top:var(--ds-layout-spacing-lg)">
             ${this.t('accountOnboarding.stepComplete.done')}
           </button>
         </div>
@@ -475,6 +473,18 @@ export abstract class OnboardingStepBase extends BaseComponent {
    */
   protected getSidebarGroups(): SidebarGroup[] {
     return SIDEBAR_GROUPS[this.stepName as StepName] ?? [];
+  }
+
+  /** Reset to content view for review (keeps progress store completion intact). */
+  enterReviewMode(): void {
+    if (!this.isComplete) return;
+    this.isComplete = false;
+    this.resetToFirstSubStep();
+  }
+
+  /** Override in subclasses to reset substep position to the beginning. */
+  protected resetToFirstSubStep(): void {
+    // Default: no-op (step has no substep navigation)
   }
 
   protected restoreSubStep(_substep: string): void {

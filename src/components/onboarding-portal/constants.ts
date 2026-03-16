@@ -1,9 +1,9 @@
-import { BUILDING_SVG, PHONE_SVG, MONITOR_SVG } from '../account-onboarding/icons';
+import { BUILDING_SVG, PHONE_SVG, HEADSET_SVG } from '../account-onboarding/icons';
 
 export const STEP_ICONS: Record<string, string> = {
   account: BUILDING_SVG,
   numbers: PHONE_SVG,
-  hardware: MONITOR_SVG,
+  hardware: HEADSET_SVG,
 };
 
 export const STEP_I18N_KEYS: Record<string, string> = {
@@ -18,10 +18,8 @@ export const STEP_DESC_KEYS: Record<string, string> = {
   hardware: 'onboardingPortal.overview.hardwareDesc',
 };
 
-// Lucide: layout-grid
-export const OVERVIEW_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>`;
-// Lucide: arrow-left
-export const BACK_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>`;
+// Figma: asymmetric dashboard grid (layout-dashboard)
+export const OVERVIEW_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>`;
 // Lucide: circle-help
 export const HELP_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>`;
 // Lucide: check

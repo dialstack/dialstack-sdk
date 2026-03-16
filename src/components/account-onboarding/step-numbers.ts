@@ -5,6 +5,7 @@
  */
 
 import type { AccountOnboardingStep } from '../../types';
+import { NUMBERS_SUBSTEPS } from './constants';
 import { PHONE_SVG } from './icons';
 import { NumbersStepHelper } from './numbers';
 import NUMBERS_STEP_STYLES from './numbers-styles.css';
@@ -34,6 +35,10 @@ export class OnboardingNumbersStep extends OnboardingStepBase {
 
     // Lazy-load numbers data (DIDs, orders, port orders)
     await this.numbers.loadNumbersData();
+  }
+
+  protected override resetToFirstSubStep(): void {
+    this.numbers.numSubStep = NUMBERS_SUBSTEPS[0];
   }
 
   protected override restoreSubStep(substep: string): void {
@@ -79,7 +84,7 @@ export class OnboardingNumbersStep extends OnboardingStepBase {
   }
 
   protected handleNext(): void {
-    this.navigateToStep('final_complete');
+    this.navigateToStep(this.stepName);
   }
 
   protected handleBack(): boolean {

@@ -26,7 +26,6 @@ import {
   STEP_ICONS,
   STEP_I18N_KEYS,
   OVERVIEW_SVG,
-  BACK_SVG,
   HELP_SVG,
   CHECK_SVG_WHITE,
   CIRCUMFERENCE,
@@ -56,6 +55,7 @@ export class OnboardingPortalComponent extends BaseComponent {
   private styleEl: HTMLStyleElement | null = null;
   private sidebarEl: HTMLElement | null = null;
   private mainEl: HTMLDivElement | null = null;
+  private wizardHeaderEl: HTMLDivElement | null = null;
   private overviewEl: HTMLDivElement | null = null;
 
   // Callbacks
@@ -66,6 +66,7 @@ export class OnboardingPortalComponent extends BaseComponent {
   // Configurable content
   private _logoHtml: string | undefined;
   private _platformName: string | undefined;
+  private _isReviewNav = false;
 
   // Props to forward
   private _collectionOptions: OnboardingCollectionOptions | null = null;
@@ -100,6 +101,19 @@ export class OnboardingPortalComponent extends BaseComponent {
     this.mainEl = document.createElement('div');
     this.mainEl.className = 'portal-main';
     layout.appendChild(this.mainEl);
+
+    // "Save & Exit to Dashboard" header (shown in wizard mode)
+    this.wizardHeaderEl = document.createElement('div');
+    this.wizardHeaderEl.className = 'portal-wizard-header';
+    this.wizardHeaderEl.setAttribute('role', 'button');
+    this.wizardHeaderEl.setAttribute('tabindex', '0');
+    this.wizardHeaderEl.textContent = `\u2190 ${this.t('onboardingPortal.saveAndExit')}`;
+    this.wizardHeaderEl.addEventListener('click', () => {
+      this.viewMode = 'overview';
+      this.renderMainArea();
+      this.renderSidebar();
+    });
+    this.mainEl.appendChild(this.wizardHeaderEl);
 
     this.shadowRoot.appendChild(layout);
 
@@ -163,6 +177,20 @@ export class OnboardingPortalComponent extends BaseComponent {
         }
       }
 
+      // If navigating to a non-complete step but all steps are done,
+      // redirect to final_complete (e.g. clicking "Done" on the last step's success screen).
+      // Skip when the portal explicitly navigated to review a completed step.
+      if (event.step !== 'final_complete' && this._progressStore && !this._isReviewNav) {
+        const allDone = this.activeSteps
+          .filter((s) => s !== 'final_complete')
+          .every((s) => this._progressStore!.isStepComplete(s as StepName));
+        if (allDone) {
+          this.innerWizard!.navigateToStep('final_complete');
+          return;
+        }
+      }
+      this._isReviewNav = false;
+
       this.currentStep = event.step;
       this._onStepChange?.(event);
       this.renderSidebar();
@@ -171,20 +199,6 @@ export class OnboardingPortalComponent extends BaseComponent {
 
     this.innerWizard.setOnSubStepProgress(() => {
       this.acquireProgressStore();
-      // When current step is complete and all others are too, go to wahoo
-      if (this.currentStep !== 'final_complete' && this._progressStore) {
-        const isCurrentDone = this._progressStore.isStepComplete(this.currentStep as StepName);
-        if (isCurrentDone) {
-          const allDone = this.activeSteps
-            .filter((s) => s !== 'final_complete' && s !== this.currentStep)
-            .every((s) => this._progressStore!.isStepComplete(s as StepName));
-          if (allDone) {
-            this.innerWizard!.navigateToStep('final_complete');
-            return;
-          }
-        }
-      }
-
       this.renderSidebar();
       if (this.viewMode === 'overview') this.renderMainArea();
     });
@@ -206,10 +220,9 @@ export class OnboardingPortalComponent extends BaseComponent {
       const target = e.target as HTMLElement;
       const stepEl = target.closest<HTMLElement>('[data-step]');
       if (stepEl) {
-        // Don't allow navigating to completed steps
-        if (stepEl.classList.contains('completed')) return;
         const step = stepEl.dataset.step as AccountOnboardingStep;
         this.viewMode = 'wizard';
+        if (stepEl.classList.contains('completed')) this._isReviewNav = true;
         this.innerWizard?.navigateToStep(step);
         this.renderMainArea();
         this.renderSidebar();
@@ -234,6 +247,7 @@ export class OnboardingPortalComponent extends BaseComponent {
       if (action === 'go-to-step') {
         const step = actionEl.dataset.step as AccountOnboardingStep;
         this.viewMode = 'wizard';
+        this._isReviewNav = true;
         this.innerWizard?.navigateToStep(step);
         this.renderMainArea();
         this.renderSidebar();
@@ -342,7 +356,10 @@ export class OnboardingPortalComponent extends BaseComponent {
   setLogoHtml(html: string | undefined): void {
     this._logoHtml = html;
     if (this.viewMode === 'splash' && this.overviewEl) this.overviewEl.textContent = '';
-    if (this.isInitialized) this.renderSidebar();
+    if (this.isInitialized) {
+      this.renderSidebar();
+      if (this.viewMode === 'splash') this.renderMainArea();
+    }
   }
 
   setPlatformName(name: string | undefined): void {
@@ -506,7 +523,10 @@ export class OnboardingPortalComponent extends BaseComponent {
     // SAFETY: OVERVIEW_SVG is a static constant defined in constants.ts
     overviewLink.innerHTML = `<span class="portal-nav-icon">${OVERVIEW_SVG}</span>`;
     const overviewLabel = document.createElement('span');
-    overviewLabel.textContent = this.t('onboardingPortal.overview.label');
+    overviewLabel.textContent =
+      this.viewMode === 'wizard'
+        ? this.t('onboardingPortal.dashboard')
+        : this.t('onboardingPortal.overview.label');
     overviewLink.appendChild(overviewLabel);
     this.sidebarEl.appendChild(overviewLink);
 
@@ -525,10 +545,8 @@ export class OnboardingPortalComponent extends BaseComponent {
       if (isActive) item.classList.add('active');
       if (isCompleted) item.classList.add('completed');
       item.setAttribute('data-step', step);
-      if (!isCompleted) {
-        item.setAttribute('role', 'button');
-        item.setAttribute('tabindex', '0');
-      }
+      item.setAttribute('role', 'button');
+      item.setAttribute('tabindex', '0');
 
       // Icon (static SVG constant)
       const iconSpan = document.createElement('span');
@@ -565,8 +583,10 @@ export class OnboardingPortalComponent extends BaseComponent {
     backLink.setAttribute('data-action', 'back');
     backLink.setAttribute('role', 'button');
     backLink.setAttribute('tabindex', '0');
-    // SAFETY: BACK_SVG is a static constant defined in constants.ts
-    backLink.innerHTML = `<span class="portal-nav-icon">${BACK_SVG}</span>`;
+    const backArrow = document.createElement('span');
+    backArrow.className = 'portal-nav-icon';
+    backArrow.textContent = '\u2190';
+    backLink.appendChild(backArrow);
     const backLabelEl = document.createElement('span');
     backLabelEl.textContent = this._backLabel ?? this.t('onboardingPortal.back');
     backLink.appendChild(backLabelEl);
@@ -611,6 +631,10 @@ export class OnboardingPortalComponent extends BaseComponent {
     } else {
       this.overviewEl.style.display = 'none';
       this.mainEl.style.display = '';
+    }
+    // Show wizard header only in wizard mode
+    if (this.wizardHeaderEl) {
+      this.wizardHeaderEl.style.display = this.viewMode === 'wizard' ? '' : 'none';
     }
   }
 

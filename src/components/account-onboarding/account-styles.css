@@ -21,8 +21,28 @@
 }
 
 .user-table-name {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-sm);
   font-weight: var(--ds-font-weight-medium);
   color: var(--ds-color-text);
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--ds-color-surface-subtle);
+  color: var(--ds-color-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.user-avatar svg {
+  width: 16px;
+  height: 16px;
 }
 
 .user-table-role {

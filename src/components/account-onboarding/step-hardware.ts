@@ -5,7 +5,7 @@
  */
 
 import type { AccountOnboardingStep, OnboardingLocation, Device, DECTBase } from '../../types';
-import { MONITOR_SVG, LOCATION_SVG } from './icons';
+import { HEADSET_SVG, LOCATION_SVG } from './icons';
 import { HardwareStepHelper } from './hardware';
 import HARDWARE_STEP_STYLES from './hardware-styles.css';
 import { OnboardingStepBase } from './step-base';
@@ -60,7 +60,7 @@ export class OnboardingHardwareStep extends OnboardingStepBase {
   }
 
   protected handleNext(): void {
-    this.navigateToStep('final_complete');
+    this.navigateToStep(this.stepName);
   }
 
   protected handleBack(): boolean {
@@ -90,7 +90,7 @@ export class OnboardingHardwareStep extends OnboardingStepBase {
 
     return {
       title: this.t('accountOnboarding.steps.hardware'),
-      icon: MONITOR_SVG,
+      icon: HEADSET_SVG,
       subSteps: [
         {
           key: 'device-assignment',

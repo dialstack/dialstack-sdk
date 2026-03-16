@@ -86,8 +86,7 @@
 
 .portal-step-item.completed {
   color: #f0f0ff;
-  cursor: default;
-  pointer-events: none;
+  cursor: pointer;
 }
 
 .portal-step-icon {
@@ -148,11 +147,24 @@
   flex: 1;
   overflow-y: auto;
   display: flex;
-  align-items: center;
+  flex-direction: column;
 }
 
-.portal-main > * {
+.portal-main > dialstack-account-onboarding {
+  flex: 1;
   width: 100%;
+}
+
+.portal-wizard-header {
+  padding: 16px 32px;
+  font-size: 14px;
+  color: var(--ds-color-text-secondary, #6b6b80);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.portal-wizard-header:hover {
+  color: var(--ds-color-text, #1c1247);
 }
 
 .progress-ring {

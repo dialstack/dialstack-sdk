@@ -42,9 +42,10 @@ export const WebComponentStory: React.FC<WebComponentStoryProps> = ({
     if (layoutVariant && el.setLayoutVariant) {
       el.setLayoutVariant(layoutVariant);
     }
-    if (setup) setup(el);
 
     container.appendChild(el);
+
+    if (setup) setup(el);
 
     return () => {
       container.removeChild(el);

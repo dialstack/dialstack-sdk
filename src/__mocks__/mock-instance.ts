@@ -5,7 +5,11 @@ import type { DIDItem, PaginatedResponse } from '../types';
 import type { DialPlan } from '../types/dial-plan';
 import type { CallEventMap, CallEventHandler } from '../types/callbacks';
 import type { ComponentTagName, ComponentElement } from '../types/components';
-import type { CreatePortOrderRequest, ApprovePortOrderRequest } from '../types/number-porting';
+import type {
+  CreatePortOrderRequest,
+  ApprovePortOrderRequest,
+  PortOrder,
+} from '../types/number-porting';
 import type {
   CreateDeskphoneRequest,
   UpdateDeskphoneRequest,
@@ -52,6 +56,7 @@ export function createMockInstance(
 ): DialStackInstanceImpl {
   const empty = options.empty ?? false;
   const mockOrders = new Map<string, NumberOrder>();
+  const mockPortOrders = new Map<string, PortOrder>();
   const mockDIDs: DIDItem[] = empty ? [] : [...MOCK_PHONE_NUMBERS.data];
   const mockDeviceModels: Array<{ vendor: string; model: string; count: number }> = [
     { vendor: 'snom', model: 'D785', count: 3 },
@@ -197,7 +202,13 @@ export function createMockInstance(
       } as PaginatedResponse<DIDItem>;
     },
     listNumberOrders: async () => MOCK_EMPTY_RESPONSE,
-    listPortOrders: async () => MOCK_EMPTY_RESPONSE,
+    listPortOrders: async () => ({
+      object: 'list' as const,
+      url: '/v1/port-orders',
+      data: Array.from(mockPortOrders.values()),
+      next_page_url: null,
+      previous_page_url: null,
+    }),
 
     // Phone number ordering component
     searchAvailableNumbers: async (opts: SearchAvailableNumbersOptions) => {
@@ -456,48 +467,86 @@ export function createMockInstance(
 
     checkPortEligibility: async (phoneNumbers: string[]) => {
       await delay();
+      const carriers = [
+        { name: 'AT&T Mobility', spid: '6214' },
+        { name: 'Verizon Business', spid: '0555' },
+        { name: 'T-Mobile USA', spid: '7066' },
+        { name: 'Lumen Technologies', spid: '8025' },
+      ];
       return {
-        portable_numbers: phoneNumbers.map((n) => ({
+        portable_numbers: phoneNumbers.map((n, i) => ({
           phone_number: n,
-          losing_carrier_name: 'OldTelco',
-          losing_carrier_spid: '6214',
+          losing_carrier_name: carriers[i % carriers.length]!.name,
+          losing_carrier_spid: carriers[i % carriers.length]!.spid,
           is_wireless: false,
           account_number_required: true,
         })),
         non_portable_numbers: [],
       };
     },
-    createPortOrder: async (_request: CreatePortOrderRequest) => {
+    createPortOrder: async (request: CreatePortOrderRequest) => {
       await delay();
-      return {
+      const order: PortOrder = {
         id: 'po_mock_' + Math.random().toString(36).slice(2, 10),
-        status: 'draft' as const,
-        details: { phone_numbers: _request.phone_numbers, subscriber: null },
+        status: 'draft',
+        details: {
+          phone_numbers: request.phone_numbers,
+          subscriber: request.subscriber,
+          requested_foc_date: request.requested_foc_date,
+          requested_foc_time: request.requested_foc_time ?? null,
+        },
+        submitted_at: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      mockPortOrders.set(order.id, order);
+      return order;
+    },
+    getPortOrder: async (orderId: string) => {
+      const order = mockPortOrders.get(orderId);
+      if (order) return order;
+      return {
+        id: orderId,
+        status: 'submitted' as const,
+        details: { phone_numbers: [] as string[] },
+        submitted_at: new Date().toISOString(),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
     },
-    getPortOrder: async (orderId: string) => ({
-      id: orderId,
-      status: 'submitted' as const,
-      details: { phone_numbers: [], subscriber: null },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }),
-    approvePortOrder: async (orderId: string, _request: ApprovePortOrderRequest) => ({
-      id: orderId,
-      status: 'submitted' as const,
-      details: { phone_numbers: [], subscriber: null },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }),
-    submitPortOrder: async (orderId: string) => ({
-      id: orderId,
-      status: 'submitted' as const,
-      details: { phone_numbers: [], subscriber: null },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }),
+    approvePortOrder: async (orderId: string, _request: ApprovePortOrderRequest) => {
+      const order = mockPortOrders.get(orderId);
+      if (order) {
+        order.status = 'approved';
+        order.updated_at = new Date().toISOString();
+        return order;
+      }
+      return {
+        id: orderId,
+        status: 'approved' as const,
+        details: { phone_numbers: [] as string[] },
+        submitted_at: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+    },
+    submitPortOrder: async (orderId: string) => {
+      const order = mockPortOrders.get(orderId);
+      if (order) {
+        order.status = 'submitted';
+        order.submitted_at = new Date().toISOString();
+        order.updated_at = new Date().toISOString();
+        return order;
+      }
+      return {
+        id: orderId,
+        status: 'submitted' as const,
+        details: { phone_numbers: [] as string[] },
+        submitted_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+    },
     cancelPortOrder: async (_orderId: string) => {
       await delay();
     },
@@ -535,7 +584,21 @@ export function createMockInstance(
     getDECTBase: async (_id: string) => {
       throw new Error('Not implemented in mock');
     },
-    listDECTBases: async () => [],
+    listDECTBases: async () =>
+      empty
+        ? []
+        : [
+            {
+              id: 'dectb_mock001',
+              mac_address: '00:04:13:D0:00:01',
+              vendor: 'snom',
+              model: 'M500',
+              status: 'provisioned' as const,
+              multicell_role: 'single' as const,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+          ],
     updateDECTBase: async (_id: string, _data: UpdateDECTBaseRequest) => {
       throw new Error('Not implemented in mock');
     },
@@ -546,7 +609,33 @@ export function createMockInstance(
     getDECTHandset: async (_baseId: string, _handsetId: string) => {
       throw new Error('Not implemented in mock');
     },
-    listDECTHandsets: async (_baseId: string) => [],
+    listDECTHandsets: async (_baseId: string) =>
+      empty
+        ? []
+        : [
+            {
+              id: 'decth_mock001',
+              base_id: _baseId,
+              ipei: '00000000001',
+              status: 'registered' as const,
+              display_name: 'Snom E425',
+              slot_number: 1,
+              model: 'E425',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+            {
+              id: 'decth_mock002',
+              base_id: _baseId,
+              ipei: '00000000002',
+              status: 'registered' as const,
+              display_name: 'Snom E425',
+              slot_number: 2,
+              model: 'E425',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+          ],
     updateDECTHandset: async (
       _baseId: string,
       _handsetId: string,

@@ -244,6 +244,23 @@
   height: 100%;
 }
 
+/* Filled green circle with white checkmark (matches Figma) */
+.complete-icon-circle {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: var(--ds-color-success);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--ds-layout-spacing-lg);
+}
+
+.complete-icon-circle svg {
+  width: 60px;
+  height: 60px;
+}
+
 /* ── Complete Step ── */
 .complete-icon {
   width: 100px;
@@ -554,9 +571,11 @@
 }
 
 .inline-alert.info {
-  background: color-mix(in srgb, var(--ds-color-primary) 8%, transparent);
-  color: var(--ds-color-text-secondary);
-  border: 1px solid color-mix(in srgb, var(--ds-color-primary) 15%, transparent);
+  background: color-mix(in srgb, var(--ds-color-primary) 6%, var(--ds-color-background));
+  color: var(--ds-color-text);
+  border: none;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 /* ── Link Button ── */
@@ -598,7 +617,7 @@
 }
 
 .complete-title {
-  font-size: 48px;
+  font-size: 80px;
   font-weight: 900;
   color: var(--ds-color-text);
   margin: 0 0 var(--ds-layout-spacing-sm) 0;

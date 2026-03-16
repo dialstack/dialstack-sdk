@@ -219,7 +219,7 @@ export class AccountOnboardingComponent extends BaseComponent {
       if (step !== 'final_complete') {
         const completed = this._progressStore.getCompletedSubSteps(step);
         if (this._progressStore.isStepComplete(step)) {
-          el.setPendingSubStep('complete');
+          // Don't set pendingSubStep — let user review from the first substep
         } else if (completed.size > 0) {
           // Find the last completed substep to restore position after it
           const last = [...completed].pop();
@@ -486,6 +486,7 @@ export class AccountOnboardingComponent extends BaseComponent {
       const wasCached = this.stepElements.has(this.currentStep);
       const activeEl = this.getOrCreateStep(this.currentStep);
       if (wasCached) {
+        activeEl.enterReviewMode();
         activeEl.refreshData();
       }
       for (const [step, el] of this.stepElements) {

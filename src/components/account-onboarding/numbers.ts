@@ -19,10 +19,10 @@ import { AsYouType, parsePhoneNumberFromString } from 'libphonenumber-js';
 import { US_STATES } from '../../constants/us-states';
 import {
   SUCCESS_SVG,
-  ERROR_SVG,
   PORT_SVG,
   PLUS_CIRCLE_SVG,
   CHECK_CIRCLE_SVG,
+  CHECK_SVG_WHITE,
   PHONE_SVG,
 } from './icons';
 import { ApiError } from '../../core/instance';
@@ -141,6 +141,7 @@ export class NumbersStepHelper {
   private numPortEligibilityResult: PortEligibilityResult | null = null;
   private numPortIsCheckingEligibility = false;
   private numPortEligibilityError: string | null = null;
+  private numPortPhoneErrors: Map<number, string> = new Map();
   // Port subscriber
   private numPortSubscriberBtn = '';
   private numPortSubscriberBusinessName = '';
@@ -164,7 +165,6 @@ export class NumbersStepHelper {
   private numPortDocUploadError: string | null = null;
   // Port review
   private numPortSignature = '';
-  private numPortCurrentOrder: PortOrder | null = null;
   private numPortIsSubmitting = false;
   private numPortSubmitError: string | null = null;
 
@@ -188,7 +188,12 @@ export class NumbersStepHelper {
   private callerIdErrors = new Map<string, string>();
   private callerIdBulkAttempted = false;
 
-  constructor(private host: OnboardingHost) {}
+  constructor(private host: OnboardingHost) {
+    // Default FOC date to 14 days from now
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    this.numPortFocDate = d.toISOString().split('T')[0]!;
+  }
 
   private setSubStep(sub: NumSubStep): void {
     this.numSubStep = sub;
@@ -397,18 +402,26 @@ export class NumbersStepHelper {
     if (!this.host.instance) return;
 
     const validNumbers: string[] = [];
-    for (const input of this.numPortPhoneInputs) {
-      const trimmed = input.trim();
+    this.numPortPhoneErrors.clear();
+    let hasError = false;
+    for (let i = 0; i < this.numPortPhoneInputs.length; i++) {
+      const trimmed = this.numPortPhoneInputs[i]!.trim();
       if (!trimmed) continue;
       const parsed = parsePhoneNumberFromString(trimmed, 'US');
       if (!parsed || !parsed.isValid()) {
-        this.numPortEligibilityError = this.host.t(
-          'accountOnboarding.numbers.validation.phoneInvalid'
+        this.numPortPhoneErrors.set(
+          i,
+          this.host.t('accountOnboarding.numbers.validation.phoneInvalid')
         );
-        this.host.render();
-        return;
+        hasError = true;
+      } else {
+        validNumbers.push(parsed.format('E.164'));
       }
-      validNumbers.push(parsed.format('E.164'));
+    }
+
+    if (hasError) {
+      this.host.render();
+      return;
     }
 
     if (validNumbers.length === 0) {
@@ -560,9 +573,8 @@ export class NumbersStepHelper {
         ip: '0.0.0.0',
       });
 
-      const submitted = await this.host.instance.submitPortOrder(order.id);
+      await this.host.instance.submitPortOrder(order.id);
 
-      this.numPortCurrentOrder = submitted;
       this.numPortIsSubmitting = false;
       this.setSubStep('port-submitted');
       this.host.render();
@@ -575,6 +587,7 @@ export class NumbersStepHelper {
 
   private numResetPortFlow(): void {
     this.numPortPhoneInputs = [''];
+    this.numPortPhoneErrors.clear();
     this.numPortEligibilityResult = null;
     this.numPortIsCheckingEligibility = false;
     this.numPortEligibilityError = null;
@@ -597,7 +610,6 @@ export class NumbersStepHelper {
     this.numPortBillCopyFile = null;
     this.numPortDocUploadError = null;
     this.numPortSignature = '';
-    this.numPortCurrentOrder = null;
     this.numPortIsSubmitting = false;
     this.numPortSubmitError = null;
   }
@@ -1560,20 +1572,24 @@ export class NumbersStepHelper {
     return `
       <h2 class="section-title">${t('accountOnboarding.numbers.order.searchTitle')}</h2>
       <p class="section-subtitle">${t('accountOnboarding.numbers.order.searchSubtitle')}</p>
-      <div class="num-search-type-tabs">${tabs}</div>
-      ${fieldsHtml}
-      <div class="form-group">
-        <label class="form-label">${t('accountOnboarding.numbers.order.quantityLabel')}</label>
-        <input class="form-input" type="number" id="num-quantity" min="1" max="50"
-          value="${this.numOrderQuantity}" />
+      <div style="text-align:center"><div class="num-search-type-tabs">${tabs}</div></div>
+      <div class="num-search-row">
+        ${fieldsHtml}
+        <div class="form-group">
+          <label class="form-label">${t('accountOnboarding.numbers.order.quantityLabel')}</label>
+          <input class="form-input" type="number" id="num-quantity" min="1" max="50"
+            value="${this.numOrderQuantity}" />
+        </div>
+        <div class="form-group" style="align-self:flex-end">
+          <button class="btn btn-primary" data-action="num-search"${this.numOrderIsSearching ? ' disabled' : ''}>
+            ${this.numOrderIsSearching ? t('accountOnboarding.numbers.order.searching') : t('accountOnboarding.numbers.order.search')}
+          </button>
+        </div>
       </div>
       ${this.numOrderError ? `<div class="inline-alert error">${this.host.escapeHtml(this.numOrderError)}</div>` : ''}
-      <div class="num-sub-footer">
-        <button class="btn btn-secondary" data-action="num-back-to-overview">
-          ${t('accountOnboarding.numbers.nav.cancel')}
-        </button>
-        <button class="btn btn-primary" data-action="num-search"${this.numOrderIsSearching ? ' disabled' : ''}>
-          ${this.numOrderIsSearching ? t('accountOnboarding.numbers.order.searching') : t('accountOnboarding.numbers.order.search')}
+      <div class="num-sub-footer" style="border-top:none">
+        <button class="btn btn-ghost" data-action="num-back-to-overview">
+          &larr; ${t('accountOnboarding.numbers.nav.back')}
         </button>
       </div>`;
   }
@@ -1609,17 +1625,19 @@ export class NumbersStepHelper {
 
     return `
       <h2 class="section-title">${t('accountOnboarding.numbers.order.resultsTitle')} <span class="num-count-badge">${this.numOrderAvailableNumbers.length}</span></h2>
-      <table class="num-results-table">
-        <thead>
-          <tr>
-            <th style="width:40px"><input type="checkbox" data-action="num-select-all"${allSelected ? ' checked' : ''} /></th>
-            <th>${t('accountOnboarding.numbers.overview.phoneNumber')}</th>
-            <th>${t('accountOnboarding.numbers.order.city')}</th>
-            <th>${t('accountOnboarding.numbers.order.state')}</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
+      <div class="num-table-container">
+        <table class="num-results-table">
+          <thead>
+            <tr>
+              <th style="width:40px"><input type="checkbox" data-action="num-select-all"${allSelected ? ' checked' : ''} /></th>
+              <th>${t('accountOnboarding.numbers.overview.phoneNumber')}</th>
+              <th>${t('accountOnboarding.numbers.order.city')}</th>
+              <th>${t('accountOnboarding.numbers.order.state')}</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
       ${this.numOrderSelectedNumbers.size > 0 ? `<div class="num-selected-count">${this.numOrderSelectedNumbers.size} ${t('accountOnboarding.numbers.order.selected')}</div>` : ''}
       <div class="num-sub-footer">
         <button class="btn btn-ghost" data-action="num-back-to-search">
@@ -1656,16 +1674,18 @@ export class NumbersStepHelper {
     return `
       <h2 class="section-title">${t('accountOnboarding.numbers.order.confirmTitle')}</h2>
       <p class="section-subtitle">${t('accountOnboarding.numbers.order.confirmSubtitle', { count: this.numOrderSelectedNumbers.size })}</p>
-      <table class="num-confirm-table">
-        <thead>
-          <tr>
-            <th>${t('accountOnboarding.numbers.overview.phoneNumber')}</th>
-            <th>${t('accountOnboarding.numbers.order.city')}</th>
-            <th>${t('accountOnboarding.numbers.order.state')}</th>
-          </tr>
-        </thead>
-        <tbody>${confirmRows}</tbody>
-      </table>
+      <div class="num-table-container">
+        <table class="num-confirm-table">
+          <thead>
+            <tr>
+              <th>${t('accountOnboarding.numbers.overview.phoneNumber')}</th>
+              <th>${t('accountOnboarding.numbers.order.city')}</th>
+              <th>${t('accountOnboarding.numbers.order.state')}</th>
+            </tr>
+          </thead>
+          <tbody>${confirmRows}</tbody>
+        </table>
+      </div>
       <div class="inline-alert info">${t('accountOnboarding.numbers.order.carrierNote')}</div>
       ${this.numOrderError ? `<div class="inline-alert error">${this.host.escapeHtml(this.numOrderError)}</div>` : ''}
       <div class="num-sub-footer">
@@ -1683,29 +1703,21 @@ export class NumbersStepHelper {
     const order = this.numOrderCurrentOrder;
     if (!order) return '';
 
-    let icon = '';
     let message = '';
     const pollExhausted = order.status === 'pending' && this.numOrderPollCount >= 5;
     switch (order.status) {
       case 'pending':
-        if (pollExhausted) {
-          icon = `<div class="num-order-status-icon pending">${SUCCESS_SVG}</div>`;
-          message = t('accountOnboarding.numbers.order.statusStalled');
-        } else {
-          icon = `<div class="num-order-status-icon pending"><div class="spinner"></div></div>`;
-          message = t('accountOnboarding.numbers.order.statusPending');
-        }
+        message = pollExhausted
+          ? t('accountOnboarding.numbers.order.statusStalled')
+          : t('accountOnboarding.numbers.order.statusPending');
         break;
       case 'complete':
-        icon = `<div class="num-order-status-icon success">${SUCCESS_SVG}</div>`;
         message = t('accountOnboarding.numbers.order.statusComplete');
         break;
       case 'failed':
-        icon = `<div class="num-order-status-icon error">${ERROR_SVG}</div>`;
         message = t('accountOnboarding.numbers.order.statusFailed');
         break;
       case 'partial':
-        icon = `<div class="num-order-status-icon success">${SUCCESS_SVG}</div>`;
         message = t('accountOnboarding.numbers.order.statusPartial');
         break;
     }
@@ -1713,24 +1725,24 @@ export class NumbersStepHelper {
     const showDone = order.status !== 'pending' || pollExhausted;
 
     return `
-      <h2 class="section-title">${t('accountOnboarding.numbers.order.statusTitle')}</h2>
-      <p class="section-subtitle">${message}</p>
-      <div class="placeholder" style="min-height:80px">
-        ${icon}
-      </div>
-      ${
-        showDone
-          ? `
-        <div class="num-sub-footer">
-          <button class="btn btn-secondary" data-action="num-start-order">
-            ${t('accountOnboarding.numbers.order.orderMore')}
-          </button>
-          <button class="btn btn-primary" data-action="num-order-done">
-            ${t('accountOnboarding.numbers.nav.next')} &rarr;
-          </button>
-        </div>`
-          : ''
-      }`;
+      <div class="placeholder" style="min-height:200px">
+        ${order.status === 'pending' && !pollExhausted ? `<div class="num-order-status-icon pending"><div class="spinner"></div></div>` : ''}
+        <h2 class="section-title">${t('accountOnboarding.numbers.order.statusTitle')}</h2>
+        <p class="section-subtitle">${message}</p>
+        ${
+          showDone
+            ? `
+          <div style="display:flex;gap:var(--ds-spacing-sm);margin-top:var(--ds-layout-spacing-md)">
+            <button class="btn btn-secondary" data-action="num-start-order">
+              ${t('accountOnboarding.numbers.order.orderMore')}
+            </button>
+            <button class="btn btn-primary" data-action="num-order-done">
+              ${t('accountOnboarding.numbers.order.continue')} &rarr;
+            </button>
+          </div>`
+            : ''
+        }
+      </div>`;
   }
 
   private renderNumPortNumbers(): string {
@@ -1738,9 +1750,10 @@ export class NumbersStepHelper {
 
     const inputs = this.numPortPhoneInputs
       .map((val, i) => {
+        const error = this.numPortPhoneErrors.get(i);
         return `
         <div class="num-phone-input-row">
-          <input class="form-input" type="tel" id="num-port-phone-${i}"
+          <input class="form-input${error ? ' error' : ''}" type="tel" id="num-port-phone-${i}"
             value="${this.host.escapeHtml(val)}"
             placeholder="${t('accountOnboarding.numbers.port.phonePlaceholder')}" />
           ${
@@ -1751,7 +1764,8 @@ export class NumbersStepHelper {
             </button>`
               : ''
           }
-        </div>`;
+        </div>
+        ${error ? `<div class="form-error" style="margin-bottom:var(--ds-spacing-sm)">${this.host.escapeHtml(error)}</div>` : ''}`;
       })
       .join('');
 
@@ -2143,27 +2157,17 @@ export class NumbersStepHelper {
 
   private renderNumPortSubmitted(): string {
     const t = (key: string): string => this.host.t(key);
-    const order = this.numPortCurrentOrder;
 
     return `
-      <h2 class="section-title">${t('accountOnboarding.numbers.port.submittedTitle')}</h2>
-      <div class="placeholder" style="min-height:120px">
+      <div class="placeholder" style="min-height:200px">
         <div class="num-order-status-icon success">${SUCCESS_SVG}</div>
+        <h2 class="section-title">${t('accountOnboarding.numbers.port.submittedTitle')}</h2>
         <p class="placeholder-text">${t('accountOnboarding.numbers.port.submittedSubtitle')}</p>
-      </div>
-      ${
-        order
-          ? `
-        <div class="num-review-row">
-          <span class="num-review-label">${t('accountOnboarding.numbers.port.submittedStatus')}</span>
-          <span class="num-review-value"><span class="num-status-badge num-status-porting">${this.host.escapeHtml(order.status)}</span></span>
-        </div>`
-          : ''
-      }
-      <div class="num-sub-footer num-sub-footer-end">
-        <button class="btn btn-primary" data-action="num-port-done">
-          ${t('accountOnboarding.numbers.port.backToOverview')}
-        </button>
+        <div style="margin-top:var(--ds-layout-spacing-md)">
+          <button class="btn btn-primary" data-action="num-port-done">
+            ${t('accountOnboarding.numbers.port.backToOverview')}
+          </button>
+        </div>
       </div>`;
   }
 
@@ -2344,19 +2348,17 @@ export class NumbersStepHelper {
 
   renderNumbersCompleteState(): string {
     const t = this.host.t.bind(this.host);
+    const stepLabel = t('accountOnboarding.steps.numbers');
     return `
       <div class="card" part="step-complete">
-        <h2 class="section-title">${t('accountOnboarding.stepComplete.title')}</h2>
-        <p class="section-subtitle">${t('accountOnboarding.stepComplete.subtitle')}</p>
-        <div class="placeholder" style="min-height:80px">
-          <div class="step-complete-icon">${SUCCESS_SVG}</div>
-        </div>
-        ${this.renderE911Panel()}
-        <div class="footer-bar footer-bar-end">
-          <button class="btn btn-primary" data-action="done">
+        <div class="placeholder" style="min-height:200px">
+          <div class="complete-icon-circle">${CHECK_SVG_WHITE}</div>
+          <h2 class="section-title">${t('accountOnboarding.stepComplete.title', { stepName: stepLabel })}</h2>
+          <button class="btn btn-primary" data-action="done" style="margin-top:var(--ds-layout-spacing-lg)">
             ${t('accountOnboarding.stepComplete.done')}
           </button>
         </div>
+        ${this.renderE911Panel()}
       </div>
     `;
   }

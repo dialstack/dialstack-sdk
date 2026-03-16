@@ -4,7 +4,7 @@
  */
 
 import type { Device, DECTBase, DECTHandset, OnboardingEndpoint } from '../../types';
-import { DRAG_HANDLE_SVG, DESK_PHONE_SVG, CORDLESS_SVG } from './icons';
+import { DRAG_HANDLE_SVG, PHONE_SVG, CORDLESS_SVG } from './icons';
 import type { OnboardingHost } from './host';
 
 /** Unified device reference for drag-and-drop (desk phone or DECT handset). */
@@ -315,7 +315,7 @@ export class HardwareStepHelper {
       }
 
       this.selectedDeviceId = null;
-      this.host.navigateToStep('final_complete');
+      this.host.navigateToStep(this.host.currentStep);
     } catch (err) {
       this.hwActionError = err instanceof Error ? err.message : String(err);
     } finally {
@@ -505,9 +505,9 @@ export class HardwareStepHelper {
       <table class="hw-team-table">
         <thead>
           <tr>
-            <th>Full name</th>
-            <th>Extension</th>
-            <th>Assigned Device</th>
+            <th>${t('accountOnboarding.hardware.tableHeaderName')}</th>
+            <th>${t('accountOnboarding.hardware.tableHeaderExtension')}</th>
+            <th>${t('accountOnboarding.hardware.tableHeaderDevice')}</th>
           </tr>
         </thead>
         <tbody>
@@ -536,7 +536,7 @@ export class HardwareStepHelper {
   }
 
   private renderDeviceCard(device: AssignableDevice, stackIndex = 0, stackSize = 1): string {
-    const icon = device.type === 'deskphone' ? DESK_PHONE_SVG : CORDLESS_SVG;
+    const icon = device.type === 'deskphone' ? PHONE_SVG : CORDLESS_SVG;
     // Cards behind the top card are offset and lowered in z-order
     const isTop = stackIndex === stackSize - 1;
     const offset = (stackSize - 1 - stackIndex) * 2.5;

@@ -150,9 +150,15 @@
 }
 
 .overview-card-progress-label {
+  font-size: 14px;
+  color: #6b6b80;
+}
+
+.overview-card-progress-pct {
   font-size: 16px;
-  color: #333;
-  flex: 1;
+  font-weight: 600;
+  color: var(--ds-portal-sidebar-bg, #1c1247);
+  margin-left: auto;
 }
 
 .overview-card-progress-track {
@@ -188,6 +194,16 @@
 
 .overview-card-btn:hover {
   background: var(--ds-color-primary-hover, #5a22e0);
+}
+
+.overview-card-btn--review {
+  background: transparent;
+  color: var(--ds-portal-sidebar-bg, #1c1247);
+  border: 1.5px solid #e0dff0;
+}
+
+.overview-card-btn--review:hover {
+  background: var(--ds-color-surface-subtle, #f5f5fa);
 }
 
 /* Phone status card */
