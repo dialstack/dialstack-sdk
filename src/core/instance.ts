@@ -475,6 +475,43 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     }
   }
 
+  /**
+   * Get a single phone number (DID) by ID
+   */
+  async getPhoneNumber(phoneNumberId: string): Promise<DIDItem> {
+    const response = await this.fetchApi(`/v1/phone-numbers/${phoneNumberId}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new ApiError(
+        `Failed to get phone number: ${response.status} ${errorText}`,
+        response.status
+      );
+    }
+    return response.json();
+  }
+
+  /**
+   * Update the routing target for a phone number
+   */
+  async updatePhoneNumberRoute(
+    phoneNumberId: string,
+    routingTarget: string | null
+  ): Promise<DIDItem> {
+    const response = await this.fetchApi(`/v1/phone-numbers/${phoneNumberId}/route`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ routing_target: routingTarget }),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new ApiError(
+        `Failed to update routing target: ${response.status} ${errorText}`,
+        response.status
+      );
+    }
+    return response.json();
+  }
+
   // ===========================================================================
   // Phone Number List Methods
   // ===========================================================================

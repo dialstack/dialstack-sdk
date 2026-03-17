@@ -465,6 +465,19 @@ export function createMockInstance(
       const did = mockDIDs.find((d) => d.id === phoneNumberId);
       if (did) did.caller_id_name = displayName;
     },
+    getPhoneNumber: async (phoneNumberId: string) => {
+      await delay();
+      const did = mockDIDs.find((d) => d.id === phoneNumberId);
+      if (!did) throw new Error('Phone number not found');
+      return { ...did };
+    },
+    updatePhoneNumberRoute: async (phoneNumberId: string, routingTarget: string | null) => {
+      await delay();
+      const did = mockDIDs.find((d) => d.id === phoneNumberId);
+      if (!did) throw new Error('Phone number not found');
+      did.routing_target = routingTarget;
+      return { ...did };
+    },
 
     checkPortEligibility: async (phoneNumbers: string[]) => {
       await delay();

@@ -332,6 +332,23 @@ export interface DialStackInstance {
     type: 'user' | 'dial_plan' | 'voice_app' | 'ring_group';
   } | null>;
 
+  /**
+   * Get a single phone number (DID) by ID
+   *
+   * @param phoneNumberId - The phone number ID (e.g., 'did_01abc...')
+   * @returns Promise resolving to the phone number details
+   */
+  getPhoneNumber(phoneNumberId: string): Promise<DIDItem>;
+
+  /**
+   * Update the routing target for a phone number
+   *
+   * @param phoneNumberId - The phone number ID (e.g., 'did_01abc...')
+   * @param routingTarget - The target TypeID to route to, or null to clear
+   * @returns Promise resolving to the updated phone number
+   */
+  updatePhoneNumberRoute(phoneNumberId: string, routingTarget: string | null): Promise<DIDItem>;
+
   // ===========================================================================
   // Phone Number List Methods
   // ===========================================================================

@@ -63,6 +63,7 @@ export interface PhoneNumberItem {
   source: 'did' | 'number_order' | 'port_order';
   created_at: string;
   updated_at: string;
+  did_id?: string;
   order_id?: string;
   port_order_id?: string;
 }

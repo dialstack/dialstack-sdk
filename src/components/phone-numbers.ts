@@ -236,6 +236,7 @@ export class PhoneNumbersComponent extends BaseComponent {
         source: 'did',
         created_at: did.created_at,
         updated_at: did.updated_at,
+        did_id: did.id,
       });
     }
 
@@ -776,7 +777,7 @@ export class PhoneNumbersComponent extends BaseComponent {
 
     const rows = items
       .map((item) => {
-        const hasDetail = !!(item.port_order_id || item.order_id);
+        const hasDetail = !!(item.did_id || item.port_order_id);
         const classes = [this.classes.row, this._onRowClick && hasDetail ? 'clickable' : '']
           .filter(Boolean)
           .join(' ');

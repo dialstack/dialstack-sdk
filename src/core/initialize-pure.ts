@@ -105,6 +105,12 @@ export async function loadDialstackAndInitialize(
     updateCallerID: (phoneNumberId, displayName) => {
       return instance.updateCallerID(phoneNumberId, displayName);
     },
+    getPhoneNumber: (phoneNumberId) => {
+      return instance.getPhoneNumber(phoneNumberId);
+    },
+    updatePhoneNumberRoute: (phoneNumberId, routingTarget) => {
+      return instance.updatePhoneNumberRoute(phoneNumberId, routingTarget);
+    },
     resolveRoutingTarget: (target) => {
       return instance.resolveRoutingTarget(target);
     },
