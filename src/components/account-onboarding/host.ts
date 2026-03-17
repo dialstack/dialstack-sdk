@@ -35,6 +35,7 @@ export interface OnboardingHost {
   // Shared state (write)
   setUsers(users: OnboardingUser[]): void;
   setExtensions(extensions: Extension[]): void;
+  setAccountConfig(config: AccountConfig): void;
   navigateToStep(step: AccountOnboardingStep): void;
   getActiveSteps(): AccountOnboardingStep[];
 

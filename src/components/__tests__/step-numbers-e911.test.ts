@@ -213,6 +213,22 @@ const completeNumbersStep = async (element: NumbersElement): Promise<void> => {
       return;
     }
 
+    // If on primary-did screen and no DID is selected, select the first one (gate requires it)
+    if (stepRoot(element)?.querySelector('.primary-did-section')) {
+      const checked = stepRoot(element)?.querySelector<HTMLInputElement>(
+        'input[name="primary-did"]:checked'
+      );
+      if (!checked) {
+        const first = stepRoot(element)?.querySelector<HTMLInputElement>(
+          'input[name="primary-did"]'
+        );
+        if (first) {
+          first.checked = true;
+          first.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+    }
+
     // Click next
     const nextBtn = stepRoot(element)?.querySelector<HTMLButtonElement>('[data-action="next"]');
     if (!nextBtn) break;
@@ -328,9 +344,14 @@ describe('Numbers Step E911 Auto-Provisioning', () => {
     expect(instance.provisionLocationE911).not.toHaveBeenCalled();
   });
 
-  it('shows warning banner when no DID matches account phone and user selects none', async () => {
+  it('provisions E911 with user-selected DID when no DID matches account phone', async () => {
     const nonMatching1 = { ...mockDID, id: 'did_nm1', phone_number: '+13105550101' };
     const nonMatching2 = { ...mockDID, id: 'did_nm2', phone_number: '+13105550102' };
+    const provisionedLocation = {
+      ...mockLocation,
+      primary_did_id: 'did_nm1',
+      e911_status: 'pending' as const,
+    };
 
     const { element, instance } = await mountNumbers({
       listLocations: jest.fn().mockResolvedValue([mockLocation]),
@@ -338,18 +359,28 @@ describe('Numbers Step E911 Auto-Provisioning', () => {
         ...emptyList,
         data: [nonMatching1, nonMatching2],
       }),
+      updateLocation: jest.fn().mockResolvedValue(provisionedLocation),
+      validateLocationE911: jest.fn().mockResolvedValue({
+        adjusted: false,
+        address: { house_number: '123', street_name: 'Main', city: 'New York' },
+      }),
+      provisionLocationE911: jest.fn().mockResolvedValue(provisionedLocation),
     });
 
+    // Primary-DID gate requires selection; completeNumbersStep auto-selects the first DID
     await completeNumbersStep(element);
 
     await waitFor(() => {
       const text = stepRoot(element)?.textContent ?? '';
-      expect(text).toContain('E911 emergency services have not been fully configured');
+      expect(text).toContain('assigned as primary number for');
     });
 
-    expect(instance.updateLocation).not.toHaveBeenCalled();
-    expect(instance.validateLocationE911).not.toHaveBeenCalled();
-    expect(instance.provisionLocationE911).not.toHaveBeenCalled();
+    // Should have used the auto-selected first DID
+    expect(instance.updateLocation).toHaveBeenCalledWith('loc_01abc', {
+      primary_did_id: 'did_nm1',
+    });
+    expect(instance.validateLocationE911).toHaveBeenCalledWith('loc_01abc');
+    expect(instance.provisionLocationE911).toHaveBeenCalledWith('loc_01abc');
   });
 
   it('shows warning banner on provisioning API error', async () => {
@@ -497,21 +528,21 @@ describe('Numbers Step E911 Auto-Provisioning', () => {
     });
   });
 
-  it('no E911 panel when no active DIDs (idle state)', async () => {
+  it('no E911 panel when no active DIDs (gate blocks at overview)', async () => {
     const { element, instance } = await mountNumbers({
       listLocations: jest.fn().mockResolvedValue([mockLocation]),
       listPhoneNumbers: jest.fn().mockResolvedValue(emptyList),
     });
 
-    await completeNumbersStep(element);
-
-    // Done button should be present
+    // Click next — gate blocks because no active DIDs
+    clickAction(element, 'next');
     await waitFor(() => {
-      expect(stepRoot(element)?.querySelector('[data-action="done"]')).toBeTruthy();
+      const text = stepRoot(element)?.textContent ?? '';
+      expect(text).toContain('You need at least one phone number');
     });
 
-    const text = stepRoot(element)?.textContent ?? '';
-    expect(text).not.toContain('emergency services');
+    // Should not reach step-complete, no E911 calls made
+    expect(stepRoot(element)?.querySelector('[data-action="done"]')).toBeNull();
     expect(instance.validateLocationE911).not.toHaveBeenCalled();
     expect(instance.provisionLocationE911).not.toHaveBeenCalled();
   });

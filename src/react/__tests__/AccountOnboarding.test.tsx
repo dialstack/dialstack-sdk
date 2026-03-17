@@ -59,9 +59,49 @@ const createMockDialstack = (): DialStackInstance => {
       listDECTBases: jest.fn().mockResolvedValue([]),
       listEndpoints: jest.fn().mockResolvedValue([]),
       listDECTHandsets: jest.fn().mockResolvedValue([]),
-      listPhoneNumbers: jest.fn().mockResolvedValue({ data: [], next_page_url: null }),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [
+          {
+            id: 'did_01abc',
+            phone_number: '+12125550100',
+            status: 'active',
+            caller_id_name: 'ACME Corp',
+            created_at: '2026-01-01T00:00:00Z',
+            updated_at: '2026-01-01T00:00:00Z',
+          },
+        ],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+      fetchAllPages: jest
+        .fn()
+        .mockImplementation(
+          async (
+            fetchFn: (opts: {
+              limit: number;
+            }) => Promise<{ data: unknown[]; next_page_url: string | null }>
+          ) => {
+            const response = await fetchFn({ limit: 100 });
+            return response.data;
+          }
+        ),
+      listNumberOrders: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+      listPortOrders: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+      updateCallerID: jest.fn().mockResolvedValue(undefined),
       validateLocationE911: jest.fn().mockResolvedValue({ adjusted: false, address: {} }),
       provisionLocationE911: jest.fn().mockResolvedValue(mockLocation),
+      updateLocation: jest.fn().mockResolvedValue(mockLocation),
     } as unknown as Parameters<AccountOnboardingElement['setInstance']>[0];
     element.setInstance(instance);
     return element;
@@ -132,8 +172,8 @@ describe('AccountOnboarding (React wrapper)', () => {
       expect(stepRoot(element!)?.querySelector('[data-action="next"]')).toBeTruthy();
     });
 
-    // Navigate to complete: business-details → team-members → (done) → numbers → primary-did → (done) → complete (4 next clicks)
-    for (let i = 0; i < 4; i += 1) {
+    // Navigate to complete: business-details → team-members → (done) → numbers → primary-did → caller-id → (done) → complete (5 next clicks)
+    for (let i = 0; i < 5; i += 1) {
       const before = (stepRoot(element!) ?? element?.shadowRoot)?.innerHTML;
       clickAction(element!, 'next');
       await waitFor(() => {

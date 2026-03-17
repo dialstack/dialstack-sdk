@@ -107,6 +107,7 @@ export interface OnboardingUser {
   id: string;
   name?: string | null;
   email?: string | null;
+  account_role?: string | null;
   created_at: string;
   updated_at: string;
 }

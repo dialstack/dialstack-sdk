@@ -23,6 +23,7 @@ import type {
   CreateDECTHandsetRequest,
   UpdateDECTHandsetRequest,
   CreateDECTExtensionRequest,
+  DECTExtension,
 } from '../types/dect';
 import type {
   Account,
@@ -648,8 +649,15 @@ export function createMockInstance(
       _baseId: string,
       _handsetId: string,
       _data: CreateDECTExtensionRequest
-    ) => {
-      throw new Error('Not implemented in mock');
+    ): Promise<DECTExtension> => {
+      await delay();
+      return {
+        id: 'decte_' + Math.random().toString(36).slice(2, 10),
+        handset_id: _handsetId,
+        endpoint_id: _data.endpoint_id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
     },
     listDECTExtensions: async (_baseId: string, _handsetId: string) => [],
     deleteDECTExtension: async (_baseId: string, _handsetId: string, _extensionId: string) => {},

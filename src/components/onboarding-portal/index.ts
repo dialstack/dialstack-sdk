@@ -22,14 +22,8 @@ import OVERVIEW_STYLES from './overview-styles.css';
 import { ONBOARDING_STEPS } from '../account-onboarding/constants';
 import { mergePhoneNumbers } from '../account-onboarding/numbers';
 import type { DIDItem, NumberOrder, PortOrder, PhoneNumberItem } from '../../types';
-import {
-  STEP_ICONS,
-  STEP_I18N_KEYS,
-  OVERVIEW_SVG,
-  HELP_SVG,
-  CHECK_SVG_WHITE,
-  CIRCUMFERENCE,
-} from './constants';
+import { CHECK_SVG_WHITE, CIRCUMFERENCE } from './constants';
+import { renderSidebar as renderSidebarHtml } from './sidebar-renderer';
 import { renderSplashScreen } from './splash-screen';
 import { renderOverviewScreen } from './overview-screen';
 import type { AccountOnboardingComponent } from '../account-onboarding';
@@ -493,117 +487,17 @@ export class OnboardingPortalComponent extends BaseComponent {
       this.currentStep = this.innerWizard.getCurrentStep();
     }
 
-    const stepsWithoutComplete = this.activeSteps.filter((s) => s !== 'final_complete');
-
-    // Build sidebar using DOM methods to avoid innerHTML XSS concerns.
-    // All text content comes from internal i18n strings; SVG icons are
-    // static constants defined in constants.ts.
-    this.sidebarEl.textContent = '';
-
-    // Logo
-    const logoDiv = document.createElement('div');
-    logoDiv.className = 'portal-logo';
-    if (this._logoHtml) {
-      // logoHtml is set by the SDK consumer (developer), not end-user input
-      logoDiv.innerHTML = this._logoHtml;
-    } else {
-      logoDiv.style.fontSize = '20px';
-      logoDiv.style.fontWeight = '700';
-      logoDiv.textContent = this._platformName ?? 'DialStack';
-    }
-    this.sidebarEl.appendChild(logoDiv);
-
-    // Overview link — active only when viewMode is 'overview' (not during splash)
-    const overviewLink = document.createElement('div');
-    const isOverviewActive = this.viewMode === 'overview';
-    overviewLink.className = `portal-nav-link${isOverviewActive ? ' active' : ''}`;
-    overviewLink.setAttribute('data-action', 'overview');
-    overviewLink.setAttribute('role', 'button');
-    overviewLink.setAttribute('tabindex', '0');
-    // SAFETY: OVERVIEW_SVG is a static constant defined in constants.ts
-    overviewLink.innerHTML = `<span class="portal-nav-icon">${OVERVIEW_SVG}</span>`;
-    const overviewLabel = document.createElement('span');
-    overviewLabel.textContent =
-      this.viewMode === 'wizard'
-        ? this.t('onboardingPortal.dashboard')
-        : this.t('onboardingPortal.overview.label');
-    overviewLink.appendChild(overviewLabel);
-    this.sidebarEl.appendChild(overviewLink);
-
-    // Steps label
-    const stepsLabelDiv = document.createElement('div');
-    stepsLabelDiv.className = 'portal-steps-label';
-    stepsLabelDiv.textContent = this.t('onboardingPortal.onboardingFlows');
-    this.sidebarEl.appendChild(stepsLabelDiv);
-
-    for (const step of stepsWithoutComplete) {
-      const isActive = this.viewMode === 'wizard' && step === this.currentStep;
-      const isCompleted = this._progressStore?.isStepComplete(step as StepName) ?? false;
-
-      const item = document.createElement('div');
-      item.className = 'portal-step-item';
-      if (isActive) item.classList.add('active');
-      if (isCompleted) item.classList.add('completed');
-      item.setAttribute('data-step', step);
-      item.setAttribute('role', 'button');
-      item.setAttribute('tabindex', '0');
-
-      // Icon (static SVG constant)
-      const iconSpan = document.createElement('span');
-      iconSpan.className = 'portal-step-icon';
-      // SAFETY: STEP_ICONS values are static SVG constants from account-onboarding/icons.ts
-      iconSpan.innerHTML = STEP_ICONS[step] ?? '';
-      item.appendChild(iconSpan);
-
-      // Label (i18n string, safe text)
-      const nameSpan = document.createElement('span');
-      nameSpan.className = 'portal-step-name';
-      nameSpan.textContent = this.t(STEP_I18N_KEYS[step] ?? step);
-      item.appendChild(nameSpan);
-
-      // Indicator
-      const indicatorSpan = document.createElement('span');
-      indicatorSpan.className = 'portal-step-indicator';
-      const indicatorHtml = this.renderStepIndicator(step, isCompleted);
-      if (indicatorHtml) {
-        // Static SVG content only
-        indicatorSpan.innerHTML = indicatorHtml;
-      }
-      item.appendChild(indicatorSpan);
-
-      this.sidebarEl.appendChild(item);
-    }
-
-    // Footer
-    const footer = document.createElement('div');
-    footer.className = 'portal-sidebar-footer';
-
-    const backLink = document.createElement('div');
-    backLink.className = 'portal-footer-link';
-    backLink.setAttribute('data-action', 'back');
-    backLink.setAttribute('role', 'button');
-    backLink.setAttribute('tabindex', '0');
-    const backArrow = document.createElement('span');
-    backArrow.className = 'portal-nav-icon';
-    backArrow.textContent = '\u2190';
-    backLink.appendChild(backArrow);
-    const backLabelEl = document.createElement('span');
-    backLabelEl.textContent = this._backLabel ?? this.t('onboardingPortal.back');
-    backLink.appendChild(backLabelEl);
-    footer.appendChild(backLink);
-
-    const helpLink = document.createElement('div');
-    helpLink.className = 'portal-footer-link';
-    helpLink.setAttribute('role', 'button');
-    helpLink.setAttribute('tabindex', '0');
-    // SAFETY: HELP_SVG is a static constant defined in constants.ts
-    helpLink.innerHTML = `<span class="portal-nav-icon">${HELP_SVG}</span>`;
-    const helpLabel = document.createElement('span');
-    helpLabel.textContent = this.t('onboardingPortal.helpSupport');
-    helpLink.appendChild(helpLabel);
-    footer.appendChild(helpLink);
-
-    this.sidebarEl.appendChild(footer);
+    renderSidebarHtml(this.sidebarEl, {
+      viewMode: this.viewMode,
+      activeSteps: this.activeSteps,
+      currentStep: this.currentStep,
+      progressStore: this._progressStore,
+      logoHtml: this._logoHtml,
+      platformName: this._platformName,
+      backLabel: this._backLabel,
+      t: (key: string) => this.t(key),
+      renderStepIndicator: (step, isCompleted) => this.renderStepIndicator(step, isCompleted),
+    });
   }
 
   private renderMainArea(): void {

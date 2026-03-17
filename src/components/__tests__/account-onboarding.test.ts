@@ -464,11 +464,17 @@ describe('AccountOnboardingComponent', () => {
   it('clears legal links when URL setters are reset', async () => {
     const { element: component } = await mountComponent({
       listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [mockDID],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
     });
     component.setCollectionOptions({ steps: { include: ['account', 'numbers'] } });
     component.setFullTermsOfServiceUrl('https://example.com/terms');
 
-    await navigateToComplete(component, 4);
+    await navigateToComplete(component, 5);
 
     const linkBeforeReset = stepRoot(component).querySelector<HTMLAnchorElement>('.legal-links a');
     expect(linkBeforeReset?.getAttribute('href')).toBe('https://example.com/terms');
@@ -481,11 +487,17 @@ describe('AccountOnboardingComponent', () => {
   it('restores default steps when collection options are cleared', async () => {
     const { element: component } = await mountComponent({
       listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [mockDID],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
     });
     component.setCollectionOptions({ steps: { exclude: ['hardware'] } });
 
-    // With hardware excluded: business-details → team-members → numbers(overview) → numbers(primary-did) → complete = 4 clicks
-    await navigateToComplete(component, 4);
+    // With hardware excluded: business-details → team-members → numbers(overview) → numbers(primary-did) → numbers(caller-id) → complete = 5 clicks
+    await navigateToComplete(component, 5);
 
     // After clearing options, hardware should be re-included.
     // Use initialStep to jump to hardware and verify it renders.
@@ -1401,7 +1413,7 @@ describe('AccountOnboardingComponent', () => {
         .calls[0]?.[0];
       expect(updateCall).toBeDefined();
       expect(updateCall.config.region).toBe('us-east');
-      expect(updateCall.config.extension_length).toBeUndefined();
+      expect(updateCall.config.extension_length).toBe(4);
       expect(updateCall.config.timezone).toBe('America/New_York');
     });
   });
@@ -1608,8 +1620,7 @@ describe('AccountOnboardingComponent', () => {
   // ==========================================================================
 
   const navigateToHardware = async (element: AccountOnboardingElement): Promise<void> => {
-    // Account step: business-details → team-members → (complete) → numbers → primary-did → (complete) → hardware
-    // Note: when DIDs are present, caller-id sub-step appears after primary-did (use navigateToComplete with extra clicks instead)
+    // Account step: business-details → team-members → (complete) → numbers → primary-did → caller-id → (complete) → hardware
     await navigateToTeamMembers(element);
     clickAction(element, 'next'); // team-members → account complete screen
     await clickThroughStepComplete(element); // advance to numbers
@@ -1617,11 +1628,23 @@ describe('AccountOnboardingComponent', () => {
       const title = stepRoot(element).querySelector('.step-sidebar-title')?.textContent;
       expect(title).toContain('Numbers');
     });
-    clickAction(element, 'next'); // numbers overview → primary-did
+    clickAction(element, 'next'); // numbers overview → primary-did (triggers loadActiveDIDs)
     await waitFor(() => {
       expect(stepRoot(element).querySelector('.primary-did-section')).not.toBeNull();
     });
-    clickAction(element, 'next'); // primary-did → numbers complete screen
+    clickAction(element, 'next'); // primary-did → caller-id
+    await waitFor(() => {
+      // caller-id renders, then next auto-advances since DID has caller_id_name
+      // OR we land on caller-id screen with a next button
+      expect(
+        stepRoot(element).querySelector('.num-cid-section') ||
+          stepRoot(element).querySelector('[data-action="done"]')
+      ).not.toBeNull();
+    });
+    // If on caller-id, click next to advance (pre-submitted DID advances immediately)
+    if (stepRoot(element).querySelector('.num-cid-section')) {
+      clickAction(element, 'next');
+    }
     await clickThroughStepComplete(element); // advance to hardware
     await waitFor(() => {
       expect(stepRoot(element).textContent).toContain('Assign Devices');
@@ -1636,6 +1659,13 @@ describe('AccountOnboardingComponent', () => {
   }> => {
     const result = await mountComponent({
       listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      // Provide at least one active DID so the numbers overview gate allows advancement
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [mockDID],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
       ...overrides,
     });
     await navigateToHardware(result.element);
@@ -2044,16 +2074,17 @@ describe('AccountOnboardingComponent', () => {
       }),
     });
 
-    await navigateToPrimaryDID(element, instance);
+    await navigateToNumbers(element, instance);
 
+    // Click next on overview — gate should block because no active DIDs
+    clickAction(element, 'next');
     await waitFor(() => {
       const text = stepRoot(element)?.textContent ?? '';
-      expect(text).toContain('No active phone numbers available yet');
+      expect(text).toContain('You need at least one phone number');
     });
 
-    // No radios should exist
-    const radios = stepRoot(element)?.querySelectorAll('input[name="primary-did"]');
-    expect(radios?.length).toBe(0);
+    // Should still be on overview, not primary-did
+    expect(stepRoot(element)?.querySelector('.primary-did-section')).toBeNull();
   });
 
   it('temporary DID shows badge', async () => {
@@ -2083,7 +2114,7 @@ describe('AccountOnboardingComponent', () => {
     });
   });
 
-  it('does not refetch DIDs after rejection when revisiting primary-did via back/forth', async () => {
+  it('does not refetch DIDs after rejection when clicking next again on overview', async () => {
     const emptyPage = { object: 'list', data: [], next_page_url: null, previous_page_url: null };
     const listPhoneNumbers = jest
       .fn()
@@ -2095,26 +2126,23 @@ describe('AccountOnboardingComponent', () => {
       listPhoneNumbers,
     });
 
-    // Navigate to primary-did — DID load fails
-    await navigateToPrimaryDID(element, instance);
+    await navigateToNumbers(element, instance);
 
-    // Go back to overview
-    clickAction(element, 'back');
-    await waitFor(() => {
-      expect(stepRoot(element)?.querySelector('[data-action="num-start-order"]')).not.toBeNull();
-    });
-
-    // Go forward again to primary-did
+    // Click next — triggers loadActiveDIDs which rejects, gate blocks
     clickAction(element, 'next');
     await waitFor(() => {
-      expect(stepRoot(element)?.querySelector('.primary-did-section')).not.toBeNull();
+      const text = stepRoot(element)?.textContent ?? '';
+      expect(text).toContain('You need at least one phone number');
     });
 
-    // listPhoneNumbers should have been called exactly twice (overview + first DID load), not again on revisit
+    // Click next again — should not refetch (hasAttemptedDIDLoad is true)
+    clickAction(element, 'next');
+
+    // listPhoneNumbers should have been called exactly twice (overview + first DID load), not again
     expect(listPhoneNumbers).toHaveBeenCalledTimes(2);
   });
 
-  it('does not refetch DIDs when empty result is revisited via back/forth', async () => {
+  it('does not refetch DIDs when empty result and next is clicked again on overview', async () => {
     const emptyPage = { object: 'list', data: [], next_page_url: null, previous_page_url: null };
     const listPhoneNumbers = jest.fn().mockResolvedValue(emptyPage);
 
@@ -2123,25 +2151,21 @@ describe('AccountOnboardingComponent', () => {
       listPhoneNumbers,
     });
 
-    await navigateToPrimaryDID(element, instance);
+    await navigateToNumbers(element, instance);
 
-    await waitFor(() => {
-      expect(stepRoot(element)?.textContent).toContain('No active phone numbers available yet');
-    });
-
-    // Back to overview, then forward again
-    clickAction(element, 'back');
-    await waitFor(() => {
-      expect(stepRoot(element)?.querySelector('[data-action="num-start-order"]')).not.toBeNull();
-    });
+    // Click next — triggers loadActiveDIDs, returns empty, gate blocks
     clickAction(element, 'next');
     await waitFor(() => {
-      expect(stepRoot(element)?.querySelector('.primary-did-section')).not.toBeNull();
+      const text = stepRoot(element)?.textContent ?? '';
+      expect(text).toContain('You need at least one phone number');
     });
 
-    // Called twice: once by overview loadNumbersData, once by loadActiveDIDs. Not again on revisit.
+    // Click next again — should not refetch (hasAttemptedDIDLoad is true)
+    clickAction(element, 'next');
+
+    // Called twice: once by overview loadNumbersData, once by loadActiveDIDs. Not again on second click.
     expect(listPhoneNumbers).toHaveBeenCalledTimes(2);
-    expect(stepRoot(element)?.textContent).toContain('No active phone numbers available yet');
+    expect(stepRoot(element)?.textContent).toContain('You need at least one phone number');
   });
 
   it('auto-selects matching DID on page 2 of paginated response', async () => {
@@ -2234,6 +2258,21 @@ describe('AccountOnboardingComponent', () => {
     instance: ReturnType<typeof createMockInstance>
   ): Promise<void> => {
     await navigateToPrimaryDID(element, instance);
+    // Ensure a primary DID is selected (gate requires it).
+    // If none is auto-selected (multiple non-matching DIDs), select the first one.
+    await waitFor(() => {
+      expect(
+        stepRoot(element)?.querySelectorAll('input[name="primary-did"]')?.length
+      ).toBeGreaterThan(0);
+    });
+    const checked = stepRoot(element)?.querySelector<HTMLInputElement>(
+      'input[name="primary-did"]:checked'
+    );
+    if (!checked) {
+      const first = stepRoot(element)?.querySelector<HTMLInputElement>('input[name="primary-did"]');
+      first!.checked = true;
+      first!.dispatchEvent(new Event('change', { bubbles: true }));
+    }
     clickAction(element, 'next'); // primary-did → caller-id
     await waitFor(() => {
       expect(stepRoot(element)?.querySelector('.num-cid-section')).not.toBeNull();
@@ -2281,7 +2320,7 @@ describe('AccountOnboardingComponent', () => {
     expect(status).not.toBeNull();
   });
 
-  it('skips caller-id sub-step when no active DIDs exist', async () => {
+  it('blocks at overview when no active DIDs exist (cannot reach caller-id)', async () => {
     const { element, instance } = await mountComponent({
       listLocations: jest.fn().mockResolvedValue([mockLocation]),
       listPhoneNumbers: jest.fn().mockResolvedValue({
@@ -2292,14 +2331,18 @@ describe('AccountOnboardingComponent', () => {
       }),
     });
 
-    await navigateToPrimaryDID(element, instance);
+    await navigateToNumbers(element, instance);
 
-    // Next from primary-did should skip caller-id and advance to step completion
+    // Click next on overview — gate blocks because no active DIDs
     clickAction(element, 'next');
     await waitFor(() => {
-      // Should be on step complete or next step — not on caller-id
-      expect(stepRoot(element)?.querySelector('.num-cid-section')).toBeNull();
+      const text = stepRoot(element)?.textContent ?? '';
+      expect(text).toContain('You need at least one phone number');
     });
+
+    // Should not have advanced to primary-did or caller-id
+    expect(stepRoot(element)?.querySelector('.primary-did-section')).toBeNull();
+    expect(stepRoot(element)?.querySelector('.num-cid-section')).toBeNull();
   });
 
   it('submits caller ID via Next button and calls updateCallerID', async () => {
@@ -2922,6 +2965,12 @@ describe('AccountOnboardingComponent', () => {
   it('advances past numbers step from overview via Next', async () => {
     const { element, instance } = await mountComponent({
       listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [mockDID],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
     });
 
     await navigateToNumbers(element, instance);
@@ -2936,7 +2985,21 @@ describe('AccountOnboardingComponent', () => {
       expect(stepRoot(element).querySelector('.primary-did-section')).not.toBeNull();
     });
 
-    clickAction(element, 'next'); // primary-did → numbers complete screen
+    clickAction(element, 'next'); // primary-did → caller-id
+
+    await waitFor(() => {
+      // caller-id sub-step renders (may auto-advance since DID has caller_id_name)
+      expect(
+        stepRoot(element).querySelector('.num-cid-section') ||
+          stepRoot(element).querySelector('[data-action="done"]')
+      ).not.toBeNull();
+    });
+
+    // If on caller-id, click next (pre-submitted DID advances immediately)
+    if (stepRoot(element).querySelector('.num-cid-section')) {
+      clickAction(element, 'next');
+    }
+
     await clickThroughStepComplete(element); // advance to hardware
 
     // Should advance to hardware step

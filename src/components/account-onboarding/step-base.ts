@@ -92,6 +92,10 @@ export abstract class OnboardingStepBase extends BaseComponent {
     this._extensions = extensions;
   }
 
+  setAccountConfig(config: AccountConfig): void {
+    this._accountConfig = config;
+  }
+
   getExtensionForUser(userId: string): Extension | undefined {
     return this._extensions.find((ext) => ext.target === userId);
   }

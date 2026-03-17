@@ -326,9 +326,8 @@ export class AccountStepHelper {
     try {
       if (!this.host.instance) throw new Error('Not initialized');
 
-      const { extension_length: _, ...configWithoutExtLength } = this.host.accountConfig;
       const updatedConfig = {
-        ...configWithoutExtLength,
+        ...this.host.accountConfig,
         ...(this.accountTimezone ? { timezone: this.accountTimezone } : {}),
       };
       await this.host.instance.updateAccount({
@@ -338,6 +337,10 @@ export class AccountStepHelper {
         primary_contact_name: this.accountPrimaryContact.trim(),
         config: updatedConfig,
       });
+
+      // Keep the cached config in sync so subsequent writes (e.g. progress
+      // store) don't overwrite the timezone we just saved.
+      this.host.setAccountConfig(updatedConfig);
 
       // Create or update location
       if (!this.existingLocation) {
@@ -768,8 +771,13 @@ export class AccountStepHelper {
   private renderAccountTeamMembers(): string {
     const t = (key: string): string => this.host.t(key);
 
+    // Exclude the current account owner from the team members table
+    const otherUsers = this.host.users.filter(
+      (u) => u.email?.toLowerCase() !== this.accountEmail.toLowerCase()
+    );
+
     const userTableHtml =
-      this.host.users.length === 0
+      otherUsers.length === 0
         ? `<div class="no-users">${t('accountOnboarding.account.users.noUsers')}</div>`
         : `<table class="user-table">
             <thead>
@@ -781,21 +789,24 @@ export class AccountStepHelper {
                 <th></th>
               </tr>
             </thead>
-            <tbody>${this.host.users
+            <tbody>${otherUsers
               .map((u) => {
                 const ext = this.host.getExtensionForUser(u.id);
                 const extDisplay = ext ? this.host.escapeHtml(ext.number) : '—';
+                const isAdmin = u.account_role === 'admin';
+                const roleLabel = isAdmin
+                  ? t('accountOnboarding.account.users.roleAdmin')
+                  : t('accountOnboarding.account.users.roleUser');
+                const deleteBtn = isAdmin
+                  ? ''
+                  : `<button class="btn-icon-danger" data-action="remove-user" data-user-id="${this.host.escapeHtml(u.id)}" title="${t('accountOnboarding.account.users.removeUser')}">${TRASH_SVG}</button>`;
                 return `
                 <tr>
                   <td class="user-table-name"><span class="user-avatar">${USER_SVG}</span>${this.host.escapeHtml(u.name ?? '')}</td>
                   <td>${this.host.escapeHtml(u.email ?? '')}</td>
                   <td>${extDisplay}</td>
-                  <td class="user-table-role">${t('accountOnboarding.account.users.roleAdmin')}</td>
-                  <td>
-                    <button class="btn-icon-danger" data-action="remove-user" data-user-id="${this.host.escapeHtml(u.id)}" title="${t('accountOnboarding.account.users.removeUser')}">
-                      ${TRASH_SVG}
-                    </button>
-                  </td>
+                  <td class="user-table-role">${roleLabel}</td>
+                  <td>${deleteBtn}</td>
                 </tr>`;
               })
               .join('')}</tbody>

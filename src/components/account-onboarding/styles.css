@@ -152,8 +152,9 @@
 /* Right content column */
 .step-content {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
   max-height: calc(100dvh - 80px);
-  overflow-y: auto;
 }
 
 /* Ghost button for back */
@@ -199,6 +200,8 @@
   background: var(--ds-color-background);
   border: 1px solid var(--ds-color-border);
   border-radius: 20px;
+  overflow-y: auto;
+  max-height: calc(100dvh - 180px);
 }
 
 /* ── Placeholder ── */

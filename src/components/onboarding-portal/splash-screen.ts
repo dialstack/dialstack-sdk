@@ -9,6 +9,35 @@ export interface SplashScreenOptions {
   logoHtml?: string;
 }
 
+function renderSplashContent(t: (key: string) => string): string {
+  return `<div class="splash-content">
+    <h1 class="splash-title">${t('onboardingPortal.splash.title')}</h1>
+    <p class="splash-subtitle">${t('onboardingPortal.splash.subtitle')}</p>
+    <button class="splash-btn" data-action="start-onboarding">
+      <span>${t('onboardingPortal.splash.start')}</span>
+      <span>${ARROW_RIGHT_SVG}</span>
+    </button>
+  </div>`;
+}
+
+function renderSplashChips(t: (key: string) => string): string {
+  const chipLabels = [
+    t('onboardingPortal.splash.step1'),
+    t('onboardingPortal.splash.step2'),
+    t('onboardingPortal.splash.step3'),
+  ];
+  return `<div class="splash-chips">
+    ${chipLabels
+      .map(
+        (label, i) => `<div class="splash-chip">
+      <div class="splash-chip-number">${i + 1}</div>
+      <span class="splash-chip-label">${label}</span>
+    </div>`
+      )
+      .join('')}
+  </div>`;
+}
+
 export function renderSplashScreen(
   container: HTMLElement,
   t: (key: string) => string,
@@ -16,55 +45,29 @@ export function renderSplashScreen(
 ): void {
   container.textContent = '';
 
-  const wrapper = document.createElement('div');
-  wrapper.className = 'splash-container';
+  // SAFETY: all content is static SVG constants and internal i18n strings
+  const html = `<div class="splash-container">
+    <div class="splash-bg-shape">${SPLASH_BG_SHAPE_SVG}</div>
+    ${renderSplashContent(t)}
+    <div class="splash-visual">${SPLASH_ILLUSTRATION_SVG}</div>
+    ${renderSplashChips(t)}
+    <div class="splash-shelf"></div>
+    <div class="splash-plant">${SPLASH_PLANT_SVG}</div>
+  </div>`;
 
-  // Background shape — static SVG constant from splash-illustration.ts
-  const bgShape = document.createElement('div');
-  bgShape.className = 'splash-bg-shape';
-  // SAFETY: SPLASH_BG_SHAPE_SVG is a static constant defined in this package
-  bgShape.innerHTML = SPLASH_BG_SHAPE_SVG;
-  // Apply portal theme color to the shape
-  const shapePath = bgShape.querySelector('path');
+  const tmpl = document.createElement('template');
+  tmpl.innerHTML = html;
+  container.appendChild(tmpl.content);
+
+  // Imperative DOM manipulation — must query specific SVG elements after insertion
+  const wrapper = container.firstElementChild!;
+
+  // Apply portal theme color to the background shape
+  const shapePath = wrapper.querySelector('.splash-bg-shape path');
   if (shapePath) shapePath.setAttribute('fill', 'var(--ds-portal-splash-shape)');
-  wrapper.appendChild(bgShape);
-
-  // Left content
-  const content = document.createElement('div');
-  content.className = 'splash-content';
-
-  const title = document.createElement('h1');
-  title.className = 'splash-title';
-  title.textContent = t('onboardingPortal.splash.title');
-  content.appendChild(title);
-
-  const subtitle = document.createElement('p');
-  subtitle.className = 'splash-subtitle';
-  subtitle.textContent = t('onboardingPortal.splash.subtitle');
-  content.appendChild(subtitle);
-
-  const btn = document.createElement('button');
-  btn.className = 'splash-btn';
-  btn.setAttribute('data-action', 'start-onboarding');
-  const btnText = document.createElement('span');
-  btnText.textContent = t('onboardingPortal.splash.start');
-  btn.appendChild(btnText);
-  // SAFETY: ARROW_RIGHT_SVG is a static constant defined in constants.ts
-  const arrowSpan = document.createElement('span');
-  arrowSpan.innerHTML = ARROW_RIGHT_SVG;
-  btn.appendChild(arrowSpan);
-  content.appendChild(btn);
-
-  wrapper.appendChild(content);
-
-  // Right side: illustration
-  // SAFETY: SPLASH_ILLUSTRATION_SVG is a static constant from splash-illustration.ts
-  const visual = document.createElement('div');
-  visual.className = 'splash-visual';
-  visual.innerHTML = SPLASH_ILLUSTRATION_SVG;
 
   // Replace AudioBars with consumer's logo if provided
-  const audioBars = visual.querySelector('#AudioBars');
+  const audioBars = wrapper.querySelector('#AudioBars');
   if (audioBars && options?.logoHtml) {
     const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
     // Place on the laptop screen with matching rotation (5.58deg matches laptop perspective)
@@ -98,43 +101,4 @@ export function renderSplashScreen(
     const rects = audioBars.querySelectorAll('rect');
     rects.forEach((rect) => rect.setAttribute('fill', 'var(--ds-color-primary, #692CFF)'));
   }
-
-  wrapper.appendChild(visual);
-
-  // Floating step chips (staggered layout matching Figma)
-  const chips = document.createElement('div');
-  chips.className = 'splash-chips';
-  const chipLabels = [
-    t('onboardingPortal.splash.step1'),
-    t('onboardingPortal.splash.step2'),
-    t('onboardingPortal.splash.step3'),
-  ];
-  for (let i = 0; i < chipLabels.length; i++) {
-    const chip = document.createElement('div');
-    chip.className = 'splash-chip';
-    const num = document.createElement('div');
-    num.className = 'splash-chip-number';
-    num.textContent = String(i + 1);
-    chip.appendChild(num);
-    const label = document.createElement('span');
-    label.className = 'splash-chip-label';
-    label.textContent = chipLabels[i] ?? '';
-    chip.appendChild(label);
-    chips.appendChild(chip);
-  }
-  wrapper.appendChild(chips);
-
-  // Bottom shelf
-  const shelf = document.createElement('div');
-  shelf.className = 'splash-shelf';
-  wrapper.appendChild(shelf);
-
-  // Plant decoration
-  // SAFETY: SPLASH_PLANT_SVG is a static constant from splash-illustration.ts
-  const plant = document.createElement('div');
-  plant.className = 'splash-plant';
-  plant.innerHTML = SPLASH_PLANT_SVG;
-  wrapper.appendChild(plant);
-
-  container.appendChild(wrapper);
 }

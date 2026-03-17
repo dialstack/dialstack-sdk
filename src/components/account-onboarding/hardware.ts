@@ -30,6 +30,7 @@ export class HardwareStepHelper {
   private hwSubmitting = false;
 
   private hwActionError: string | null = null;
+  private hwGateError: string | null = null;
 
   // Snapshot of initial device→record mappings from API, used to detect reassignments
   private initialDeviceRecords = new Map<
@@ -215,6 +216,11 @@ export class HardwareStepHelper {
     return totalDevices > 0 && this.deviceAssignments.size === totalDevices;
   }
 
+  private get allUsersHaveDevices(): boolean {
+    const assignedUserIds = new Set(this.deviceAssignments.values());
+    return this.host.users.every((u) => assignedUserIds.has(u.id));
+  }
+
   // ============================================================================
   // Click Handler
   // ============================================================================
@@ -249,6 +255,18 @@ export class HardwareStepHelper {
       case 'hw-submit-assignments':
         this.handleSubmitAssignments();
         return true;
+      case 'next': {
+        // Gate: if devices exist, every team member must have one before advancing.
+        // If no devices exist, user can skip freely.
+        const hasDevices = this.getAllAssignableDevices().length > 0;
+        if (hasDevices && !this.allUsersHaveDevices) {
+          this.hwGateError = this.host.t('accountOnboarding.hardware.gate.allUsersMustHaveDevice');
+          this.host.render();
+          return true;
+        }
+        this.hwGateError = null;
+        return false; // let host handle normal advancement
+      }
       default:
         return false;
     }
@@ -260,6 +278,12 @@ export class HardwareStepHelper {
 
   private async handleSubmitAssignments(): Promise<void> {
     if (!this.host.instance || this.hwSubmitting) return;
+    if (!this.allUsersHaveDevices) {
+      this.hwGateError = this.host.t('accountOnboarding.hardware.gate.allUsersMustHaveDevice');
+      this.host.render();
+      return;
+    }
+    this.hwGateError = null;
     this.hwSubmitting = true;
     this.hwActionError = null;
     this.host.render();
@@ -610,10 +634,14 @@ export class HardwareStepHelper {
     const t = (key: string): string => this.host.t(key);
     const allDevices = this.getAllAssignableDevices();
     const hasDevices = allDevices.length > 0;
-    const allAssigned = this.allAssigned;
 
-    if (hasDevices && allAssigned) {
+    const gateErrorHtml = this.hwGateError
+      ? `<div class="inline-alert error" style="margin-bottom:var(--ds-layout-spacing-sm)">${this.host.escapeHtml(this.hwGateError)}</div>`
+      : '';
+
+    if (hasDevices && this.allUsersHaveDevices) {
       return `
+        ${gateErrorHtml}
         <div class="footer-bar">
           <button class="btn-ghost" data-action="back">${t('accountOnboarding.nav.back')}</button>
           <button class="btn btn-primary" data-action="hw-submit-assignments"${this.hwSubmitting ? ' disabled' : ''}>
@@ -623,6 +651,6 @@ export class HardwareStepHelper {
     }
 
     // Default footer — skip/next when no devices or not all assigned
-    return this.host.renderStepFooter();
+    return `${gateErrorHtml}${this.host.renderStepFooter()}`;
   }
 }

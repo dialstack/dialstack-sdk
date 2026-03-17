@@ -287,6 +287,7 @@ export const en = {
         removeUser: 'Remove',
         roleLabel: 'Role',
         roleAdmin: 'Admin',
+        roleUser: 'User',
         noUsers: 'No team members added yet.',
         atLeastOne: 'Add at least one team member to continue.',
         duplicateEmail: 'A user with this email already exists.',
@@ -560,6 +561,11 @@ export const en = {
         backToSearch: 'Back to Search',
         confirm: 'Confirm',
       },
+      gate: {
+        noDIDsAvailable:
+          'You need at least one phone number before selecting a primary number. Order or port a number first.',
+        primaryRequired: 'Please select a primary number to continue.',
+      },
     },
     hardware: {
       title: 'Assign Devices',
@@ -567,7 +573,7 @@ export const en = {
       subtitle: 'Drag and drop devices to assign them to team members',
       noUsers: 'No team members found. Add team members in the Account step first.',
       noDevices: 'No devices are available for your account at the moment.',
-      isDectBase: 'This is a DECT base station',
+      isDectBase: 'This is a cordless handset base station',
       userLabel: 'Team Member',
       selectUser: 'Select a team member',
       selectUserRequired: 'Please select a team member.',
@@ -591,8 +597,8 @@ export const en = {
       save: 'Save',
       saving: 'Saving...',
       cancel: 'Cancel',
-      dectBase: 'DECT Base',
-      removeBaseFailed: 'Failed to remove DECT base.',
+      dectBase: 'Cordless Base',
+      removeBaseFailed: 'Failed to remove cordless base.',
       tableHeaderName: 'Full name',
       tableHeaderExtension: 'Extension',
       tableHeaderDevice: 'Assigned Device',
@@ -606,6 +612,12 @@ export const en = {
       deskPhone: 'Desk phone',
       cordless: 'Cordless',
       submitting: 'Submitting...',
+      gate: {
+        allUsersMustHaveDevice:
+          'Every team member must have a device assigned before completing this step.',
+        noDevices:
+          'No devices are available for your account. Please contact support to add devices before completing this step.',
+      },
     },
     complete: {
       title: 'Wahoo!',

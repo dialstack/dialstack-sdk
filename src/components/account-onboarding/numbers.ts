@@ -174,6 +174,8 @@ export class NumbersStepHelper {
   primaryDIDAutoMatched = false;
   private isLoadingDIDs = false;
   private hasAttemptedDIDLoad = false;
+  private numbersGateError: string | null = null;
+  private primaryDIDError: string | null = null;
 
   // E911 state
   e911FlowState: 'idle' | 'running' | 'simple' | 'complex' | 'failed' = 'idle';
@@ -650,17 +652,42 @@ export class NumbersStepHelper {
       // Order/port flows are entered via action buttons, then return to primary-did
       case 'next':
         if (this.host.currentStep === 'numbers' && this.numSubStep === 'overview') {
-          this.setSubStep('primary-did');
-          // Only load DIDs on first visit; preserve user selection on back/forth
-          if (!this.hasAttemptedDIDLoad && !this.isLoadingDIDs) {
-            this.loadActiveDIDs();
-          } else {
+          // Gate: must have ≥1 active DID before advancing
+          if (this.isLoadingDIDs) return true;
+          if (this.hasAttemptedDIDLoad && this.activeDIDs.length === 0) {
+            this.numbersGateError = this.host.t('accountOnboarding.numbers.gate.noDIDsAvailable');
             this.host.render();
+            return true;
           }
+          if (!this.hasAttemptedDIDLoad) {
+            // Load DIDs first, then gate-check on completion
+            this.loadActiveDIDs().then(() => {
+              if (this.activeDIDs.length === 0) {
+                this.numbersGateError = this.host.t(
+                  'accountOnboarding.numbers.gate.noDIDsAvailable'
+                );
+                this.host.render();
+              } else {
+                this.numbersGateError = null;
+                this.setSubStep('primary-did');
+                this.host.render();
+              }
+            });
+            return true;
+          }
+          this.numbersGateError = null;
+          this.setSubStep('primary-did');
+          this.host.render();
           return true;
         }
         if (this.host.currentStep === 'numbers' && this.numSubStep === 'primary-did') {
-          // Skip caller-id if no active DIDs
+          // Gate: must select a primary number
+          if (this.selectedPrimaryDIDId === null) {
+            this.primaryDIDError = this.host.t('accountOnboarding.numbers.gate.primaryRequired');
+            this.host.render();
+            return true;
+          }
+          this.primaryDIDError = null;
           if (this.activeDIDs.length === 0) return false;
           // Initialize on first visit or reconcile if new DIDs appeared
           const allDIDsCovered = this.activeDIDs.every((d) => this.callerIdInputs.has(d.id));
@@ -1223,11 +1250,16 @@ export class NumbersStepHelper {
       primaryDIDHtml = `<div class="primary-did-group">${radioOptions}</div>`;
     }
 
+    const gateErrorHtml = this.primaryDIDError
+      ? `<div class="inline-alert error" style="margin-top:var(--ds-layout-spacing-sm)">${this.host.escapeHtml(this.primaryDIDError)}</div>`
+      : '';
+
     return `
       <div class="primary-did-section">
         <h3 class="section-heading">${t('accountOnboarding.numbers.primaryNumber.heading')}</h3>
         <p class="section-description">${t('accountOnboarding.numbers.primaryNumber.description')}</p>
         ${primaryDIDHtml}
+        ${gateErrorHtml}
       </div>`;
   }
 
@@ -1510,7 +1542,8 @@ export class NumbersStepHelper {
           </div>
         </div>
       </div>
-      ${listHtml}`;
+      ${listHtml}
+      ${this.numbersGateError ? `<div class="inline-alert error" style="margin-top:var(--ds-layout-spacing-sm)">${this.host.escapeHtml(this.numbersGateError)}</div>` : ''}`;
   }
 
   private renderNumOrderSearch(): string {

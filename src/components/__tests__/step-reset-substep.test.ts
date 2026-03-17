@@ -146,6 +146,15 @@ describe('Account step resetToFirstSubStep', () => {
   });
 });
 
+const mockDID = {
+  id: 'did_01abc',
+  phone_number: '+12125551001',
+  status: 'active' as const,
+  caller_id_name: 'ACME Corp',
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+};
+
 describe('Numbers step resetToFirstSubStep', () => {
   const mountNumbers = async (overrides?: Record<string, unknown>): Promise<StepElement> => {
     const element = document.createElement('dialstack-onboarding-numbers') as StepElement;
@@ -165,7 +174,13 @@ describe('Numbers step resetToFirstSubStep', () => {
   };
 
   it('resets to overview after enterReviewMode from primary-did', async () => {
-    const element = await mountNumbers();
+    // Provide at least one active DID so the overview gate allows advancement to primary-did
+    const element = await mountNumbers({
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        ...emptyList,
+        data: [mockDID],
+      }),
+    });
 
     // Navigate from overview to primary-did
     clickAction(element, 'next');
