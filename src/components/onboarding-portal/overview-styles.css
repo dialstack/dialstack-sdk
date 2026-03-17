@@ -2,7 +2,11 @@
   padding: 40px 48px;
   overflow-y: auto;
   height: 100%;
-  background: color-mix(in srgb, var(--ds-color-primary, #692cff) 5%, #f8f8ff);
+  background: color-mix(
+    in srgb,
+    var(--ds-color-primary, #692cff) 5%,
+    var(--ds-color-background, #f8f8ff)
+  );
   box-sizing: border-box;
 }
 
@@ -13,20 +17,20 @@
 .overview-header h1 {
   font-size: 28px;
   font-weight: 700;
-  color: var(--ds-portal-sidebar-bg, #1c1247);
+  color: var(--ds-color-text, #1c1247);
   margin: 0 0 8px;
 }
 
 .overview-header p {
   font-size: 16px;
-  color: #6b6b80;
+  color: var(--ds-color-text-secondary, #6b6b80);
   margin: 0;
 }
 
 /* Progress card */
 .overview-progress-card {
-  background: #fff;
-  border: 1px solid #e0dff0;
+  background: var(--ds-color-background, #fff);
+  border: 1px solid var(--ds-color-border, #e0dff0);
   border-radius: 16px;
   padding: 24px 28px;
   margin-bottom: 32px;
@@ -42,7 +46,7 @@
 .overview-progress-info h3 {
   font-size: 16px;
   font-weight: 600;
-  color: var(--ds-portal-sidebar-bg, #1c1247);
+  color: var(--ds-color-text, #1c1247);
   margin: 0 0 12px;
 }
 
@@ -63,7 +67,7 @@
 
 .overview-progress-subtitle {
   font-size: 14px;
-  color: #6b6b80;
+  color: var(--ds-color-text-secondary, #6b6b80);
   margin: 0;
 }
 
@@ -78,7 +82,7 @@
 .overview-steps-title {
   font-size: 18px;
   font-weight: 600;
-  color: var(--ds-portal-sidebar-bg, #1c1247);
+  color: var(--ds-color-text, #1c1247);
   margin: 0 0 20px;
 }
 
@@ -91,8 +95,8 @@
 }
 
 .overview-card {
-  background: #fff;
-  border: 1px solid #e0dff0;
+  background: var(--ds-color-background, #fff);
+  border: 1px solid var(--ds-color-border, #e0dff0);
   border-radius: 16px;
   padding: 24px;
   display: flex;
@@ -104,7 +108,11 @@
   width: 66px;
   height: 66px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--ds-color-primary, #692cff) 15%, white);
+  background: color-mix(
+    in srgb,
+    var(--ds-color-primary, #692cff) 15%,
+    var(--ds-color-background, white)
+  );
   display: flex;
   align-items: center;
   justify-content: center;
@@ -130,13 +138,13 @@
 .overview-card h4 {
   font-size: 16px;
   font-weight: 600;
-  color: var(--ds-portal-sidebar-bg, #1c1247);
+  color: var(--ds-color-text, #1c1247);
   margin: 0;
 }
 
 .overview-card p {
   font-size: 14px;
-  color: #6b6b80;
+  color: var(--ds-color-text-secondary, #6b6b80);
   margin: 0;
   line-height: 1.5;
 }
@@ -151,13 +159,13 @@
 
 .overview-card-progress-label {
   font-size: 14px;
-  color: #6b6b80;
+  color: var(--ds-color-text-secondary, #6b6b80);
 }
 
 .overview-card-progress-pct {
   font-size: 16px;
   font-weight: 600;
-  color: var(--ds-portal-sidebar-bg, #1c1247);
+  color: var(--ds-color-text, #1c1247);
   margin-left: auto;
 }
 
@@ -198,8 +206,8 @@
 
 .overview-card-btn--review {
   background: transparent;
-  color: var(--ds-portal-sidebar-bg, #1c1247);
-  border: 1.5px solid #e0dff0;
+  color: var(--ds-color-text, #1c1247);
+  border: 1.5px solid var(--ds-color-border, #e0dff0);
 }
 
 .overview-card-btn--review:hover {
@@ -319,8 +327,8 @@
 
 /* Help card */
 .overview-help-card {
-  background: #fff;
-  border: 1px solid #e0dff0;
+  background: var(--ds-color-background, #fff);
+  border: 1px solid var(--ds-color-border, #e0dff0);
   border-radius: 16px;
   padding: 28px;
 }
@@ -328,13 +336,13 @@
 .overview-help-card h3 {
   font-size: 18px;
   font-weight: 600;
-  color: var(--ds-portal-sidebar-bg, #1c1247);
+  color: var(--ds-color-text, #1c1247);
   margin: 0 0 6px;
 }
 
 .overview-help-card p {
   font-size: 14px;
-  color: #6b6b80;
+  color: var(--ds-color-text-secondary, #6b6b80);
   margin: 0 0 16px;
 }
 
