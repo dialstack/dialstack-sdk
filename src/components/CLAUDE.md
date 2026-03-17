@@ -8,4 +8,4 @@ Components must NOT call the API raw (via `fetchApi` or `fetchComponentData` wit
 2. Components call `this.instance.methodName()` — same methods available to SDK consumers
 3. This ensures components and consumers share the same typed, tested API surface
 
-**Important:** When consuming a new or existing API endpoint from the SDK, verify that the route is registered in the API's **component scope** (`api/internal/middleware/component_scope.go` `componentRoutes`). Session-authenticated requests (which the SDK uses) are restricted to routes listed there. Missing entries cause silent 403s at runtime.
+**Component scope:** Only routes called by SDK embedded components (`sdk/src/components/`) via session tokens need entries in the API's **component scope** (`api/internal/middleware/component_scope.go` `componentRoutes`). If you add a new SDK component method that hits the API through a session token, add the route there — missing entries cause silent 403s. Routes consumed only by Admin (via `internalApiFetch`) or by API-key auth do **not** need scope entries; they bypass component scoping entirely.
