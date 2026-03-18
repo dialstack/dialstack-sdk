@@ -183,7 +183,7 @@ export const SPLASH_ILLUSTRATION_SVG = `<svg preserveAspectRatio="xMidYMax meet"
 <path id="Vector_127" d="M431.589 474.949C429.721 474.453 428.586 472.561 429.083 470.693L472.188 304.419C475.924 305.388 478.17 309.219 477.201 312.955L435.845 472.466C435.349 474.334 433.457 475.469 431.589 474.973V474.949Z" fill="#D3D2F2"/>
 <path id="Vector_128" d="M608.031 476.911H428.634V474.074H605.832L647.306 312.694C648.086 309.715 646.336 306.689 643.404 305.837H472.329V303L643.972 303.047C648.511 304.229 651.231 308.864 650.072 313.404L608.054 476.935L608.031 476.911Z" fill="#1B1E3D"/>
 </g>
-<g id="AudioBars" transform="translate(529.87, 368.43) rotate(5.58)">
+<g id="AudioBars" transform="translate(529.87, 368.43) skewX(-12)">
 <rect x="15.8" y="0" width="2.4" height="37" rx="1.2" fill="#692CFF"/>
 <rect x="10.5" y="3.9" width="2.4" height="29.2" rx="1.2" fill="#692CFF"/>
 <rect x="21.1" y="3.9" width="2.4" height="29.2" rx="1.2" fill="#692CFF"/>

@@ -70,7 +70,7 @@ export function renderSplashScreen(
   const audioBars = wrapper.querySelector('#AudioBars');
   if (audioBars && options?.logoHtml) {
     const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
-    // Place on the laptop screen with matching rotation (5.58deg matches laptop perspective)
+    // Place on the laptop screen with skewX(-12) to match the laptop's 3D perspective
     const size = 70;
     const cx = 529.87 + 17; // center of original AudioBars
     const cy = 368.43 + 18.5;
@@ -78,7 +78,7 @@ export function renderSplashScreen(
     fo.setAttribute('y', String(cy - size / 2));
     fo.setAttribute('width', String(size));
     fo.setAttribute('height', String(size));
-    fo.setAttribute('transform', `rotate(5.58, ${cx}, ${cy})`);
+    fo.setAttribute('transform', `translate(${cx}, ${cy}) skewX(-12) translate(-${cx}, -${cy})`);
     const logoBody = document.createElement('div');
     logoBody.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
     logoBody.style.cssText =
