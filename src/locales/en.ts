@@ -653,11 +653,10 @@ export const en = {
   },
   onboardingPortal: {
     onboardingFlows: 'ONBOARDING FLOWS',
-    saveAndExit: 'Save & Exit to Dashboard',
+    saveAndExit: 'Save & Exit to Overview',
     back: 'Back',
     helpSupport: 'Help & Support',
     onboardingComplete: 'Onboarding complete',
-    dashboard: 'Dashboard',
     overview: {
       label: 'Overview',
       title: 'Your Business Onboarding',

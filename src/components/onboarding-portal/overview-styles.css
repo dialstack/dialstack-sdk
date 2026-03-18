@@ -201,7 +201,7 @@
 }
 
 .overview-card-btn:hover {
-  background: var(--ds-color-primary-hover, #5a22e0);
+  background: color-mix(in srgb, var(--ds-color-primary), black 12%);
 }
 
 .overview-card-btn--review {

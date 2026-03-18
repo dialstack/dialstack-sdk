@@ -96,7 +96,7 @@ export class OnboardingPortalComponent extends BaseComponent {
     this.mainEl.className = 'portal-main';
     layout.appendChild(this.mainEl);
 
-    // "Save & Exit to Dashboard" header (shown in wizard mode)
+    // "Save & Exit to Overview" header (shown in wizard mode)
     this.wizardHeaderEl = document.createElement('div');
     this.wizardHeaderEl.className = 'portal-wizard-header';
     this.wizardHeaderEl.setAttribute('role', 'button');

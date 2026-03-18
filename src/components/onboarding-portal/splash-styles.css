@@ -63,7 +63,7 @@
 }
 
 .splash-btn:hover {
-  background: var(--ds-color-primary-hover, #5a22e0);
+  background: color-mix(in srgb, var(--ds-color-primary), white 12%);
 }
 
 .splash-btn svg {

@@ -30,8 +30,7 @@ export function renderSidebar(container: HTMLElement, props: SidebarProps): void
   const stepsWithoutComplete = activeSteps.filter((s) => s !== 'final_complete');
 
   const isOverviewActive = viewMode === 'overview';
-  const overviewLabelText =
-    viewMode === 'wizard' ? t('onboardingPortal.dashboard') : t('onboardingPortal.overview.label');
+  const overviewLabelText = t('onboardingPortal.overview.label');
 
   // Logo: if logoHtml exists, use it (set by SDK consumer/developer);
   // otherwise show platformName text with inline styles.
