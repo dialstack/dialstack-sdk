@@ -99,6 +99,7 @@ describe('Provisioning Types', () => {
             qosDscpSip: 26,
             qosDscpRtp: 46,
             ntpServer: 'pool.ntp.org',
+            rtcpEnabled: true,
           },
           features: {
             dndEnabled: true,
@@ -226,9 +227,11 @@ describe('Provisioning Types', () => {
         qosDscpSip: 26,
         qosDscpRtp: 46,
         ntpServer: 'pool.ntp.org',
+        rtcpEnabled: true,
       };
       expect(empty).toEqual({});
       expect(full.vlanId).toBe(100);
+      expect(full.rtcpEnabled).toBe(true);
     });
 
     it('FeatureSettings interface works with all optional fields', () => {

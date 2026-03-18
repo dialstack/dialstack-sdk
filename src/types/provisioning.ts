@@ -209,6 +209,10 @@ export interface NetworkSettings {
    * NTP server hostname or IP address for time synchronization.
    */
   ntpServer?: string;
+  /**
+   * Enable RTCP for quality metrics (MOS scores). Defaults to true.
+   */
+  rtcpEnabled?: boolean;
 }
 
 /**
