@@ -69,41 +69,8 @@ export { defaultIcons } from './components/base-component';
 // They are registered automatically when the SDK is loaded in a browser.
 // For advanced usage, import from '@dialstack/sdk/components'.
 
-// React exports
-export {
-  DialstackComponentsProvider,
-  useDialstackComponents,
-  useDialstack,
-} from './react/DialstackComponentsProvider';
-export { useCreateComponent } from './react/useCreateComponent';
-export { useUpdateWithSetter } from './react/useUpdateWithSetter';
-export { CallLogs } from './react/CallLogs';
-export { Voicemails } from './react/Voicemails';
-export { CallHistory } from './react/CallHistory';
-export { DialPlanViewer } from './react/DialPlanViewer';
-export { PhoneNumberOrdering } from './react/PhoneNumberOrdering';
-export { PhoneNumbers } from './react/PhoneNumbers';
-export { AccountOnboarding } from './react/AccountOnboarding';
-export { OnboardingPortal } from './react/OnboardingPortal';
-
-export type { DialstackComponentsProviderProps } from './react/DialstackComponentsProvider';
-export type { CallLogsProps } from './react/CallLogs';
-export type { VoicemailsProps } from './react/Voicemails';
-export type { CallHistoryProps } from './react/CallHistory';
-export type { PhoneNumberOrderingProps } from './react/PhoneNumberOrdering';
-export type { PhoneNumbersProps } from './react/PhoneNumbers';
-export type { AccountOnboardingProps } from './react/AccountOnboarding';
-export type { OnboardingPortalProps } from './react/OnboardingPortal';
-export type {
-  DialPlan,
-  DialPlanNode,
-  DialPlanNodeType,
-  ScheduleNode,
-  InternalDialNode,
-  ScheduleNodeConfig,
-  InternalDialNodeConfig,
-  DialPlanViewerProps,
-} from './types/dial-plan';
+// Note: React components and hooks are exported from '@dialstack/sdk/react'
+// Do not import React components from this entry point.
 
 // Provisioning types
 export type {

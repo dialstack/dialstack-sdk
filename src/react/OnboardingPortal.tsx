@@ -3,6 +3,8 @@
  */
 
 import React from 'react';
+// Ensure Web Component is registered before creating instances
+import '../components/onboarding-portal';
 import { useDialstackComponents } from './DialstackComponentsProvider';
 import { useCreateComponent } from './useCreateComponent';
 import { useUpdateWithSetter } from './useUpdateWithSetter';

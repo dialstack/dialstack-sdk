@@ -53,32 +53,5 @@ export type {
 // Default icons (can be used to customize or extend)
 export { defaultIcons } from './components/base-component';
 
-// React exports
-export {
-  DialstackComponentsProvider,
-  useDialstackComponents,
-} from './react/DialstackComponentsProvider';
-export { useCreateComponent } from './react/useCreateComponent';
-export { useUpdateWithSetter } from './react/useUpdateWithSetter';
-export { CallLogs } from './react/CallLogs';
-export { Voicemails } from './react/Voicemails';
-export { CallHistory } from './react/CallHistory';
-export { DialPlanViewer } from './react/DialPlanViewer';
-
-export type { DialstackComponentsProviderProps } from './react/DialstackComponentsProvider';
-export type { CallLogsProps } from './react/CallLogs';
-export type { VoicemailsProps } from './react/Voicemails';
-export type { CallHistoryProps } from './react/CallHistory';
-export type {
-  DialPlan,
-  DialPlanNode,
-  DialPlanNodeType,
-  ScheduleNode,
-  InternalDialNode,
-  ScheduleNodeConfig,
-  InternalDialNodeConfig,
-  DialPlanViewerProps,
-} from './types/dial-plan';
-
 // Type-only re-exports (safe for SSR)
 export type { DateRange } from './components/call-logs';

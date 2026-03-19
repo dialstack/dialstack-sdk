@@ -8,24 +8,24 @@ import pkg from './package.json' with { type: 'json' };
 
 const production = !process.env.ROLLUP_WATCH;
 
-// Inline plugin: import local .css files as exported strings
-function cssRawPlugin() {
+// Inline plugin: import .css files as exported strings
+// When bundleNodeModulesCss is true, also inlines CSS from node_modules
+function cssRawPlugin({ bundleNodeModulesCss = false } = {}) {
   return {
     name: 'css-raw',
     async load(id) {
-      if (id.endsWith('.css') && !id.includes('node_modules')) {
-        const fs = await import('node:fs/promises');
-        const content = await fs.readFile(id, 'utf-8');
-        return `export default ${JSON.stringify(content)};`;
-      }
-      return null;
+      if (!id.endsWith('.css')) return null;
+      if (id.includes('node_modules') && !bundleNodeModulesCss) return null;
+      const fs = await import('node:fs/promises');
+      const content = await fs.readFile(id, 'utf-8');
+      return `export default ${JSON.stringify(content)};`;
     },
   };
 }
 
 // Shared plugins for browser builds
-const browserPlugins = (excludeServer = true) => [
-  cssRawPlugin(),
+const browserPlugins = ({ excludeServer = true, bundleNodeModulesCss = false } = {}) => [
+  cssRawPlugin({ bundleNodeModulesCss }),
   replace({
     preventAssignment: true,
     values: {
@@ -63,7 +63,8 @@ export default [
   // Browser SDK (with side effects - auto-registers components)
   {
     input: 'src/index.ts',
-    external: (id) => /^react(-dom)?$/.test(id) || (/\.css$/.test(id) && id.includes('node_modules')),
+    external: (id) =>
+      /^react(-dom)?$/.test(id) || (/\.css$/.test(id) && id.includes('node_modules')),
     output: [
       {
         file: 'dist/sdk.cjs',
@@ -92,7 +93,8 @@ export default [
   // Pure SDK (no side effects - for SSR/testing)
   {
     input: 'src/pure.ts',
-    external: (id) => /^react(-dom)?$/.test(id) || (/\.css$/.test(id) && id.includes('node_modules')),
+    external: (id) =>
+      /^react(-dom)?$/.test(id) || (/\.css$/.test(id) && id.includes('node_modules')),
     output: [
       {
         file: 'dist/pure.cjs',
@@ -109,6 +111,25 @@ export default [
       },
     ],
     plugins: browserPlugins(),
+  },
+  // React entry (all React components — bundles @xyflow/react, dagre, canvas-confetti)
+  {
+    input: 'src/react.ts',
+    external: (id) => /^react(-dom)?$/.test(id),
+    output: [
+      {
+        file: 'dist/react.cjs',
+        format: 'cjs',
+        sourcemap: true,
+        exports: 'named',
+      },
+      {
+        file: 'dist/react.mjs',
+        format: 'esm',
+        sourcemap: true,
+      },
+    ],
+    plugins: browserPlugins({ bundleNodeModulesCss: true }),
   },
   // Server SDK (Node.js)
   {

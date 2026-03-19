@@ -3,47 +3,95 @@
  */
 
 import * as SDK from '../index';
+import * as ReactSDK from '../react';
 
-describe('SDK Exports', () => {
+describe('SDK Main Entry Exports', () => {
   it('exports loadDialstackAndInitialize function', () => {
     expect(SDK.loadDialstackAndInitialize).toBeDefined();
     expect(typeof SDK.loadDialstackAndInitialize).toBe('function');
   });
 
+  it('exports defaultIcons', () => {
+    expect(SDK.defaultIcons).toBeDefined();
+  });
+
+  it('exports US_TIMEZONES', () => {
+    expect(SDK.US_TIMEZONES).toBeDefined();
+  });
+
+  it('exports isDeskphone function', () => {
+    expect(SDK.isDeskphone).toBeDefined();
+    expect(typeof SDK.isDeskphone).toBe('function');
+  });
+
+  it('exports isDECTBase function', () => {
+    expect(SDK.isDECTBase).toBeDefined();
+    expect(typeof SDK.isDECTBase).toBe('function');
+  });
+
+  it('does NOT export React components or hooks', () => {
+    const sdkAny = SDK as Record<string, unknown>;
+    expect(sdkAny['DialstackComponentsProvider']).toBeUndefined();
+    expect(sdkAny['useDialstackComponents']).toBeUndefined();
+    expect(sdkAny['useDialstack']).toBeUndefined();
+    expect(sdkAny['useCreateComponent']).toBeUndefined();
+    expect(sdkAny['useUpdateWithSetter']).toBeUndefined();
+    expect(sdkAny['CallLogs']).toBeUndefined();
+    expect(sdkAny['Voicemails']).toBeUndefined();
+    expect(sdkAny['CallHistory']).toBeUndefined();
+    expect(sdkAny['DialPlanViewer']).toBeUndefined();
+    expect(sdkAny['PhoneNumberOrdering']).toBeUndefined();
+    expect(sdkAny['PhoneNumbers']).toBeUndefined();
+    expect(sdkAny['AccountOnboarding']).toBeUndefined();
+    expect(sdkAny['OnboardingPortal']).toBeUndefined();
+  });
+});
+
+describe('SDK React Entry Exports', () => {
   it('exports DialstackComponentsProvider component', () => {
-    expect(SDK.DialstackComponentsProvider).toBeDefined();
+    expect(ReactSDK.DialstackComponentsProvider).toBeDefined();
   });
 
   it('exports useDialstackComponents hook', () => {
-    expect(SDK.useDialstackComponents).toBeDefined();
-    expect(typeof SDK.useDialstackComponents).toBe('function');
+    expect(ReactSDK.useDialstackComponents).toBeDefined();
+    expect(typeof ReactSDK.useDialstackComponents).toBe('function');
   });
 
   it('exports useDialstack hook', () => {
-    expect(SDK.useDialstack).toBeDefined();
-    expect(typeof SDK.useDialstack).toBe('function');
+    expect(ReactSDK.useDialstack).toBeDefined();
+    expect(typeof ReactSDK.useDialstack).toBe('function');
   });
 
   it('exports useCreateComponent hook', () => {
-    expect(SDK.useCreateComponent).toBeDefined();
-    expect(typeof SDK.useCreateComponent).toBe('function');
+    expect(ReactSDK.useCreateComponent).toBeDefined();
+    expect(typeof ReactSDK.useCreateComponent).toBe('function');
   });
 
   it('exports useUpdateWithSetter hook', () => {
-    expect(SDK.useUpdateWithSetter).toBeDefined();
-    expect(typeof SDK.useUpdateWithSetter).toBe('function');
+    expect(ReactSDK.useUpdateWithSetter).toBeDefined();
+    expect(typeof ReactSDK.useUpdateWithSetter).toBe('function');
   });
 
   it('exports CallLogs component', () => {
-    expect(SDK.CallLogs).toBeDefined();
+    expect(ReactSDK.CallLogs).toBeDefined();
   });
 
   it('exports Voicemails component', () => {
-    expect(SDK.Voicemails).toBeDefined();
+    expect(ReactSDK.Voicemails).toBeDefined();
   });
 
   describe('Naming conventions', () => {
-    const reactComponentExports = ['DialstackComponentsProvider', 'CallLogs', 'Voicemails'];
+    const reactComponentExports = [
+      'DialstackComponentsProvider',
+      'CallLogs',
+      'Voicemails',
+      'CallHistory',
+      'DialPlanViewer',
+      'PhoneNumberOrdering',
+      'PhoneNumbers',
+      'AccountOnboarding',
+      'OnboardingPortal',
+    ];
 
     const hookExports = [
       'useDialstackComponents',
@@ -51,8 +99,6 @@ describe('SDK Exports', () => {
       'useCreateComponent',
       'useUpdateWithSetter',
     ];
-
-    const functionExports = ['loadDialstackAndInitialize'];
 
     it('all React component exports start with uppercase letter', () => {
       const allStartWithUppercase = reactComponentExports.every((name) => /^[A-Z]/.test(name));
@@ -64,15 +110,10 @@ describe('SDK Exports', () => {
       expect(allStartWithUse).toBe(true);
     });
 
-    it('all function exports start with lowercase letter', () => {
-      const allStartWithLowercase = functionExports.every((name) => /^[a-z]/.test(name));
-      expect(allStartWithLowercase).toBe(true);
-    });
-
-    it('all exports exist in SDK', () => {
-      const allExports = [...reactComponentExports, ...hookExports, ...functionExports];
+    it('all exports exist in React SDK', () => {
+      const allExports = [...reactComponentExports, ...hookExports];
       const allExist = allExports.every(
-        (name) => (SDK as Record<string, unknown>)[name] !== undefined
+        (name) => (ReactSDK as Record<string, unknown>)[name] !== undefined
       );
       expect(allExist).toBe(true);
     });
