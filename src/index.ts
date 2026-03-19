@@ -20,6 +20,7 @@ export type {
   CallLogsCallbacks,
   VoicemailsCallbacks,
   CallLog,
+  QualityMetricLeg,
   FormattingOptions,
   PaginationOptions,
   // Real-time call events

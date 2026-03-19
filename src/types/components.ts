@@ -232,6 +232,7 @@ export interface CallLog {
   duration_seconds?: number;
   status: 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
   summary?: string | null;
+  recording_url?: string | null;
 
   // Per-leg quality metrics
   quality_metrics?: QualityMetricLeg[];

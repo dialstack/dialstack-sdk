@@ -4,6 +4,7 @@
 
 import type { AppearanceOptions, UpdateOptions } from './appearance';
 import type {
+  CallLog,
   ComponentTagName,
   ComponentElement,
   Transcript,
@@ -339,6 +340,14 @@ export interface DialStackInstance {
    * @returns Promise resolving to the phone number details
    */
   getPhoneNumber(phoneNumberId: string): Promise<DIDItem>;
+
+  /**
+   * Get a single call log (CDR) by ID
+   *
+   * @param callId - The call log ID (e.g., 'cdr_01abc...')
+   * @returns Promise resolving to the call log details
+   */
+  getCallLog(callId: string): Promise<CallLog>;
 
   /**
    * Update the routing target for a phone number

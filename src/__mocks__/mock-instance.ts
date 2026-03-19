@@ -471,6 +471,33 @@ export function createMockInstance(
       if (!did) throw new Error('Phone number not found');
       return { ...did };
     },
+    getCallLog: async (callId: string) => {
+      await delay();
+      return {
+        id: callId,
+        direction: 'inbound' as const,
+        from_number: '+15551234567',
+        from_label: 'John Doe',
+        to_number: '+15559876543',
+        to_label: 'Front Desk',
+        started_at: new Date(Date.now() - 300000).toISOString(),
+        answered_at: new Date(Date.now() - 295000).toISOString(),
+        ended_at: new Date(Date.now() - 60000).toISOString(),
+        duration_seconds: 235,
+        status: 'completed' as const,
+        summary: 'Customer called to inquire about their account balance.',
+        recording_url: 'https://example.com/mock-recording.wav',
+        quality_metrics: [
+          {
+            leg: 'pstn',
+            mos: 4.2,
+            jitter_ms: 12.5,
+            packet_loss_pct: 0.1,
+            rtt_ms: 45.0,
+          },
+        ],
+      };
+    },
     updatePhoneNumberRoute: async (phoneNumberId: string, routingTarget: string | null) => {
       await delay();
       const did = mockDIDs.find((d) => d.id === phoneNumberId);

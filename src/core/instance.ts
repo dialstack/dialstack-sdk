@@ -14,6 +14,7 @@ import type {
   CallEventMap,
   CallEventHandler,
   IncomingCallEvent,
+  CallLog,
   Transcript,
   VoicemailTranscript,
   Extension,
@@ -484,6 +485,21 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       const errorText = await response.text();
       throw new ApiError(
         `Failed to get phone number: ${response.status} ${errorText}`,
+        response.status
+      );
+    }
+    return response.json();
+  }
+
+  /**
+   * Get a single call log (CDR) by ID
+   */
+  async getCallLog(callId: string): Promise<CallLog> {
+    const response = await this.fetchApi(`/v1/calls/${callId}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new ApiError(
+        `Failed to get call log: ${response.status} ${errorText}`,
         response.status
       );
     }
