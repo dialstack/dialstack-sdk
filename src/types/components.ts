@@ -220,6 +220,7 @@ export interface CallLog {
   user_id?: string;
   endpoint_id?: string;
   did_id?: string;
+  did_phone_number?: string;
   direction: 'inbound' | 'outbound' | 'internal';
   from_number: string;
   from_label?: string | null;

@@ -317,6 +317,42 @@ export class CallLogsComponent extends BaseComponent {
   }
 
   /**
+   * Format the "From" cell content based on call direction.
+   * Outbound: DID (caller ID) on top, extension/user as secondary.
+   * Inbound/Internal: external caller or extension.
+   */
+  private formatFromCell(call: CallLog): string {
+    if (call.direction === 'outbound' && call.did_phone_number) {
+      const did = this.formatPhoneNumber(call.did_phone_number);
+      const calledBy = this.formatCallParty(call.from_number, call.from_label);
+      return `${did}<br><span class="cell-secondary">${this.t('callLogs.calledBy')} ${calledBy}</span>`;
+    }
+    // Add spacer when the other cell (To) has a secondary line, to keep PSTN numbers aligned
+    if (call.direction === 'inbound' && call.did_phone_number) {
+      return `${this.formatCallParty(call.from_number, call.from_label)}<br><span class="cell-secondary">&nbsp;</span>`;
+    }
+    return this.formatCallParty(call.from_number, call.from_label);
+  }
+
+  /**
+   * Format the "To" cell content based on call direction.
+   * Inbound: DID (number dialed) on top, routing target as secondary.
+   * Outbound/Internal: external destination or extension.
+   */
+  private formatToCell(call: CallLog): string {
+    if (call.direction === 'inbound' && call.did_phone_number) {
+      const did = this.formatPhoneNumber(call.did_phone_number);
+      const routedTo = this.formatCallParty(call.to_number, call.to_label);
+      return `${did}<br><span class="cell-secondary">${this.t('callLogs.routedTo')} ${routedTo}</span>`;
+    }
+    // Add spacer when the other cell (From) has a secondary line, to keep PSTN numbers aligned
+    if (call.direction === 'outbound' && call.did_phone_number) {
+      return `${this.formatCallParty(call.to_number, call.to_label)}<br><span class="cell-secondary">&nbsp;</span>`;
+    }
+    return this.formatCallParty(call.to_number, call.to_label);
+  }
+
+  /**
    * Get color class for call direction
    */
   private getDirectionClass(direction: string): string {
@@ -478,6 +514,13 @@ export class CallLogsComponent extends BaseComponent {
 
         tbody tr {
           cursor: pointer;
+        }
+
+        .cell-secondary {
+          display: block;
+          font-size: var(--ds-font-size-small);
+          color: var(--ds-color-text-secondary);
+          margin-top: 2px;
         }
 
         .badge {
@@ -663,8 +706,8 @@ export class CallLogsComponent extends BaseComponent {
           <tr data-call-id="${call.id}" tabindex="0" role="row" part="table-row"${rowClassStr}>
             ${showDate ? `<td part="cell cell-date">${this.formatDate(call.started_at)}</td>` : ''}
             ${showDirection ? `<td part="cell cell-direction"><span class="badge ${this.getDirectionClass(call.direction)}" part="badge badge-direction">${this.formatDirection(call.direction)}</span></td>` : ''}
-            ${showFrom ? `<td part="cell cell-from">${this.formatCallParty(call.from_number, call.from_label)}</td>` : ''}
-            ${showTo ? `<td part="cell cell-to">${this.formatCallParty(call.to_number, call.to_label)}</td>` : ''}
+            ${showFrom ? `<td part="cell cell-from">${this.formatFromCell(call)}</td>` : ''}
+            ${showTo ? `<td part="cell cell-to">${this.formatToCell(call)}</td>` : ''}
             ${showDuration ? `<td part="cell cell-duration">${this.formatDuration(call.duration_seconds || 0)}</td>` : ''}
             ${showStatus ? `<td part="cell cell-status"><span class="badge ${this.getStatusClass(call.status)}" part="badge badge-status">${this.formatStatus(call.status)}</span></td>` : ''}
             ${showQuality ? `<td part="cell cell-quality"><span class="badge ${this.getMosClass(mos)}" part="badge badge-quality" title="${this.getMosTooltip(mos)}">${this.formatMos(mos)}</span></td>` : ''}
