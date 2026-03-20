@@ -15,34 +15,36 @@ npm install @dialstack/sdk
 ### React
 
 ```tsx
-import { initialize, DialstackComponentsProvider, CallLogs, Voicemails } from '@dialstack/sdk';
+import { loadDialstackAndInitialize } from '@dialstack/sdk';
+import { DialstackComponentsProvider, CallLogs, Voicemails } from '@dialstack/sdk/react';
 import { useEffect, useState } from 'react';
-
-// Initialize DialStack with your publishable key
-const dialstack = initialize({
-  publishableKey: 'pk_live_YOUR_PUBLISHABLE_KEY',
-});
+import type { DialStackInstance } from '@dialstack/sdk';
 
 function App() {
-  const [clientSecret, setClientSecret] = useState('');
+  const [dialstack, setDialstack] = useState<DialStackInstance | null>(null);
 
   useEffect(() => {
-    // Fetch account session from your backend
-    fetch('https://your-backend.com/api/create-session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accountId: 'acct_123' }),
-    })
-      .then((res) => res.json())
-      .then((data) => setClientSecret(data.client_secret));
+    // Initialize DialStack with your publishable key and session fetcher
+    loadDialstackAndInitialize({
+      publishableKey: 'pk_live_YOUR_PUBLISHABLE_KEY',
+      fetchClientSecret: async () => {
+        const res = await fetch('https://your-backend.com/api/create-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accountId: 'acct_123' }),
+        });
+        const data = await res.json();
+        return data.client_secret;
+      },
+    }).then(setDialstack);
   }, []);
 
-  if (!clientSecret) {
+  if (!dialstack) {
     return <div>Loading...</div>;
   }
 
   return (
-    <DialstackComponentsProvider dialstack={dialstack} clientSecret={clientSecret}>
+    <DialstackComponentsProvider dialstack={dialstack}>
       <div>
         <h1>My Voice Dashboard</h1>
         <CallLogs />
@@ -66,25 +68,18 @@ function App() {
   <dialstack-voicemails></dialstack-voicemails>
 
   <script>
-    // Initialize DialStack
-    const dialstack = DialStack.initialize({
-      publishableKey: 'pk_live_YOUR_PUBLISHABLE_KEY'
+    // Initialize DialStack with session fetcher
+    DialStack.loadDialstackAndInitialize({
+      publishableKey: 'pk_live_YOUR_PUBLISHABLE_KEY',
+      fetchClientSecret: async () => {
+        const res = await fetch('https://your-backend.com/api/create-session', {
+          method: 'POST',
+          body: JSON.stringify({ accountId: 'acct_123' })
+        });
+        const data = await res.json();
+        return data.client_secret;
+      }
     });
-
-    // Set client secret on components
-    const callLogs = document.querySelector('dialstack-call-logs');
-    const voicemails = document.querySelector('dialstack-voicemails');
-
-    // Fetch client secret from your backend
-    fetch('https://your-backend.com/api/create-session', {
-      method: 'POST',
-      body: JSON.stringify({ accountId: 'acct_123' })
-    })
-      .then(res => res.json())
-      .then(data => {
-        callLogs.setClientSecret(data.client_secret);
-        voicemails.setClientSecret(data.client_secret);
-      });
   </script>
 </body>
 </html>
@@ -144,8 +139,9 @@ Display a list of voicemails with playback controls.
 Customize component appearance using CSS variables passed via the `appearance` option during initialization:
 
 ```tsx
-const dialstack = initialize({
+const dialstack = await loadDialstackAndInitialize({
   publishableKey: 'pk_live_YOUR_KEY',
+  fetchClientSecret: async () => { /* ... */ },
   appearance: {
     theme: 'light', // 'light' | 'dark' | 'auto'
     variables: {
@@ -253,23 +249,24 @@ All components are built with accessibility in mind:
 
 ## API Reference
 
-### `initialize(options)`
+### `loadDialstackAndInitialize(options)`
 
-Initialize the DialStack SDK with your publishable key.
+Initialize the DialStack SDK with your publishable key and session fetcher.
 
 **Parameters:**
 - `options.publishableKey` (string, required): Your DialStack publishable key (starts with `pk_live_` or `pk_test_`)
+- `options.fetchClientSecret` (function, required): Async function that fetches a client secret from your backend. Can return a string or `{ clientSecret, expiresAt }`.
+- `options.appearance` (object, optional): Theming options
 - `options.apiUrl` (string, optional): Custom API endpoint URL
 
-**Returns:** `DialStackInstance`
+**Returns:** `Promise<DialStackInstance>`
 
 ### `DialstackComponentsProvider`
 
 React Context Provider that makes the DialStack instance and client secret available to child components.
 
 **Props:**
-- `dialstack` (DialStackInstance, required): The DialStack instance from `initialize()`
-- `clientSecret` (string, required): Account session client secret from your backend
+- `dialstack` (DialStackInstance, required): The DialStack instance from `loadDialstackAndInitialize()`
 - `children` (ReactNode, required): Child components
 
 ## Authentication
@@ -284,9 +281,9 @@ The SDK uses account-scoped sessions for authentication. You must:
    Content-Type: application/json
    ```
 
-2. Pass the returned `client_secret` to the `DialstackComponentsProvider`
+2. Provide a `fetchClientSecret` callback when calling `loadDialstackAndInitialize()` that returns the `client_secret` from your backend.
 
-Sessions expire after 1 hour. Your application should handle refreshing expired sessions.
+Sessions expire after 1 hour. The SDK automatically refreshes sessions using the `fetchClientSecret` callback.
 
 **Security Note**: Only server-side API keys can create sessions. Session tokens cannot be used to create new sessions, preventing unauthorized session extension.
 
