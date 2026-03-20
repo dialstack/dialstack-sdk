@@ -19,6 +19,7 @@ import { AsYouType, parsePhoneNumberFromString } from 'libphonenumber-js';
 import { US_STATES } from '../../constants/us-states';
 import {
   SUCCESS_SVG,
+  ERROR_SVG,
   PORT_SVG,
   PLUS_CIRCLE_SVG,
   CHECK_CIRCLE_SVG,
@@ -183,6 +184,10 @@ export class NumbersStepHelper {
   private e911ProvisionedLocation: OnboardingLocation | null = null;
   private e911PrimaryDid: DIDItem | null = null;
   private e911Generation = 0;
+  private e911PollTimer: ReturnType<typeof setTimeout> | null = null;
+  private e911PollCount = 0;
+  private static readonly E911_POLL_INTERVAL_MS = 2000;
+  private static readonly E911_POLL_MAX = 5;
 
   // Caller ID state
   private callerIdInputs = new Map<string, string>();
@@ -378,6 +383,56 @@ export class NumbersStepHelper {
   /** Cancel any in-flight E911 provisioning via generation mismatch. */
   private cancelE911(): void {
     this.e911Generation++;
+    this.stopE911Polling();
+  }
+
+  private stopE911Polling(): void {
+    if (this.e911PollTimer) {
+      clearTimeout(this.e911PollTimer);
+      this.e911PollTimer = null;
+    }
+  }
+
+  private startE911Polling(locationId: string, gen: number): void {
+    this.stopE911Polling();
+    this.e911PollCount = 0;
+    this.e911PollNext(locationId, gen);
+  }
+
+  private e911PollNext(locationId: string, gen: number): void {
+    this.e911PollTimer = setTimeout(async () => {
+      if (this.e911Generation !== gen) return;
+      this.e911PollCount++;
+      try {
+        const location = await this.host.instance!.getLocation(locationId);
+        if (this.e911Generation !== gen) return;
+        this.e911ProvisionedLocation = location;
+
+        if (location.e911_status === 'provisioned') {
+          this.stopE911Polling();
+          this.e911FlowState = 'simple';
+          this.host.render();
+        } else if (location.e911_status === 'failed') {
+          this.stopE911Polling();
+          this.e911FlowState = 'failed';
+          this.host.render();
+        } else if (this.e911PollCount < NumbersStepHelper.E911_POLL_MAX) {
+          this.host.render();
+          this.e911PollNext(locationId, gen);
+        } else {
+          // Max polls reached, still pending — show informative message
+          this.stopE911Polling();
+          this.e911FlowState = 'simple';
+          this.host.render();
+        }
+      } catch (err) {
+        if (this.e911Generation !== gen) return;
+        console.warn('[dialstack] E911 poll failed:', err);
+        this.stopE911Polling();
+        this.e911FlowState = 'failed';
+        this.host.render();
+      }
+    }, NumbersStepHelper.E911_POLL_INTERVAL_MS);
   }
 
   private numResetOrderFlow(): void {
@@ -725,6 +780,9 @@ export class NumbersStepHelper {
         return false;
       case 'num-retry-load':
         this.loadNumbersData();
+        return true;
+      case 'e911-retry':
+        this.tryAutoProvisionE911();
         return true;
       case 'num-start-order':
         this.numResetOrderFlow();
@@ -2251,14 +2309,18 @@ export class NumbersStepHelper {
       if (location.primary_did_id) {
         this.e911PrimaryDid = activeDIDs.find((d) => d.id === location.primary_did_id) ?? null;
 
-        // Already provisioned or in progress — show status directly
-        if (
-          location.e911_status === 'provisioned' ||
-          location.e911_status === 'pending' ||
-          location.e911_status === 'binding'
-        ) {
+        // Already provisioned — show status directly
+        if (location.e911_status === 'provisioned') {
           this.e911ProvisionedLocation = location;
           this.e911FlowState = 'simple';
+          this.host.render();
+          return;
+        }
+
+        // In progress — start polling for completion
+        if (location.e911_status === 'pending' || location.e911_status === 'binding') {
+          this.e911ProvisionedLocation = location;
+          this.startE911Polling(location.id, gen);
           this.host.render();
           return;
         }
@@ -2274,11 +2336,27 @@ export class NumbersStepHelper {
             );
             if (cancelled()) return;
             this.e911ProvisionedLocation = provisionedLocation;
-            this.e911FlowState = 'simple';
-            this.host.render();
+
+            if (
+              provisionedLocation.e911_status === 'pending' ||
+              provisionedLocation.e911_status === 'binding'
+            ) {
+              this.startE911Polling(location.id, gen);
+              this.host.render();
+            } else if (provisionedLocation.e911_status === 'failed') {
+              this.e911FlowState = 'failed';
+              this.host.render();
+            } else {
+              this.e911FlowState = 'simple';
+              this.host.render();
+            }
             return;
           } catch (retryErr) {
             console.warn('[dialstack] E911 retry provisioning failed:', retryErr);
+            if (cancelled()) return;
+            this.e911FlowState = 'failed';
+            this.host.render();
+            return;
           }
         }
         if (cancelled()) return;
@@ -2319,12 +2397,24 @@ export class NumbersStepHelper {
       if (cancelled()) return;
       this.e911ProvisionedLocation = provisionedLocation;
       this.e911PrimaryDid = selectedDID;
-      this.e911FlowState = 'simple';
-      this.host.render();
+
+      if (
+        provisionedLocation.e911_status === 'pending' ||
+        provisionedLocation.e911_status === 'binding'
+      ) {
+        this.startE911Polling(location.id, gen);
+        this.host.render();
+      } else if (provisionedLocation.e911_status === 'failed') {
+        this.e911FlowState = 'failed';
+        this.host.render();
+      } else {
+        this.e911FlowState = 'simple';
+        this.host.render();
+      }
     } catch (err) {
       if (cancelled()) return;
-      console.warn('[dialstack] E911 auto-provisioning failed, deferring to manual setup:', err);
-      this.e911FlowState = 'complex';
+      console.warn('[dialstack] E911 auto-provisioning failed:', err);
+      this.e911FlowState = 'failed';
       this.host.render();
     }
   }
@@ -2333,7 +2423,16 @@ export class NumbersStepHelper {
     const t = this.host.t.bind(this.host);
 
     if (this.e911FlowState === 'running') {
-      return `<div class="e911-panel"><div class="e911-loading">${t('accountOnboarding.complete.e911.loading')}</div></div>`;
+      const statusMsg =
+        this.e911PollCount > 0
+          ? t('accountOnboarding.complete.e911.pollingStatus')
+          : t('accountOnboarding.complete.e911.loading');
+      return `<div class="e911-panel">
+        <div class="center-state" role="status" aria-live="polite">
+          <div class="spinner" aria-hidden="true"></div>
+          <div class="center-title">${statusMsg}</div>
+        </div>
+      </div>`;
     }
 
     if (this.e911FlowState === 'simple') {
@@ -2363,15 +2462,30 @@ export class NumbersStepHelper {
           `<div class="e911-detail">${CHECK_CIRCLE_SVG} ${t('accountOnboarding.complete.e911.verified')}</div>`
         );
       } else if (e911Status === 'pending' || e911Status === 'binding') {
-        lines.push(
-          `<div class="e911-detail">${t('accountOnboarding.complete.e911.processing')}</div>`
-        );
+        const pendingMsg =
+          this.e911PollCount >= NumbersStepHelper.E911_POLL_MAX
+            ? t('accountOnboarding.complete.e911.pendingAfterPolling')
+            : t('accountOnboarding.complete.e911.processing');
+        lines.push(`<div class="e911-detail">${pendingMsg}</div>`);
       }
 
       return `<div class="e911-panel"><div class="inline-alert info">${lines.join('')}</div></div>`;
     }
 
-    if (this.e911FlowState === 'complex' || this.e911FlowState === 'failed') {
+    if (this.e911FlowState === 'failed') {
+      return `<div class="e911-panel">
+        <div class="center-state">
+          <div class="center-icon error">${ERROR_SVG}</div>
+          <div class="center-title">${t('accountOnboarding.complete.e911.errorTitle')}</div>
+          <div class="center-detail">${t('accountOnboarding.complete.e911.errorDescription')}</div>
+          <div class="center-btn">
+            <button class="btn btn-primary" data-action="e911-retry">${t('accountOnboarding.complete.e911.retryButton')}</button>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    if (this.e911FlowState === 'complex') {
       return `<div class="e911-panel"><div class="inline-alert warning">${t('accountOnboarding.complete.e911.deferred')}</div></div>`;
     }
 

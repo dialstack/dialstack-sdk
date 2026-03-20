@@ -1703,6 +1703,18 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     return data.data ?? [];
   }
 
+  /**
+   * Get a single location by ID
+   */
+  async getLocation(locationId: string): Promise<OnboardingLocation> {
+    const response = await this.fetchApi(`/v1/locations/${locationId}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get location: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
   // ===========================================================================
   // E911 Methods (session-scoped)
   // ===========================================================================

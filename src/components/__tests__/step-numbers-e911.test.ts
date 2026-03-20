@@ -94,6 +94,7 @@ const createMockInstance = (overrides?: Record<string, unknown>) => {
     listUsers: jest.fn().mockResolvedValue(mockUsers),
     listExtensions: jest.fn().mockResolvedValue(mockExtensions),
     listLocations: jest.fn().mockResolvedValue([]),
+    getLocation: jest.fn().mockResolvedValue(mockLocation),
     updateAccount: jest.fn().mockResolvedValue(mockAccount),
     updateLocation: jest.fn().mockResolvedValue(mockLocation),
     validateLocationE911: jest.fn().mockResolvedValue({ adjusted: false, address: {} }),
@@ -287,7 +288,7 @@ describe('Numbers Step E911 Auto-Provisioning', () => {
     const provisionedLocation = {
       ...mockLocation,
       primary_did_id: 'did_02acct',
-      e911_status: 'pending' as const,
+      e911_status: 'provisioned' as const,
     };
 
     const { element, instance } = await mountNumbers({
@@ -350,7 +351,7 @@ describe('Numbers Step E911 Auto-Provisioning', () => {
     const provisionedLocation = {
       ...mockLocation,
       primary_did_id: 'did_nm1',
-      e911_status: 'pending' as const,
+      e911_status: 'provisioned' as const,
     };
 
     const { element, instance } = await mountNumbers({
@@ -383,7 +384,7 @@ describe('Numbers Step E911 Auto-Provisioning', () => {
     expect(instance.provisionLocationE911).toHaveBeenCalledWith('loc_01abc');
   });
 
-  it('shows warning banner on provisioning API error', async () => {
+  it('shows error state with retry button on provisioning API error', async () => {
     const { element, instance } = await mountNumbers({
       listLocations: jest.fn().mockResolvedValue([mockLocation]),
       listPhoneNumbers: jest.fn().mockResolvedValue({
@@ -397,7 +398,10 @@ describe('Numbers Step E911 Auto-Provisioning', () => {
 
     await waitFor(() => {
       const text = stepRoot(element)?.textContent ?? '';
-      expect(text).toContain('E911 emergency services have not been fully configured');
+      expect(text).toContain('E911 configuration failed');
+      expect(text).toContain('error configuring emergency services');
+      expect(stepRoot(element)?.querySelector('[data-action="e911-retry"]')).toBeTruthy();
+      expect(stepRoot(element)?.querySelector('.center-icon.error')).toBeTruthy();
     });
 
     expect(instance.provisionLocationE911).not.toHaveBeenCalled();
@@ -425,7 +429,7 @@ describe('Numbers Step E911 Auto-Provisioning', () => {
     const provisionedLocation = {
       ...mockLocation,
       primary_did_id: 'did_01abc',
-      e911_status: 'pending' as const,
+      e911_status: 'provisioned' as const,
     };
 
     const { element, instance } = await mountNumbers({
@@ -498,7 +502,7 @@ describe('Numbers Step E911 Auto-Provisioning', () => {
     const provisionedLocation = {
       ...mockLocation,
       primary_did_id: 'did_02acct',
-      e911_status: 'pending' as const,
+      e911_status: 'provisioned' as const,
     };
 
     const { element, instance } = await mountNumbers({
@@ -644,6 +648,250 @@ describe('Numbers Step E911 Auto-Provisioning', () => {
     expect(instance.provisionLocationE911).not.toHaveBeenCalled();
     // Shadow root stays empty after destroy
     expect(element.shadowRoot?.innerHTML ?? '').toBe('');
+  });
+
+  it('polls when provision returns pending and resolves on provisioned', async () => {
+    const provisionedLocation = {
+      ...mockLocation,
+      primary_did_id: 'did_02acct',
+      e911_status: 'pending' as const,
+    };
+    const polledLocation = {
+      ...mockLocation,
+      primary_did_id: 'did_02acct',
+      e911_status: 'provisioned' as const,
+    };
+
+    const getLocationMock = jest.fn().mockResolvedValue(polledLocation);
+
+    const { element } = await mountNumbers({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        ...emptyList,
+        data: [mockAccountDID],
+      }),
+      updateLocation: jest.fn().mockResolvedValue(provisionedLocation),
+      validateLocationE911: jest.fn().mockResolvedValue({ adjusted: false, address: {} }),
+      provisionLocationE911: jest.fn().mockResolvedValue(provisionedLocation),
+      getLocation: getLocationMock,
+    });
+
+    await completeNumbersStep(element);
+
+    // Should be in running state with spinner after provision returns pending
+    await waitFor(() => {
+      expect(stepRoot(element)?.querySelector('.spinner')).toBeTruthy();
+    });
+
+    // Wait for first poll to resolve (2s interval + async resolution)
+    await waitFor(
+      () => {
+        const text = stepRoot(element)?.textContent ?? '';
+        expect(text).toContain('E911 emergency address is verified');
+      },
+      { timeout: 5000 }
+    );
+
+    expect(getLocationMock).toHaveBeenCalledWith('loc_01abc');
+  });
+
+  it('stops polling after max attempts and shows pending message', async () => {
+    const pendingLocation = {
+      ...mockLocation,
+      primary_did_id: 'did_02acct',
+      e911_status: 'pending' as const,
+    };
+
+    const getLocationMock = jest.fn().mockResolvedValue(pendingLocation);
+
+    const { element } = await mountNumbers({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        ...emptyList,
+        data: [mockAccountDID],
+      }),
+      updateLocation: jest.fn().mockResolvedValue(pendingLocation),
+      validateLocationE911: jest.fn().mockResolvedValue({ adjusted: false, address: {} }),
+      provisionLocationE911: jest.fn().mockResolvedValue(pendingLocation),
+      getLocation: getLocationMock,
+    });
+
+    await completeNumbersStep(element);
+
+    // Wait for all 5 polls to complete (5 * 2s = 10s + buffer)
+    await waitFor(
+      () => {
+        const text = stepRoot(element)?.textContent ?? '';
+        expect(text).toContain('emergency address verification will complete shortly');
+      },
+      { timeout: 15000 }
+    );
+
+    expect(getLocationMock).toHaveBeenCalledTimes(5);
+  }, 20000);
+
+  it('retry button re-triggers provisioning after error', async () => {
+    const provisionedLocation = {
+      ...mockLocation,
+      primary_did_id: 'did_02acct',
+      e911_status: 'provisioned' as const,
+    };
+
+    const validateMock = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('Validation failed'))
+      .mockResolvedValueOnce({ adjusted: false, address: {} });
+
+    const { element, instance } = await mountNumbers({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        ...emptyList,
+        data: [mockAccountDID],
+      }),
+      updateLocation: jest.fn().mockResolvedValue(provisionedLocation),
+      validateLocationE911: validateMock,
+      provisionLocationE911: jest.fn().mockResolvedValue(provisionedLocation),
+    });
+
+    await completeNumbersStep(element);
+
+    // Should show error with retry button
+    await waitFor(() => {
+      expect(stepRoot(element)?.querySelector('[data-action="e911-retry"]')).toBeTruthy();
+    });
+
+    // Click retry
+    clickAction(element, 'e911-retry');
+
+    // Should show success after retry
+    await waitFor(() => {
+      const text = stepRoot(element)?.textContent ?? '';
+      expect(text).toContain('E911 emergency address is verified');
+    });
+
+    expect(validateMock).toHaveBeenCalledTimes(2);
+    expect(instance.provisionLocationE911).toHaveBeenCalledWith('loc_01abc');
+  });
+
+  it('shows polling status message during active polling', async () => {
+    const pendingLocation = {
+      ...mockLocation,
+      primary_did_id: 'did_02acct',
+      e911_status: 'pending' as const,
+    };
+
+    // getLocation returns pending on first call, provisioned on second
+    const getLocationMock = jest
+      .fn()
+      .mockResolvedValueOnce(pendingLocation)
+      .mockResolvedValueOnce({
+        ...pendingLocation,
+        e911_status: 'provisioned' as const,
+      });
+
+    const { element } = await mountNumbers({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        ...emptyList,
+        data: [mockAccountDID],
+      }),
+      updateLocation: jest.fn().mockResolvedValue(pendingLocation),
+      validateLocationE911: jest.fn().mockResolvedValue({ adjusted: false, address: {} }),
+      provisionLocationE911: jest.fn().mockResolvedValue(pendingLocation),
+      getLocation: getLocationMock,
+    });
+
+    await completeNumbersStep(element);
+
+    // After first poll returns pending, should show polling status message
+    await waitFor(
+      () => {
+        const text = stepRoot(element)?.textContent ?? '';
+        expect(text).toContain('Verifying emergency services registration');
+      },
+      { timeout: 5000 }
+    );
+  });
+
+  it('starts polling when existing location has pending status', async () => {
+    const pendingLocation = {
+      ...mockLocation,
+      primary_did_id: 'did_01abc',
+      e911_status: 'pending' as const,
+    };
+    const provisionedLocation = {
+      ...mockLocation,
+      primary_did_id: 'did_01abc',
+      e911_status: 'provisioned' as const,
+    };
+
+    const getLocationMock = jest.fn().mockResolvedValue(provisionedLocation);
+
+    const { element, instance } = await mountNumbers({
+      listLocations: jest.fn().mockResolvedValue([pendingLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        ...emptyList,
+        data: [mockDID],
+      }),
+      getLocation: getLocationMock,
+    });
+
+    await completeNumbersStep(element);
+
+    // Should show spinner (polling started for existing pending location)
+    await waitFor(() => {
+      expect(stepRoot(element)?.querySelector('.spinner')).toBeTruthy();
+    });
+
+    // Wait for poll to complete and show verified status
+    await waitFor(
+      () => {
+        const text = stepRoot(element)?.textContent ?? '';
+        expect(text).toContain('E911 emergency address is verified');
+      },
+      { timeout: 5000 }
+    );
+
+    expect(getLocationMock).toHaveBeenCalledWith('loc_01abc');
+    // Should NOT have tried to provision again
+    expect(instance.provisionLocationE911).not.toHaveBeenCalled();
+  });
+
+  it('shows error state when polling encounters a network error', async () => {
+    const pendingLocation = {
+      ...mockLocation,
+      primary_did_id: 'did_02acct',
+      e911_status: 'pending' as const,
+    };
+
+    const getLocationMock = jest.fn().mockRejectedValue(new Error('Network error'));
+
+    const { element } = await mountNumbers({
+      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      listPhoneNumbers: jest.fn().mockResolvedValue({
+        ...emptyList,
+        data: [mockAccountDID],
+      }),
+      updateLocation: jest.fn().mockResolvedValue(pendingLocation),
+      validateLocationE911: jest.fn().mockResolvedValue({ adjusted: false, address: {} }),
+      provisionLocationE911: jest.fn().mockResolvedValue(pendingLocation),
+      getLocation: getLocationMock,
+    });
+
+    await completeNumbersStep(element);
+
+    // Should show error with retry after poll failure (not stuck on spinner)
+    await waitFor(
+      () => {
+        const text = stepRoot(element)?.textContent ?? '';
+        expect(text).toContain('E911 configuration failed');
+        expect(stepRoot(element)?.querySelector('[data-action="e911-retry"]')).toBeTruthy();
+      },
+      { timeout: 5000 }
+    );
+
+    // Should have only tried once before failing
+    expect(getLocationMock).toHaveBeenCalledTimes(1);
   });
 
   it('aborts E911 provisioning when component is detached from DOM', async () => {

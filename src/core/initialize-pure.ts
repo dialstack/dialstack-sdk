@@ -267,6 +267,9 @@ export async function loadDialstackAndInitialize(
     listLocations: () => {
       return instance.listLocations();
     },
+    getLocation: (locationId) => {
+      return instance.getLocation(locationId);
+    },
     // E911 methods
     validateLocationE911: (locationId) => {
       return instance.validateLocationE911(locationId);

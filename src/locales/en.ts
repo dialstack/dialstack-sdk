@@ -626,10 +626,17 @@ export const en = {
       subtitle: "It's time to start using your embedded voice system",
       e911: {
         loading: 'Configuring emergency services...',
+        pollingStatus: 'Verifying emergency services registration...',
         verified: 'E911 emergency address is verified.',
         processing: 'E911 registration is being processed. This may take a few minutes.',
+        pendingAfterPolling:
+          'E911 registration submitted. Your phone service is active — emergency address verification will complete shortly.',
         addressStandardized: 'Your address was standardized for emergency services accuracy.',
         primaryAssigned: 'assigned as primary number for',
+        errorTitle: 'E911 configuration failed',
+        errorDescription:
+          'There was an error configuring emergency services. You can retry or configure manually later.',
+        retryButton: 'Retry',
         deferred:
           'E911 emergency services have not been fully configured. Each location with a phone number needs a verified emergency address before your phone service can be activated.',
       },

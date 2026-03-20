@@ -918,6 +918,14 @@ export interface DialStackInstance {
    */
   listLocations(): Promise<OnboardingLocation[]>;
 
+  /**
+   * Get a single location by ID
+   *
+   * @param locationId - The location ID to retrieve
+   * @returns Promise resolving to the location
+   */
+  getLocation(locationId: string): Promise<OnboardingLocation>;
+
   // ===========================================================================
   // E911 Methods (session-scoped)
   // ===========================================================================
