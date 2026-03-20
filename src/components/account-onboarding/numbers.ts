@@ -12,7 +12,6 @@ import type {
   DIDItem,
   PhoneNumberItem,
   PhoneNumberStatus,
-  E911ValidationResult,
   OnboardingLocation,
 } from '../../types';
 import { AsYouType, parsePhoneNumberFromString } from 'libphonenumber-js';
@@ -180,9 +179,7 @@ export class NumbersStepHelper {
 
   // E911 state
   e911FlowState: 'idle' | 'running' | 'simple' | 'complex' | 'failed' = 'idle';
-  private e911ValidationResult: E911ValidationResult | null = null;
   private e911ProvisionedLocation: OnboardingLocation | null = null;
-  private e911PrimaryDid: DIDItem | null = null;
   private e911Generation = 0;
   private e911PollTimer: ReturnType<typeof setTimeout> | null = null;
   private e911PollCount = 0;
@@ -2307,8 +2304,6 @@ export class NumbersStepHelper {
 
       const location = locations[0]!;
       if (location.primary_did_id) {
-        this.e911PrimaryDid = activeDIDs.find((d) => d.id === location.primary_did_id) ?? null;
-
         // Already provisioned — show status directly
         if (location.e911_status === 'provisioned') {
           this.e911ProvisionedLocation = location;
@@ -2328,9 +2323,9 @@ export class NumbersStepHelper {
         // Failed or none — retry provisioning
         if (location.e911_status === 'none' || location.e911_status === 'failed') {
           try {
-            const validationResult = await this.host.instance!.validateLocationE911(location.id);
+            await this.host.instance!.validateLocationE911(location.id);
             if (cancelled()) return;
-            this.e911ValidationResult = validationResult;
+
             const provisionedLocation = await this.host.instance!.provisionLocationE911(
               location.id
             );
@@ -2388,15 +2383,12 @@ export class NumbersStepHelper {
       if (cancelled()) return;
 
       // Validate E911 address
-      const validationResult = await this.host.instance!.validateLocationE911(location.id);
+      await this.host.instance!.validateLocationE911(location.id);
       if (cancelled()) return;
-      this.e911ValidationResult = validationResult;
-
       // Provision E911
       const provisionedLocation = await this.host.instance!.provisionLocationE911(location.id);
       if (cancelled()) return;
       this.e911ProvisionedLocation = provisionedLocation;
-      this.e911PrimaryDid = selectedDID;
 
       if (
         provisionedLocation.e911_status === 'pending' ||
@@ -2436,40 +2428,23 @@ export class NumbersStepHelper {
     }
 
     if (this.e911FlowState === 'simple') {
-      const loc = this.e911ProvisionedLocation;
-      const did = this.e911PrimaryDid;
-      const lines: string[] = [];
-
-      // Phone number assignment
-      if (did && loc) {
-        const phoneDisplay = did.phone_number ?? did.id;
-        lines.push(
-          `<div class="e911-detail">${this.host.escapeHtml(phoneDisplay)} ${t('accountOnboarding.complete.e911.primaryAssigned')} ${this.host.escapeHtml(loc.name)}</div>`
-        );
-      }
-
-      // Address standardized
-      if (this.e911ValidationResult?.adjusted) {
-        lines.push(
-          `<div class="e911-detail">${t('accountOnboarding.complete.e911.addressStandardized')}</div>`
-        );
-      }
-
-      // E911 status
       const e911Status = this.e911ProvisionedLocation?.e911_status;
+      let msg: string;
       if (e911Status === 'provisioned') {
-        lines.push(
-          `<div class="e911-detail">${CHECK_CIRCLE_SVG} ${t('accountOnboarding.complete.e911.verified')}</div>`
-        );
+        msg = `${CHECK_CIRCLE_SVG} ${t('accountOnboarding.complete.e911.verified')}`;
       } else if (e911Status === 'pending' || e911Status === 'binding') {
-        const pendingMsg =
+        msg =
           this.e911PollCount >= NumbersStepHelper.E911_POLL_MAX
             ? t('accountOnboarding.complete.e911.pendingAfterPolling')
             : t('accountOnboarding.complete.e911.processing');
-        lines.push(`<div class="e911-detail">${pendingMsg}</div>`);
+      } else {
+        return '';
       }
-
-      return `<div class="e911-panel"><div class="inline-alert info">${lines.join('')}</div></div>`;
+      return `<div class="e911-panel">
+        <div class="center-state" style="min-height:auto;padding:var(--ds-layout-spacing-md) 0">
+          <div class="center-title">${msg}</div>
+        </div>
+      </div>`;
     }
 
     if (this.e911FlowState === 'failed') {

@@ -309,7 +309,7 @@ describe('Numbers Step E911 Auto-Provisioning', () => {
 
     await waitFor(() => {
       const text = stepRoot(element)?.textContent ?? '';
-      expect(text).toContain('assigned as primary number for');
+      expect(text).toContain('E911 emergency address is verified');
     });
 
     expect(instance.updateLocation).toHaveBeenCalledWith('loc_01abc', {
@@ -373,7 +373,7 @@ describe('Numbers Step E911 Auto-Provisioning', () => {
 
     await waitFor(() => {
       const text = stepRoot(element)?.textContent ?? '';
-      expect(text).toContain('assigned as primary number for');
+      expect(text).toContain('E911 emergency address is verified');
     });
 
     // Should have used the auto-selected first DID
@@ -489,7 +489,7 @@ describe('Numbers Step E911 Auto-Provisioning', () => {
     // Wait for step-complete with E911 result
     await waitFor(() => {
       const text = stepRoot(element)?.textContent ?? '';
-      expect(text).toContain('assigned as primary number for');
+      expect(text).toContain('E911 emergency address is verified');
     });
 
     // Should have used the manually selected DID
@@ -523,7 +523,7 @@ describe('Numbers Step E911 Auto-Provisioning', () => {
 
     await waitFor(() => {
       const text = stepRoot(element)?.textContent ?? '';
-      expect(text).toContain('assigned as primary number for');
+      expect(text).toContain('E911 emergency address is verified');
     });
 
     // Should have used the account phone matched DID
@@ -590,7 +590,7 @@ describe('Numbers Step E911 Auto-Provisioning', () => {
     expect(instance.provisionLocationE911).toHaveBeenCalledWith('loc_01abc');
   });
 
-  it('shows address standardized disclosure when adjusted', async () => {
+  it('shows verified status in centered layout when provisioning succeeds with adjusted address', async () => {
     const provisionedLocation = {
       ...mockLocation,
       primary_did_id: 'did_02acct',
@@ -615,7 +615,8 @@ describe('Numbers Step E911 Auto-Provisioning', () => {
 
     await waitFor(() => {
       const text = stepRoot(element)?.textContent ?? '';
-      expect(text).toContain('address was standardized');
+      expect(text).toContain('E911 emergency address is verified');
+      expect(stepRoot(element)?.querySelector('.center-state')).toBeTruthy();
     });
   });
 
