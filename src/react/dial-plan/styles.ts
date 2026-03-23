@@ -394,21 +394,25 @@ export const dialPlanStyles = `
 }
 `;
 
-// Track if styles have been injected
-let stylesInjected = false;
+const injected = new Set<string>();
+
+/**
+ * Inject a CSS string into the document head, keyed by name.
+ * Idempotent — calling with the same name twice is a no-op.
+ */
+export function injectStyles(name: string, css: string): void {
+  if (injected.has(name) || typeof document === 'undefined') return;
+  const el = document.createElement('style');
+  el.setAttribute('data-dialstack', name);
+  el.textContent = css;
+  document.head.appendChild(el);
+  injected.add(name);
+}
 
 /**
  * Inject the dial plan styles into the document head.
  * This is idempotent - calling multiple times will only inject once.
  */
 export function injectDialPlanStyles(): void {
-  if (stylesInjected || typeof document === 'undefined') {
-    return;
-  }
-
-  const styleElement = document.createElement('style');
-  styleElement.setAttribute('data-dialstack', 'dial-plan-viewer');
-  styleElement.textContent = dialPlanStyles;
-  document.head.appendChild(styleElement);
-  stylesInjected = true;
+  injectStyles('dial-plan-viewer', dialPlanStyles);
 }

@@ -5,23 +5,27 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Redirect local .css imports to use Vite's ?inline query, which returns
-// CSS as a default-exported string instead of injecting it into the page.
-// This matches the Rollup cssRawPlugin behavior for shadow DOM components.
+// Redirect .css imports to use Vite's ?inline query, which returns CSS as a
+// default-exported string instead of injecting it into the page.  This matches
+// the Rollup cssRawPlugin behavior so Storybook surfaces the same CSS handling
+// bugs as the production bundle.
 function cssRawPlugin(): Plugin {
   return {
     name: 'css-raw',
     enforce: 'pre',
-    resolveId(source, importer) {
-      if (
-        source.endsWith('.css') &&
-        importer &&
-        !source.includes('node_modules') &&
-        !source.includes('html-proxy') &&
-        !source.includes('@xyflow')
-      ) {
-        return resolve(dirname(importer), source) + '?inline';
+    async resolveId(source, importer, options) {
+      if (!source.endsWith('.css') || !importer || source.includes('html-proxy')) return;
+
+      // For bare specifiers (@xyflow/react/dist/style.css), let Vite resolve
+      // the real path first, then append ?inline.
+      if (source.startsWith('@') || source.includes('node_modules')) {
+        const resolved = await this.resolve(source, importer, { ...options, skipSelf: true });
+        if (resolved) return resolved.id + '?inline';
+        return;
       }
+
+      // Local CSS: resolve relative to importer.
+      return resolve(dirname(importer), source) + '?inline';
     },
   };
 }

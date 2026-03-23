@@ -112,7 +112,7 @@ export default [
     ],
     plugins: browserPlugins(),
   },
-  // React entry (all React components — bundles @xyflow/react, dagre, canvas-confetti)
+  // React entry (all React components — bundles @xyflow/react, dagre)
   {
     input: 'src/react.ts',
     external: (id) => /^react(-dom)?$/.test(id),

@@ -16,14 +16,14 @@ import {
   type NodeTypes,
   type Node,
 } from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
+import xyflowStyles from '@xyflow/react/dist/style.css';
 
 import { useDialstackComponents } from './DialstackComponentsProvider';
 import { transformDialPlanToGraph, type DialPlanGraphNode } from '../utils/dial-plan-graph';
 import { StartNode } from './dial-plan/StartNode';
 import { ScheduleNode } from './dial-plan/ScheduleNode';
 import { InternalDialNode } from './dial-plan/InternalDialNode';
-import { injectDialPlanStyles } from './dial-plan/styles';
+import { injectDialPlanStyles, injectStyles } from './dial-plan/styles';
 import type {
   DialPlan,
   DialPlanViewerProps,
@@ -130,6 +130,7 @@ export const DialPlanViewer: React.FC<DialPlanViewerProps> = ({
 
   // Inject styles on mount
   useEffect(() => {
+    injectStyles('xyflow', xyflowStyles);
     injectDialPlanStyles();
   }, []);
 
