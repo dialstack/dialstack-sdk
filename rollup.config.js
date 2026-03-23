@@ -131,6 +131,27 @@ export default [
     ],
     plugins: browserPlugins({ bundleNodeModulesCss: true }),
   },
+  // Onboarding entry (native React onboarding portal — bundles canvas-confetti, libphonenumber-js)
+  // @dialstack/sdk/react is external so the onboarding bundle shares the same
+  // React context as the react bundle (avoids duplicate createContext).
+  {
+    input: 'src/onboarding.ts',
+    external: (id) => /^react(-dom)?$/.test(id) || /^@dialstack\/sdk/.test(id),
+    output: [
+      {
+        file: 'dist/onboarding.cjs',
+        format: 'cjs',
+        sourcemap: true,
+        exports: 'named',
+      },
+      {
+        file: 'dist/onboarding.mjs',
+        format: 'esm',
+        sourcemap: true,
+      },
+    ],
+    plugins: browserPlugins({ bundleNodeModulesCss: true }),
+  },
   // Server SDK (Node.js)
   {
     input: 'src/server/index.ts',

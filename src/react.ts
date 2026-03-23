@@ -23,8 +23,6 @@ export { CallHistory } from './react/CallHistory';
 export { DialPlanViewer } from './react/DialPlanViewer';
 export { PhoneNumberOrdering } from './react/PhoneNumberOrdering';
 export { PhoneNumbers } from './react/PhoneNumbers';
-export { AccountOnboarding } from './react/AccountOnboarding';
-export { OnboardingPortal } from './react/OnboardingPortal';
 
 // React prop types
 export type { DialstackComponentsProviderProps } from './react/DialstackComponentsProvider';
@@ -33,8 +31,9 @@ export type { VoicemailsProps } from './react/Voicemails';
 export type { CallHistoryProps } from './react/CallHistory';
 export type { PhoneNumberOrderingProps } from './react/PhoneNumberOrdering';
 export type { PhoneNumbersProps } from './react/PhoneNumbers';
-export type { AccountOnboardingProps } from './react/AccountOnboarding';
-export type { OnboardingPortalProps } from './react/OnboardingPortal';
+
+// Onboarding components are in their own entry point: '@dialstack/sdk/react/onboarding'
+// Import OnboardingPortal from there.
 
 // DialPlan types (used with DialPlanViewer)
 export type {

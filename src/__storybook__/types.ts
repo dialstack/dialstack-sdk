@@ -1,4 +1,4 @@
-import type { Theme } from '../types';
+import type { Theme, DIDItem } from '../types';
 
 /**
  * Extra args handled by the Storybook preview decorator (theme switching, empty state).
@@ -7,4 +7,5 @@ import type { Theme } from '../types';
 export interface DecoratorArgs {
   theme?: Theme;
   _empty?: boolean;
+  dids?: DIDItem[];
 }

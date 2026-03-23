@@ -3,7 +3,6 @@
  */
 
 import type { BaseComponentClasses } from './appearance';
-import type { BaseComponentElement } from './components';
 
 export type AccountOnboardingStep = 'account' | 'numbers' | 'hardware' | 'final_complete';
 
@@ -22,8 +21,6 @@ export interface OnboardingCollectionOptions {
     /** Hide these steps, preventing the user from seeing them. */
     exclude?: AccountOnboardingStep[];
   };
-  /** Jump straight to this step after data loads. Useful for development. */
-  initialStep?: AccountOnboardingStep;
 }
 
 export interface OnboardingPortalClasses extends BaseComponentClasses {
@@ -36,38 +33,6 @@ export interface AccountOnboardingClasses extends BaseComponentClasses {
   stepNumbers?: string;
   stepHardware?: string;
   stepComplete?: string;
-}
-
-export interface AccountOnboardingElement extends Omit<BaseComponentElement, 'setClasses'> {
-  setClasses: (classes: AccountOnboardingClasses) => void;
-  setOnExit: (cb: () => void) => void;
-  setOnStepChange: (cb: (event: { step: AccountOnboardingStep }) => void) => void;
-  setCollectionOptions: (options?: OnboardingCollectionOptions | null) => void;
-  setFullTermsOfServiceUrl: (url?: string | null) => void;
-  setRecipientTermsOfServiceUrl: (url?: string | null) => void;
-  setPrivacyPolicyUrl: (url?: string | null) => void;
-  setPlatformName: (name: string | undefined) => void;
-  getCurrentStep: () => AccountOnboardingStep;
-  getActiveSteps: () => AccountOnboardingStep[];
-  getActiveStepElement: () => {
-    getProgress: () => { activeIndex: number; totalSubSteps: number };
-  } | null;
-  getSavedStepIndex: () => number;
-  navigateToStep: (step: AccountOnboardingStep) => void;
-  setOnSubStepProgress: (cb: (() => void) | undefined) => void;
-}
-
-export interface OnboardingPortalElement extends Omit<BaseComponentElement, 'setClasses'> {
-  setClasses: (classes: OnboardingPortalClasses) => void;
-  setOnStepChange: (cb: (event: { step: AccountOnboardingStep }) => void) => void;
-  setCollectionOptions: (options?: OnboardingCollectionOptions | null) => void;
-  setFullTermsOfServiceUrl: (url?: string | null) => void;
-  setRecipientTermsOfServiceUrl: (url?: string | null) => void;
-  setPrivacyPolicyUrl: (url?: string | null) => void;
-  setPlatformName: (name: string | undefined) => void;
-  setOnBack: (cb: (() => void) | undefined) => void;
-  setBackLabel: (label: string | undefined) => void;
-  setLogoHtml: (html: string | undefined) => void;
 }
 
 export interface AccountConfig {

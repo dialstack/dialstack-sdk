@@ -113,8 +113,6 @@ export type {
   OnboardingCollectionOptions,
   AccountOnboardingClasses,
   OnboardingPortalClasses,
-  AccountOnboardingElement,
-  OnboardingPortalElement,
   AccountConfig,
   Account,
   UpdateAccountRequest,

@@ -1,5 +1,5 @@
-import { OnboardingProgressStore } from '../account-onboarding/progress-store';
-import { SIDEBAR_GROUPS } from '../account-onboarding/constants';
+import { OnboardingProgressStore } from '../../react/onboarding/progress-store';
+import { SIDEBAR_GROUPS } from '../../react/onboarding/constants';
 
 function createStore(syncFn?: (p: unknown) => void): OnboardingProgressStore {
   const store = new OnboardingProgressStore(syncFn);
@@ -262,7 +262,7 @@ describe('OnboardingProgressStore', () => {
       expect(syncFn).not.toHaveBeenCalled();
     });
 
-    it('rejects stepping back from final_complete to a regular step', () => {
+    it('allows stepping back from final_complete to a regular step (review mode)', () => {
       const syncFn = jest.fn();
       const store = createStore(syncFn);
       store.markStepComplete('account');
@@ -272,8 +272,8 @@ describe('OnboardingProgressStore', () => {
       syncFn.mockClear();
 
       store.setCurrentStep('numbers');
-      expect(store.getCurrentStep()).toBe('final_complete');
-      expect(syncFn).not.toHaveBeenCalled();
+      expect(store.getCurrentStep()).toBe('numbers');
+      expect(syncFn).toHaveBeenCalled();
     });
   });
 

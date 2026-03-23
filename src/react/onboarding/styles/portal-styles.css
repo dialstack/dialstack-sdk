@@ -1,0 +1,253 @@
+.portal-layout {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  font-family: var(
+    --ds-font-family,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif
+  );
+}
+
+.portal-sidebar {
+  width: 300px;
+  background: var(--ds-portal-sidebar-bg);
+  color: #f0f0ff;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  flex-shrink: 0;
+}
+
+.portal-logo {
+  padding: 24px 16px;
+}
+
+.portal-nav-link {
+  display: flex;
+  gap: 12px;
+  height: 48px;
+  align-items: center;
+  padding: 0 16px;
+  border-radius: 14px;
+  color: #f0f0ff;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.portal-nav-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.portal-nav-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.portal-steps-label {
+  font-size: 14px;
+  letter-spacing: 0.6px;
+  color: #f0f0ff;
+  padding: 24px 16px 8px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.portal-step-item {
+  display: flex;
+  gap: 12px;
+  height: 48px;
+  align-items: center;
+  padding: 0 16px;
+  border-radius: 14px;
+  cursor: pointer;
+  color: #f0f0ff;
+  font-size: 16px;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.portal-step-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.portal-step-item.active {
+  background: var(--ds-portal-sidebar-active);
+  color: #fff;
+}
+
+.portal-step-item.completed {
+  color: #f0f0ff;
+  cursor: pointer;
+}
+
+.portal-step-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.portal-step-name {
+  flex: 1;
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.portal-step-indicator {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.portal-sidebar-footer {
+  margin-top: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 17px;
+}
+
+.portal-footer-link {
+  display: flex;
+  gap: 12px;
+  height: 40px;
+  align-items: center;
+  padding: 0 16px;
+  border-radius: 14px;
+  color: #f0f0ff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.portal-footer-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.portal-overview {
+  flex: 1;
+  overflow: hidden;
+}
+
+.portal-main {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.portal-main > dialstack-account-onboarding {
+  flex: 1;
+  width: 100%;
+}
+
+.portal-wizard-header {
+  padding: 16px 32px;
+  font-size: 14px;
+  color: var(--ds-color-text-secondary, #6b6b80);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.portal-wizard-header:hover {
+  color: var(--ds-color-text, #1c1247);
+}
+
+.progress-ring {
+  width: 28px;
+  height: 28px;
+}
+
+.progress-ring circle {
+  transition: stroke-dashoffset 0.5s ease;
+}
+
+@keyframes check-pop {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.check-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #30a46c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: check-pop 0.4s ease-out;
+}
+
+.check-circle svg {
+  width: 14px;
+  height: 14px;
+  color: #fff;
+}
+
+/* Collapse animation for step items and label */
+@keyframes collapse {
+  to {
+    height: 0;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin: 0;
+  }
+}
+
+.portal-step-item.collapsing,
+.portal-steps-label.collapsing {
+  animation: collapse 0.3s ease-in forwards;
+  overflow: hidden;
+}
+
+/* Fade-in animation for completed item */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.portal-step-item.fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+/* Completed item label — matches .portal-steps-label typography */
+.portal-completed-label {
+  font-size: 14px;
+  letter-spacing: 0.6px;
+  color: #f0f0ff;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+/* Overview active state */
+.portal-nav-link.active {
+  background: var(--ds-portal-sidebar-active);
+}

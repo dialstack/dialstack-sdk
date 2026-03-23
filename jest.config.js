@@ -18,6 +18,7 @@ export default {
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
     '\\.css$': '<rootDir>/src/__mocks__/styleMock.js',
+    '^@dialstack/sdk/react$': '<rootDir>/src/react.ts',
   },
   testEnvironment: 'jsdom',
   setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],

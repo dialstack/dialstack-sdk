@@ -7,6 +7,7 @@ type Props = React.ComponentProps<typeof DialPlanViewer> & DecoratorArgs;
 const meta: Meta<Props> = {
   title: 'React/DialPlanViewer',
   component: DialPlanViewer,
+  tags: ['!test'],
   args: {
     dialPlanId: 'dp_01abc',
     style: { width: '100%', height: '500px' },

@@ -1,0 +1,218 @@
+/* ── User Table ── */
+.user-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: var(--ds-layout-spacing-md);
+  font-size: var(--ds-font-size-small);
+}
+
+.user-table th {
+  text-align: left;
+  font-weight: var(--ds-font-weight-medium);
+  color: var(--ds-color-text-secondary);
+  padding: var(--ds-spacing-xs) var(--ds-spacing-sm);
+  border-bottom: 1px solid var(--ds-color-border);
+}
+
+.user-table td {
+  padding: var(--ds-spacing-sm) var(--ds-spacing-sm);
+  border-bottom: 1px solid var(--ds-color-border-subtle);
+  color: var(--ds-color-text-secondary);
+}
+
+.user-table-name {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-sm);
+  font-weight: var(--ds-font-weight-medium);
+  color: var(--ds-color-text);
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--ds-color-surface-subtle);
+  color: var(--ds-color-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.user-avatar svg {
+  width: 16px;
+  height: 16px;
+}
+
+.user-table-role {
+  color: var(--ds-color-text-secondary);
+}
+
+/* ── Add User Form ── */
+.add-user-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr 120px auto;
+  gap: var(--ds-layout-spacing-sm);
+  align-items: end;
+  margin-bottom: var(--ds-layout-spacing-md);
+}
+
+.add-user-form .form-group {
+  margin-bottom: 0;
+}
+
+.btn-add {
+  white-space: nowrap;
+  align-self: end;
+  height: 44px;
+  border-radius: 100px;
+}
+
+/* ── Address Autocomplete ── */
+.address-autocomplete {
+  position: relative;
+}
+
+@keyframes dropdown-slide {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.address-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  background: var(--ds-color-background);
+  border: 1px solid var(--ds-color-border);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  animation: dropdown-slide 0.2s ease-out;
+}
+
+.address-suggestion {
+  padding: var(--ds-layout-spacing-sm);
+  cursor: pointer;
+  font-size: var(--ds-font-size-small);
+  transition: background var(--ds-transition-duration);
+  border-bottom: 1px solid var(--ds-color-border-subtle);
+}
+
+.address-suggestion:last-child {
+  border-bottom: none;
+}
+
+.address-suggestion:hover,
+.address-suggestion.highlighted {
+  background: var(--ds-color-surface-subtle);
+}
+
+.address-suggestion-title {
+  font-weight: var(--ds-font-weight-medium);
+  color: var(--ds-color-text);
+}
+
+.address-suggestion-detail {
+  color: var(--ds-color-text-secondary);
+  margin-top: 2px;
+}
+
+.address-no-results {
+  padding: var(--ds-layout-spacing-sm);
+  font-size: var(--ds-font-size-small);
+  color: var(--ds-color-text-secondary);
+  text-align: center;
+}
+
+/* ── Address Confirmed Card ── */
+@keyframes card-entrance {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.address-confirmed {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-layout-spacing-sm);
+  padding: var(--ds-layout-spacing-sm);
+  background: var(--ds-color-surface-subtle);
+  border-radius: 6px;
+  border: 1px solid var(--ds-color-border-subtle);
+  animation: card-entrance 0.3s ease-out;
+}
+
+.address-confirmed-icon {
+  flex-shrink: 0;
+}
+
+.address-confirmed-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.address-confirmed-line {
+  font-size: var(--ds-font-size-small);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.address-confirmed-line:first-child {
+  font-weight: var(--ds-font-weight-medium);
+  color: var(--ds-color-text);
+}
+
+.address-confirmed-line:last-child {
+  color: var(--ds-color-text-secondary);
+}
+
+.timezone-readonly {
+  font-size: var(--ds-font-size-small);
+  color: var(--ds-color-text-secondary);
+  padding: var(--ds-spacing-xs) 0;
+}
+
+/* ── Address Manual Fields ── */
+.address-manual-fields {
+  display: grid;
+  grid-template-columns: 1fr 5fr;
+  gap: var(--ds-layout-spacing-sm);
+}
+
+.address-manual-row-2 {
+  display: grid;
+  grid-template-columns: 2fr 2fr 2fr;
+  gap: var(--ds-layout-spacing-sm);
+  margin-top: var(--ds-layout-spacing-sm);
+}
+
+.address-manual-fields .form-group,
+.address-manual-row-2 .form-group {
+  margin-bottom: 0;
+}
+
+/* ── E911 Separator ── */
+.e911-separator {
+  text-align: center;
+  font-style: italic;
+  color: var(--ds-color-text-secondary);
+  font-size: var(--ds-font-size-small);
+  margin: var(--ds-layout-spacing-md) 0;
+}

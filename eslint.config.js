@@ -3,6 +3,7 @@ import tseslint from 'typescript-eslint';
 import { fixupPluginRules } from '@eslint/compat';
 import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
+import compatPlugin from 'eslint-plugin-compat';
 import globals from 'globals';
 
 export default tseslint.config(
@@ -13,6 +14,7 @@ export default tseslint.config(
     plugins: {
       react: fixupPluginRules(reactPlugin),
       'react-hooks': fixupPluginRules(reactHooksPlugin),
+      compat: compatPlugin,
     },
     languageOptions: {
       parserOptions: {
@@ -37,6 +39,7 @@ export default tseslint.config(
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
+      'compat/compat': 'warn',
     },
   },
   {

@@ -337,6 +337,8 @@ export const en = {
           '{phone} matches your account phone and has been selected as the primary number for E911.',
         autoMatchedBadge: 'Account number — auto-selected',
         temporary: 'Temporary',
+        temporaryNote:
+          'This is a temporary number assigned to get you started. You can replace it with a permanent number at any time.',
       },
       callerId: {
         title: 'Caller ID Setup',
@@ -381,6 +383,8 @@ export const en = {
         type: 'Type',
         status: 'Status',
         source: 'Source',
+        temporaryBanner:
+          'A temporary number has been assigned to your account while you set up your permanent numbers.',
         loadError: 'Failed to load telephone numbers. Please try again.',
         retry: 'Retry',
       },
@@ -398,6 +402,7 @@ export const en = {
       },
       source: {
         did: 'Account',
+        didTemporary: 'Temporary',
         number_order: 'New Order',
         port_order: 'Port',
       },
@@ -529,6 +534,14 @@ export const en = {
         submittedSubtitle: 'Your port request has been submitted and is being processed.',
         submittedStatus: 'Status',
         backToOverview: 'Back to Numbers',
+        carrierGroupsTitle: 'Carrier Groups',
+        carrierGroupsSubtitle:
+          'Your numbers are with different carriers. Each carrier requires a separate port request.',
+        carrierStart: 'Start',
+        carrierContinue: 'Continue',
+        carrierSubmitted: 'Submitted',
+        numberSingular: 'number',
+        numberPlural: 'numbers',
       },
       validation: {
         areaCodeRequired: 'Area code is required.',

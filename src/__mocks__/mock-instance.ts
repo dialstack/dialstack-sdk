@@ -53,12 +53,15 @@ const delay = (ms = 300) => new Promise((r) => setTimeout(r, ms));
  */
 export function createMockInstance(
   appearance: AppearanceOptions = { theme: 'light' },
-  options: { empty?: boolean } = {}
+  options: { empty?: boolean; dids?: DIDItem[] } = {}
 ): DialStackInstanceImpl {
   const empty = options.empty ?? false;
   const mockOrders = new Map<string, NumberOrder>();
   const mockPortOrders = new Map<string, PortOrder>();
-  const mockDIDs: DIDItem[] = empty ? [] : [...MOCK_PHONE_NUMBERS.data];
+  const mockEndpoints = new Map<string, OnboardingEndpoint[]>(); // userId → endpoints
+  const mockDeviceLines = new Map<string, DeviceLine[]>(); // deviceId → lines
+  const mockDECTExts = new Map<string, DECTExtension[]>(); // `${baseId}/${handsetId}` → extensions
+  const mockDIDs: DIDItem[] = options.dids ?? (empty ? [] : [...MOCK_PHONE_NUMBERS.data]);
   const mockDeviceModels: Array<{ vendor: string; model: string; count: number }> = [
     { vendor: 'snom', model: 'D785', count: 3 },
     { vendor: 'yealink', model: 'T48S', count: 1 },
@@ -88,7 +91,26 @@ export function createMockInstance(
         })
       );
 
-  const mockExtensions: Extension[] = empty
+  const mockUsersList: OnboardingUser[] = empty
+    ? []
+    : [
+        {
+          id: 'usr_mock01',
+          name: 'Alice Smith',
+          email: 'alice@acme.com',
+          created_at: '2025-01-01T00:00:00Z',
+          updated_at: '2025-01-01T00:00:00Z',
+        },
+        {
+          id: 'usr_mock02',
+          name: 'Bob Jones',
+          email: 'bob@acme.com',
+          created_at: '2025-01-02T00:00:00Z',
+          updated_at: '2025-01-02T00:00:00Z',
+        },
+      ];
+
+  const mockExtensionsList: Extension[] = empty
     ? []
     : [
         {
@@ -287,47 +309,36 @@ export function createMockInstance(
     },
     listUsers: async (): Promise<OnboardingUser[]> => {
       await delay();
-      return empty
-        ? []
-        : [
-            {
-              id: 'usr_mock01',
-              name: 'Alice Smith',
-              email: 'alice@acme.com',
-              created_at: '2025-01-01T00:00:00Z',
-              updated_at: '2025-01-01T00:00:00Z',
-            },
-            {
-              id: 'usr_mock02',
-              name: 'Bob Jones',
-              email: 'bob@acme.com',
-              created_at: '2025-01-02T00:00:00Z',
-              updated_at: '2025-01-02T00:00:00Z',
-            },
-          ];
+      return [...mockUsersList];
     },
     createUser: async (request: CreateUserRequest): Promise<OnboardingUser> => {
       await delay();
-      return {
+      const user: OnboardingUser = {
         id: 'usr_' + Math.random().toString(36).slice(2, 10),
         name: request.name ?? null,
         email: request.email ?? null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
+      mockUsersList.push(user);
+      return user;
     },
-    deleteUser: async (_userId: string) => {
+    deleteUser: async (userId: string) => {
       await delay();
+      const idx = mockUsersList.findIndex((u) => u.id === userId);
+      if (idx !== -1) mockUsersList.splice(idx, 1);
     },
     createExtension: async (request: CreateExtensionRequest): Promise<Extension> => {
       await delay();
-      return {
-        id: 'ext_' + Math.random().toString(36).slice(2, 10),
+      const ext: Extension = {
         number: request.number,
         target: request.target,
-        created_at: '2025-01-01T00:00:00Z',
-        updated_at: '2025-01-01T00:00:00Z',
-      } as Extension;
+        status: 'active' as const,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      mockExtensionsList.push(ext);
+      return ext;
     },
     listLocations: async (): Promise<OnboardingLocation[]> => {
       await delay();
@@ -423,25 +434,41 @@ export function createMockInstance(
       _request?: CreateEndpointRequest
     ): Promise<OnboardingEndpoint> => {
       await delay();
-      return {
+      const ep: OnboardingEndpoint = {
         id: 'ep_' + Math.random().toString(36).slice(2, 10),
         user_id: userId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
+      const existing = mockEndpoints.get(userId) ?? [];
+      mockEndpoints.set(userId, [...existing, ep]);
+      return ep;
     },
-    listEndpoints: async (_userId: string): Promise<OnboardingEndpoint[]> => [],
+    listEndpoints: async (userId: string): Promise<OnboardingEndpoint[]> =>
+      mockEndpoints.get(userId) ?? [],
     createDeskphoneLine: async (
       deskphoneId: string,
       data: CreateDeskphoneLineRequest
     ): Promise<DeviceLine> => {
       await delay();
-      return {
+      const existing = mockDeviceLines.get(deskphoneId) ?? [];
+      const line: DeviceLine = {
         id: 'dln_' + Math.random().toString(36).slice(2, 10),
         device_id: deskphoneId,
-        line_number: 1,
+        line_number: existing.length + 1,
         endpoint_id: data.endpoint_id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       };
+      mockDeviceLines.set(deskphoneId, [...existing, line]);
+      return line;
+    },
+    deleteDeskphoneLine: async (deskphoneId: string, lineId: string): Promise<void> => {
+      const lines = mockDeviceLines.get(deskphoneId) ?? [];
+      mockDeviceLines.set(
+        deskphoneId,
+        lines.filter((l) => l.id !== lineId)
+      );
     },
     fetchAllPages: async <T>(
       fetcher: (opts: { limit: number }) => Promise<{ data: T[] }>
@@ -453,7 +480,7 @@ export function createMockInstance(
     uploadCSR: async () => {},
 
     // Routing target resolution
-    listExtensions: async () => [...mockExtensions],
+    listExtensions: async () => [...mockExtensionsList],
     getCallerID: async (_phoneNumberId: string) => ({ caller_id_name: 'ACME Corp' }),
     resolveRoutingTarget: async (target: string) => ({
       id: target,
@@ -508,17 +535,11 @@ export function createMockInstance(
 
     checkPortEligibility: async (phoneNumbers: string[]) => {
       await delay();
-      const carriers = [
-        { name: 'AT&T Mobility', spid: '6214' },
-        { name: 'Verizon Business', spid: '0555' },
-        { name: 'T-Mobile USA', spid: '7066' },
-        { name: 'Lumen Technologies', spid: '8025' },
-      ];
       return {
-        portable_numbers: phoneNumbers.map((n, i) => ({
+        portable_numbers: phoneNumbers.map((n) => ({
           phone_number: n,
-          losing_carrier_name: carriers[i % carriers.length]!.name,
-          losing_carrier_spid: carriers[i % carriers.length]!.spid,
+          losing_carrier_name: 'AT&T Mobility',
+          losing_carrier_spid: '6214',
           is_wireless: false,
           account_number_required: true,
         })),
@@ -610,7 +631,8 @@ export function createMockInstance(
       throw new Error('Not implemented in mock');
     },
     listDevices: async (_options?: DeviceListOptions) => [...mockDevices],
-    listDeskphoneLines: async (_deskphoneId: string): Promise<DeviceLine[]> => [],
+    listDeskphoneLines: async (deskphoneId: string): Promise<DeviceLine[]> =>
+      mockDeviceLines.get(deskphoneId) ?? [],
     updateDeskphone: async (_id: string, _data: UpdateDeskphoneRequest) => {
       throw new Error('Not implemented in mock');
     },
@@ -650,33 +672,40 @@ export function createMockInstance(
     getDECTHandset: async (_baseId: string, _handsetId: string) => {
       throw new Error('Not implemented in mock');
     },
-    listDECTHandsets: async (_baseId: string) =>
-      empty
-        ? []
-        : [
-            {
-              id: 'decth_mock001',
-              base_id: _baseId,
-              ipei: '00000000001',
-              status: 'registered' as const,
-              display_name: 'Snom E425',
-              slot_number: 1,
-              model: 'E425',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            },
-            {
-              id: 'decth_mock002',
-              base_id: _baseId,
-              ipei: '00000000002',
-              status: 'registered' as const,
-              display_name: 'Snom E425',
-              slot_number: 2,
-              model: 'E425',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            },
-          ],
+    listDECTHandsets: async (baseId: string) => {
+      if (empty) return [];
+      const handsets = [
+        {
+          id: 'decth_mock001',
+          base_id: baseId,
+          ipei: '00000000001',
+          status: 'registered' as const,
+          display_name: 'Snom E425',
+          slot_number: 1,
+          model: 'E425',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          extensions: undefined as DECTExtension[] | undefined,
+        },
+        {
+          id: 'decth_mock002',
+          base_id: baseId,
+          ipei: '00000000002',
+          status: 'registered' as const,
+          display_name: 'Snom E425',
+          slot_number: 2,
+          model: 'E425',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          extensions: undefined as DECTExtension[] | undefined,
+        },
+      ];
+      for (const hs of handsets) {
+        const exts = mockDECTExts.get(`${baseId}/${hs.id}`);
+        if (exts?.length) hs.extensions = exts;
+      }
+      return handsets;
+    },
     updateDECTHandset: async (
       _baseId: string,
       _handsetId: string,
@@ -686,21 +715,33 @@ export function createMockInstance(
     },
     deleteDECTHandset: async (_baseId: string, _handsetId: string) => {},
     createDECTExtension: async (
-      _baseId: string,
-      _handsetId: string,
-      _data: CreateDECTExtensionRequest
+      baseId: string,
+      handsetId: string,
+      data: CreateDECTExtensionRequest
     ): Promise<DECTExtension> => {
       await delay();
-      return {
+      const ext: DECTExtension = {
         id: 'decte_' + Math.random().toString(36).slice(2, 10),
-        handset_id: _handsetId,
-        endpoint_id: _data.endpoint_id,
+        handset_id: handsetId,
+        endpoint_id: data.endpoint_id,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
+      const key = `${baseId}/${handsetId}`;
+      const existing = mockDECTExts.get(key) ?? [];
+      mockDECTExts.set(key, [...existing, ext]);
+      return ext;
     },
-    listDECTExtensions: async (_baseId: string, _handsetId: string) => [],
-    deleteDECTExtension: async (_baseId: string, _handsetId: string, _extensionId: string) => {},
+    listDECTExtensions: async (baseId: string, handsetId: string) =>
+      mockDECTExts.get(`${baseId}/${handsetId}`) ?? [],
+    deleteDECTExtension: async (baseId: string, handsetId: string, extensionId: string) => {
+      const key = `${baseId}/${handsetId}`;
+      const exts = mockDECTExts.get(key) ?? [];
+      mockDECTExts.set(
+        key,
+        exts.filter((e) => e.id !== extensionId)
+      );
+    },
   };
 
   return instance;

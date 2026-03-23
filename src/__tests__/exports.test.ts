@@ -89,8 +89,6 @@ describe('SDK React Entry Exports', () => {
       'DialPlanViewer',
       'PhoneNumberOrdering',
       'PhoneNumbers',
-      'AccountOnboarding',
-      'OnboardingPortal',
     ];
 
     const hookExports = [

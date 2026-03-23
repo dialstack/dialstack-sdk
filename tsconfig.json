@@ -21,7 +21,11 @@
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
     "resolveJsonModule": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "baseUrl": ".",
+    "paths": {
+      "@dialstack/sdk/react": ["src/react.ts"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": [

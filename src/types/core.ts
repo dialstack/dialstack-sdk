@@ -966,6 +966,11 @@ export interface DialStackInstance {
    * @returns Promise resolving to an array of endpoints
    */
   listEndpoints(userId: string): Promise<OnboardingEndpoint[]>;
+
+  /**
+   * Get current appearance options
+   */
+  getAppearance(): AppearanceOptions | undefined;
 }
 
 /**
@@ -996,9 +1001,4 @@ export interface DialStackInstanceImpl extends DialStackInstance {
    * Get current client secret
    */
   getClientSecret(): Promise<string>;
-
-  /**
-   * Get current appearance options
-   */
-  getAppearance(): AppearanceOptions | undefined;
 }

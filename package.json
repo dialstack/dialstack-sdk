@@ -42,6 +42,11 @@
       "require": "./dist/react.cjs",
       "types": "./dist/react.d.ts"
     },
+    "./react/onboarding": {
+      "import": "./dist/onboarding.mjs",
+      "require": "./dist/onboarding.cjs",
+      "types": "./dist/onboarding.d.ts"
+    },
     "./server": {
       "import": "./dist/server/index.js",
       "require": "./dist/server/index.js",
@@ -65,7 +70,11 @@
     "test:watch": "jest --watch",
     "prepublishOnly": "npm run clean && npm run lint && npm run typecheck && npm run test && npm run build",
     "storybook": "storybook dev -p 6006",
-    "storybook:build": "storybook build -o storybook-static"
+    "storybook:build": "storybook build -o storybook-static",
+    "test:e2e": "test-storybook --url http://localhost:6006 --testTimeout 120000",
+    "test:e2e:firefox": "test-storybook --url http://localhost:6006 --testTimeout 120000 --browsers firefox",
+    "test:e2e:webkit": "test-storybook --url http://localhost:6006 --testTimeout 120000 --browsers webkit",
+    "test:e2e:all": "npm run test:e2e && npm run test:e2e:firefox && npm run test:e2e:webkit"
   },
   "peerDependencies": {
     "react": ">=16.8.0",
@@ -79,6 +88,12 @@
       "optional": true
     }
   },
+  "browserslist": [
+    "last 2 Chrome versions",
+    "last 2 Firefox versions",
+    "last 2 Safari versions",
+    "last 2 Edge versions"
+  ],
   "devDependencies": {
     "@babel/core": "^7.29.0",
     "@babel/preset-env": "^7.29.2",
@@ -91,25 +106,28 @@
     "@rollup/plugin-replace": "^6.0.3",
     "@rollup/plugin-terser": "^1.0.0",
     "@rollup/plugin-typescript": "^12.3.0",
-    "@xyflow/react": "^12.10.1",
     "@storybook/react": "^10.3.2",
     "@storybook/react-vite": "^10.3.2",
+    "@storybook/test-runner": "^0.24.3",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^16.3.2",
     "@types/canvas-confetti": "^1.9.0",
     "@types/dagre": "^0.7.54",
-    "canvas-confetti": "^1.9.4",
-    "dagre": "^0.8.5",
     "@types/jest": "^30.0.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^8.57.1",
     "@typescript-eslint/parser": "^8.54.0",
+    "@xyflow/react": "^12.10.1",
+    "canvas-confetti": "^1.9.4",
+    "dagre": "^0.8.5",
     "eslint": "^10.1.0",
+    "eslint-plugin-compat": "^7.0.1",
     "eslint-plugin-react": "^7.0.0",
     "eslint-plugin-react-hooks": "^7.0.1",
     "globals": "^17.4.0",
+    "http-server": "^14.1.1",
     "jest": "^30.3.0",
     "jest-environment-jsdom": "^30.3.0",
     "prettier": "^3.8.1",
