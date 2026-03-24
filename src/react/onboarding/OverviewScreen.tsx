@@ -18,9 +18,16 @@ import type { PhoneNumberItem } from '../../types';
 export interface OverviewScreenProps {
   onGoToStep: (step: string) => void;
   phoneNumbers?: PhoneNumberItem[];
+  documentationUrl?: string;
+  onScheduleCall?: () => void;
 }
 
-const OverviewScreenBase: React.FC<OverviewScreenProps> = ({ onGoToStep, phoneNumbers }) => {
+const OverviewScreenBase: React.FC<OverviewScreenProps> = ({
+  onGoToStep,
+  phoneNumbers,
+  documentationUrl,
+  onScheduleCall,
+}) => {
   const { locale, progressStore, activeSteps } = useOnboarding();
   // Subscribe to store changes so derived values re-compute on progress updates.
   useOnboardingProgress();
@@ -137,16 +144,29 @@ const OverviewScreenBase: React.FC<OverviewScreenProps> = ({ onGoToStep, phoneNu
       )}
 
       {/* Help card */}
-      <div className="overview-help-card">
-        <h3>{locale.onboardingPortal.overview.needHelp}</h3>
-        <p>{locale.onboardingPortal.overview.needHelpSubtitle}</p>
-        <div className="overview-help-buttons">
-          <button className="overview-help-btn">
-            {locale.onboardingPortal.overview.scheduleCall}
-          </button>
-          <button className="overview-help-btn">{locale.onboardingPortal.overview.viewDocs}</button>
+      {(documentationUrl || onScheduleCall) && (
+        <div className="overview-help-card">
+          <h3>{locale.onboardingPortal.overview.needHelp}</h3>
+          <p>{locale.onboardingPortal.overview.needHelpSubtitle}</p>
+          <div className="overview-help-buttons">
+            {onScheduleCall && (
+              <button className="overview-help-btn" onClick={onScheduleCall}>
+                {locale.onboardingPortal.overview.scheduleCall}
+              </button>
+            )}
+            {documentationUrl && (
+              <a
+                className="overview-help-btn"
+                href={documentationUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {locale.onboardingPortal.overview.viewDocs}
+              </a>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

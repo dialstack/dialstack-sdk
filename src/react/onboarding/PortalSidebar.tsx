@@ -28,6 +28,7 @@ export interface PortalSidebarProps {
   backLabel?: string;
   logoHtml?: string;
   platformName?: string;
+  onHelpSupport?: () => void;
 }
 
 const PortalSidebarBase: React.FC<PortalSidebarProps> = ({
@@ -38,6 +39,7 @@ const PortalSidebarBase: React.FC<PortalSidebarProps> = ({
   backLabel,
   logoHtml,
   platformName,
+  onHelpSupport,
 }) => {
   const { locale, progressStore, activeSteps } = useOnboarding();
   const { currentStep } = useOnboardingProgress();
@@ -141,11 +143,21 @@ const PortalSidebarBase: React.FC<PortalSidebarProps> = ({
             <span>{backLabel ?? locale.onboardingPortal.back}</span>
           </div>
         )}
-        <div className="portal-footer-link">
-          {/* SAFETY: HELP_SVG is a static constant from constants.ts */}
-          <span className="portal-nav-icon" dangerouslySetInnerHTML={{ __html: HELP_SVG }} />
-          <span>{locale.onboardingPortal.helpSupport}</span>
-        </div>
+        {onHelpSupport && (
+          <div
+            className="portal-footer-link"
+            role="button"
+            tabIndex={0}
+            onClick={onHelpSupport}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') onHelpSupport();
+            }}
+          >
+            {/* SAFETY: HELP_SVG is a static constant from constants.ts */}
+            <span className="portal-nav-icon" dangerouslySetInnerHTML={{ __html: HELP_SVG }} />
+            <span>{locale.onboardingPortal.helpSupport}</span>
+          </div>
+        )}
       </div>
     </aside>
   );

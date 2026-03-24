@@ -53,6 +53,9 @@ export interface OnboardingPortalProps {
   platformName?: string;
   theme?: 'light' | 'dark';
   appearance?: { variables?: { colorPrimary?: string; colorPrimaryHover?: string } };
+  documentationUrl?: string;
+  onScheduleCall?: () => void;
+  onHelpSupport?: () => void;
   onStepChange?: (event: { step: AccountOnboardingStep }) => void;
   className?: string;
   style?: React.CSSProperties;
@@ -285,6 +288,7 @@ const PortalInner: React.FC<PortalInnerProps> = (props) => {
           backLabel={props.backLabel}
           logoHtml={props.logoHtml}
           platformName={props.platformName}
+          onHelpSupport={props.onHelpSupport}
         />
 
         <div
@@ -305,7 +309,12 @@ const PortalInner: React.FC<PortalInnerProps> = (props) => {
           )}
 
           {viewMode === 'overview' && (
-            <OverviewScreen onGoToStep={handleSelectStep} phoneNumbers={phoneNumbers} />
+            <OverviewScreen
+              onGoToStep={handleSelectStep}
+              phoneNumbers={phoneNumbers}
+              documentationUrl={props.documentationUrl}
+              onScheduleCall={props.onScheduleCall}
+            />
           )}
 
           {viewMode === 'wizard' && currentStep !== 'final_complete' && (

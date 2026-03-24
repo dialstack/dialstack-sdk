@@ -393,6 +393,7 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  text-decoration: none;
   transition:
     background 0.15s,
     color 0.15s;
