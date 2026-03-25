@@ -60,28 +60,28 @@ function App() {
 ```html
 <!DOCTYPE html>
 <html>
-<head>
-  <script src="https://unpkg.com/@dialstack/sdk"></script>
-</head>
-<body>
-  <dialstack-call-logs></dialstack-call-logs>
-  <dialstack-voicemails></dialstack-voicemails>
+  <head>
+    <script src="https://unpkg.com/@dialstack/sdk"></script>
+  </head>
+  <body>
+    <dialstack-call-logs></dialstack-call-logs>
+    <dialstack-voicemails></dialstack-voicemails>
 
-  <script>
-    // Initialize DialStack with session fetcher
-    DialStack.loadDialstackAndInitialize({
-      publishableKey: 'pk_live_YOUR_PUBLISHABLE_KEY',
-      fetchClientSecret: async () => {
-        const res = await fetch('https://your-backend.com/api/create-session', {
-          method: 'POST',
-          body: JSON.stringify({ accountId: 'acct_123' })
-        });
-        const data = await res.json();
-        return data.client_secret;
-      }
-    });
-  </script>
-</body>
+    <script>
+      // Initialize DialStack with session fetcher
+      DialStack.loadDialstackAndInitialize({
+        publishableKey: 'pk_live_YOUR_PUBLISHABLE_KEY',
+        fetchClientSecret: async () => {
+          const res = await fetch('https://your-backend.com/api/create-session', {
+            method: 'POST',
+            body: JSON.stringify({ accountId: 'acct_123' }),
+          });
+          const data = await res.json();
+          return data.client_secret;
+        },
+      });
+    </script>
+  </body>
 </html>
 ```
 
@@ -101,6 +101,7 @@ Display a list of call history with details like caller, duration, and status.
 ```
 
 **Props:**
+
 - `dateRange` - Filter by date range (`{ start?: string, end?: string }`)
 - `limit` - Maximum records to display (default: 20)
 - `locale` - Custom locale for UI strings
@@ -123,6 +124,7 @@ Display a list of voicemails with playback controls.
 ```
 
 **Props:**
+
 - `userId` - User ID to fetch voicemails for (required)
 - `locale` - Custom locale for UI strings
 - `formatting` - Date/phone formatting options
@@ -141,7 +143,9 @@ Customize component appearance using CSS variables passed via the `appearance` o
 ```tsx
 const dialstack = await loadDialstackAndInitialize({
   publishableKey: 'pk_live_YOUR_KEY',
-  fetchClientSecret: async () => { /* ... */ },
+  fetchClientSecret: async () => {
+    /* ... */
+  },
   appearance: {
     theme: 'light', // 'light' | 'dark' | 'auto'
     variables: {
@@ -190,7 +194,7 @@ const fr: typeof en = {
   },
 };
 
-<CallLogs locale={fr} />
+<CallLogs locale={fr} />;
 ```
 
 ## Formatting
@@ -200,10 +204,10 @@ Customize date and phone number formatting:
 ```tsx
 <CallLogs
   formatting={{
-    defaultCountry: 'FR',        // ISO 3166-1 alpha-2 country code
-    dateLocale: 'fr-FR',         // BCP 47 language tag
-    use24HourTime: true,         // 24-hour format
-    showTimezone: false,         // Hide timezone
+    defaultCountry: 'FR', // ISO 3166-1 alpha-2 country code
+    dateLocale: 'fr-FR', // BCP 47 language tag
+    use24HourTime: true, // 24-hour format
+    showTimezone: false, // Hide timezone
   }}
 />
 ```
@@ -254,6 +258,7 @@ All components are built with accessibility in mind:
 Initialize the DialStack SDK with your publishable key and session fetcher.
 
 **Parameters:**
+
 - `options.publishableKey` (string, required): Your DialStack publishable key (starts with `pk_live_` or `pk_test_`)
 - `options.fetchClientSecret` (function, required): Async function that fetches a client secret from your backend. Can return a string or `{ clientSecret, expiresAt }`.
 - `options.appearance` (object, optional): Theming options
@@ -266,6 +271,7 @@ Initialize the DialStack SDK with your publishable key and session fetcher.
 React Context Provider that makes the DialStack instance and client secret available to child components.
 
 **Props:**
+
 - `dialstack` (DialStackInstance, required): The DialStack instance from `loadDialstackAndInitialize()`
 - `children` (ReactNode, required): Child components
 
@@ -274,6 +280,7 @@ React Context Provider that makes the DialStack instance and client secret avail
 The SDK uses account-scoped sessions for authentication. You must:
 
 1. Call your backend to create a session using the DialStack API:
+
    ```bash
    POST https://api.dialstack.ai/v1/account_sessions
    Authorization: Bearer sk_live_YOUR_SECRET_KEY
@@ -292,13 +299,14 @@ Sessions expire after 1 hour. The SDK automatically refreshes sessions using the
 The SDK supports all modern browsers:
 
 | Browser | Version |
-|---------|---------|
-| Chrome | 80+ |
-| Firefox | 75+ |
-| Safari | 13.1+ |
-| Edge | 80+ |
+| ------- | ------- |
+| Chrome  | 80+     |
+| Firefox | 75+     |
+| Safari  | 13.1+   |
+| Edge    | 80+     |
 
 **Requirements:**
+
 - ES2015+ (ES6) support
 - Web Components v1 (Custom Elements, Shadow DOM)
 - Fetch API
