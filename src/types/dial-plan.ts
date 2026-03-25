@@ -35,12 +35,22 @@ export interface InternalDialNodeConfig {
   next?: string;
 }
 
+/**
+ * Configuration for a ring-all-users node that rings every user in the account.
+ */
+export interface RingAllUsersNodeConfig {
+  /** Timeout in seconds before routing to next node */
+  timeout: number;
+  /** Node ID to route to on timeout/no answer */
+  next?: string;
+}
+
 // ============================================================================
 // Dial Plan Node Types
 // ============================================================================
 
 /** Supported dial plan node types */
-export type DialPlanNodeType = 'schedule' | 'internal_dial';
+export type DialPlanNodeType = 'schedule' | 'internal_dial' | 'ring_all_users';
 
 /**
  * Base interface for all dial plan nodes.
@@ -69,9 +79,17 @@ export interface InternalDialNode extends DialPlanNodeBase {
 }
 
 /**
+ * A ring-all-users node in the dial plan.
+ */
+export interface RingAllUsersNode extends DialPlanNodeBase {
+  type: 'ring_all_users';
+  config: RingAllUsersNodeConfig;
+}
+
+/**
  * Union type for all dial plan node types.
  */
-export type DialPlanNode = ScheduleNode | InternalDialNode;
+export type DialPlanNode = ScheduleNode | InternalDialNode | RingAllUsersNode;
 
 // ============================================================================
 // Dial Plan Types
@@ -115,38 +133,12 @@ export interface DialPlanLocale {
   };
 }
 
-/**
- * Props for the DialPlanViewer React component.
- */
-export interface DialPlanViewerProps {
-  /** The ID of the dial plan to fetch and display */
-  dialPlanId: string;
-  /** Whether the viewer is in read-only mode (default: true) */
-  readonly?: boolean;
-  /** Whether to show the minimap for navigation (default: false) */
-  showMinimap?: boolean;
-  /** Locale strings for node labels and exits */
-  locale?: DialPlanLocale;
-  /** Callback fired when a node is clicked */
-  onNodeClick?: (nodeId: string, node: DialPlanNode) => void;
-  /** Callback fired when the dial plan starts loading */
-  onLoaderStart?: () => void;
-  /** Callback fired when the dial plan finishes loading */
-  onLoaderEnd?: (dialPlan: DialPlan) => void;
-  /** Callback fired when there's an error loading the dial plan */
-  onLoadError?: (error: Error) => void;
-  /** Optional CSS class name for the container */
-  className?: string;
-  /** Optional inline styles for the container */
-  style?: React.CSSProperties;
-}
-
 // ============================================================================
 // Graph Node Types (for React Flow)
 // ============================================================================
 
 /** Types of nodes in the visual graph */
-export type GraphNodeType = 'start' | 'schedule' | 'internalDial';
+export type GraphNodeType = 'start' | 'schedule' | 'internalDial' | 'ringAllUsers';
 
 /**
  * Data payload for the Start node.
@@ -180,8 +172,22 @@ export interface InternalDialNodeData extends Record<string, unknown> {
   locale?: DialPlanLocale;
 }
 
+/**
+ * Data payload for a Ring All Users node in the graph.
+ */
+export interface RingAllUsersNodeData extends Record<string, unknown> {
+  label: string;
+  timeout: number;
+  originalNode: RingAllUsersNode;
+  locale?: DialPlanLocale;
+}
+
 /** Union type for all graph node data */
-export type GraphNodeData = StartNodeData | ScheduleNodeData | InternalDialNodeData;
+export type GraphNodeData =
+  | StartNodeData
+  | ScheduleNodeData
+  | InternalDialNodeData
+  | RingAllUsersNodeData;
 
 /** Edge labels for schedule exits */
 export type ScheduleExitType = 'open' | 'closed';

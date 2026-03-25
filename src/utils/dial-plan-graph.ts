@@ -6,15 +6,9 @@
 
 import type { Node, Edge } from '@xyflow/react';
 import dagre from 'dagre';
-import type {
-  DialPlan,
-  DialPlanNode,
-  StartNodeData,
-  ScheduleNodeData,
-  InternalDialNodeData,
-  ScheduleNode,
-  InternalDialNode,
-} from '../types/dial-plan';
+import type { DialPlan, DialPlanNode, StartNodeData } from '../types/dial-plan';
+import type { NodeTypeRegistry } from '../react/dial-plan/registry';
+import { defaultRegistry } from '../react/dial-plan/default-registry';
 
 // ============================================================================
 // Constants
@@ -22,16 +16,16 @@ import type {
 
 const START_NODE_ID = '__start__';
 const START_NODE_SIZE = 60;
-const NODE_WIDTH = 180;
-const NODE_HEIGHT = 80;
-const SCHEDULE_NODE_HEIGHT = 140;
+export const NODE_WIDTH = 180;
+export const NODE_HEIGHT = 80;
+export const SCHEDULE_NODE_HEIGHT = 140;
 
 // ============================================================================
 // Types
 // ============================================================================
 
 /** A React Flow node with our custom data types */
-export type DialPlanGraphNode = Node<StartNodeData | ScheduleNodeData | InternalDialNodeData>;
+export type DialPlanGraphNode = Node<StartNodeData | Record<string, unknown>>;
 
 export interface TransformResult {
   nodes: DialPlanGraphNode[];
@@ -82,7 +76,10 @@ export function getEdgeLabel(exitType: string): string {
 /**
  * Transform a dial plan into React Flow nodes and edges.
  */
-export function transformDialPlanToGraph(dialPlan: DialPlan): TransformResult {
+export function transformDialPlanToGraph(
+  dialPlan: DialPlan,
+  registry: NodeTypeRegistry = defaultRegistry
+): TransformResult {
   const nodes: DialPlanGraphNode[] = [];
   const edges: Edge[] = [];
 
@@ -115,11 +112,34 @@ export function transformDialPlanToGraph(dialPlan: DialPlan): TransformResult {
 
   // Process each node in the dial plan
   for (const node of dialPlan.nodes) {
-    const flowNode = createFlowNode(node);
-    nodes.push(flowNode);
+    const reg = registry.get(node.type);
+    const position = node.position ?? { x: 0, y: 0 };
 
-    // Create edges based on node type
-    const nodeEdges = createEdgesForNode(node, nodeMap);
+    if (reg) {
+      const data = reg.toFlowNode(node);
+      const flowNode: DialPlanGraphNode = {
+        id: node.id,
+        type: reg.flowType,
+        position,
+        width: NODE_WIDTH,
+        height: reg.flowType === 'schedule' ? SCHEDULE_NODE_HEIGHT : NODE_HEIGHT,
+        data,
+      };
+      nodes.push(flowNode);
+    } else {
+      // Fallback for unknown types
+      nodes.push({
+        id: node.id,
+        type: 'default',
+        position,
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
+        data: { label: node.id, originalNode: node },
+      });
+    }
+
+    // Create edges using registry
+    const nodeEdges = registry.createEdgesForNode(node, nodeMap);
     edges.push(...nodeEdges);
   }
 
@@ -133,102 +153,119 @@ export function transformDialPlanToGraph(dialPlan: DialPlan): TransformResult {
 }
 
 /**
- * Create a React Flow node from a dial plan node.
+ * Transform React Flow nodes and edges back to DialPlanData.
  */
-function createFlowNode(node: DialPlanNode): DialPlanGraphNode {
-  const position = node.position ?? { x: 0, y: 0 };
+export function transformGraphToDialPlan(
+  nodes: Node[],
+  edges: Edge[],
+  registry: NodeTypeRegistry
+): {
+  entry_node: string;
+  nodes: Array<{
+    id: string;
+    type: string;
+    position?: { x: number; y: number };
+    config: Record<string, unknown>;
+  }>;
+} {
+  // Find entry node from start edge
+  const startEdge = edges.find((e) => e.source === START_NODE_ID);
+  const entryNode = startEdge?.target ?? '';
 
-  switch (node.type) {
-    case 'schedule':
-      return {
-        id: node.id,
-        type: 'schedule',
-        position,
-        width: NODE_WIDTH,
-        height: SCHEDULE_NODE_HEIGHT,
-        data: {
-          label: getNodeLabel(node),
-          scheduleId: node.config.schedule_id,
-          originalNode: node,
-        } as ScheduleNodeData,
-      };
+  // Convert flow nodes back to API nodes (skip start)
+  const dialPlanNodes: Array<{
+    id: string;
+    type: string;
+    position?: { x: number; y: number };
+    config: Record<string, unknown>;
+  }> = [];
+  for (const node of nodes) {
+    if (node.id === START_NODE_ID) continue;
 
-    case 'internal_dial':
-      return {
-        id: node.id,
-        type: 'internalDial',
-        position,
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
-        data: {
-          label: getNodeLabel(node),
-          targetId: node.config.target_id,
-          timeout: node.config.timeout,
-          originalNode: node,
-        } as InternalDialNodeData,
-      };
+    const reg = registry.getByFlowType(node.type ?? '');
+    if (!reg || !node.data?.originalNode) continue;
 
-    default:
-      // Fallback for unknown types
-      return {
-        id: (node as DialPlanNode).id,
-        type: 'default',
-        position,
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
-        data: {
-          label: (node as DialPlanNode).id,
-          targetId: '',
-          originalNode: node as InternalDialNode,
-        } as InternalDialNodeData,
-      };
+    const originalNode = node.data.originalNode as DialPlanNode;
+    // Start with original config, then rebuild exit connections from edges
+    const config = { ...(originalNode.config as unknown as Record<string, unknown>) };
+
+    // Clear all exit config keys first
+    for (const exit of reg.exits) {
+      config[exit.configKey] = undefined;
+    }
+    // Set from edges
+    for (const edge of edges) {
+      if (edge.source !== node.id) continue;
+      const exit = reg.exits.find((e) => e.id === edge.sourceHandle);
+      if (exit) {
+        config[exit.configKey] = edge.target;
+      }
+    }
+
+    dialPlanNodes.push({
+      id: node.id,
+      type: originalNode.type,
+      position: node.position,
+      config,
+    });
   }
+
+  return { entry_node: entryNode, nodes: dialPlanNodes };
 }
 
-/**
- * Create edges for a dial plan node based on its exits.
- */
-function createEdgesForNode(node: DialPlanNode, nodeMap: Map<string, DialPlanNode>): Edge[] {
-  const edges: Edge[] = [];
+// ============================================================================
+// Validation
+// ============================================================================
 
-  switch (node.type) {
-    case 'schedule': {
-      const config = (node as ScheduleNode).config;
-      const exits: Array<{ key: 'open' | 'closed'; target?: string }> = [
-        { key: 'open', target: config.open },
-        { key: 'closed', target: config.closed },
-      ];
+export interface ValidationError {
+  nodeId: string;
+  field: string;
+  message: string;
+}
 
-      for (const exit of exits) {
-        if (exit.target && nodeMap.has(exit.target)) {
-          edges.push({
-            id: `${node.id}-${exit.key}->${exit.target}`,
-            source: node.id,
-            target: exit.target,
-            sourceHandle: exit.key,
-            type: 'smoothstep',
+/** Validate dial plan nodes before saving. Returns errors for nodes with missing or invalid config. */
+export function validateDialPlanNodes(nodes: Node[]): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  for (const node of nodes) {
+    if (node.id === START_NODE_ID) continue;
+    const original = (node.data as Record<string, unknown>)?.originalNode as
+      | { type: string; config: Record<string, unknown> }
+      | undefined;
+    if (!original) continue;
+    const config = original.config;
+
+    switch (original.type) {
+      case 'schedule':
+        if (!config.schedule_id)
+          errors.push({ nodeId: node.id, field: 'schedule_id', message: 'Schedule is required' });
+        break;
+      case 'internal_dial': {
+        if (!config.target_id)
+          errors.push({ nodeId: node.id, field: 'target_id', message: 'Target is required' });
+        const dialTimeout = config.timeout as number | undefined;
+        if (dialTimeout !== undefined && (dialTimeout < 0 || dialTimeout > 300))
+          errors.push({
+            nodeId: node.id,
+            field: 'timeout',
+            message: 'Timeout must be 0–300 seconds',
           });
-        }
+        break;
       }
-      break;
-    }
-
-    case 'internal_dial': {
-      const config = (node as InternalDialNode).config;
-      if (config.next && nodeMap.has(config.next)) {
-        edges.push({
-          id: `${node.id}-next->${config.next}`,
-          source: node.id,
-          target: config.next,
-          sourceHandle: 'next',
-          type: 'smoothstep',
-        });
+      case 'ring_all_users': {
+        const timeout = config.timeout as number | undefined;
+        if (timeout === undefined || timeout < 1 || timeout > 300)
+          errors.push({
+            nodeId: node.id,
+            field: 'timeout',
+            message: 'Timeout must be 1–300 seconds',
+          });
+        break;
       }
-      break;
     }
   }
 
-  return edges;
+  return errors;
 }
 
 // ============================================================================

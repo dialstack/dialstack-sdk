@@ -39,7 +39,7 @@ describe('SDK Main Entry Exports', () => {
     expect(sdkAny['CallLogs']).toBeUndefined();
     expect(sdkAny['Voicemails']).toBeUndefined();
     expect(sdkAny['CallHistory']).toBeUndefined();
-    expect(sdkAny['DialPlanViewer']).toBeUndefined();
+    expect(sdkAny['DialPlan']).toBeUndefined();
     expect(sdkAny['PhoneNumberOrdering']).toBeUndefined();
     expect(sdkAny['PhoneNumbers']).toBeUndefined();
     expect(sdkAny['AccountOnboarding']).toBeUndefined();
@@ -86,7 +86,7 @@ describe('SDK React Entry Exports', () => {
       'CallLogs',
       'Voicemails',
       'CallHistory',
-      'DialPlanViewer',
+      'DialPlan',
       'PhoneNumberOrdering',
       'PhoneNumbers',
     ];

@@ -20,7 +20,7 @@ export { useUpdateWithSetter } from './react/useUpdateWithSetter';
 export { CallLogs } from './react/CallLogs';
 export { Voicemails } from './react/Voicemails';
 export { CallHistory } from './react/CallHistory';
-export { DialPlanViewer } from './react/DialPlanViewer';
+export { DialPlan } from './react/DialPlan';
 export { PhoneNumberOrdering } from './react/PhoneNumberOrdering';
 export { PhoneNumbers } from './react/PhoneNumbers';
 
@@ -29,20 +29,20 @@ export type { DialstackComponentsProviderProps } from './react/DialstackComponen
 export type { CallLogsProps } from './react/CallLogs';
 export type { VoicemailsProps } from './react/Voicemails';
 export type { CallHistoryProps } from './react/CallHistory';
+export type { DialPlanProps } from './react/DialPlan';
 export type { PhoneNumberOrderingProps } from './react/PhoneNumberOrdering';
 export type { PhoneNumbersProps } from './react/PhoneNumbers';
 
 // Onboarding components are in their own entry point: '@dialstack/sdk/react/onboarding'
 // Import OnboardingPortal from there.
 
-// DialPlan types (used with DialPlanViewer)
+// DialPlan types
 export type {
-  DialPlan,
+  DialPlan as DialPlanData,
   DialPlanNode,
   DialPlanNodeType,
   ScheduleNode,
   InternalDialNode,
   ScheduleNodeConfig,
   InternalDialNodeConfig,
-  DialPlanViewerProps,
 } from './types/dial-plan';

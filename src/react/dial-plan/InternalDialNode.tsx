@@ -15,7 +15,9 @@ export const InternalDialNode = memo(function InternalDialNode({
   data,
   selected,
 }: NodeProps<InternalDialNodeType>) {
-  const hasNextExit = data.originalNode.config.next !== undefined;
+  // Always show exit handles so edges can be created in the editor.
+  // In the viewer, nodesConnectable=false prevents interaction.
+  const hasNextExit = true;
   const isVoicemail = data.timeout === 0;
 
   // Phone icon for dial nodes

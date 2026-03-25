@@ -4,11 +4,13 @@
 
 import {
   transformDialPlanToGraph,
+  transformGraphToDialPlan,
   applyAutoLayout,
   getNodeLabel,
   getEdgeLabel,
 } from '../dial-plan-graph';
 import type { DialPlan } from '../../types/dial-plan';
+import { defaultRegistry } from '../../react/dial-plan/default-registry';
 
 describe('dial-plan-graph', () => {
   const sampleDialPlan: DialPlan = {
@@ -48,7 +50,7 @@ describe('dial-plan-graph', () => {
 
   describe('transformDialPlanToGraph', () => {
     it('should create a start node', () => {
-      const { nodes } = transformDialPlanToGraph(sampleDialPlan);
+      const { nodes } = transformDialPlanToGraph(sampleDialPlan, defaultRegistry);
 
       const startNode = nodes.find((n) => n.id === '__start__');
       expect(startNode).toBeDefined();
@@ -57,7 +59,7 @@ describe('dial-plan-graph', () => {
     });
 
     it('should create an edge from start to entry node', () => {
-      const { edges } = transformDialPlanToGraph(sampleDialPlan);
+      const { edges } = transformDialPlanToGraph(sampleDialPlan, defaultRegistry);
 
       const startEdge = edges.find((e) => e.source === '__start__');
       expect(startEdge).toBeDefined();
@@ -65,7 +67,7 @@ describe('dial-plan-graph', () => {
     });
 
     it('should create nodes for each dial plan node', () => {
-      const { nodes } = transformDialPlanToGraph(sampleDialPlan);
+      const { nodes } = transformDialPlanToGraph(sampleDialPlan, defaultRegistry);
 
       // Should have 4 nodes: start + 3 dial plan nodes
       expect(nodes).toHaveLength(4);
@@ -84,7 +86,7 @@ describe('dial-plan-graph', () => {
     });
 
     it('should create edges for schedule node exits', () => {
-      const { edges } = transformDialPlanToGraph(sampleDialPlan);
+      const { edges } = transformDialPlanToGraph(sampleDialPlan, defaultRegistry);
 
       // Check for open exit edge
       const openEdge = edges.find((e) => e.source === 'check_hours' && e.sourceHandle === 'open');
@@ -100,7 +102,7 @@ describe('dial-plan-graph', () => {
     });
 
     it('should create edges for internal dial next exits', () => {
-      const { edges } = transformDialPlanToGraph(sampleDialPlan);
+      const { edges } = transformDialPlanToGraph(sampleDialPlan, defaultRegistry);
 
       const nextEdge = edges.find((e) => e.source === 'reception' && e.sourceHandle === 'next');
       expect(nextEdge).toBeDefined();
@@ -108,7 +110,7 @@ describe('dial-plan-graph', () => {
     });
 
     it('should not create edges for undefined exits', () => {
-      const { edges } = transformDialPlanToGraph(sampleDialPlan);
+      const { edges } = transformDialPlanToGraph(sampleDialPlan, defaultRegistry);
 
       // voicemail node has no next exit
       const voicemailEdge = edges.find((e) => e.source === 'voicemail');
@@ -116,7 +118,7 @@ describe('dial-plan-graph', () => {
     });
 
     it('should apply auto-layout when positions are not specified', () => {
-      const { nodes } = transformDialPlanToGraph(sampleDialPlan);
+      const { nodes } = transformDialPlanToGraph(sampleDialPlan, defaultRegistry);
 
       // All nodes should have positions
       for (const node of nodes) {
@@ -135,7 +137,7 @@ describe('dial-plan-graph', () => {
         })),
       };
 
-      const { nodes } = transformDialPlanToGraph(dialPlanWithPositions);
+      const { nodes } = transformDialPlanToGraph(dialPlanWithPositions, defaultRegistry);
 
       // Check that specified positions are preserved (excluding start node)
       const checkHoursNode = nodes.find((n) => n.id === 'check_hours');
@@ -145,6 +147,69 @@ describe('dial-plan-graph', () => {
       const receptionNode = nodes.find((n) => n.id === 'reception');
       expect(receptionNode?.position.x).toBe(100);
       expect(receptionNode?.position.y).toBe(50);
+    });
+  });
+
+  describe('transformGraphToDialPlan', () => {
+    it('converts React Flow nodes and edges back to DialPlanData', () => {
+      // Build graph from sample dial plan then convert back
+      const { nodes, edges } = transformDialPlanToGraph(sampleDialPlan, defaultRegistry);
+      const result = transformGraphToDialPlan(nodes, edges, defaultRegistry);
+
+      expect(result.entry_node).toBe('check_hours');
+      expect(result.nodes).toHaveLength(3);
+
+      const checkHours = result.nodes.find((n) => n.id === 'check_hours');
+      expect(checkHours).toBeDefined();
+      expect(checkHours?.type).toBe('schedule');
+      expect((checkHours?.config as Record<string, unknown>)['schedule_id']).toBe('sched_1');
+
+      // Verify positions are present
+      expect(checkHours?.position).toBeDefined();
+    });
+
+    it('filters out the synthetic start node', () => {
+      // Only the __start__ node, no real nodes
+      const nodes = [
+        {
+          id: '__start__',
+          type: 'start',
+          position: { x: 0, y: 0 },
+          data: { label: 'Start' },
+        },
+      ];
+      const result = transformGraphToDialPlan(nodes, [], defaultRegistry);
+
+      expect(result.nodes).toHaveLength(0);
+      expect(result.entry_node).toBe('');
+    });
+
+    it('reconstructs exit config from edges', () => {
+      const { nodes, edges } = transformDialPlanToGraph(sampleDialPlan, defaultRegistry);
+      const result = transformGraphToDialPlan(nodes, edges, defaultRegistry);
+
+      const scheduleNode = result.nodes.find((n) => n.id === 'check_hours');
+      expect(scheduleNode).toBeDefined();
+      const config = scheduleNode?.config as Record<string, unknown>;
+      expect(config['open']).toBe('reception');
+      expect(config['closed']).toBe('voicemail');
+    });
+
+    it('clears exit config when edge is removed', () => {
+      const { nodes, edges } = transformDialPlanToGraph(sampleDialPlan, defaultRegistry);
+      // Remove the open->reception edge
+      const filteredEdges = edges.filter(
+        (e) => !(e.source === 'check_hours' && e.sourceHandle === 'open')
+      );
+
+      const result = transformGraphToDialPlan(nodes, filteredEdges, defaultRegistry);
+
+      const scheduleNode = result.nodes.find((n) => n.id === 'check_hours');
+      const config = scheduleNode?.config as Record<string, unknown>;
+      // open should be cleared since the edge was removed
+      expect(config['open']).toBeUndefined();
+      // closed should still be set
+      expect(config['closed']).toBe('voicemail');
     });
   });
 
@@ -178,7 +243,7 @@ describe('dial-plan-graph', () => {
 
   describe('applyAutoLayout', () => {
     it('should position nodes without overlap', () => {
-      const { nodes, edges } = transformDialPlanToGraph(sampleDialPlan);
+      const { nodes, edges } = transformDialPlanToGraph(sampleDialPlan, defaultRegistry);
       const { nodes: layoutedNodes } = applyAutoLayout(nodes, edges);
 
       // Check that no two nodes have the same position
@@ -188,7 +253,7 @@ describe('dial-plan-graph', () => {
     });
 
     it('should arrange nodes in a left-to-right flow', () => {
-      const { nodes, edges } = transformDialPlanToGraph(sampleDialPlan);
+      const { nodes, edges } = transformDialPlanToGraph(sampleDialPlan, defaultRegistry);
       const { nodes: layoutedNodes } = applyAutoLayout(nodes, edges);
 
       const startNode = layoutedNodes.find((n) => n.id === '__start__');
@@ -210,7 +275,7 @@ describe('dial-plan-graph', () => {
         entry_node: '',
       };
 
-      const { nodes, edges } = transformDialPlanToGraph(emptyDialPlan);
+      const { nodes, edges } = transformDialPlanToGraph(emptyDialPlan, defaultRegistry);
 
       // Should only have the start node
       expect(nodes).toHaveLength(1);
@@ -226,7 +291,7 @@ describe('dial-plan-graph', () => {
         entry_node: 'nonexistent',
       };
 
-      const { edges } = transformDialPlanToGraph(dialPlanWithMissingEntry);
+      const { edges } = transformDialPlanToGraph(dialPlanWithMissingEntry, defaultRegistry);
 
       // Should not create edge to nonexistent node
       const startEdge = edges.find((e) => e.source === '__start__');
@@ -249,7 +314,7 @@ describe('dial-plan-graph', () => {
         ],
       };
 
-      const { edges } = transformDialPlanToGraph(dialPlanWithBadEdge);
+      const { edges } = transformDialPlanToGraph(dialPlanWithBadEdge, defaultRegistry);
 
       // Should not create edge to nonexistent node
       const badEdge = edges.find((e) => e.target === 'nonexistent');

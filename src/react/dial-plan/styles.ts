@@ -1,5 +1,5 @@
 /**
- * DialPlanViewer Styles
+ * DialPlan Styles
  *
  * CSS styles exported as a string for runtime injection.
  * Uses CSS variables from the DialStack theming system where available.
@@ -190,6 +190,24 @@ export const dialPlanStyles = `
 }
 
 /* ============================================================================
+   Ring All Users Node
+   ============================================================================ */
+
+.ds-dial-plan-node--ring-all-users {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border-color: var(--ds-color-warning, #f59e0b);
+}
+
+.ds-dial-plan-node--ring-all-users .ds-dial-plan-node__icon {
+  color: var(--ds-color-warning, #f59e0b);
+}
+
+.ds-dial-plan-node--ring-all-users.ds-dial-plan-node--selected {
+  border-color: var(--ds-color-warning, #f59e0b);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+}
+
+/* ============================================================================
    Handles
    ============================================================================ */
 
@@ -213,45 +231,45 @@ export const dialPlanStyles = `
 }
 
 /* ============================================================================
-   React Flow Overrides
+   React Flow Overrides (both viewer and editor)
    ============================================================================ */
 
-.ds-dial-plan-viewer .react-flow__edge-path {
+:is(.ds-dial-plan-viewer, .ds-dial-plan-editor) .react-flow__edge-path {
   stroke: var(--ds-color-border, #94a3b8);
   stroke-width: 2;
 }
 
-.ds-dial-plan-viewer .react-flow__edge.selected .react-flow__edge-path {
+:is(.ds-dial-plan-viewer, .ds-dial-plan-editor) .react-flow__edge.selected .react-flow__edge-path {
   stroke: var(--ds-color-primary, #3b82f6);
 }
 
-.ds-dial-plan-viewer .react-flow__edge-text {
+:is(.ds-dial-plan-viewer, .ds-dial-plan-editor) .react-flow__edge-text {
   font-size: var(--ds-font-size-xs, 12px);
   fill: var(--ds-color-text-secondary, #64748b);
 }
 
-.ds-dial-plan-viewer .react-flow__background {
+:is(.ds-dial-plan-viewer, .ds-dial-plan-editor) .react-flow__background {
   background-color: var(--ds-color-background, #ffffff);
 }
 
-.ds-dial-plan-viewer .react-flow__minimap {
+:is(.ds-dial-plan-viewer, .ds-dial-plan-editor) .react-flow__minimap {
   background: var(--ds-color-background, #ffffff);
   border: 1px solid var(--ds-color-border, #e2e8f0);
   border-radius: var(--ds-border-radius, 8px);
 }
 
-.ds-dial-plan-viewer .react-flow__controls {
+:is(.ds-dial-plan-viewer, .ds-dial-plan-editor) .react-flow__controls {
   border-radius: var(--ds-border-radius, 8px);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.ds-dial-plan-viewer .react-flow__controls-button {
+:is(.ds-dial-plan-viewer, .ds-dial-plan-editor) .react-flow__controls-button {
   background: var(--ds-color-background, #ffffff);
   border-color: var(--ds-color-border, #e2e8f0);
   color: var(--ds-color-text, #1e293b);
 }
 
-.ds-dial-plan-viewer .react-flow__controls-button:hover {
+:is(.ds-dial-plan-viewer, .ds-dial-plan-editor) .react-flow__controls-button:hover {
   background: var(--ds-color-background-hover, #f8fafc);
 }
 
@@ -306,12 +324,127 @@ export const dialPlanStyles = `
 }
 
 /* ============================================================================
+   Config Panel
+   ============================================================================ */
+
+.ds-dial-plan-config-panel {
+  width: 260px;
+  height: 100%;
+  background: var(--ds-color-background, #ffffff);
+  border-left: 1px solid var(--ds-color-border, #e2e8f0);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--ds-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  font-size: var(--ds-font-size-sm, 14px);
+  overflow-y: auto;
+}
+
+.ds-dial-plan-config-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ds-color-border, #e2e8f0);
+}
+
+.ds-dial-plan-config-panel__header-icon {
+  color: var(--ds-color-text-secondary, #64748b);
+  display: flex;
+  align-items: center;
+}
+
+.ds-dial-plan-config-panel__header-label {
+  flex: 1;
+  font-weight: 600;
+  color: var(--ds-color-text, #1e293b);
+}
+
+.ds-dial-plan-config-panel__delete {
+  font-size: var(--ds-font-size-xs, 12px);
+  color: var(--ds-color-danger, #ef4444);
+  background: none;
+  border: 1px solid var(--ds-color-danger, #ef4444);
+  border-radius: var(--ds-border-radius, 8px);
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.ds-dial-plan-config-panel__delete:hover {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.ds-dial-plan-config-panel__close {
+  background: none;
+  border: none;
+  color: var(--ds-color-text-secondary, #64748b);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+}
+
+.ds-dial-plan-config-panel__close:hover {
+  color: var(--ds-color-text, #1e293b);
+}
+
+.ds-dial-plan-config-panel__body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ds-dial-plan-config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ds-dial-plan-config-field__label {
+  font-size: var(--ds-font-size-xs, 12px);
+  font-weight: 500;
+  color: var(--ds-color-text-secondary, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ds-dial-plan-config-field__select,
+.ds-dial-plan-config-field__input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--ds-color-border, #e2e8f0);
+  border-radius: var(--ds-border-radius, 8px);
+  background: var(--ds-color-background, #ffffff);
+  color: var(--ds-color-text, #1e293b);
+  font-size: var(--ds-font-size-sm, 14px);
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.ds-dial-plan-edge-panel__value {
+  font-size: var(--ds-font-size-sm, 14px);
+  color: var(--ds-color-text, #1e293b);
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-edge-panel__value {
+  color: #e2e8f0;
+}
+
+.ds-dial-plan-config-field__select:focus,
+.ds-dial-plan-config-field__input:focus {
+  border-color: var(--ds-color-primary, #3b82f6);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+/* ============================================================================
    Dark Mode
    Activated by .dark class on an ancestor (Tailwind / next-themes convention)
    or data-theme="dark" attribute.
    ============================================================================ */
 
-:is(.dark, [data-theme="dark"]) .ds-dial-plan-viewer {
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-viewer,
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-editor {
   background: #1a1a2e;
 }
 
@@ -349,38 +482,42 @@ export const dialPlanStyles = `
   background: linear-gradient(135deg, #2e1065 0%, #3b0764 100%);
 }
 
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-node--ring-all-users {
+  background: linear-gradient(135deg, #451a03 0%, #78350f 100%);
+}
+
 :is(.dark, [data-theme="dark"]) .ds-dial-plan-handle {
   border-color: #1e1e32;
 }
 
-:is(.dark, [data-theme="dark"]) .ds-dial-plan-viewer .react-flow__background {
+:is(.dark, [data-theme="dark"]) :is(.ds-dial-plan-viewer, .ds-dial-plan-editor) .react-flow__background {
   background-color: #1a1a2e;
 }
 
-:is(.dark, [data-theme="dark"]) .ds-dial-plan-viewer .react-flow__edge-path {
+:is(.dark, [data-theme="dark"]) :is(.ds-dial-plan-viewer, .ds-dial-plan-editor) .react-flow__edge-path {
   stroke: rgba(255, 255, 255, 0.2);
 }
 
-:is(.dark, [data-theme="dark"]) .ds-dial-plan-viewer .react-flow__edge-text {
+:is(.dark, [data-theme="dark"]) :is(.ds-dial-plan-viewer, .ds-dial-plan-editor) .react-flow__edge-text {
   fill: #94a3b8;
 }
 
-:is(.dark, [data-theme="dark"]) .ds-dial-plan-viewer .react-flow__minimap {
+:is(.dark, [data-theme="dark"]) :is(.ds-dial-plan-viewer, .ds-dial-plan-editor) .react-flow__minimap {
   background: #1e1e32;
   border-color: rgba(255, 255, 255, 0.1);
 }
 
-:is(.dark, [data-theme="dark"]) .ds-dial-plan-viewer .react-flow__controls {
+:is(.dark, [data-theme="dark"]) :is(.ds-dial-plan-viewer, .ds-dial-plan-editor) .react-flow__controls {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
-:is(.dark, [data-theme="dark"]) .ds-dial-plan-viewer .react-flow__controls-button {
+:is(.dark, [data-theme="dark"]) :is(.ds-dial-plan-viewer, .ds-dial-plan-editor) .react-flow__controls-button {
   background: #1e1e32;
   border-color: rgba(255, 255, 255, 0.1);
   color: #e2e8f0;
 }
 
-:is(.dark, [data-theme="dark"]) .ds-dial-plan-viewer .react-flow__controls-button:hover {
+:is(.dark, [data-theme="dark"]) :is(.ds-dial-plan-viewer, .ds-dial-plan-editor) .react-flow__controls-button:hover {
   background: #2a2a45;
 }
 
@@ -392,6 +529,322 @@ export const dialPlanStyles = `
 :is(.dark, [data-theme="dark"]) .ds-dial-plan-viewer__spinner {
   border-color: rgba(255, 255, 255, 0.1);
 }
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-config-panel {
+  background: #1e1e32;
+  border-left-color: rgba(255, 255, 255, 0.1);
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-config-panel__header {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-config-panel__header-label {
+  color: #e2e8f0;
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-config-panel__close {
+  color: #94a3b8;
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-config-panel__close:hover {
+  color: #e2e8f0;
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-config-field__label {
+  color: #94a3b8;
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-config-field__select,
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-config-field__input {
+  background: #12122a;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+}
+
+/* Node Library */
+
+.ds-dial-plan-node-library {
+  width: 200px;
+  height: 100%;
+  background: var(--ds-color-background, #ffffff);
+  border-right: 1px solid var(--ds-color-border, #e2e8f0);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--ds-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  font-size: var(--ds-font-size-sm, 14px);
+  overflow-y: auto;
+}
+
+.ds-dial-plan-node-library__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  font-weight: 600;
+  color: var(--ds-color-text, #1e293b);
+  border-bottom: 1px solid var(--ds-color-border, #e2e8f0);
+}
+
+.ds-dial-plan-node-library__title span {
+  flex: 1;
+}
+
+.ds-dial-plan-node-library__collapse {
+  background: none;
+  border: none;
+  color: var(--ds-color-text-secondary, #64748b);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.ds-dial-plan-node-library__collapse:hover {
+  color: var(--ds-color-text, #1e293b);
+  background: var(--ds-color-background-hover, #f1f5f9);
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-node-library__collapse {
+  color: #64748b;
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-node-library__collapse:hover {
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ds-dial-plan-node-library__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--ds-color-border, #e2e8f0);
+  cursor: grab;
+  transition: background 0.15s ease;
+}
+
+.ds-dial-plan-node-library__item:hover {
+  background: var(--ds-color-background-hover, #f1f5f9);
+}
+
+.ds-dial-plan-node-library__item:active {
+  cursor: grabbing;
+}
+
+.ds-dial-plan-node-library__item-icon {
+  display: flex;
+  align-items: center;
+  color: var(--ds-color-text-secondary, #64748b);
+  margin-bottom: 4px;
+}
+
+.ds-dial-plan-node-library__item-label {
+  font-size: var(--ds-font-size-sm, 14px);
+  font-weight: 600;
+  color: var(--ds-color-text, #1e293b);
+}
+
+.ds-dial-plan-node-library__item-desc {
+  font-size: var(--ds-font-size-xs, 12px);
+  color: var(--ds-color-text-secondary, #64748b);
+  line-height: 1.4;
+}
+
+.ds-dial-plan-node-library__hint {
+  margin-top: auto;
+  padding: 12px 16px;
+  font-size: var(--ds-font-size-xs, 12px);
+  color: var(--ds-color-text-secondary, #64748b);
+  text-align: center;
+  border-top: 1px solid var(--ds-color-border, #e2e8f0);
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-node-library {
+  background: #1e1e32;
+  border-right-color: rgba(255, 255, 255, 0.1);
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-node-library__title {
+  color: #e2e8f0;
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-node-library__item {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-node-library__item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-node-library__item-icon {
+  color: #94a3b8;
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-node-library__item-label {
+  color: #e2e8f0;
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-node-library__item-desc {
+  color: #64748b;
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-node-library__hint {
+  color: #64748b;
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ============================================================================
+   Editor Toolbar
+   ============================================================================ */
+
+.ds-dial-plan-editor-toolbar {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+  display: flex;
+  gap: 8px;
+}
+
+.ds-dial-plan-editor-toolbar__button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--ds-color-background, #ffffff);
+  border: 1px solid var(--ds-color-border, #e2e8f0);
+  border-radius: var(--ds-border-radius, 8px);
+  color: var(--ds-color-text, #1e293b);
+  font-family: var(--ds-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  font-size: var(--ds-font-size-sm, 14px);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ds-dial-plan-editor-toolbar__button:hover {
+  background: var(--ds-color-background-hover, #f1f5f9);
+  border-color: var(--ds-color-border, #cbd5e1);
+}
+
+.ds-dial-plan-editor-toolbar__button:active {
+  transform: scale(0.98);
+}
+
+.ds-dial-plan-editor-toolbar__button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ds-dial-plan-editor-toolbar__button:disabled:hover {
+  background: var(--ds-color-background, #ffffff);
+  border-color: var(--ds-color-border, #e2e8f0);
+}
+
+.ds-dial-plan-editor-toolbar__button svg {
+  color: var(--ds-color-text-secondary, #64748b);
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-editor-toolbar__button {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-editor-toolbar__button:hover {
+  background: #334155;
+  border-color: #475569;
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-editor-toolbar__button:disabled:hover {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-editor-toolbar__button svg {
+  color: #cbd5e1;
+}
+
+/* Editor Layout */
+
+.ds-dial-plan-editor {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  min-height: 400px;
+  background: var(--ds-color-background, #ffffff);
+  overflow: hidden;
+}
+
+.ds-dial-plan-editor__canvas {
+  flex: 1;
+  position: relative;
+}
+
+/* Node Library wrapper (collapsible with animation) */
+
+.ds-dial-plan-node-library-wrapper {
+  width: 200px;
+  flex-shrink: 0;
+  align-self: stretch;
+  overflow: hidden;
+  transition: width 0.2s ease;
+}
+
+.ds-dial-plan-node-library-wrapper--collapsed {
+  width: 0;
+}
+
+/* Library toggle button */
+
+.ds-dial-plan-library-toggle {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  padding: 0 2px;
+  background: var(--ds-color-background, #ffffff);
+  border: none;
+  border-right: 1px solid var(--ds-color-border, #e2e8f0);
+  color: var(--ds-color-text-secondary, #64748b);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.ds-dial-plan-library-toggle:hover {
+  color: var(--ds-color-text, #1e293b);
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-library-toggle {
+  background: #1a1a2e;
+  border-right-color: rgba(255, 255, 255, 0.1);
+  color: #64748b;
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-library-toggle:hover {
+  color: #e2e8f0;
+}
+
+/* Config panel wrapper (slide-in animation) */
+
+.ds-dial-plan-config-panel-wrapper {
+  width: 0;
+  flex-shrink: 0;
+  align-self: stretch;
+  overflow: hidden;
+  transition: width 0.2s ease;
+}
+
+.ds-dial-plan-config-panel-wrapper--open {
+  width: 260px;
+}
+
+
 `;
 
 const injected = new Set<string>();
@@ -414,5 +867,5 @@ export function injectStyles(name: string, css: string): void {
  * This is idempotent - calling multiple times will only inject once.
  */
 export function injectDialPlanStyles(): void {
-  injectStyles('dial-plan-viewer', dialPlanStyles);
+  injectStyles('dial-plan', dialPlanStyles);
 }

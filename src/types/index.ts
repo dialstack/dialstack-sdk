@@ -148,7 +148,6 @@ export type {
   InternalDialNode,
   DialPlanNode,
   DialPlan,
-  DialPlanViewerProps,
   GraphNodeType,
   StartNodeData,
   ScheduleNodeData,

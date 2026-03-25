@@ -198,7 +198,7 @@ export interface AccountSessionCreateParams {
     phone_number_ordering?: ComponentConfig;
     phone_numbers?: ComponentConfig;
     account_onboarding?: ComponentConfig;
-    dial_plan_viewer?: ComponentConfig;
+    dial_plan?: ComponentConfig;
     [key: string]: ComponentConfig | undefined;
   };
 }
