@@ -101,6 +101,8 @@ export type {
 export type {
   PaginatedResponse,
   DIDItem,
+  DirectoryListingType,
+  UpdatePhoneNumberRequest,
   PhoneNumberStatus,
   PhoneNumberItem,
   PhoneNumbersClasses,

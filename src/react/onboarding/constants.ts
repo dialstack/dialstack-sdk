@@ -23,6 +23,7 @@ export const NUMBERS_SUBSTEPS = [
   'port-submitted',
   'primary-did',
   'caller-id',
+  'directory-listing',
 ] as const;
 export type NumSubStep = (typeof NUMBERS_SUBSTEPS)[number];
 
@@ -61,6 +62,7 @@ export const SIDEBAR_GROUPS: Record<StepName, SidebarGroup[]> = {
     { sidebarKey: 'verification', substeps: ['order-status', 'port-submitted'] },
     { sidebarKey: 'primary-did', substeps: ['primary-did'] },
     { sidebarKey: 'caller-id', substeps: ['caller-id'] },
+    { sidebarKey: 'directory-listing', substeps: ['directory-listing'] },
   ],
   hardware: [
     { sidebarKey: 'device-assignment', substeps: ['device-assignment'] },

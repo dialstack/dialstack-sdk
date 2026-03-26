@@ -75,6 +75,11 @@ export interface NumState {
   e911FlowState: 'idle' | 'running' | 'polling' | 'simple' | 'complex' | 'failed';
   e911ProvisionedLocation: OnboardingLocation | null;
   e911PollCount: number;
+  dlListingTypes: Record<string, 'listed' | 'non_listed' | 'non_published' | 'non_registered'>;
+  dlBusinessNames: Record<string, string>;
+  dlLocationIds: Record<string, string>;
+  dlIsSubmitting: boolean;
+  dlError: string | null;
 }
 
 export type NumAction =
@@ -146,11 +151,27 @@ export type NumAction =
       state: 'idle' | 'running' | 'polling' | 'simple' | 'complex' | 'failed';
       location?: OnboardingLocation | null;
       pollCount?: number;
-    };
+    }
+  | {
+      type: 'dl_init';
+      listingTypes: Record<string, 'listed' | 'non_listed' | 'non_published' | 'non_registered'>;
+      businessNames: Record<string, string>;
+      locationIds: Record<string, string>;
+    }
+  | {
+      type: 'dl_set_listing_type';
+      didId: string;
+      listingType: 'listed' | 'non_listed' | 'non_published' | 'non_registered';
+    }
+  | { type: 'dl_set_business_name'; didId: string; name: string }
+  | { type: 'dl_set_location_id'; didId: string; locationId: string }
+  | { type: 'dl_submit_start' }
+  | { type: 'dl_submit_success' }
+  | { type: 'dl_submit_error'; error: string };
 
 export type Dispatcher = React.Dispatch<NumAction>;
 export type TFn = (key: string, params?: Record<string, string | number>) => string;
-export type CardMode = 'overview' | 'primary-did' | 'caller-id';
+export type CardMode = 'overview' | 'primary-did' | 'caller-id' | 'directory-listing';
 
 export const E911_POLL_MAX = 5;
 
@@ -223,6 +244,11 @@ export const INITIAL_STATE: NumState = {
   e911FlowState: 'idle',
   e911ProvisionedLocation: null,
   e911PollCount: 0,
+  dlListingTypes: {},
+  dlBusinessNames: {},
+  dlLocationIds: {},
+  dlIsSubmitting: false,
+  dlError: null,
 };
 
 export function numReducer(state: NumState, action: NumAction): NumState {
@@ -532,6 +558,38 @@ export function numReducer(state: NumState, action: NumAction): NumState {
         ...(action.location !== undefined ? { e911ProvisionedLocation: action.location } : {}),
         ...(action.pollCount !== undefined ? { e911PollCount: action.pollCount } : {}),
       };
+    case 'dl_init':
+      return {
+        ...state,
+        dlListingTypes: action.listingTypes,
+        dlBusinessNames: action.businessNames,
+        dlLocationIds: action.locationIds,
+        dlError: null,
+      };
+    case 'dl_set_listing_type':
+      return {
+        ...state,
+        dlListingTypes: { ...state.dlListingTypes, [action.didId]: action.listingType },
+        dlError: null,
+      };
+    case 'dl_set_business_name':
+      return {
+        ...state,
+        dlBusinessNames: { ...state.dlBusinessNames, [action.didId]: action.name },
+        dlError: null,
+      };
+    case 'dl_set_location_id':
+      return {
+        ...state,
+        dlLocationIds: { ...state.dlLocationIds, [action.didId]: action.locationId },
+        dlError: null,
+      };
+    case 'dl_submit_start':
+      return { ...state, dlIsSubmitting: true, dlError: null };
+    case 'dl_submit_success':
+      return { ...state, dlIsSubmitting: false, dlError: null };
+    case 'dl_submit_error':
+      return { ...state, dlIsSubmitting: false, dlError: action.error };
     default:
       return state;
   }

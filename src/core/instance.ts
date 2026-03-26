@@ -24,6 +24,7 @@ import type {
   NumberOrder,
   PaginatedResponse,
   DIDItem,
+  UpdatePhoneNumberRequest,
   DeviceLine,
   Device,
   ProvisionedDevice,
@@ -509,6 +510,25 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   /**
    * Update the routing target for a phone number
    */
+  async updatePhoneNumber(
+    phoneNumberId: string,
+    update: UpdatePhoneNumberRequest
+  ): Promise<DIDItem> {
+    const response = await this.fetchApi(`/v1/phone-numbers/${phoneNumberId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(update),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new ApiError(
+        `Failed to update phone number: ${response.status} ${errorText}`,
+        response.status
+      );
+    }
+    return response.json();
+  }
+
   async updatePhoneNumberRoute(
     phoneNumberId: string,
     routingTarget: string | null

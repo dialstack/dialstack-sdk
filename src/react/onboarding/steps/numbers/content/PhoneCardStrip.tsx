@@ -42,6 +42,7 @@ export function PhoneCardStrip({
           mode === 'primary-did' && 'num-phone-card--active num-phone-card--check',
           isSelected && 'num-phone-card--selected',
           mode === 'caller-id' && 'num-phone-card--cid',
+          mode === 'directory-listing' && 'num-phone-card--cid',
         ]
           .filter(Boolean)
           .join(' ');
@@ -114,6 +115,24 @@ export function PhoneCardStrip({
               )}
               {/* Primary DID: check dot */}
               {mode === 'primary-did' && <span className="num-phone-check-dot" />}
+              {/* Directory listing: toggle switch */}
+              {mode === 'directory-listing' && (
+                <label className="num-dl-toggle">
+                  <input
+                    type="checkbox"
+                    checked={(state.dlListingTypes[did.id] ?? 'listed') !== 'non_registered'}
+                    onChange={(e) =>
+                      dispatch({
+                        type: 'dl_set_listing_type',
+                        didId: did.id,
+                        listingType: e.target.checked ? 'listed' : 'non_registered',
+                      })
+                    }
+                  />
+                  <span className="num-dl-toggle-track" />
+                  <span className="num-dl-toggle-thumb" />
+                </label>
+              )}
             </div>
 
             {/* Caller ID: expandable input section */}
@@ -166,6 +185,34 @@ export function PhoneCardStrip({
                 </div>
               </div>
             )}
+
+            {/* Directory listing: business name input (shown when toggle is on) */}
+            {mode === 'directory-listing' &&
+              (state.dlListingTypes[did.id] ?? 'listed') !== 'non_registered' && (
+                <div className="num-phone-card-cid-section">
+                  <div className="num-cid-input-wrapper">
+                    <label className="form-label">
+                      {t('accountOnboarding.numbers.directoryListing.businessName')}
+                    </label>
+                    <input
+                      type="text"
+                      className="form-input num-cid-input"
+                      value={state.dlBusinessNames[did.id] ?? ''}
+                      maxLength={200}
+                      placeholder={t(
+                        'accountOnboarding.numbers.directoryListing.businessNamePlaceholder'
+                      )}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/[^\x20-\x7E]/g, '');
+                        dispatch({ type: 'dl_set_business_name', didId: did.id, name: val });
+                      }}
+                    />
+                    <p className="form-help">
+                      {t('accountOnboarding.numbers.directoryListing.businessNameHelp')}
+                    </p>
+                  </div>
+                </div>
+              )}
           </Tag>
         );
       })}

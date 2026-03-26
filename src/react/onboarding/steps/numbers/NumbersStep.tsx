@@ -29,11 +29,12 @@ import numbersStyles from '../../styles/numbers-styles.css';
 
 import type { NumState, CardMode } from './types';
 import { numReducer, INITIAL_STATE, E911_POLL_MAX } from './types';
-import { getSidebarActiveKey, validateCallerIdName } from './helpers';
+import { formatPhone, getSidebarActiveKey, validateCallerIdName } from './helpers';
 import { PhoneCardStrip } from './content/PhoneCardStrip';
 import { OverviewContent } from './content/OverviewContent';
 import { PrimaryDIDContent } from './content/PrimaryDIDContent';
 import { CallerIdContent } from './content/CallerIdContent';
+import { DirectoryListingContent } from './content/DirectoryListingContent';
 import {
   OrderSearchContent,
   OrderResultsContent,
@@ -633,6 +634,36 @@ export const NumbersStep: React.FC = () => {
     [dialstack, contextLocations, contextAccount, startE911Polling, handleProvisionResult]
   );
 
+  // Initialize per-DID directory listing state from current DID data, then navigate to the substep.
+  const initDirectoryListingState = useCallback(
+    (s: NumState) => {
+      const listingTypes: Record<
+        string,
+        'listed' | 'non_listed' | 'non_published' | 'non_registered'
+      > = {};
+      const businessNames: Record<string, string> = {};
+      const locationIds: Record<string, string> = {};
+
+      // Find best default location
+      const defaultLoc =
+        contextLocations.find(
+          (loc) => loc.primary_did_id && loc.primary_did_id === s.selectedPrimaryDIDId
+        ) ?? contextLocations[0];
+
+      for (const did of s.activeDIDs) {
+        // Default to 'listed' for onboarding (opt-out model)
+        const currentType = did.directory_listing_type;
+        listingTypes[did.id] =
+          currentType && currentType !== 'non_registered' ? currentType : 'listed';
+        businessNames[did.id] = did.directory_listing_name ?? contextAccount?.name ?? '';
+        locationIds[did.id] = did.directory_listing_location_id ?? defaultLoc?.id ?? '';
+      }
+      dispatch({ type: 'dl_init', listingTypes, businessNames, locationIds });
+      dispatch({ type: 'set_substep', subStep: 'directory-listing' });
+    },
+    [contextLocations, contextAccount]
+  );
+
   // Caller ID bulk submit on "Next"
   const handleCallerIdNext = useCallback(
     async (s: NumState) => {
@@ -646,7 +677,7 @@ export const NumbersStep: React.FC = () => {
       );
 
       if (pending.length === 0) {
-        await navigateToNext(s);
+        initDirectoryListingState(s);
         return;
       }
 
@@ -701,10 +732,58 @@ export const NumbersStep: React.FC = () => {
       });
 
       if (allOk && stateRef.current.subStep === 'caller-id') {
-        await navigateToNext(stateRef.current);
+        initDirectoryListingState(stateRef.current);
       }
     },
-    [t, dialstack, navigateToNext, submitCallerIdSingle]
+    [t, dialstack, navigateToNext, submitCallerIdSingle, initDirectoryListingState]
+  );
+
+  // "Next" from directory listing — submit DL update for each DID, then navigate to complete
+  const handleDirectoryListingNext = useCallback(
+    async (s: NumState) => {
+      // Find DIDs that need updates (not non_registered)
+      const toUpdate = s.activeDIDs.filter(
+        (did) => (s.dlListingTypes[did.id] ?? 'listed') !== 'non_registered'
+      );
+
+      // Validate all
+      for (const did of toUpdate) {
+        const name = (s.dlBusinessNames[did.id] ?? '').trim();
+        if (!name) {
+          dispatch({
+            type: 'dl_submit_error',
+            error: `Business name is required for ${formatPhone(did.phone_number)}`,
+          });
+          return;
+        }
+      }
+
+      if (toUpdate.length === 0) {
+        await navigateToNext(s);
+        return;
+      }
+
+      dispatch({ type: 'dl_submit_start' });
+      try {
+        await Promise.all(
+          toUpdate.map((did) =>
+            dialstack.updatePhoneNumber(did.id, {
+              directory_listing_name: (s.dlBusinessNames[did.id] ?? '').trim(),
+              directory_listing_type: s.dlListingTypes[did.id] ?? 'listed',
+              ...(s.dlLocationIds[did.id] && {
+                directory_listing_location_id: s.dlLocationIds[did.id],
+              }),
+            })
+          )
+        );
+        dispatch({ type: 'dl_submit_success' });
+        await navigateToNext(stateRef.current);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to update directory listing';
+        dispatch({ type: 'dl_submit_error', error: msg });
+      }
+    },
+    [dialstack, navigateToNext]
   );
 
   // "Next" from overview
@@ -792,6 +871,11 @@ export const NumbersStep: React.FC = () => {
         label: t('accountOnboarding.sidebar.callerId'),
         description: t('accountOnboarding.sidebar.callerIdDesc'),
       },
+      {
+        key: 'directory-listing',
+        label: t('accountOnboarding.sidebar.directoryListing'),
+        description: t('accountOnboarding.sidebar.directoryListingDesc'),
+      },
     ],
     [t]
   );
@@ -833,7 +917,8 @@ export const NumbersStep: React.FC = () => {
   const showOuterHeader =
     state.subStep === 'overview' ||
     state.subStep === 'primary-did' ||
-    state.subStep === 'caller-id';
+    state.subStep === 'caller-id' ||
+    state.subStep === 'directory-listing';
 
   const footer = useMemo(() => {
     if (state.subStep === 'overview') {
@@ -899,6 +984,26 @@ export const NumbersStep: React.FC = () => {
           </div>
         </div>
       );
+    } else if (state.subStep === 'directory-listing') {
+      return (
+        <div className="footer-bar">
+          <button
+            className="btn-ghost"
+            onClick={() => dispatch({ type: 'set_substep', subStep: 'caller-id' })}
+          >
+            ← {t('accountOnboarding.nav.back')}
+          </button>
+          <button
+            className="btn btn-primary"
+            disabled={state.dlIsSubmitting}
+            onClick={() => void handleDirectoryListingNext(stateRef.current)}
+          >
+            {state.dlIsSubmitting
+              ? t('accountOnboarding.nav.submitting')
+              : t('accountOnboarding.nav.next') + ' →'}
+          </button>
+        </div>
+      );
     }
     return null;
   }, [
@@ -906,11 +1011,13 @@ export const NumbersStep: React.FC = () => {
     state.callerIdBulkAttempted,
     state.activeDIDs,
     state.callerIdStatuses,
+    state.dlIsSubmitting,
     t,
     handleBackToPrevStep,
     handleOverviewNext,
     handlePrimaryDidNext,
     handleCallerIdNext,
+    handleDirectoryListingNext,
     navigateToNext,
   ]);
 
@@ -1033,7 +1140,9 @@ export const NumbersStep: React.FC = () => {
         ? 'primary-did'
         : state.subStep === 'caller-id'
           ? 'caller-id'
-          : null;
+          : state.subStep === 'directory-listing'
+            ? 'directory-listing'
+            : null;
 
   let content: React.ReactNode;
   switch (state.subStep) {
@@ -1047,6 +1156,9 @@ export const NumbersStep: React.FC = () => {
       break;
     case 'caller-id':
       content = <CallerIdContent state={state} t={t} />;
+      break;
+    case 'directory-listing':
+      content = <DirectoryListingContent state={state} t={t} />;
       break;
     case 'order-search':
       content = (

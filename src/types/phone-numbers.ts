@@ -27,9 +27,28 @@ export interface DIDItem {
   expires_at?: string | null;
   outbound_enabled: boolean;
   caller_id_name?: string | null;
+  directory_listing_name?: string | null;
+  directory_listing_type?: DirectoryListingType;
+  directory_listing_location_id?: string | null;
   routing_target?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * Directory listing type for a phone number
+ */
+export type DirectoryListingType = 'listed' | 'non_listed' | 'non_published' | 'non_registered';
+
+/**
+ * Request body for updating a phone number via POST /v1/phone-numbers/:id
+ */
+export interface UpdatePhoneNumberRequest {
+  outbound_enabled?: boolean;
+  status?: 'active' | 'inactive';
+  directory_listing_name?: string;
+  directory_listing_type?: DirectoryListingType;
+  directory_listing_location_id?: string;
 }
 
 /**

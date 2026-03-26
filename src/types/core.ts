@@ -35,7 +35,7 @@ import type {
   ApprovePortOrderRequest,
   PortEligibilityResult,
 } from './number-porting';
-import type { PaginatedResponse, DIDItem } from './phone-numbers';
+import type { PaginatedResponse, DIDItem, UpdatePhoneNumberRequest } from './phone-numbers';
 import type {
   DECTBase,
   DECTHandset,
@@ -356,6 +356,7 @@ export interface DialStackInstance {
    * @param routingTarget - The target TypeID to route to, or null to clear
    * @returns Promise resolving to the updated phone number
    */
+  updatePhoneNumber(phoneNumberId: string, update: UpdatePhoneNumberRequest): Promise<DIDItem>;
   updatePhoneNumberRoute(phoneNumberId: string, routingTarget: string | null): Promise<DIDItem>;
 
   // ===========================================================================

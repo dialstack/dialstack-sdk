@@ -165,6 +165,15 @@ async function completeNumbersStep(
     await userEvent.type(cidInputs[0]!, 'ACME Corp');
   }
 
+  // Next -> Directory Listing
+  await clickButton(canvas, canvasElement, /Next →/, { last: true });
+  await waitFor(
+    () => {
+      expect(canvas.getByRole('heading', { name: /Directory Listing/i })).toBeInTheDocument();
+    },
+    { timeout: DATA_TIMEOUT }
+  );
+
   // Next -> Numbers Complete (triggers E911 + complete screen)
   await clickButton(canvas, canvasElement, /Next →/, { last: true });
   await waitFor(
@@ -976,12 +985,22 @@ export const FullOrderFlow: Story = {
       );
     });
 
-    await step('Fill caller ID and complete Numbers step', async () => {
+    await step('Fill caller ID and advance to Directory Listing', async () => {
       const cidInputs = canvasElement.querySelectorAll<HTMLInputElement>('.num-cid-input');
       if (cidInputs.length > 0 && !cidInputs[0]!.value) {
         await userEvent.type(cidInputs[0]!, 'ACME Corp');
       }
 
+      await clickButton(canvas, canvasElement, /Next →/, { last: true });
+      await waitFor(
+        () => {
+          expect(canvas.getByRole('heading', { name: /Directory Listing/i })).toBeInTheDocument();
+        },
+        { timeout: DATA_TIMEOUT }
+      );
+    });
+
+    await step('Complete Numbers step via Directory Listing', async () => {
       await clickButton(canvas, canvasElement, /Next →/, { last: true });
       await waitFor(
         () => {
@@ -1290,6 +1309,15 @@ export const FullPortFlow: Story = {
       if (cidInputs.length > 0 && !cidInputs[0]!.value) {
         await userEvent.type(cidInputs[0]!, 'ACME Corp');
       }
+
+      // Next -> Directory Listing
+      await clickButton(canvas, canvasElement, /Next →/, { last: true });
+      await waitFor(
+        () => {
+          expect(canvas.getByRole('heading', { name: /Directory Listing/i })).toBeInTheDocument();
+        },
+        { timeout: DATA_TIMEOUT }
+      );
 
       // Complete
       await clickButton(canvas, canvasElement, /Next →/, { last: true });
@@ -1738,6 +1766,17 @@ export const ComprehensiveValidation: Story = {
       // Type a valid caller ID name and submit
       await userEvent.type(cidInputs[0]!, 'ACME Corp');
 
+      await clickButton(canvas, canvasElement, /Next →/, { last: true });
+
+      // Should advance to directory listing
+      await waitFor(
+        () => {
+          expect(canvas.getByRole('heading', { name: /Directory Listing/i })).toBeInTheDocument();
+        },
+        { timeout: DATA_TIMEOUT }
+      );
+
+      // Next -> complete
       await clickButton(canvas, canvasElement, /Next →/, { last: true });
 
       // Should complete the numbers step

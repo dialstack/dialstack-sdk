@@ -39,7 +39,7 @@ describe('OnboardingProgressStore', () => {
       expect(store.getCurrentStep()).toBe('numbers');
       expect(store.isStepComplete('account')).toBe(true);
       expect(store.getStepProgressPercent('account')).toBe(100);
-      expect(store.getStepProgressPercent('numbers')).toBe(20);
+      expect(store.getStepProgressPercent('numbers')).toBe(17);
     });
 
     it('hydrates from old string format', () => {
@@ -117,11 +117,11 @@ describe('OnboardingProgressStore', () => {
       const store = createStore(syncFn);
       store.completeSubStep('numbers', 'overview');
       store.completeSubStep('numbers', 'port-numbers');
-      expect(store.getStepProgressPercent('numbers')).toBe(40);
+      expect(store.getStepProgressPercent('numbers')).toBe(33);
 
       syncFn.mockClear();
       store.removeSubSteps('numbers', ['port-numbers']);
-      expect(store.getStepProgressPercent('numbers')).toBe(20);
+      expect(store.getStepProgressPercent('numbers')).toBe(17);
       expect(syncFn).toHaveBeenCalledTimes(1);
     });
 
@@ -204,6 +204,7 @@ describe('OnboardingProgressStore', () => {
       store.completeSubStep('numbers', 'overview');
       store.completeSubStep('numbers', 'primary-did');
       store.completeSubStep('numbers', 'caller-id');
+      store.completeSubStep('numbers', 'directory-listing');
       store.completeSubStep('numbers', 'order-search');
       store.completeSubStep('numbers', 'order-status');
       expect(store.isStepComplete('numbers')).toBe(true);
@@ -213,15 +214,15 @@ describe('OnboardingProgressStore', () => {
   describe('getStepProgressPercent', () => {
     it('returns percentage based on completed sidebar groups', () => {
       const store = createStore();
-      // Numbers has 5 groups: options, primary-did, caller-id, setup, verification
+      // Numbers has 6 groups: options, setup, verification, primary-did, caller-id, directory-listing
       store.completeSubStep('numbers', 'overview'); // options group
-      expect(store.getStepProgressPercent('numbers')).toBe(20);
+      expect(store.getStepProgressPercent('numbers')).toBe(17);
 
       store.completeSubStep('numbers', 'order-search'); // setup group
-      expect(store.getStepProgressPercent('numbers')).toBe(40);
+      expect(store.getStepProgressPercent('numbers')).toBe(33);
 
       store.completeSubStep('numbers', 'order-status'); // verification group
-      expect(store.getStepProgressPercent('numbers')).toBe(60);
+      expect(store.getStepProgressPercent('numbers')).toBe(50);
     });
 
     it('returns 0 for step with no sidebar mappings', () => {

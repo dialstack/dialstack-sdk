@@ -525,6 +525,20 @@ export function createMockInstance(
         ],
       };
     },
+    updatePhoneNumber: async (phoneNumberId: string, update: Record<string, unknown>) => {
+      await delay();
+      const did = mockDIDs.find((d) => d.id === phoneNumberId);
+      if (!did) throw new Error('Phone number not found');
+      if (update.directory_listing_type !== undefined)
+        (did as Record<string, unknown>).directory_listing_type = update.directory_listing_type;
+      if (update.directory_listing_name !== undefined)
+        (did as Record<string, unknown>).directory_listing_name = update.directory_listing_name;
+      if (update.directory_listing_location_id !== undefined)
+        (did as Record<string, unknown>).directory_listing_location_id =
+          update.directory_listing_location_id;
+      return { ...did };
+    },
+
     updatePhoneNumberRoute: async (phoneNumberId: string, routingTarget: string | null) => {
       await delay();
       const did = mockDIDs.find((d) => d.id === phoneNumberId);

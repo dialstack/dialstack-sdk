@@ -47,6 +47,8 @@ export type {
   // Phone numbers types
   PaginatedResponse,
   DIDItem,
+  DirectoryListingType,
+  UpdatePhoneNumberRequest,
   PhoneNumberStatus,
   PhoneNumberItem,
   PhoneNumbersClasses,

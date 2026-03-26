@@ -18,6 +18,7 @@ export function getSidebarActiveKey(subStep: NumSubStep): string {
   if (subStep === 'overview') return 'options';
   if (subStep === 'primary-did') return 'primary-did';
   if (subStep === 'caller-id') return 'caller-id';
+  if (subStep === 'directory-listing') return 'directory-listing';
   if (subStep === 'order-status' || subStep === 'port-submitted') return 'verification';
   return 'setup';
 }

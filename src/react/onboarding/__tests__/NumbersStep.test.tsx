@@ -160,6 +160,14 @@ async function advanceToCallerId() {
   });
 }
 
+/** Advance from caller-id to directory-listing. Clicks Next on caller-id. */
+async function advanceToDirectoryListing() {
+  fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+  await waitFor(() => {
+    expect(document.body.textContent).toContain('Directory Listing');
+  });
+}
+
 /** Click an action card by matching its title text. */
 function clickActionCard(titleSubstring: string) {
   const cards = document.querySelectorAll('.num-action-card');
@@ -736,11 +744,11 @@ describe('NumbersStep', () => {
       await advanceToPrimaryDID(result.instance);
       await advanceToCallerId();
 
-      // Click Next — should advance past caller-id immediately (DID is pre-submitted)
+      // Click Next — should advance past caller-id to directory-listing (DID is pre-submitted)
       fireEvent.click(screen.getByRole('button', { name: /Next/i }));
 
       await waitFor(() => {
-        expect(document.querySelector('.num-cid-section')).toBeNull();
+        expect(document.body.textContent).toContain('Directory Listing');
       });
     });
 
@@ -1277,7 +1285,14 @@ describe('NumbersStep', () => {
     async function completeToE911(instance: RenderOnboardingResult['instance']) {
       await advanceToPrimaryDID(instance);
       await advanceToCallerId();
-      // Click Next on caller-id to trigger handleCallerIdNext -> navigateToNext -> E911
+      await advanceToDirectoryListing();
+      // Uncheck all directory listing toggles so no DLDA submission is needed
+      const dlToggles = document.querySelectorAll<HTMLInputElement>(
+        '.num-dl-toggle input[type="checkbox"]'
+      );
+      dlToggles.forEach((toggle) => {
+        if (toggle.checked) fireEvent.click(toggle);
+      });
       fireEvent.click(screen.getByRole('button', { name: /Next/i }));
     }
 
