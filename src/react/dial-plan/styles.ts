@@ -438,6 +438,124 @@ export const dialPlanStyles = `
 }
 
 /* ============================================================================
+   Resource Combobox
+   ============================================================================ */
+
+.ds-resource-combobox {
+  border: 1px solid var(--ds-color-border, #e2e8f0);
+  border-radius: var(--ds-border-radius, 8px);
+  background: var(--ds-color-background, #ffffff);
+  overflow: hidden;
+}
+
+.ds-resource-combobox__trigger {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--ds-color-border, #e2e8f0);
+  border-radius: var(--ds-border-radius, 8px);
+  background: var(--ds-color-background, #ffffff);
+  color: var(--ds-color-text, #1e293b);
+  font-size: var(--ds-font-size-sm, 14px);
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+}
+
+.ds-resource-combobox__trigger:hover {
+  border-color: var(--ds-color-primary, #3b82f6);
+}
+
+.ds-resource-combobox__trigger-placeholder {
+  color: var(--ds-color-text-secondary, #64748b);
+}
+
+.ds-resource-combobox__trigger-chevron {
+  color: var(--ds-color-text-secondary, #64748b);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.ds-resource-combobox__input {
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-bottom: 1px solid var(--ds-color-border, #e2e8f0);
+  background: transparent;
+  color: var(--ds-color-text, #1e293b);
+  font-size: var(--ds-font-size-sm, 14px);
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.ds-resource-combobox__input::placeholder {
+  color: var(--ds-color-text-secondary, #64748b);
+}
+
+.ds-resource-combobox__list {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.ds-resource-combobox__group [cmdk-group-heading] {
+  padding: 6px 10px 2px;
+  font-size: var(--ds-font-size-xs, 12px);
+  font-weight: 500;
+  color: var(--ds-color-text-secondary, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ds-resource-combobox__item {
+  padding: 6px 10px;
+  font-size: var(--ds-font-size-sm, 14px);
+  color: var(--ds-color-text, #1e293b);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 0;
+}
+
+.ds-resource-combobox__item[data-selected="true"] {
+  background: var(--ds-color-primary, #3b82f6);
+  color: #ffffff;
+}
+
+.ds-resource-combobox__item--selected {
+  font-weight: 500;
+}
+
+.ds-resource-combobox__check {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.ds-resource-combobox__create {
+  padding: 6px 10px;
+  font-size: var(--ds-font-size-sm, 14px);
+  color: var(--ds-color-primary, #3b82f6);
+  cursor: pointer;
+  font-style: italic;
+}
+
+.ds-resource-combobox__create[data-selected="true"] {
+  background: var(--ds-color-primary, #3b82f6);
+  color: #ffffff;
+}
+
+.ds-resource-combobox__empty {
+  padding: 12px 10px;
+  font-size: var(--ds-font-size-sm, 14px);
+  color: var(--ds-color-text-secondary, #64748b);
+  text-align: center;
+}
+
+/* ============================================================================
    Dark Mode
    Activated by .dark class on an ancestor (Tailwind / next-themes convention)
    or data-theme="dark" attribute.
@@ -559,6 +677,30 @@ export const dialPlanStyles = `
 :is(.dark, [data-theme="dark"]) .ds-dial-plan-config-field__input {
   background: #12122a;
   border-color: rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+}
+
+:is(.dark, [data-theme="dark"]) .ds-resource-combobox__trigger {
+  background: #12122a;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+}
+
+:is(.dark, [data-theme="dark"]) .ds-resource-combobox {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: #12122a;
+}
+
+:is(.dark, [data-theme="dark"]) .ds-resource-combobox__input {
+  color: #e2e8f0;
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+:is(.dark, [data-theme="dark"]) .ds-resource-combobox__item {
+  color: #e2e8f0;
+}
+
+:is(.dark, [data-theme="dark"]) .ds-resource-combobox__item--selected {
   color: #e2e8f0;
 }
 

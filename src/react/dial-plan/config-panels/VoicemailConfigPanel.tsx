@@ -1,54 +1,53 @@
-import React, { useEffect, useState } from 'react';
-import type { ConfigPanelProps } from '../registry-types';
+import React, { useCallback, useEffect, useState } from 'react';
+import type { ConfigPanelProps, ResourceType } from '../registry-types';
+import { ResourceCombobox, type ResourceGroup } from './ResourceCombobox';
 
-interface ResourceGroup {
-  label: string;
-  items: Array<{ id: string; name: string }>;
-}
-
-export function VoicemailConfigPanel({ config, onConfigChange, listResources }: ConfigPanelProps) {
+export function VoicemailConfigPanel({
+  config,
+  onConfigChange,
+  listResources,
+  onCreateResource,
+}: ConfigPanelProps) {
   const [groups, setGroups] = useState<ResourceGroup[]>([]);
 
+  const fetchResources = useCallback(
+    () =>
+      Promise.all([listResources('user'), listResources('shared_voicemail')])
+        .then(([users, sharedVoicemails]) => {
+          setGroups([
+            { label: 'Users', type: 'user', items: users },
+            { label: 'Shared Voicemail Boxes', type: 'shared_voicemail', items: sharedVoicemails },
+          ]);
+        })
+        .catch(() => {}),
+    [listResources]
+  );
+
   useEffect(() => {
-    Promise.all([listResources('user'), listResources('shared_voicemail')])
-      .then(([users, sharedVoicemails]) => {
-        setGroups([
-          { label: 'Users', items: users },
-          { label: 'Shared Voicemail Boxes', items: sharedVoicemails },
-        ]);
-      })
-      .catch(() => {});
-  }, [listResources]);
+    fetchResources();
+  }, [fetchResources]);
 
   const targetId = (config.target_id as string) ?? '';
+
+  async function handleCreateResource(type: ResourceType) {
+    if (!onCreateResource) return undefined;
+    const created = await onCreateResource(type);
+    if (created) {
+      await fetchResources();
+    }
+    return created;
+  }
 
   return (
     <div className="ds-dial-plan-config-field">
       <label className="ds-dial-plan-config-field__label">Target</label>
-      <select
-        className="ds-dial-plan-config-field__select"
+      <ResourceCombobox
+        groups={groups}
         value={targetId}
-        onChange={(e) => {
-          const selectedOption = e.target.selectedOptions[0];
-          onConfigChange(
-            { target_id: e.target.value, timeout: 0 },
-            { targetName: selectedOption?.textContent || '' }
-          );
-        }}
-      >
-        <option value="">— Select target —</option>
-        {groups.map((group) =>
-          group.items.length > 0 ? (
-            <optgroup key={group.label} label={group.label}>
-              {group.items.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </optgroup>
-          ) : null
-        )}
-      </select>
+        placeholder="Search targets…"
+        onSelect={(id, name) => onConfigChange({ target_id: id, timeout: 0 }, { targetName: name })}
+        onCreateResource={handleCreateResource}
+      />
     </div>
   );
 }

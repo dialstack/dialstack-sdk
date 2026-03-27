@@ -1,40 +1,42 @@
-import React, { useEffect, useState } from 'react';
-import type { ConfigPanelProps } from '../registry-types';
-
-interface ResourceGroup {
-  label: string;
-  items: Array<{ id: string; name: string }>;
-}
+import React, { useCallback, useEffect, useState } from 'react';
+import type { ConfigPanelProps, ResourceType } from '../registry-types';
+import { ResourceCombobox, type ResourceGroup } from './ResourceCombobox';
 
 export function InternalDialConfigPanel({
   config,
   onConfigChange,
   listResources,
+  onCreateResource,
 }: ConfigPanelProps) {
   const [groups, setGroups] = useState<ResourceGroup[]>([]);
 
+  const fetchResources = useCallback(
+    () =>
+      Promise.all([
+        listResources('user'),
+        listResources('ring_group'),
+        listResources('dial_plan'),
+        listResources('voice_app'),
+      ])
+        .then(([users, ringGroups, dialPlans, voiceApps]) => {
+          setGroups([
+            { label: 'Users', type: 'user', items: users },
+            { label: 'Ring Groups', type: 'ring_group', items: ringGroups },
+            { label: 'Dial Plans', type: 'dial_plan', items: dialPlans },
+            { label: 'Voice Apps', type: 'voice_app', items: voiceApps },
+          ]);
+        })
+        .catch(() => {}),
+    [listResources]
+  );
+
   useEffect(() => {
-    Promise.all([
-      listResources('user'),
-      listResources('ring_group'),
-      listResources('dial_plan'),
-      listResources('voice_app'),
-    ])
-      .then(([users, ringGroups, dialPlans, voiceApps]) => {
-        setGroups([
-          { label: 'Users', items: users },
-          { label: 'Ring Groups', items: ringGroups },
-          { label: 'Dial Plans', items: dialPlans },
-          { label: 'Voice Apps', items: voiceApps },
-        ]);
-      })
-      .catch(() => {});
-  }, [listResources]);
+    fetchResources();
+  }, [fetchResources]);
 
   const targetId = (config.target_id as string) ?? '';
   const timeout = (config.timeout as number) ?? 30;
 
-  // Terminal targets (voice apps, dial plans, shared voicemail) have no timeout
   const isTerminalTarget =
     targetId.startsWith('va_') || targetId.startsWith('dp_') || targetId.startsWith('svm_');
 
@@ -53,32 +55,17 @@ export function InternalDialConfigPanel({
     );
   }
 
+  async function handleCreateResource(type: ResourceType) {
+    if (!onCreateResource) return undefined;
+    const created = await onCreateResource(type);
+    if (created) {
+      await fetchResources();
+    }
+    return created;
+  }
+
   return (
     <>
-      <div className="ds-dial-plan-config-field">
-        <label className="ds-dial-plan-config-field__label">Target</label>
-        <select
-          className="ds-dial-plan-config-field__select"
-          value={targetId}
-          onChange={(e) => {
-            const selectedOption = e.target.selectedOptions[0];
-            handleTargetChange(e.target.value, selectedOption?.textContent || '');
-          }}
-        >
-          <option value="">— Select target —</option>
-          {groups.map((group) =>
-            group.items.length > 0 ? (
-              <optgroup key={group.label} label={group.label}>
-                {group.items.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </optgroup>
-            ) : null
-          )}
-        </select>
-      </div>
       {!isTerminalTarget && (
         <div className="ds-dial-plan-config-field">
           <label className="ds-dial-plan-config-field__label">Timeout (seconds)</label>
@@ -92,6 +79,16 @@ export function InternalDialConfigPanel({
           />
         </div>
       )}
+      <div className="ds-dial-plan-config-field">
+        <label className="ds-dial-plan-config-field__label">Target</label>
+        <ResourceCombobox
+          groups={groups}
+          value={targetId}
+          placeholder="Search targets…"
+          onSelect={handleTargetChange}
+          onCreateResource={handleCreateResource}
+        />
+      </div>
     </>
   );
 }

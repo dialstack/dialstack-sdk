@@ -45,6 +45,7 @@ import { NodeLibrary } from './dial-plan/NodeLibrary';
 import { NodeConfigPanel } from './dial-plan/NodeConfigPanel';
 import { EditorToolbar } from './dial-plan/EditorToolbar';
 import { injectDialPlanStyles, injectStyles } from './dial-plan/styles';
+import type { ResourceType } from './dial-plan/registry-types';
 import type {
   DialPlan as DialPlanData,
   DialPlanNode,
@@ -86,6 +87,8 @@ export interface DialPlanProps {
   className?: string;
   /** Optional inline styles for the container */
   style?: React.CSSProperties;
+  /** Optional callback to create a new resource from a config panel select. Provided by the host app. */
+  onCreateResource?: (type: ResourceType) => Promise<{ id: string; name: string } | undefined>;
 }
 
 // ============================================================================
@@ -231,6 +234,7 @@ function DialPlanInner({
   onError,
   className,
   style,
+  onCreateResource,
 }: DialPlanProps) {
   const { dialstack } = useDialstackComponents();
   const reactFlowInstance = useReactFlow();
@@ -861,6 +865,7 @@ function DialPlanInner({
               onDelete={handleDeleteNode}
               onClose={() => setSelectedNodeId(null)}
               listResources={listResources}
+              onCreateResource={onCreateResource}
             />
           )}
           {selectedEdge && (

@@ -12,6 +12,7 @@ interface NodeConfigPanelProps {
   onDelete: (nodeId: string) => void;
   onClose: () => void;
   listResources: ConfigPanelProps['listResources'];
+  onCreateResource?: ConfigPanelProps['onCreateResource'];
 }
 
 export function NodeConfigPanel({
@@ -21,6 +22,7 @@ export function NodeConfigPanel({
   onDelete,
   onClose,
   listResources,
+  onCreateResource,
 }: NodeConfigPanelProps) {
   // Close on Escape key
   useEffect(() => {
@@ -76,6 +78,7 @@ export function NodeConfigPanel({
           config={config}
           onConfigChange={(updates, display) => onConfigChange(node.id, updates, display)}
           listResources={listResources}
+          onCreateResource={onCreateResource}
         />
       </div>
     </div>

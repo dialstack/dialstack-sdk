@@ -10,12 +10,19 @@ export interface ExitDefinition {
   configKey: string;
 }
 
+export type ResourceType =
+  | 'schedule'
+  | 'user'
+  | 'ring_group'
+  | 'dial_plan'
+  | 'voice_app'
+  | 'shared_voicemail';
+
 export interface ConfigPanelProps {
   config: Record<string, unknown>;
   onConfigChange: (updates: Record<string, unknown>, display?: Record<string, unknown>) => void;
-  listResources: (
-    type: 'schedule' | 'user' | 'ring_group' | 'dial_plan' | 'voice_app' | 'shared_voicemail'
-  ) => Promise<Array<{ id: string; name: string }>>;
+  listResources: (type: ResourceType) => Promise<Array<{ id: string; name: string }>>;
+  onCreateResource?: (type: ResourceType) => Promise<{ id: string; name: string } | undefined>;
 }
 
 export interface NodeTypeRegistration {
