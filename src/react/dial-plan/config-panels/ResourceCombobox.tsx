@@ -5,7 +5,7 @@ import type { ResourceType } from '../registry-types';
 export interface ResourceGroup {
   label: string;
   type?: ResourceType;
-  items: Array<{ id: string; name: string }>;
+  items: Array<{ id: string; name: string; extension_number?: string }>;
 }
 
 interface ResourceComboboxProps {
@@ -13,7 +13,14 @@ interface ResourceComboboxProps {
   value: string;
   placeholder?: string;
   onSelect: (id: string, name: string) => void;
-  onCreateResource?: (type: ResourceType) => Promise<{ id: string; name: string } | undefined>;
+  onCreateResource?: (
+    type: ResourceType
+  ) => Promise<{ id: string; name: string; extension_number?: string } | undefined>;
+  selectLabel?: string;
+  noResultsLabel?: string;
+  loadingLabel?: string;
+  createNewPrefix?: string;
+  extensionLabel?: string;
 }
 
 export function ResourceCombobox({
@@ -22,6 +29,11 @@ export function ResourceCombobox({
   placeholder = 'Search…',
   onSelect,
   onCreateResource,
+  selectLabel = '— Select —',
+  noResultsLabel = 'No results found',
+  loadingLabel = 'Loading…',
+  createNewPrefix = '+ Create new…',
+  extensionLabel = 'Ext.',
 }: ResourceComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -53,10 +65,13 @@ export function ResourceCombobox({
     if (!value) return '';
     for (const group of groups) {
       const item = group.items.find((i) => i.id === value);
-      if (item) return item.name;
+      if (item)
+        return item.extension_number
+          ? `${item.name} (${extensionLabel} ${item.extension_number})`
+          : item.name;
     }
     return '';
-  }, [value, groups]);
+  }, [value, groups, extensionLabel]);
 
   async function handleCreateNew(type: ResourceType) {
     if (!onCreateResource) return;
@@ -78,7 +93,7 @@ export function ResourceCombobox({
     return (
       <button type="button" className="ds-resource-combobox__trigger" onClick={() => setOpen(true)}>
         <span className={selectedName ? '' : 'ds-resource-combobox__trigger-placeholder'}>
-          {selectedName || '— Select —'}
+          {selectedName || selectLabel}
         </span>
         <svg
           className="ds-resource-combobox__trigger-chevron"
@@ -110,7 +125,7 @@ export function ResourceCombobox({
           autoFocus
         />
         <Command.List className="ds-resource-combobox__list">
-          <Command.Empty className="ds-resource-combobox__empty">No results found</Command.Empty>
+          <Command.Empty className="ds-resource-combobox__empty">{noResultsLabel}</Command.Empty>
           {groups.map((group) => (
             <Command.Group
               key={group.label}
@@ -120,11 +135,24 @@ export function ResourceCombobox({
               {group.items.map((item) => (
                 <Command.Item
                   key={item.id}
-                  value={`${item.name} ${group.label} ${item.id}`}
+                  value={`${item.name} ${item.extension_number ?? ''} ${group.label} ${item.id}`}
                   className={`ds-resource-combobox__item${item.id === value ? ' ds-resource-combobox__item--selected' : ''}`}
-                  onSelect={() => handleSelect(item.id, item.name)}
+                  onSelect={() =>
+                    handleSelect(
+                      item.id,
+                      item.extension_number
+                        ? `${item.name} (${extensionLabel} ${item.extension_number})`
+                        : item.name
+                    )
+                  }
                 >
                   {item.name}
+                  {item.extension_number && (
+                    <span className="ds-resource-combobox__ext">
+                      {' '}
+                      ({extensionLabel} {item.extension_number})
+                    </span>
+                  )}
                   {item.id === value && <span className="ds-resource-combobox__check">✓</span>}
                 </Command.Item>
               ))}
@@ -135,12 +163,14 @@ export function ResourceCombobox({
                   className="ds-resource-combobox__create"
                   onSelect={() => handleCreateNew(group.type!)}
                 >
-                  + Create new…
+                  {createNewPrefix}
                 </Command.Item>
               )}
             </Command.Group>
           ))}
-          {!hasItems && !search && <div className="ds-resource-combobox__empty">Loading…</div>}
+          {!hasItems && !search && (
+            <div className="ds-resource-combobox__empty">{loadingLabel}</div>
+          )}
         </Command.List>
       </Command>
     </div>

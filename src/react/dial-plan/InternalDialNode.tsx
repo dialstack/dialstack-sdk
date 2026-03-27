@@ -49,13 +49,7 @@ export const InternalDialNode = memo(function InternalDialNode({
             <span style={{ textTransform: 'none' }}> ({data.timeout}s)</span>
           )}
         </span>
-        {(data.targetType || data.targetName) && (
-          <span className="ds-dial-plan-node__name">
-            {data.targetType && data.targetName
-              ? `${data.targetType}: ${data.targetName}`
-              : data.targetType || data.targetName}
-          </span>
-        )}
+        {data.targetName && <span className="ds-dial-plan-node__name">{data.targetName}</span>}
       </div>
       {hasNextExit && (
         <div className="ds-dial-plan-node__exits">

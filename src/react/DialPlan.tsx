@@ -13,7 +13,7 @@ import {
   ReactFlow,
   Background,
   Controls,
-  MiniMap,
+  ConnectionLineType,
   MarkerType,
   ReactFlowProvider,
   useNodesState,
@@ -65,8 +65,6 @@ export interface DialPlanProps {
   dialPlanId?: string;
   /** Enable editing mode with node library, config panel, and toolbar */
   editable?: boolean;
-  /** Whether to show the minimap for navigation (view mode only, default: false) */
-  showMinimap?: boolean;
   /** Locale strings for node labels and exits */
   locale?: DialPlanLocale;
   /** Callback fired when a node is clicked (view mode) */
@@ -88,7 +86,9 @@ export interface DialPlanProps {
   /** Optional inline styles for the container */
   style?: React.CSSProperties;
   /** Optional callback to create a new resource from a config panel select. Provided by the host app. */
-  onCreateResource?: (type: ResourceType) => Promise<{ id: string; name: string } | undefined>;
+  onCreateResource?: (
+    type: ResourceType
+  ) => Promise<{ id: string; name: string; extension_number?: string } | undefined>;
 }
 
 // ============================================================================
@@ -101,12 +101,69 @@ const defaultDialPlanLocale: DialPlanLocale = {
     schedule: 'Schedule',
     internalDial: 'Dial',
     voicemail: 'Voicemail',
+    ringAllUsers: 'Ring All Users',
   },
   exits: {
     open: 'Open',
     closed: 'Closed',
     next: 'No Answer',
     timeout: 'Timeout',
+  },
+  nodeDescriptions: {
+    schedule: 'Route calls by schedule',
+    internalDial: 'Dial a user or group',
+    voicemail: 'Send to voicemail',
+    ringAllUsers: 'Ring all users',
+  },
+  targetTypes: {
+    user: 'User',
+    ringGroup: 'Ring Group',
+    dialPlan: 'Dial Plan',
+    voiceApp: 'Voice App',
+    sharedVoicemail: 'Shared Voicemail',
+  },
+  resourceGroups: {
+    users: 'Users',
+    ringGroups: 'Ring Groups',
+    dialPlans: 'Dial Plans',
+    voiceApps: 'Voice Apps',
+    sharedVoicemails: 'Shared Voicemails',
+    schedules: 'Schedules',
+  },
+  configLabels: {
+    timeout: 'Timeout (seconds)',
+    target: 'Target',
+    schedule: 'Schedule',
+    search: 'Search...',
+    searchTargets: 'Search targets...',
+    searchSchedules: 'Search schedules...',
+  },
+  toolbar: {
+    autoLayout: 'Auto Layout',
+    save: 'Save',
+  },
+  panel: {
+    delete_: 'Delete',
+    close: 'Close',
+    connection: 'Connection',
+    from: 'From',
+    exit: 'Exit',
+    to: 'To',
+  },
+  combobox: {
+    select: '— Select —',
+    search: 'Search...',
+    noResults: 'No results found',
+    loading: 'Loading...',
+    createNew: '+ Create new...',
+    extensionLabel: 'Ext.',
+  },
+  status: {
+    loading: 'Loading dial plan...',
+    loadError: 'Failed to load dial plan',
+    notFound: 'No dial plan found',
+    saveError: 'Failed to save dial plan',
+    newDialPlan: 'New Dial Plan',
   },
 };
 
@@ -135,6 +192,7 @@ interface User {
   id: string;
   name?: string;
   email?: string;
+  extension_number?: string;
 }
 
 interface ResourceMaps {
@@ -183,13 +241,13 @@ async function fetchResourceMaps(
   return { schedules: scheduleMap, users: userMap };
 }
 
-function resolveTargetType(targetId: string): string {
-  if (targetId.startsWith('user_')) return 'User';
-  if (targetId.startsWith('rg_')) return 'Ring Group';
-  if (targetId.startsWith('dp_')) return 'Dial Plan';
-  if (targetId.startsWith('va_')) return 'Voice App';
-  if (targetId.startsWith('svm_')) return 'Shared Voicemail';
-  return 'Dial';
+function resolveTargetType(targetId: string, locale: DialPlanLocale): string {
+  if (targetId.startsWith('user_')) return locale.targetTypes.user;
+  if (targetId.startsWith('rg_')) return locale.targetTypes.ringGroup;
+  if (targetId.startsWith('dp_')) return locale.targetTypes.dialPlan;
+  if (targetId.startsWith('va_')) return locale.targetTypes.voiceApp;
+  if (targetId.startsWith('svm_')) return locale.targetTypes.sharedVoicemail;
+  return locale.nodeTypes.internalDial;
 }
 
 /** Enrich graph nodes with resolved resource names and locale strings. */
@@ -208,8 +266,12 @@ function enrichNodesWithResources(
     } else if (node.type === 'internalDial' || node.type === 'voicemail') {
       const data = node.data as InternalDialNodeData;
       const user = maps.users.get(data.targetId);
-      const targetName = user?.name || user?.email;
-      const targetType = resolveTargetType(data.targetId);
+      const baseName = user?.name || user?.email;
+      const targetName =
+        baseName && user?.extension_number
+          ? `${baseName} (${locale.combobox.extensionLabel} ${user.extension_number})`
+          : baseName;
+      const targetType = resolveTargetType(data.targetId, locale);
       return { ...node, data: { ...data, targetName, targetType, locale } };
     }
     return node;
@@ -223,7 +285,6 @@ function enrichNodesWithResources(
 function DialPlanInner({
   dialPlanId,
   editable = false,
-  showMinimap = false,
   locale = defaultDialPlanLocale,
   onNodeClick,
   onLoaderStart,
@@ -254,8 +315,6 @@ function DialPlanInner({
     callbacksRef.current.onDirtyChange?.(isDirty);
   }, [isDirty]);
   const [dialPlanMeta, setDialPlanMeta] = useState<{ id: string; name: string } | null>(null);
-  const [libraryCollapsed, setLibraryCollapsed] = useState(false);
-
   // Refs for current state (avoid stale closures in callbacks)
   const canvasRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef(nodes);
@@ -296,7 +355,7 @@ function DialPlanInner({
       // Edit mode without dialPlanId: create mode with default template
       if (editable && !dialPlanId) {
         const { nodes: initNodes, edges: initEdges } = transformDialPlanToGraph(
-          defaultDialPlanData,
+          { ...defaultDialPlanData, name: locale.status.newDialPlan },
           defaultRegistry
         );
         if (!cancelled) {
@@ -387,7 +446,9 @@ function DialPlanInner({
   // Filter out remove changes — nodes are deleted via the config panel, not keyboard
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      const filtered = changes.filter((c) => c.type !== 'remove');
+      const filtered = changes.filter(
+        (c) => c.type !== 'remove' && !(c.type === 'position' && 'id' in c && c.id === '__start__')
+      );
       if (filtered.length === 0) return;
       const updated = applyNodeChanges(filtered, nodesRef.current);
       setNodes(updated);
@@ -556,7 +617,7 @@ function DialPlanInner({
             : { ...n.data, originalNode: updatedOriginal };
           // Derive targetType from target_id if it changed
           const targetId = configUpdates.target_id as string | undefined;
-          const targetType = targetId ? resolveTargetType(targetId) : undefined;
+          const targetType = targetId ? resolveTargetType(targetId, locale) : undefined;
           // Merge: previous display fields → fresh structural fields → explicit display overrides → derived type
           return {
             ...n,
@@ -705,20 +766,6 @@ function DialPlanInner({
     [onNodeClick]
   );
 
-  // Minimap node color
-  const minimapNodeColor = useCallback((node: Node) => {
-    switch (node.type) {
-      case 'start':
-        return '#3b82f6';
-      case 'schedule':
-        return '#0ea5e9';
-      case 'internalDial':
-        return '#22c55e';
-      default:
-        return '#94a3b8';
-    }
-  }, []);
-
   // Selected node/edge for config panel (edit mode)
   const selectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : null;
   const selectedReg = selectedNode ? defaultRegistry.getByFlowType(selectedNode.type ?? '') : null;
@@ -734,7 +781,7 @@ function DialPlanInner({
       >
         <div className="ds-dial-plan-viewer__loading">
           <div className="ds-dial-plan-viewer__spinner" />
-          <span>Loading dial plan...</span>
+          <span>{locale.status.loading}</span>
         </div>
       </div>
     );
@@ -747,7 +794,7 @@ function DialPlanInner({
         style={style}
       >
         <div className="ds-dial-plan-viewer__error">
-          <span>Failed to load dial plan</span>
+          <span>{locale.status.loadError}</span>
           <span className="ds-dial-plan-viewer__error-message">{loadError.message}</span>
         </div>
       </div>
@@ -762,7 +809,7 @@ function DialPlanInner({
         style={style}
       >
         <div className="ds-dial-plan-viewer__empty">
-          <span>No dial plan found</span>
+          <span>{locale.status.notFound}</span>
         </div>
       </div>
     );
@@ -786,12 +833,14 @@ function DialPlanInner({
       selectionOnDrag={false}
       selectNodesOnDrag={false}
       panOnDrag
+      panOnScroll
+      connectionLineType={ConnectionLineType.SmoothStep}
       selectionKeyCode={null}
       multiSelectionKeyCode={null}
       deleteKeyCode={editable ? ['Backspace', 'Delete'] : null}
       fitView
       fitViewOptions={{ padding: 0.3, minZoom: 0.5, maxZoom: 1.5 }}
-      minZoom={0.1}
+      minZoom={0.3}
       maxZoom={2}
       defaultEdgeOptions={{
         type: 'smoothstep',
@@ -805,45 +854,15 @@ function DialPlanInner({
       {editable && (
         <EditorToolbar onAutoLayout={handleAutoLayout} onSave={handleSave} isDirty={isDirty} />
       )}
-      {showMinimap && (
-        <MiniMap nodeColor={minimapNodeColor} maskColor="rgba(0, 0, 0, 0.1)" pannable zoomable />
-      )}
     </ReactFlow>
   );
 
   return (
     <div className={`ds-dial-plan-editor ${className || ''}`} style={style}>
       {editable && (
-        <div
-          className={`ds-dial-plan-node-library-wrapper${libraryCollapsed ? ' ds-dial-plan-node-library-wrapper--collapsed' : ''}`}
-        >
-          <NodeLibrary
-            registry={defaultRegistry}
-            onAddNode={handleAddNode}
-            onCollapse={() => setLibraryCollapsed(true)}
-          />
+        <div className="ds-dial-plan-node-library-wrapper">
+          <NodeLibrary registry={defaultRegistry} onAddNode={handleAddNode} />
         </div>
-      )}
-      {editable && libraryCollapsed && (
-        <button
-          type="button"
-          className="ds-dial-plan-library-toggle"
-          onClick={() => setLibraryCollapsed(false)}
-          title="Show node library"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </button>
       )}
       <div
         ref={canvasRef}
@@ -863,7 +882,10 @@ function DialPlanInner({
               registration={selectedReg}
               onConfigChange={handleConfigChange}
               onDelete={handleDeleteNode}
-              onClose={() => setSelectedNodeId(null)}
+              onClose={() => {
+                setSelectedNodeId(null);
+                setNodes((prev) => prev.map((n) => (n.selected ? { ...n, selected: false } : n)));
+              }}
               listResources={listResources}
               onCreateResource={onCreateResource}
             />
@@ -882,24 +904,30 @@ function DialPlanInner({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   >
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                    <polyline points="15 3 21 3 21 9" />
-                    <line x1="10" y1="14" x2="21" y2="3" />
+                    <path d="M5 12h14" />
+                    <polyline points="12 5 19 12 12 19" />
                   </svg>
                 </span>
-                <span className="ds-dial-plan-config-panel__header-label">Connection</span>
+                <span className="ds-dial-plan-config-panel__header-label">
+                  {locale.panel.connection}
+                </span>
                 <button
                   type="button"
                   className="ds-dial-plan-config-panel__delete"
                   onClick={() => handleDeleteEdge(selectedEdge.id)}
                 >
-                  Delete
+                  {locale.panel.delete_}
                 </button>
                 <button
                   type="button"
                   className="ds-dial-plan-config-panel__close"
-                  onClick={() => setSelectedEdgeId(null)}
-                  title="Close"
+                  onClick={() => {
+                    setSelectedEdgeId(null);
+                    setEdges((prev) =>
+                      prev.map((e) => (e.selected ? { ...e, selected: false } : e))
+                    );
+                  }}
+                  title={locale.panel.close}
                 >
                   <svg
                     width="14"
@@ -918,7 +946,7 @@ function DialPlanInner({
               </div>
               <div className="ds-dial-plan-config-panel__body">
                 <div className="ds-dial-plan-config-field">
-                  <span className="ds-dial-plan-config-field__label">From</span>
+                  <span className="ds-dial-plan-config-field__label">{locale.panel.from}</span>
                   <span className="ds-dial-plan-edge-panel__value">
                     {(() => {
                       const n = nodes.find((n) => n.id === selectedEdge.source);
@@ -930,7 +958,7 @@ function DialPlanInner({
                 </div>
                 {selectedEdge.sourceHandle && (
                   <div className="ds-dial-plan-config-field">
-                    <span className="ds-dial-plan-config-field__label">Exit</span>
+                    <span className="ds-dial-plan-config-field__label">{locale.panel.exit}</span>
                     <span className="ds-dial-plan-edge-panel__value">
                       {selectedEdge.sourceHandle.charAt(0).toUpperCase() +
                         selectedEdge.sourceHandle.slice(1)}
@@ -938,7 +966,7 @@ function DialPlanInner({
                   </div>
                 )}
                 <div className="ds-dial-plan-config-field">
-                  <span className="ds-dial-plan-config-field__label">To</span>
+                  <span className="ds-dial-plan-config-field__label">{locale.panel.to}</span>
                   <span className="ds-dial-plan-edge-panel__value">
                     {(() => {
                       const n = nodes.find((n) => n.id === selectedEdge.target);

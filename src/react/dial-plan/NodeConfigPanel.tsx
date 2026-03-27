@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import type { DialPlanLocale } from '../../types/dial-plan';
 import type { NodeTypeRegistration, ConfigPanelProps } from './registry-types';
 
 interface NodeConfigPanelProps {
@@ -13,6 +14,7 @@ interface NodeConfigPanelProps {
   onClose: () => void;
   listResources: ConfigPanelProps['listResources'];
   onCreateResource?: ConfigPanelProps['onCreateResource'];
+  locale?: DialPlanLocale;
 }
 
 export function NodeConfigPanel({
@@ -23,6 +25,7 @@ export function NodeConfigPanel({
   onClose,
   listResources,
   onCreateResource,
+  locale,
 }: NodeConfigPanelProps) {
   // Close on Escape key
   useEffect(() => {
@@ -50,12 +53,12 @@ export function NodeConfigPanel({
             onClose();
           }}
         >
-          Delete
+          {locale?.panel.delete_ ?? 'Delete'}
         </button>
         <button
           className="ds-dial-plan-config-panel__close"
           onClick={onClose}
-          title="Close"
+          title={locale?.panel.close ?? 'Close'}
           type="button"
         >
           <svg
@@ -79,6 +82,7 @@ export function NodeConfigPanel({
           onConfigChange={(updates, display) => onConfigChange(node.id, updates, display)}
           listResources={listResources}
           onCreateResource={onCreateResource}
+          locale={locale}
         />
       </div>
     </div>

@@ -7,6 +7,7 @@ export function ScheduleConfigPanel({
   onConfigChange,
   listResources,
   onCreateResource,
+  locale,
 }: ConfigPanelProps) {
   const [groups, setGroups] = useState<ResourceGroup[]>([]);
 
@@ -14,10 +15,16 @@ export function ScheduleConfigPanel({
     () =>
       listResources('schedule')
         .then((schedules) => {
-          setGroups([{ label: 'Schedules', type: 'schedule', items: schedules }]);
+          setGroups([
+            {
+              label: locale?.resourceGroups.schedules ?? 'Schedules',
+              type: 'schedule',
+              items: schedules,
+            },
+          ]);
         })
         .catch(() => {}),
-    [listResources]
+    [listResources, locale]
   );
 
   useEffect(() => {
@@ -37,13 +44,20 @@ export function ScheduleConfigPanel({
 
   return (
     <div className="ds-dial-plan-config-field">
-      <label className="ds-dial-plan-config-field__label">Schedule</label>
+      <label className="ds-dial-plan-config-field__label">
+        {locale?.configLabels.schedule ?? 'Schedule'}
+      </label>
       <ResourceCombobox
         groups={groups}
         value={scheduleId}
-        placeholder="Search schedules…"
+        placeholder={locale?.configLabels.searchSchedules ?? 'Search schedules…'}
         onSelect={(id, name) => onConfigChange({ schedule_id: id }, { scheduleName: name })}
         onCreateResource={handleCreateResource}
+        selectLabel={locale?.combobox.select}
+        noResultsLabel={locale?.combobox.noResults}
+        loadingLabel={locale?.combobox.loading}
+        createNewPrefix={locale?.combobox.createNew}
+        extensionLabel={locale?.combobox.extensionLabel}
       />
     </div>
   );

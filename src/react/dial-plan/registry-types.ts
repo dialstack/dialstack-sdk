@@ -1,5 +1,5 @@
 import type { NodeProps } from '@xyflow/react';
-import type { DialPlanNode } from '../../types/dial-plan';
+import type { DialPlanNode, DialPlanLocale } from '../../types/dial-plan';
 
 export interface ExitDefinition {
   /** Handle ID (e.g., "open", "closed", "next") */
@@ -21,8 +21,13 @@ export type ResourceType =
 export interface ConfigPanelProps {
   config: Record<string, unknown>;
   onConfigChange: (updates: Record<string, unknown>, display?: Record<string, unknown>) => void;
-  listResources: (type: ResourceType) => Promise<Array<{ id: string; name: string }>>;
-  onCreateResource?: (type: ResourceType) => Promise<{ id: string; name: string } | undefined>;
+  listResources: (
+    type: ResourceType
+  ) => Promise<Array<{ id: string; name: string; extension_number?: string }>>;
+  onCreateResource?: (
+    type: ResourceType
+  ) => Promise<{ id: string; name: string; extension_number?: string } | undefined>;
+  locale?: DialPlanLocale;
 }
 
 export interface NodeTypeRegistration {

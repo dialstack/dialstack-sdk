@@ -1,12 +1,14 @@
 import React from 'react';
 import type { ConfigPanelProps } from '../registry-types';
 
-export function RingAllUsersConfigPanel({ config, onConfigChange }: ConfigPanelProps) {
+export function RingAllUsersConfigPanel({ config, onConfigChange, locale }: ConfigPanelProps) {
   const timeout = (config.timeout as number) ?? 24;
 
   return (
     <div className="ds-dial-plan-config-field">
-      <label className="ds-dial-plan-config-field__label">Timeout (seconds)</label>
+      <label className="ds-dial-plan-config-field__label">
+        {locale?.configLabels.timeout ?? 'Timeout (seconds)'}
+      </label>
       <input
         className="ds-dial-plan-config-field__input"
         type="number"

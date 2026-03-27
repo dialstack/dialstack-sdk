@@ -7,6 +7,7 @@ export function InternalDialConfigPanel({
   onConfigChange,
   listResources,
   onCreateResource,
+  locale,
 }: ConfigPanelProps) {
   const [groups, setGroups] = useState<ResourceGroup[]>([]);
 
@@ -20,14 +21,26 @@ export function InternalDialConfigPanel({
       ])
         .then(([users, ringGroups, dialPlans, voiceApps]) => {
           setGroups([
-            { label: 'Users', type: 'user', items: users },
-            { label: 'Ring Groups', type: 'ring_group', items: ringGroups },
-            { label: 'Dial Plans', type: 'dial_plan', items: dialPlans },
-            { label: 'Voice Apps', type: 'voice_app', items: voiceApps },
+            { label: locale?.resourceGroups.users ?? 'Users', type: 'user', items: users },
+            {
+              label: locale?.resourceGroups.ringGroups ?? 'Ring Groups',
+              type: 'ring_group',
+              items: ringGroups,
+            },
+            {
+              label: locale?.resourceGroups.dialPlans ?? 'Dial Plans',
+              type: 'dial_plan',
+              items: dialPlans,
+            },
+            {
+              label: locale?.resourceGroups.voiceApps ?? 'Voice Apps',
+              type: 'voice_app',
+              items: voiceApps,
+            },
           ]);
         })
         .catch(() => {}),
-    [listResources]
+    [listResources, locale]
   );
 
   useEffect(() => {
@@ -68,7 +81,9 @@ export function InternalDialConfigPanel({
     <>
       {!isTerminalTarget && (
         <div className="ds-dial-plan-config-field">
-          <label className="ds-dial-plan-config-field__label">Timeout (seconds)</label>
+          <label className="ds-dial-plan-config-field__label">
+            {locale?.configLabels.timeout ?? 'Timeout (seconds)'}
+          </label>
           <input
             className="ds-dial-plan-config-field__input"
             type="number"
@@ -80,13 +95,20 @@ export function InternalDialConfigPanel({
         </div>
       )}
       <div className="ds-dial-plan-config-field">
-        <label className="ds-dial-plan-config-field__label">Target</label>
+        <label className="ds-dial-plan-config-field__label">
+          {locale?.configLabels.target ?? 'Target'}
+        </label>
         <ResourceCombobox
           groups={groups}
           value={targetId}
-          placeholder="Search targets…"
+          placeholder={locale?.configLabels.searchTargets ?? 'Search targets…'}
           onSelect={handleTargetChange}
           onCreateResource={handleCreateResource}
+          selectLabel={locale?.combobox.select}
+          noResultsLabel={locale?.combobox.noResults}
+          loadingLabel={locale?.combobox.loading}
+          createNewPrefix={locale?.combobox.createNew}
+          extensionLabel={locale?.combobox.extensionLabel}
         />
       </div>
     </>

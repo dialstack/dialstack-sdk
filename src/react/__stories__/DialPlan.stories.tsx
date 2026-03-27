@@ -24,10 +24,6 @@ export const Default: Story = {
   args: { dialPlanId: 'dp_01abc' },
 };
 
-export const WithMinimap: Story = {
-  args: { dialPlanId: 'dp_01abc', showMinimap: true },
-};
-
 export const DarkTheme: Story = {
   args: { dialPlanId: 'dp_01abc', theme: 'dark' },
 };
@@ -80,7 +76,6 @@ export const EditorRendersInCreateMode: Story = {
       await waitFor(() => {
         expect(canvasElement.querySelector('.ds-dial-plan-node-library')).toBeInTheDocument();
       });
-      expect(canvas.getByText('Node Library')).toBeInTheDocument();
     });
 
     await step('Canvas area is present', async () => {

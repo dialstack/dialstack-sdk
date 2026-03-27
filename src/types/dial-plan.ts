@@ -124,12 +124,69 @@ export interface DialPlanLocale {
     schedule: string;
     internalDial: string;
     voicemail: string;
+    ringAllUsers: string;
   };
   exits: {
     open: string;
     closed: string;
     next: string;
     timeout: string;
+  };
+  nodeDescriptions: {
+    schedule: string;
+    internalDial: string;
+    voicemail: string;
+    ringAllUsers: string;
+  };
+  targetTypes: {
+    user: string;
+    ringGroup: string;
+    dialPlan: string;
+    voiceApp: string;
+    sharedVoicemail: string;
+  };
+  resourceGroups: {
+    users: string;
+    ringGroups: string;
+    dialPlans: string;
+    voiceApps: string;
+    sharedVoicemails: string;
+    schedules: string;
+  };
+  configLabels: {
+    timeout: string;
+    target: string;
+    schedule: string;
+    search: string;
+    searchTargets: string;
+    searchSchedules: string;
+  };
+  toolbar: {
+    autoLayout: string;
+    save: string;
+  };
+  panel: {
+    delete_: string;
+    close: string;
+    connection: string;
+    from: string;
+    exit: string;
+    to: string;
+  };
+  combobox: {
+    select: string;
+    search: string;
+    noResults: string;
+    loading: string;
+    createNew: string;
+    extensionLabel: string;
+  };
+  status: {
+    loading: string;
+    loadError: string;
+    notFound: string;
+    saveError: string;
+    newDialPlan: string;
   };
 }
 

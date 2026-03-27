@@ -7,6 +7,7 @@ export function VoicemailConfigPanel({
   onConfigChange,
   listResources,
   onCreateResource,
+  locale,
 }: ConfigPanelProps) {
   const [groups, setGroups] = useState<ResourceGroup[]>([]);
 
@@ -15,12 +16,16 @@ export function VoicemailConfigPanel({
       Promise.all([listResources('user'), listResources('shared_voicemail')])
         .then(([users, sharedVoicemails]) => {
           setGroups([
-            { label: 'Users', type: 'user', items: users },
-            { label: 'Shared Voicemail Boxes', type: 'shared_voicemail', items: sharedVoicemails },
+            { label: locale?.resourceGroups.users ?? 'Users', type: 'user', items: users },
+            {
+              label: locale?.resourceGroups.sharedVoicemails ?? 'Shared Voicemails',
+              type: 'shared_voicemail',
+              items: sharedVoicemails,
+            },
           ]);
         })
         .catch(() => {}),
-    [listResources]
+    [listResources, locale]
   );
 
   useEffect(() => {
@@ -40,13 +45,20 @@ export function VoicemailConfigPanel({
 
   return (
     <div className="ds-dial-plan-config-field">
-      <label className="ds-dial-plan-config-field__label">Target</label>
+      <label className="ds-dial-plan-config-field__label">
+        {locale?.configLabels.target ?? 'Target'}
+      </label>
       <ResourceCombobox
         groups={groups}
         value={targetId}
-        placeholder="Search targets…"
+        placeholder={locale?.configLabels.searchTargets ?? 'Search targets…'}
         onSelect={(id, name) => onConfigChange({ target_id: id, timeout: 0 }, { targetName: name })}
         onCreateResource={handleCreateResource}
+        selectLabel={locale?.combobox.select}
+        noResultsLabel={locale?.combobox.noResults}
+        loadingLabel={locale?.combobox.loading}
+        createNewPrefix={locale?.combobox.createNew}
+        extensionLabel={locale?.combobox.extensionLabel}
       />
     </div>
   );
