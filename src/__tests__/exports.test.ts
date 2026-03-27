@@ -15,10 +15,6 @@ describe('SDK Main Entry Exports', () => {
     expect(SDK.defaultIcons).toBeDefined();
   });
 
-  it('exports US_TIMEZONES', () => {
-    expect(SDK.US_TIMEZONES).toBeDefined();
-  });
-
   it('exports isDeskphone function', () => {
     expect(SDK.isDeskphone).toBeDefined();
     expect(typeof SDK.isDeskphone).toBe('function');

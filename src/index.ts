@@ -123,8 +123,5 @@ export type {
 // Type-only re-exports (safe for SSR)
 export type { DateRange } from './components/call-logs';
 
-// Timezone constants
-export { US_TIMEZONES } from './constants/us-timezones';
-
 // Note: Server SDK is exported from '@dialstack/sdk/server'
 // Do not import server SDK in browser code
