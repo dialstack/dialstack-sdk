@@ -138,7 +138,7 @@ export interface DialPlanLocale {
 // ============================================================================
 
 /** Types of nodes in the visual graph */
-export type GraphNodeType = 'start' | 'schedule' | 'internalDial' | 'ringAllUsers';
+export type GraphNodeType = 'start' | 'schedule' | 'internalDial' | 'ringAllUsers' | 'voicemail';
 
 /**
  * Data payload for the Start node.

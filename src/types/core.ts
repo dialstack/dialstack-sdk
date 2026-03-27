@@ -11,7 +11,7 @@ import type {
   VoicemailTranscript,
 } from './components';
 import type { CallEventMap, CallEventHandler } from './callbacks';
-import type { Extension } from './dial-plan';
+import type { DialPlan as DialPlanData, Extension } from './dial-plan';
 import type {
   AvailablePhoneNumber,
   NumberOrder,
@@ -61,6 +61,12 @@ import type {
   CreateEndpointRequest,
   E911ValidationResult,
 } from './account-onboarding';
+
+/** A resource with an id and name, used by list endpoints. */
+export interface NamedResource {
+  id: string;
+  name: string;
+}
 
 /**
  * Client secret response from fetchClientSecret
@@ -294,6 +300,33 @@ export interface DialStackInstance {
    */
   listExtensions(options?: { target?: string; limit?: number }): Promise<Extension[]>;
 
+  /** Get a single dial plan by ID */
+  getDialPlan(dialPlanId: string): Promise<DialPlanData>;
+
+  /** List dial plans in the current account */
+  listDialPlans(options?: { limit?: number }): Promise<NamedResource[]>;
+
+  /** Create a new dial plan */
+  createDialPlan(data: Record<string, unknown>): Promise<DialPlanData>;
+
+  /** Update an existing dial plan */
+  updateDialPlan(dialPlanId: string, data: Record<string, unknown>): Promise<DialPlanData>;
+
+  /** Get a single schedule by ID */
+  getSchedule(scheduleId: string): Promise<NamedResource>;
+
+  /** List schedules in the current account */
+  listSchedules(options?: { limit?: number }): Promise<NamedResource[]>;
+
+  /** List ring groups in the current account */
+  listRingGroups(options?: { limit?: number }): Promise<NamedResource[]>;
+
+  /** List voice apps in the current account */
+  listVoiceApps(options?: { limit?: number }): Promise<NamedResource[]>;
+
+  /** List shared voicemail boxes in the current account */
+  listSharedVoicemailBoxes(options?: { limit?: number }): Promise<NamedResource[]>;
+
   /**
    * Get the caller ID name for a phone number
    *
@@ -330,7 +363,7 @@ export interface DialStackInstance {
   resolveRoutingTarget(target: string): Promise<{
     id: string;
     name: string | null;
-    type: 'user' | 'dial_plan' | 'voice_app' | 'ring_group';
+    type: 'user' | 'dial_plan' | 'voice_app' | 'ring_group' | 'shared_voicemail';
   } | null>;
 
   /**

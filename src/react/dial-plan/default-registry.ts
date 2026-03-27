@@ -5,9 +5,11 @@ import { NodeTypeRegistry } from './registry';
 import { ScheduleNode } from './ScheduleNode';
 import { InternalDialNode } from './InternalDialNode';
 import { RingAllUsersNode } from './RingAllUsersNode';
+import { VoicemailNode } from './VoicemailNode';
 import { ScheduleConfigPanel } from './config-panels/ScheduleConfigPanel';
 import { InternalDialConfigPanel } from './config-panels/InternalDialConfigPanel';
 import { RingAllUsersConfigPanel } from './config-panels/RingAllUsersConfigPanel';
+import { VoicemailConfigPanel } from './config-panels/VoicemailConfigPanel';
 import type {
   DialPlanNode,
   ScheduleNode as ScheduleNodeType,
@@ -66,6 +68,23 @@ const usersIcon = React.createElement(
   React.createElement('path', { d: 'M16 3.13a4 4 0 0 1 0 7.75' })
 );
 
+const voicemailIcon = React.createElement(
+  'svg',
+  {
+    width: '16',
+    height: '16',
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: '2',
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+  },
+  React.createElement('circle', { cx: '5.5', cy: '11.5', r: '4.5' }),
+  React.createElement('circle', { cx: '18.5', cy: '11.5', r: '4.5' }),
+  React.createElement('line', { x1: '5.5', y1: '16', x2: '18.5', y2: '16' })
+);
+
 export const defaultRegistry = new NodeTypeRegistry();
 
 defaultRegistry.register({
@@ -112,6 +131,21 @@ defaultRegistry.register({
     };
   },
   icon: phoneIcon,
+  resolveAlias: (node: DialPlanNode) => {
+    const config = node.config as unknown as Record<string, unknown>;
+    const targetId = config.target_id as string | undefined;
+    if (!targetId) return undefined;
+
+    // Shared voicemail targets always render as voicemail node
+    if (targetId.startsWith('svm_')) {
+      return defaultRegistry.get('voicemail');
+    }
+    // User target with timeout=0 and no next = direct-to-voicemail
+    if (targetId.startsWith('user_') && config.timeout === 0 && !config.next) {
+      return defaultRegistry.get('voicemail');
+    }
+    return undefined;
+  },
 });
 
 defaultRegistry.register({
@@ -133,4 +167,27 @@ defaultRegistry.register({
     };
   },
   icon: usersIcon,
+});
+
+defaultRegistry.register({
+  type: 'voicemail',
+  apiType: 'internal_dial',
+  flowType: 'voicemail',
+  label: 'Voicemail',
+  description: 'Send to voicemail',
+  color: '#8b5cf6',
+  exits: [],
+  component: VoicemailNode as unknown as ComponentType<NodeProps>,
+  configPanel: VoicemailConfigPanel,
+  defaultConfig: { target_id: '', timeout: 0 },
+  toFlowNode: (node: DialPlanNode) => {
+    const n = node as InternalDialNodeType;
+    return {
+      label: 'Voicemail',
+      targetId: n.config.target_id,
+      timeout: 0,
+      originalNode: n,
+    };
+  },
+  icon: voicemailIcon,
 });

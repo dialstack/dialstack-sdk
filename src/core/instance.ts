@@ -60,7 +60,9 @@ import type {
   OnboardingEndpoint,
   CreateEndpointRequest,
   E911ValidationResult,
+  NamedResource,
 } from '../types';
+import type { DialPlan as DialPlanData } from '../types/dial-plan';
 
 /**
  * Error thrown by SDK API calls, carrying the HTTP status code.
@@ -81,7 +83,12 @@ const SESSION_REFRESH_BUFFER_MS = 5 * 60 * 1000; // Refresh 5 minutes before exp
 const MIN_REFRESH_INTERVAL_MS = 30 * 1000; // Minimum 30 seconds between refreshes
 const SESSION_RETRY_INTERVAL_MS = 1 * 60 * 1000; // 1 minute retry on error
 
-export type RoutingTargetType = 'user' | 'dial_plan' | 'voice_app' | 'ring_group';
+export type RoutingTargetType =
+  | 'user'
+  | 'dial_plan'
+  | 'voice_app'
+  | 'ring_group'
+  | 'shared_voicemail';
 
 /** Canonical mapping from TypeID prefix to API path and routing target type. */
 export const ROUTING_TARGET_TYPES: Record<string, { path: string; type: RoutingTargetType }> = {
@@ -89,6 +96,7 @@ export const ROUTING_TARGET_TYPES: Record<string, { path: string; type: RoutingT
   dp: { path: '/v1/dialplans', type: 'dial_plan' },
   va: { path: '/v1/voice-apps', type: 'voice_app' },
   rg: { path: '/v1/ring_groups', type: 'ring_group' },
+  svm: { path: '/v1/shared_voicemail_boxes', type: 'shared_voicemail' },
 } as const;
 
 /**
@@ -114,7 +122,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     Promise<{
       id: string;
       name: string | null;
-      type: 'user' | 'dial_plan' | 'voice_app' | 'ring_group';
+      type: RoutingTargetType;
     } | null>
   >();
   private reconnectAttempts = 0;
@@ -443,7 +451,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   async resolveRoutingTarget(target: string): Promise<{
     id: string;
     name: string | null;
-    type: 'user' | 'dial_plan' | 'voice_app' | 'ring_group';
+    type: RoutingTargetType;
   } | null> {
     const cached = this.routingTargetCache.get(target);
     if (cached) return cached;
@@ -456,7 +464,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   private async _fetchRoutingTarget(target: string): Promise<{
     id: string;
     name: string | null;
-    type: 'user' | 'dial_plan' | 'voice_app' | 'ring_group';
+    type: RoutingTargetType;
   } | null> {
     const prefixMap = ROUTING_TARGET_TYPES;
 
@@ -1593,6 +1601,127 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
 
     const data = await response.json();
     return data.data ?? [];
+  }
+
+  // ===========================================================================
+  // Dial Plan Resource Methods
+  // ===========================================================================
+
+  async getDialPlan(dialPlanId: string): Promise<DialPlanData> {
+    const response = await this.fetchApi(`/v1/dialplans/${dialPlanId}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get dial plan: ${response.status} ${errorText}`);
+    }
+    return response.json();
+  }
+
+  async listDialPlans(options?: { limit?: number }): Promise<NamedResource[]> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.set('limit', String(options.limit));
+    const queryString = params.toString();
+    const path = queryString ? `/v1/dialplans?${queryString}` : '/v1/dialplans';
+    const response = await this.fetchApi(path);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to list dial plans: ${response.status} ${errorText}`);
+    }
+    const data = await response.json();
+    return (data.data ?? []).map((r: NamedResource) => ({ id: r.id, name: r.name }));
+  }
+
+  async createDialPlan(data: Record<string, unknown>): Promise<DialPlanData> {
+    const response = await this.fetchApi('/v1/dialplans', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorData = (await response.json().catch(() => ({}))) as { error?: string };
+      throw new Error(errorData.error ?? `Failed to create dial plan: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async updateDialPlan(dialPlanId: string, data: Record<string, unknown>): Promise<DialPlanData> {
+    const response = await this.fetchApi(`/v1/dialplans/${dialPlanId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorData = (await response.json().catch(() => ({}))) as { error?: string };
+      throw new Error(errorData.error ?? `Failed to update dial plan: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async getSchedule(scheduleId: string): Promise<NamedResource> {
+    const response = await this.fetchApi(`/v1/schedules/${scheduleId}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get schedule: ${response.status} ${errorText}`);
+    }
+    const data = await response.json();
+    return { id: data.id, name: data.name };
+  }
+
+  async listSchedules(options?: { limit?: number }): Promise<NamedResource[]> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.set('limit', String(options.limit));
+    const queryString = params.toString();
+    const path = queryString ? `/v1/schedules?${queryString}` : '/v1/schedules';
+    const response = await this.fetchApi(path);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to list schedules: ${response.status} ${errorText}`);
+    }
+    const data = await response.json();
+    return (data.data ?? []).map((r: NamedResource) => ({ id: r.id, name: r.name }));
+  }
+
+  async listRingGroups(options?: { limit?: number }): Promise<NamedResource[]> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.set('limit', String(options.limit));
+    const queryString = params.toString();
+    const path = queryString ? `/v1/ring_groups?${queryString}` : '/v1/ring_groups';
+    const response = await this.fetchApi(path);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to list ring groups: ${response.status} ${errorText}`);
+    }
+    const data = await response.json();
+    return (data.data ?? []).map((r: NamedResource) => ({ id: r.id, name: r.name }));
+  }
+
+  async listVoiceApps(options?: { limit?: number }): Promise<NamedResource[]> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.set('limit', String(options.limit));
+    const queryString = params.toString();
+    const path = queryString ? `/v1/voice-apps?${queryString}` : '/v1/voice-apps';
+    const response = await this.fetchApi(path);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to list voice apps: ${response.status} ${errorText}`);
+    }
+    const data = await response.json();
+    return (data.data ?? []).map((r: NamedResource) => ({ id: r.id, name: r.name }));
+  }
+
+  async listSharedVoicemailBoxes(options?: { limit?: number }): Promise<NamedResource[]> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.set('limit', String(options.limit));
+    const queryString = params.toString();
+    const path = queryString
+      ? `/v1/shared_voicemail_boxes?${queryString}`
+      : '/v1/shared_voicemail_boxes';
+    const response = await this.fetchApi(path);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to list shared voicemail boxes: ${response.status} ${errorText}`);
+    }
+    const data = await response.json();
+    return (data.data ?? []).map((r: NamedResource) => ({ id: r.id, name: r.name }));
   }
 
   /**

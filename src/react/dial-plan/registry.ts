@@ -15,6 +15,13 @@ export class NodeTypeRegistry {
     return this.byType.get(type);
   }
 
+  /** Resolve which registration should render an API node, checking aliases. */
+  resolveType(node: DialPlanNode): NodeTypeRegistration | undefined {
+    const exact = this.byType.get(node.type);
+    if (!exact?.resolveAlias) return exact;
+    return exact.resolveAlias(node) ?? exact;
+  }
+
   getByFlowType(flowType: string): NodeTypeRegistration | undefined {
     return this.byFlowType.get(flowType);
   }
@@ -32,7 +39,7 @@ export class NodeTypeRegistry {
   }
 
   createEdgesForNode(node: DialPlanNode, nodeMap: Map<string, DialPlanNode>): Edge[] {
-    const reg = this.byType.get(node.type);
+    const reg = this.resolveType(node);
     if (!reg) return [];
 
     const edges: Edge[] = [];

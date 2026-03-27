@@ -14,12 +14,14 @@ export interface ConfigPanelProps {
   config: Record<string, unknown>;
   onConfigChange: (updates: Record<string, unknown>, display?: Record<string, unknown>) => void;
   listResources: (
-    type: 'schedule' | 'user' | 'ring_group' | 'dial_plan'
+    type: 'schedule' | 'user' | 'ring_group' | 'dial_plan' | 'voice_app' | 'shared_voicemail'
   ) => Promise<Array<{ id: string; name: string }>>;
 }
 
 export interface NodeTypeRegistration {
   type: string;
+  /** Actual API node type when serializing. Defaults to `type` if not set. */
+  apiType?: string;
   flowType: string;
   label: string;
   description: string;
@@ -30,4 +32,6 @@ export interface NodeTypeRegistration {
   defaultConfig: Record<string, unknown>;
   exits: ExitDefinition[];
   toFlowNode: (node: DialPlanNode) => Record<string, unknown>;
+  /** When loading, inspect an API node to decide if a different registration should render it. */
+  resolveAlias?: (node: DialPlanNode) => NodeTypeRegistration | undefined;
 }

@@ -19,6 +19,7 @@ import {
   useNodesState,
   useEdgesState,
   useReactFlow,
+  useUpdateNodeInternals,
   type Node,
   type Edge,
   type NodeTypes,
@@ -31,6 +32,7 @@ import {
 import xyflowStyles from '@xyflow/react/dist/style.css';
 
 import { useDialstackComponents } from './DialstackComponentsProvider';
+import type { DialStackInstance } from '../types';
 import {
   transformDialPlanToGraph,
   transformGraphToDialPlan,
@@ -132,71 +134,59 @@ interface User {
   email?: string;
 }
 
-interface Extension {
-  number: string;
-  target: string;
-}
-
 interface ResourceMaps {
   schedules: Map<string, Schedule>;
   users: Map<string, User>;
-  extensions: Map<string, Extension>;
 }
 
 // ============================================================================
 // Helpers
 // ============================================================================
 
-interface DialstackClient {
-  fetchApi: (url: string, options?: RequestInit) => Promise<Response>;
-  listExtensions: (params: { target: string; limit: number }) => Promise<Extension[]>;
-}
-
-/** Fetch schedules, users, and extensions referenced by dial plan nodes. */
+/** Fetch schedules and dial targets referenced by dial plan nodes. */
 async function fetchResourceMaps(
   data: DialPlanData,
-  dialstack: DialstackClient
+  dialstack: DialStackInstance
 ): Promise<ResourceMaps> {
   const scheduleIds = new Set<string>();
-  const userIds = new Set<string>();
+  const targetIds = new Set<string>();
   for (const node of data.nodes) {
     if (node.type === 'schedule') scheduleIds.add(node.config.schedule_id);
-    else if (node.type === 'internal_dial') userIds.add(node.config.target_id);
+    else if (node.type === 'internal_dial') targetIds.add(node.config.target_id);
   }
 
-  const [schedules, users, extensions] = await Promise.all([
+  const [schedules, ...targetResults] = await Promise.all([
     Promise.all(
       Array.from(scheduleIds).map(async (id) => {
-        const res = await dialstack.fetchApi(`/v1/schedules/${id}`);
-        return res.ok ? ((await res.json()) as Schedule) : null;
-      })
-    ),
-    Promise.all(
-      Array.from(userIds).map(async (id) => {
-        const res = await dialstack.fetchApi(`/v1/users/${id}`);
-        return res.ok ? ((await res.json()) as User) : null;
-      })
-    ),
-    Promise.all(
-      Array.from(userIds).map(async (id) => {
         try {
-          const exts = await dialstack.listExtensions({ target: id, limit: 1 });
-          return exts.length > 0 ? exts[0] : null;
+          return await dialstack.getSchedule(id);
         } catch {
           return null;
         }
       })
     ),
+    ...Array.from(targetIds).map(async (id) => {
+      const resolved = await dialstack.resolveRoutingTarget(id);
+      if (!resolved) return null;
+      return { id: resolved.id, name: resolved.name || resolved.id } as User;
+    }),
   ]);
 
   const scheduleMap = new Map<string, Schedule>();
   const userMap = new Map<string, User>();
-  const extensionMap = new Map<string, Extension>();
   for (const s of schedules) if (s) scheduleMap.set(s.id, s);
-  for (const u of users) if (u) userMap.set(u.id, u);
-  for (const e of extensions) if (e) extensionMap.set(e.target, e);
+  for (const t of targetResults) if (t) userMap.set(t.id, t);
 
-  return { schedules: scheduleMap, users: userMap, extensions: extensionMap };
+  return { schedules: scheduleMap, users: userMap };
+}
+
+function resolveTargetType(targetId: string): string {
+  if (targetId.startsWith('user_')) return 'User';
+  if (targetId.startsWith('rg_')) return 'Ring Group';
+  if (targetId.startsWith('dp_')) return 'Dial Plan';
+  if (targetId.startsWith('va_')) return 'Voice App';
+  if (targetId.startsWith('svm_')) return 'Shared Voicemail';
+  return 'Dial';
 }
 
 /** Enrich graph nodes with resolved resource names and locale strings. */
@@ -212,14 +202,12 @@ function enrichNodesWithResources(
       const data = node.data as ScheduleNodeData;
       const schedule = maps.schedules.get(data.scheduleId);
       return { ...node, data: { ...data, scheduleName: schedule?.name, locale } };
-    } else if (node.type === 'internalDial') {
+    } else if (node.type === 'internalDial' || node.type === 'voicemail') {
       const data = node.data as InternalDialNodeData;
       const user = maps.users.get(data.targetId);
-      const extension = maps.extensions.get(data.targetId);
-      let targetName = user?.name || user?.email;
-      if (extension && targetName) targetName = `${extension.number}: ${targetName}`;
-      else if (extension) targetName = extension.number;
-      return { ...node, data: { ...data, targetName, targetType: 'User', locale } };
+      const targetName = user?.name || user?.email;
+      const targetType = resolveTargetType(data.targetId);
+      return { ...node, data: { ...data, targetName, targetType, locale } };
     }
     return node;
   });
@@ -246,6 +234,7 @@ function DialPlanInner({
 }: DialPlanProps) {
   const { dialstack } = useDialstackComponents();
   const reactFlowInstance = useReactFlow();
+  const updateNodeInternals = useUpdateNodeInternals();
 
   // Shared state
   const [isLoading, setIsLoading] = useState(editable ? !!dialPlanId : true);
@@ -257,6 +246,9 @@ function DialPlanInner({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+  useEffect(() => {
+    callbacksRef.current.onDirtyChange?.(isDirty);
+  }, [isDirty]);
   const [dialPlanMeta, setDialPlanMeta] = useState<{ id: string; name: string } | null>(null);
   const [libraryCollapsed, setLibraryCollapsed] = useState(false);
 
@@ -317,15 +309,7 @@ function DialPlanInner({
       callbacksRef.current.onLoaderStart?.();
 
       try {
-        const response = await dialstack.fetchApi(`/v1/dialplans/${dialPlanId}`);
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(
-            (errorData as { message?: string }).message ||
-              `Failed to load dial plan: ${response.status}`
-          );
-        }
-        const data = (await response.json()) as DialPlanData;
+        const data = await dialstack.getDialPlan(dialPlanId!);
         if (cancelled) return;
 
         // Resolve referenced resources (schedules, users, extensions)
@@ -380,10 +364,7 @@ function DialPlanInner({
     const nextDirty =
       serialize(initialGraphRef.current.nodes, initialGraphRef.current.edges) !==
       serialize(nextNodes, nextEdges);
-    setIsDirty((prev) => {
-      if (prev !== nextDirty) callbacksRef.current.onDirtyChange?.(nextDirty);
-      return nextDirty;
-    });
+    setIsDirty(nextDirty);
   }, []);
 
   // Wrap onEdgesChange to track dirty state on edge removals
@@ -429,7 +410,7 @@ function DialPlanInner({
         const centerY = rect ? rect.top + rect.height / 2 : 300;
         pos = reactFlowInstance.screenToFlowPosition({ x: centerX, y: centerY });
       }
-      const originalNode = { id, type, config: { ...reg.defaultConfig } };
+      const originalNode = { id, type: reg.apiType ?? type, config: { ...reg.defaultConfig } };
       const data = reg.toFlowNode(originalNode as unknown as DialPlanNode);
       const newNode: Node = { id, type: reg.flowType, position: pos, data };
 
@@ -438,6 +419,7 @@ function DialPlanInner({
         updateDirty(next, edgesRef.current);
         return next;
       });
+      setSelectedNodeId(id);
     },
     [reactFlowInstance, setNodes, updateDirty]
   );
@@ -568,14 +550,24 @@ function DialPlanInner({
           const freshData = reg
             ? reg.toFlowNode(updatedOriginal as unknown as DialPlanNode)
             : { ...n.data, originalNode: updatedOriginal };
-          // Merge: previous display fields → fresh structural fields → explicit display overrides
-          return { ...n, data: { ...n.data, ...freshData, ...displayUpdates } };
+          // Derive targetType from target_id if it changed
+          const targetId = configUpdates.target_id as string | undefined;
+          const targetType = targetId ? resolveTargetType(targetId) : undefined;
+          // Merge: previous display fields → fresh structural fields → explicit display overrides → derived type
+          return {
+            ...n,
+            data: { ...n.data, ...freshData, ...displayUpdates, ...(targetType && { targetType }) },
+          };
         });
         updateDirty(next, edgesRef.current);
         return next;
       });
+      // Re-scan handles when target changes (terminal ↔ non-terminal toggles exit handles)
+      if (configUpdates.target_id) {
+        queueMicrotask(() => updateNodeInternals(nodeId));
+      }
     },
-    [setNodes, updateDirty]
+    [setNodes, updateDirty, updateNodeInternals]
   );
 
   // ---- Edit mode: auto layout ----
@@ -591,38 +583,36 @@ function DialPlanInner({
   const listResources: ConfigPanelProps['listResources'] = useCallback(
     async (type) => {
       try {
+        let items: Array<{ id: string; name: string }>;
         switch (type) {
-          case 'schedule': {
-            const res = await dialstack.fetchApi('/v1/schedules');
-            if (!res.ok) return [];
-            const data = (await res.json()) as { data?: Array<{ id: string; name: string }> };
-            return (data.data ?? []).map((s) => ({ id: s.id, name: s.name }));
-          }
-          case 'user': {
-            const res = await dialstack.fetchApi('/v1/users');
-            if (!res.ok) return [];
-            const data = (await res.json()) as {
-              data?: Array<{ id: string; name?: string; email?: string }>;
-            };
-            return (data.data ?? []).map((u) => ({ id: u.id, name: u.name || u.email || u.id }));
-          }
-          case 'ring_group': {
-            const res = await dialstack.fetchApi('/v1/ring_groups');
-            if (!res.ok) return [];
-            const data = (await res.json()) as { data?: Array<{ id: string; name: string }> };
-            return (data.data ?? []).map((g) => ({ id: g.id, name: g.name }));
-          }
+          case 'schedule':
+            items = await dialstack.listSchedules();
+            break;
+          case 'user':
+            items = (await dialstack.listUsers()).map((u) => ({
+              id: u.id,
+              name: u.name || u.email || u.id,
+            }));
+            break;
+          case 'ring_group':
+            items = await dialstack.listRingGroups();
+            break;
           case 'dial_plan': {
-            const res = await dialstack.fetchApi('/v1/dialplans');
-            if (!res.ok) return [];
-            const data = (await res.json()) as { data?: Array<{ id: string; name: string }> };
-            return (data.data ?? [])
-              .filter((p) => p.id !== (dialPlanMeta?.id ?? dialPlanId))
-              .map((p) => ({ id: p.id, name: p.name }));
+            const all = await dialstack.listDialPlans();
+            const currentId = dialPlanMeta?.id ?? dialPlanId;
+            items = all.filter((p) => p.id !== currentId);
+            break;
           }
+          case 'voice_app':
+            items = await dialstack.listVoiceApps();
+            break;
+          case 'shared_voicemail':
+            items = await dialstack.listSharedVoicemailBoxes();
+            break;
           default:
             return [];
         }
+        return items;
       } catch {
         return [];
       }
@@ -636,32 +626,37 @@ function DialPlanInner({
       const currentNodes = nodesRef.current;
       const currentEdges = edgesRef.current;
       const payload = transformGraphToDialPlan(currentNodes, currentEdges, defaultRegistry);
-      const url = dialPlanId ? `/v1/dialplans/${dialPlanId}` : '/v1/dialplans';
-      const response = await dialstack.fetchApi(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) {
-        const errorData = (await response.json().catch(() => ({}))) as { error?: string };
-        const apiError = errorData.error ?? `Failed to save dial plan: ${response.status}`;
-        // Parse API error path (e.g. "/nodes/3/config/schedule_id: ...") to select the node
-        const nodeMatch = apiError.match(/^\/nodes\/(\d+)\//);
-        if (nodeMatch?.[1]) {
-          const nodeIndex = parseInt(nodeMatch[1], 10);
-          const node = payload.nodes[nodeIndex];
-          if (node) setSelectedNodeId(node.id);
-        }
-        throw new Error(formatValidationError(apiError, payload.nodes));
-      }
-      const saved = (await response.json()) as DialPlanData;
+      const saved = dialPlanId
+        ? await dialstack.updateDialPlan(dialPlanId, payload)
+        : await dialstack.createDialPlan(payload);
       initialGraphRef.current = { nodes: [...currentNodes], edges: [...currentEdges] };
       setIsDirty(false);
       callbacksRef.current.onDirtyChange?.(false);
-      callbacksRef.current.onSave?.(saved);
+      callbacksRef.current.onSave?.(saved as DialPlanData);
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
-      callbacksRef.current.onError?.(error);
+      // Parse API error path (e.g. "/nodes/3/config/schedule_id: ...") to select the node
+      const nodeMatch = error.message.match(/^\/nodes\/(\d+)\//);
+      if (nodeMatch?.[1]) {
+        const payload = transformGraphToDialPlan(
+          nodesRef.current,
+          edgesRef.current,
+          defaultRegistry
+        );
+        const nodeIndex = parseInt(nodeMatch[1], 10);
+        const node = payload.nodes[nodeIndex];
+        if (node) setSelectedNodeId(node.id);
+      }
+      callbacksRef.current.onError?.(
+        error.message.includes('/nodes/')
+          ? new Error(
+              formatValidationError(
+                error.message,
+                transformGraphToDialPlan(nodesRef.current, edgesRef.current, defaultRegistry).nodes
+              )
+            )
+          : error
+      );
     }
   }, [dialstack, dialPlanId]);
 

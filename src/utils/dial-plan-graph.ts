@@ -112,7 +112,7 @@ export function transformDialPlanToGraph(
 
   // Process each node in the dial plan
   for (const node of dialPlan.nodes) {
-    const reg = registry.get(node.type);
+    const reg = registry.resolveType(node);
     const position = node.position ?? { x: 0, y: 0 };
 
     if (reg) {
@@ -202,9 +202,19 @@ export function transformGraphToDialPlan(
       }
     }
 
+    // Strip timeout/next for terminal targets (va_, dp_, svm_)
+    const targetId = config.target_id as string | undefined;
+    if (
+      targetId &&
+      (targetId.startsWith('va_') || targetId.startsWith('dp_') || targetId.startsWith('svm_'))
+    ) {
+      config.timeout = 0;
+      config.next = undefined;
+    }
+
     dialPlanNodes.push({
       id: node.id,
-      type: originalNode.type,
+      type: reg.apiType ?? originalNode.type,
       position: node.position,
       config,
     });

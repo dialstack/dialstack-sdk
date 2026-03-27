@@ -248,6 +248,34 @@ export async function loadDialstackAndInitialize(
     listUsers: (options) => {
       return instance.listUsers(options);
     },
+    // Dial plan resource methods
+    getDialPlan: (dialPlanId) => {
+      return instance.getDialPlan(dialPlanId);
+    },
+    listDialPlans: (options) => {
+      return instance.listDialPlans(options);
+    },
+    createDialPlan: (data) => {
+      return instance.createDialPlan(data);
+    },
+    updateDialPlan: (dialPlanId, data) => {
+      return instance.updateDialPlan(dialPlanId, data);
+    },
+    getSchedule: (scheduleId) => {
+      return instance.getSchedule(scheduleId);
+    },
+    listSchedules: (options) => {
+      return instance.listSchedules(options);
+    },
+    listRingGroups: (options) => {
+      return instance.listRingGroups(options);
+    },
+    listVoiceApps: (options) => {
+      return instance.listVoiceApps(options);
+    },
+    listSharedVoicemailBoxes: (options) => {
+      return instance.listSharedVoicemailBoxes(options);
+    },
     deleteUser: (userId) => {
       return instance.deleteUser(userId);
     },

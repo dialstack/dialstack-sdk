@@ -139,6 +139,7 @@ export type {
   DialStackInstance,
   SessionData,
   DialStackInstanceImpl,
+  NamedResource,
 } from './core';
 
 // Dial plan types

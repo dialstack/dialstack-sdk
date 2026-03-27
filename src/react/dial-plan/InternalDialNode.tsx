@@ -2,7 +2,7 @@
  * Internal Dial Node Component
  *
  * Represents an internal dial action in a dial plan. Displays as a rounded
- * rectangle showing the target user/group with optional timeout exit.
+ * rectangle with the node type as title and target type + name as subtitle.
  */
 
 import React, { memo } from 'react';
@@ -15,67 +15,47 @@ export const InternalDialNode = memo(function InternalDialNode({
   data,
   selected,
 }: NodeProps<InternalDialNodeType>) {
-  // Always show exit handles so edges can be created in the editor.
-  // In the viewer, nodesConnectable=false prevents interaction.
-  const hasNextExit = true;
-  const isVoicemail = data.timeout === 0;
+  // Terminal targets (voice apps, dial plans, shared voicemail) have no exits.
+  const targetId = (data.targetId as string) ?? '';
+  const isTerminalTarget =
+    targetId.startsWith('va_') || targetId.startsWith('dp_') || targetId.startsWith('svm_');
+  const hasNextExit = !isTerminalTarget;
 
-  // Phone icon for dial nodes
-  const phoneIcon = (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-    </svg>
-  );
-
-  // Voicemail icon for timeout=0 nodes
-  const voicemailIcon = (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="5.5" cy="11.5" r="4.5" />
-      <circle cx="18.5" cy="11.5" r="4.5" />
-      <line x1="5.5" y1="16" x2="18.5" y2="16" />
-    </svg>
-  );
-
-  const nodeClass = isVoicemail
-    ? 'ds-dial-plan-node ds-dial-plan-node--voicemail'
-    : 'ds-dial-plan-node ds-dial-plan-node--internal-dial';
-
-  // Use locale strings with fallbacks
-  const voicemailLabel = data.locale?.nodeTypes.voicemail ?? 'Voicemail';
   const noAnswerLabel = data.locale?.exits.next ?? 'No Answer';
 
   return (
     <div
-      className={`${nodeClass} ${selected ? 'ds-dial-plan-node--selected' : ''} ${hasNextExit ? 'ds-dial-plan-node--has-exits' : ''}`}
+      className={`ds-dial-plan-node ds-dial-plan-node--internal-dial ${selected ? 'ds-dial-plan-node--selected' : ''} ${hasNextExit ? 'ds-dial-plan-node--has-exits' : ''}`}
     >
       <Handle type="target" position={Position.Left} className="ds-dial-plan-handle" />
       <div className="ds-dial-plan-node__header">
-        <div className="ds-dial-plan-node__icon">{isVoicemail ? voicemailIcon : phoneIcon}</div>
+        <div className="ds-dial-plan-node__icon">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+          </svg>
+        </div>
         <span className="ds-dial-plan-node__type-label">
-          {isVoicemail ? voicemailLabel : data.targetType || data.label}
-          {!isVoicemail && data.timeout !== undefined && (
+          {data.label}
+          {data.timeout !== undefined && !isTerminalTarget && (
             <span style={{ textTransform: 'none' }}> ({data.timeout}s)</span>
           )}
         </span>
-        {data.targetName && <span className="ds-dial-plan-node__name">{data.targetName}</span>}
+        {(data.targetType || data.targetName) && (
+          <span className="ds-dial-plan-node__name">
+            {data.targetType && data.targetName
+              ? `${data.targetType}: ${data.targetName}`
+              : data.targetType || data.targetName}
+          </span>
+        )}
       </div>
       {hasNextExit && (
         <div className="ds-dial-plan-node__exits">
