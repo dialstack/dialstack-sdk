@@ -144,6 +144,6 @@
   },
   "dependencies": {
     "cmdk": "^1.1.1",
-    "libphonenumber-js": "^1.12.40"
+    "libphonenumber-js": "^1.12.41"
   }
 }
