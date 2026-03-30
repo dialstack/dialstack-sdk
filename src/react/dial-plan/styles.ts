@@ -537,14 +537,29 @@ export const dialPlanStyles = `
   font-weight: 500;
 }
 
+.ds-resource-combobox__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .ds-resource-combobox__ext {
   font-size: var(--ds-font-size-xs, 12px);
   color: var(--ds-color-text-secondary, #64748b);
+  margin-left: auto;
+  padding-left: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .ds-resource-combobox__check {
   font-size: 12px;
   opacity: 0.7;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .ds-resource-combobox__create {

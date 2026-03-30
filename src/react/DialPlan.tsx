@@ -171,8 +171,8 @@ const defaultDialPlanLocale: DialPlanLocale = {
 const defaultDialPlanData: DialPlanData = {
   id: '',
   name: 'New Dial Plan',
-  entry_node: 'ring1',
-  nodes: [{ id: 'ring1', type: 'ring_all_users', config: { timeout: 24 } }],
+  entry_node: '',
+  nodes: [],
   created_at: '',
   updated_at: '',
 };
@@ -230,7 +230,11 @@ async function fetchResourceMaps(
     ...Array.from(targetIds).map(async (id) => {
       const resolved = await dialstack.resolveRoutingTarget(id);
       if (!resolved) return null;
-      return { id: resolved.id, name: resolved.name || resolved.id } as User;
+      return {
+        id: resolved.id,
+        name: resolved.name || resolved.id,
+        extension_number: resolved.extension_number ?? undefined,
+      } as User;
     }),
   ]);
 
@@ -443,74 +447,7 @@ function DialPlanInner({
     [onEdgesChangeBase, updateDirty]
   );
 
-  // ---- Edit mode: handle node changes (drag, select, etc.) ----
-  // Filter out remove changes — nodes are deleted via the config panel, not keyboard
-  const handleNodesChange = useCallback(
-    (changes: NodeChange[]) => {
-      const filtered = changes.filter(
-        (c) => c.type !== 'remove' && !(c.type === 'position' && 'id' in c && c.id === '__start__')
-      );
-      if (filtered.length === 0) return;
-      const updated = applyNodeChanges(filtered, nodesRef.current);
-      setNodes(updated);
-      // Check dirty when positions change (drag end)
-      if (filtered.some((c) => c.type === 'position' && !c.dragging)) {
-        updateDirty(updated, edgesRef.current);
-      }
-    },
-    [setNodes, updateDirty]
-  );
-
-  // ---- Edit mode: add node ----
-  const handleAddNode = useCallback(
-    (type: string, position?: { x: number; y: number }) => {
-      const reg = defaultRegistry.get(type);
-      if (!reg) return;
-
-      const id = `${type}_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
-      let pos = position;
-      if (!pos) {
-        // Place at the center of the visible canvas viewport
-        const rect = canvasRef.current?.getBoundingClientRect();
-        const centerX = rect ? rect.left + rect.width / 2 : 400;
-        const centerY = rect ? rect.top + rect.height / 2 : 300;
-        pos = reactFlowInstance.screenToFlowPosition({ x: centerX, y: centerY });
-      }
-      const originalNode = { id, type: reg.apiType ?? type, config: { ...reg.defaultConfig } };
-      const data = reg.toFlowNode(originalNode as unknown as DialPlanNode);
-      const newNode: Node = { id, type: reg.flowType, position: pos, data };
-
-      setNodes((prev) => {
-        const next = [...prev, newNode];
-        updateDirty(next, edgesRef.current);
-        return next;
-      });
-      setSelectedNodeId(id);
-    },
-    [reactFlowInstance, setNodes, updateDirty]
-  );
-
-  // ---- Edit mode: drag/drop ----
-  const handleDrop = useCallback(
-    (event: React.DragEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      const type = event.dataTransfer.getData('application/reactflow');
-      if (!type) return;
-      const position = reactFlowInstance.screenToFlowPosition({
-        x: event.clientX,
-        y: event.clientY,
-      });
-      handleAddNode(type, position);
-    },
-    [reactFlowInstance, handleAddNode]
-  );
-
-  const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
-  }, []);
-
-  // ---- Edit mode: delete node ----
+  // ---- Edit mode: delete node (shared by config panel and keyboard) ----
   const handleDeleteNode = useCallback(
     (nodeId: string) => {
       const next = nodesRef.current
@@ -542,6 +479,113 @@ function DialPlanInner({
     },
     [setNodes, setEdges, selectedNodeId, updateDirty]
   );
+
+  // ---- Edit mode: handle node changes (drag, select, delete, etc.) ----
+  const handleNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      // Handle delete-key removals for non-start nodes (batch-safe)
+      const removalIds = new Set(
+        changes
+          .filter((c) => c.type === 'remove' && 'id' in c && c.id !== '__start__')
+          .map((c) => ('id' in c ? (c as { id: string }).id : ''))
+      );
+      if (removalIds.size > 0) {
+        const next = nodesRef.current
+          .filter((n) => !removalIds.has(n.id))
+          .map((n) => {
+            const originalNode = n.data?.originalNode as Record<string, unknown> | undefined;
+            if (!originalNode) return n;
+            const config = originalNode.config as Record<string, unknown> | undefined;
+            if (!config) return n;
+            const updatedConfig = { ...config };
+            let changed = false;
+            for (const key of Object.keys(updatedConfig)) {
+              if (
+                typeof updatedConfig[key] === 'string' &&
+                removalIds.has(updatedConfig[key] as string)
+              ) {
+                updatedConfig[key] = undefined;
+                changed = true;
+              }
+            }
+            if (!changed) return n;
+            return {
+              ...n,
+              data: { ...n.data, originalNode: { ...originalNode, config: updatedConfig } },
+            };
+          });
+        const nextEdges = edgesRef.current.filter(
+          (e) => !removalIds.has(e.source) && !removalIds.has(e.target)
+        );
+        setNodes(next);
+        setEdges(nextEdges);
+        updateDirty(next, nextEdges);
+        if (selectedNodeId && removalIds.has(selectedNodeId)) setSelectedNodeId(null);
+      }
+
+      const filtered = changes.filter(
+        (c) => c.type !== 'remove' && !(c.type === 'position' && 'id' in c && c.id === '__start__')
+      );
+      if (filtered.length === 0) return;
+      const updated = applyNodeChanges(filtered, nodesRef.current);
+      setNodes(updated);
+      // Check dirty when positions change (drag end)
+      if (filtered.some((c) => c.type === 'position' && !c.dragging)) {
+        updateDirty(updated, edgesRef.current);
+      }
+    },
+    [setNodes, setEdges, updateDirty, selectedNodeId]
+  );
+
+  // ---- Edit mode: add node ----
+  const handleAddNode = useCallback(
+    (type: string, position?: { x: number; y: number }) => {
+      const reg = defaultRegistry.get(type);
+      if (!reg) return;
+
+      const id = `${type}_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
+      let pos = position;
+      if (!pos) {
+        // Place at the center of the visible canvas viewport
+        const rect = canvasRef.current?.getBoundingClientRect();
+        const centerX = rect ? rect.left + rect.width / 2 : 400;
+        const centerY = rect ? rect.top + rect.height / 2 : 300;
+        pos = reactFlowInstance.screenToFlowPosition({ x: centerX, y: centerY });
+      }
+      const originalNode = { id, type: reg.apiType ?? type, config: { ...reg.defaultConfig } };
+      const data = reg.toFlowNode(originalNode as unknown as DialPlanNode);
+      const newNode: Node = { id, type: reg.flowType, position: pos, data, selected: true };
+
+      setNodes((prev) => {
+        const next = prev.map((n) => (n.selected ? { ...n, selected: false } : n));
+        next.push(newNode);
+        updateDirty(next, edgesRef.current);
+        return next;
+      });
+      setSelectedNodeId(id);
+    },
+    [reactFlowInstance, setNodes, updateDirty]
+  );
+
+  // ---- Edit mode: drag/drop ----
+  const handleDrop = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      const type = event.dataTransfer.getData('application/reactflow');
+      if (!type) return;
+      const position = reactFlowInstance.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+      handleAddNode(type, position);
+    },
+    [reactFlowInstance, handleAddNode]
+  );
+
+  const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
 
   // ---- Edit mode: connect edges ----
   const handleConnect = useCallback(
@@ -628,7 +672,6 @@ function DialPlanInner({
         updateDirty(next, edgesRef.current);
         return next;
       });
-      // Re-scan handles when target changes (terminal ↔ non-terminal toggles exit handles)
       if (configUpdates.target_id) {
         queueMicrotask(() => updateNodeInternals(nodeId));
       }
@@ -649,36 +692,30 @@ function DialPlanInner({
   const listResources: ConfigPanelProps['listResources'] = useCallback(
     async (type) => {
       try {
-        let items: Array<{ id: string; name: string }>;
+        const expand = { expand: ['extensions'] as string[] };
         switch (type) {
           case 'schedule':
-            items = await dialstack.listSchedules();
-            break;
+            return await dialstack.listSchedules();
           case 'user':
-            items = (await dialstack.listUsers()).map((u) => ({
+            return (await dialstack.listUsers(expand)).map((u) => ({
               id: u.id,
               name: u.name || locale.combobox.noName,
+              extension_number: u.extensions?.data?.[0]?.number,
             }));
-            break;
           case 'ring_group':
-            items = await dialstack.listRingGroups();
-            break;
+            return await dialstack.listRingGroups(expand);
           case 'dial_plan': {
-            const all = await dialstack.listDialPlans();
+            const all = await dialstack.listDialPlans(expand);
             const currentId = dialPlanMeta?.id ?? dialPlanId;
-            items = all.filter((p) => p.id !== currentId);
-            break;
+            return all.filter((p) => p.id !== currentId);
           }
           case 'voice_app':
-            items = await dialstack.listVoiceApps();
-            break;
+            return await dialstack.listVoiceApps(expand);
           case 'shared_voicemail':
-            items = await dialstack.listSharedVoicemailBoxes();
-            break;
+            return await dialstack.listSharedVoicemailBoxes();
           default:
             return [];
         }
-        return items;
       } catch {
         return [];
       }

@@ -73,6 +73,7 @@ export interface OnboardingUser {
   name?: string | null;
   email?: string | null;
   account_role?: string | null;
+  extensions?: { data?: Array<{ number?: string }> };
   created_at: string;
   updated_at: string;
 }

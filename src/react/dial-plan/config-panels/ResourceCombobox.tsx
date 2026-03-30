@@ -146,14 +146,15 @@ export function ResourceCombobox({
                     )
                   }
                 >
-                  {item.name}
+                  <span className="ds-resource-combobox__name">{item.name}</span>
                   {item.extension_number && (
                     <span className="ds-resource-combobox__ext">
-                      {' '}
                       ({extensionLabel} {item.extension_number})
                     </span>
                   )}
-                  {item.id === value && <span className="ds-resource-combobox__check">✓</span>}
+                  <span className="ds-resource-combobox__check">
+                    {item.id === value ? '✓' : ''}
+                  </span>
                 </Command.Item>
               ))}
               {onCreateResource && group.type && (

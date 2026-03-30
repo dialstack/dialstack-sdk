@@ -47,6 +47,35 @@ import {
 
 const delay = (ms = 300) => new Promise((r) => setTimeout(r, ms));
 
+const MOCK_DIAL_PLAN_DEFAULT: DialPlan = {
+  id: 'dp_01abc',
+  name: 'Main Reception',
+  entry_node: 'sched_01',
+  nodes: [
+    {
+      id: 'sched_01',
+      type: 'schedule',
+      config: { schedule_id: 'sched_01abc', open: 'dial_01', closed: undefined },
+    },
+    {
+      id: 'dial_01',
+      type: 'internal_dial',
+      config: { target_id: 'user_01abc', next: undefined },
+    },
+  ],
+  created_at: '2025-01-01T00:00:00Z',
+  updated_at: '2025-01-01T00:00:00Z',
+};
+
+const MOCK_DIAL_PLAN_RING_ALL: DialPlan = {
+  id: 'dp_ringall',
+  name: 'Ring All Plan',
+  entry_node: 'ring1',
+  nodes: [{ id: 'ring1', type: 'ring_all_users', config: { timeout: 24 } }],
+  created_at: '2025-01-01T00:00:00Z',
+  updated_at: '2025-01-01T00:00:00Z',
+};
+
 /**
  * Creates a mock DialStackInstanceImpl for Storybook stories.
  * When `empty` is true, all data-fetching methods return empty results.
@@ -141,33 +170,8 @@ export function createMockInstance(
       if (!empty) {
         if (path.includes('/v1/calls')) body = MOCK_CALLS;
         else if (path.includes('/voicemails')) body = MOCK_VOICEMAILS;
-        else if (path.includes('/v1/dialplans/'))
-          body = {
-            id: 'dp_01abc',
-            name: 'Main Reception',
-            entry_node: 'sched_01',
-            nodes: [
-              {
-                id: 'sched_01',
-                type: 'schedule',
-                config: {
-                  schedule_id: 'sched_01abc',
-                  open: 'dial_01',
-                  closed: undefined,
-                },
-              },
-              {
-                id: 'dial_01',
-                type: 'internal_dial',
-                config: {
-                  target_id: 'user_01abc',
-                  next: undefined,
-                },
-              },
-            ],
-            created_at: '2025-01-01T00:00:00Z',
-            updated_at: '2025-01-01T00:00:00Z',
-          } satisfies DialPlan;
+        else if (path.includes('/v1/dialplans/dp_ringall')) body = MOCK_DIAL_PLAN_RING_ALL;
+        else if (path.includes('/v1/dialplans/')) body = MOCK_DIAL_PLAN_DEFAULT;
         else if (path.includes('/v1/schedules/'))
           body = { id: 'sched_01abc', name: 'Business Hours' };
         else if (path.includes('/v1/users/'))
@@ -486,6 +490,7 @@ export function createMockInstance(
       id: target,
       name: target.startsWith('rg_') ? 'Main Ring Group' : 'Alice Smith',
       type: (target.startsWith('rg_') ? 'ring_group' : 'user') as 'ring_group' | 'user',
+      extension_number: '1001',
     }),
     updateCallerID: async (phoneNumberId: string, displayName: string) => {
       await delay();

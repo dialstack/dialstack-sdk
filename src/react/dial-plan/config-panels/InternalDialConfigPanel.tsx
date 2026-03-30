@@ -50,22 +50,12 @@ export function InternalDialConfigPanel({
   const targetId = (config.target_id as string) ?? '';
   const timeout = (config.timeout as number) ?? 30;
 
-  const isTerminalTarget =
-    targetId.startsWith('va_') || targetId.startsWith('dp_') || targetId.startsWith('svm_');
-
   function handleChange(updates: Record<string, unknown>, display?: Record<string, unknown>) {
     onConfigChange({ target_id: targetId, timeout, ...updates }, display);
   }
 
   function handleTargetChange(newTargetId: string, targetName: string) {
-    const terminal =
-      newTargetId.startsWith('va_') ||
-      newTargetId.startsWith('dp_') ||
-      newTargetId.startsWith('svm_');
-    handleChange(
-      { target_id: newTargetId, ...(terminal ? { timeout: 0, next: undefined } : {}) },
-      { targetName }
-    );
+    handleChange({ target_id: newTargetId }, { targetName });
   }
 
   async function handleCreateResource(type: ResourceType) {
@@ -79,21 +69,19 @@ export function InternalDialConfigPanel({
 
   return (
     <>
-      {!isTerminalTarget && (
-        <div className="ds-dial-plan-config-field">
-          <label className="ds-dial-plan-config-field__label">
-            {locale?.configLabels.timeout ?? 'Timeout (seconds)'}
-          </label>
-          <input
-            className="ds-dial-plan-config-field__input"
-            type="number"
-            min={0}
-            max={300}
-            value={timeout}
-            onChange={(e) => handleChange({ timeout: Number(e.target.value) })}
-          />
-        </div>
-      )}
+      <div className="ds-dial-plan-config-field">
+        <label className="ds-dial-plan-config-field__label">
+          {locale?.configLabels.timeout ?? 'Timeout (seconds)'}
+        </label>
+        <input
+          className="ds-dial-plan-config-field__input"
+          type="number"
+          min={0}
+          max={300}
+          value={timeout}
+          onChange={(e) => handleChange({ timeout: Number(e.target.value) })}
+        />
+      </div>
       <div className="ds-dial-plan-config-field">
         <label className="ds-dial-plan-config-field__label">
           {locale?.configLabels.target ?? 'Target'}

@@ -66,6 +66,7 @@ import type {
 export interface NamedResource {
   id: string;
   name: string;
+  extension_number?: string;
 }
 
 /**
@@ -304,7 +305,7 @@ export interface DialStackInstance {
   getDialPlan(dialPlanId: string): Promise<DialPlanData>;
 
   /** List dial plans in the current account */
-  listDialPlans(options?: { limit?: number }): Promise<NamedResource[]>;
+  listDialPlans(options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]>;
 
   /** Create a new dial plan */
   createDialPlan(data: Record<string, unknown>): Promise<DialPlanData>;
@@ -319,10 +320,10 @@ export interface DialStackInstance {
   listSchedules(options?: { limit?: number }): Promise<NamedResource[]>;
 
   /** List ring groups in the current account */
-  listRingGroups(options?: { limit?: number }): Promise<NamedResource[]>;
+  listRingGroups(options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]>;
 
   /** List voice apps in the current account */
-  listVoiceApps(options?: { limit?: number }): Promise<NamedResource[]>;
+  listVoiceApps(options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]>;
 
   /** List shared voicemail boxes in the current account */
   listSharedVoicemailBoxes(options?: { limit?: number }): Promise<NamedResource[]>;
@@ -364,6 +365,7 @@ export interface DialStackInstance {
     id: string;
     name: string | null;
     type: 'user' | 'dial_plan' | 'voice_app' | 'ring_group' | 'shared_voicemail';
+    extension_number?: string | null;
   } | null>;
 
   /**
@@ -886,7 +888,7 @@ export interface DialStackInstance {
    * @param options - Optional pagination options
    * @returns Promise resolving to an array of users
    */
-  listUsers(options?: { limit?: number }): Promise<OnboardingUser[]>;
+  listUsers(options?: { limit?: number; expand?: string[] }): Promise<OnboardingUser[]>;
 
   /**
    * Delete a user

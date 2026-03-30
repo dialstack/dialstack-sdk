@@ -136,7 +136,7 @@ defaultRegistry.register({
     const targetId = config.target_id as string | undefined;
     if (!targetId) return undefined;
 
-    // Shared voicemail targets always render as voicemail node
+    // Shared voicemail targets render as voicemail node
     if (targetId.startsWith('svm_')) {
       return defaultRegistry.get('voicemail');
     }

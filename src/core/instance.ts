@@ -452,6 +452,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     id: string;
     name: string | null;
     type: RoutingTargetType;
+    extension_number?: string | null;
   } | null> {
     const cached = this.routingTargetCache.get(target);
     if (cached) return cached;
@@ -465,6 +466,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     id: string;
     name: string | null;
     type: RoutingTargetType;
+    extension_number?: string | null;
   } | null> {
     const prefixMap = ROUTING_TARGET_TYPES;
 
@@ -476,10 +478,11 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     if (!config) return null;
 
     try {
-      const response = await this.fetchApi(`${config.path}/${target}`);
+      const response = await this.fetchApi(`${config.path}/${target}?expand[]=extensions`);
       if (!response.ok) return null;
       const data = await response.json();
-      return { id: target, name: data.name ?? null, type: config.type };
+      const ext = data.extensions?.data?.[0]?.number ?? null;
+      return { id: target, name: data.name ?? null, type: config.type, extension_number: ext };
     } catch {
       return null;
     }
@@ -1586,9 +1589,10 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   /**
    * List users in the current account
    */
-  async listUsers(options?: { limit?: number }): Promise<OnboardingUser[]> {
+  async listUsers(options?: { limit?: number; expand?: string[] }): Promise<OnboardingUser[]> {
     const params = new URLSearchParams();
     if (options?.limit) params.set('limit', String(options.limit));
+    for (const e of options?.expand ?? []) params.append('expand[]', e);
 
     const queryString = params.toString();
     const path = queryString ? `/v1/users?${queryString}` : '/v1/users';
@@ -1616,9 +1620,10 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     return response.json();
   }
 
-  async listDialPlans(options?: { limit?: number }): Promise<NamedResource[]> {
+  async listDialPlans(options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]> {
     const params = new URLSearchParams();
     if (options?.limit) params.set('limit', String(options.limit));
+    for (const e of options?.expand ?? []) params.append('expand[]', e);
     const queryString = params.toString();
     const path = queryString ? `/v1/dialplans?${queryString}` : '/v1/dialplans';
     const response = await this.fetchApi(path);
@@ -1627,7 +1632,11 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       throw new Error(`Failed to list dial plans: ${response.status} ${errorText}`);
     }
     const data = await response.json();
-    return (data.data ?? []).map((r: NamedResource) => ({ id: r.id, name: r.name }));
+    return (data.data ?? []).map((r: Record<string, unknown>) => ({
+      id: r.id as string,
+      name: r.name as string,
+      extension_number: (r.extensions as { data?: Array<{ number?: string }> })?.data?.[0]?.number,
+    }));
   }
 
   async createDialPlan(data: Record<string, unknown>): Promise<DialPlanData> {
@@ -1680,9 +1689,10 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     return (data.data ?? []).map((r: NamedResource) => ({ id: r.id, name: r.name }));
   }
 
-  async listRingGroups(options?: { limit?: number }): Promise<NamedResource[]> {
+  async listRingGroups(options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]> {
     const params = new URLSearchParams();
     if (options?.limit) params.set('limit', String(options.limit));
+    for (const e of options?.expand ?? []) params.append('expand[]', e);
     const queryString = params.toString();
     const path = queryString ? `/v1/ring_groups?${queryString}` : '/v1/ring_groups';
     const response = await this.fetchApi(path);
@@ -1691,12 +1701,17 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       throw new Error(`Failed to list ring groups: ${response.status} ${errorText}`);
     }
     const data = await response.json();
-    return (data.data ?? []).map((r: NamedResource) => ({ id: r.id, name: r.name }));
+    return (data.data ?? []).map((r: Record<string, unknown>) => ({
+      id: r.id as string,
+      name: r.name as string,
+      extension_number: (r.extensions as { data?: Array<{ number?: string }> })?.data?.[0]?.number,
+    }));
   }
 
-  async listVoiceApps(options?: { limit?: number }): Promise<NamedResource[]> {
+  async listVoiceApps(options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]> {
     const params = new URLSearchParams();
     if (options?.limit) params.set('limit', String(options.limit));
+    for (const e of options?.expand ?? []) params.append('expand[]', e);
     const queryString = params.toString();
     const path = queryString ? `/v1/voice-apps?${queryString}` : '/v1/voice-apps';
     const response = await this.fetchApi(path);
@@ -1705,7 +1720,11 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       throw new Error(`Failed to list voice apps: ${response.status} ${errorText}`);
     }
     const data = await response.json();
-    return (data.data ?? []).map((r: NamedResource) => ({ id: r.id, name: r.name }));
+    return (data.data ?? []).map((r: Record<string, unknown>) => ({
+      id: r.id as string,
+      name: r.name as string,
+      extension_number: (r.extensions as { data?: Array<{ number?: string }> })?.data?.[0]?.number,
+    }));
   }
 
   async listSharedVoicemailBoxes(options?: { limit?: number }): Promise<NamedResource[]> {

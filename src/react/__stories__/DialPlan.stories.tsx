@@ -82,10 +82,10 @@ export const EditorRendersInCreateMode: Story = {
       expect(canvasElement.querySelector('.ds-dial-plan-editor__canvas')).toBeInTheDocument();
     });
 
-    await step('Default ring_all_users node is visible on canvas', async () => {
-      await waitFor(() => {
-        expect(canvas.getAllByText('Ring All').length).toBeGreaterThanOrEqual(1);
-      });
+    await step('Canvas starts blank (no default nodes)', async () => {
+      const reactFlowNodes = canvasElement.querySelectorAll('.react-flow__node');
+      // Only the Start node should be present
+      expect(reactFlowNodes.length).toBeLessThanOrEqual(1);
     });
 
     await step('Toolbar is present', async () => {
@@ -97,17 +97,9 @@ export const EditorRendersInCreateMode: Story = {
 export const AddNodeFromLibrary: Story = {
   args: { editable: true },
   play: async ({ canvasElement, step }) => {
-    const canvas = within(canvasElement);
-
     await step('Wait for editor to render', async () => {
       await waitFor(() => {
         expect(canvasElement.querySelector('.ds-dial-plan-node-library')).toBeInTheDocument();
-      });
-    });
-
-    await step('Count initial nodes', async () => {
-      await waitFor(() => {
-        expect(canvas.getAllByText('Ring All').length).toBeGreaterThanOrEqual(1);
       });
     });
 
@@ -120,8 +112,8 @@ export const AddNodeFromLibrary: Story = {
 
     await step('New Schedule node appears on canvas', async () => {
       await waitFor(() => {
-        const allScheduleEls = canvasElement.querySelectorAll('.react-flow__node');
-        expect(allScheduleEls.length).toBeGreaterThanOrEqual(2);
+        const allNodes = canvasElement.querySelectorAll('.react-flow__node');
+        expect(allNodes.length).toBeGreaterThanOrEqual(2); // start + schedule
       });
     });
   },
@@ -130,40 +122,22 @@ export const AddNodeFromLibrary: Story = {
 export const SelectNodeOpensConfigPanel: Story = {
   args: { editable: true },
   play: async ({ canvasElement, step }) => {
-    const canvas = within(canvasElement);
-
-    await step('Wait for editor to render with default node', async () => {
+    await step('Wait for editor to render', async () => {
       await waitFor(() => {
-        expect(canvas.getAllByText('Ring All').length).toBeGreaterThanOrEqual(1);
+        expect(canvasElement.querySelector('.ds-dial-plan-node-library')).toBeInTheDocument();
       });
     });
 
-    await step('Config panel is not visible initially', async () => {
-      expect(canvasElement.querySelector('.ds-dial-plan-config-panel')).toBeNull();
+    await step('Add a Schedule node from the library', async () => {
+      const library = canvasElement.querySelector('.ds-dial-plan-node-library')!;
+      const libraryScope = within(library as HTMLElement);
+      await userEvent.click(libraryScope.getByText('Schedule'));
     });
 
-    await step('Click on the Ring All node in the canvas', async () => {
-      let ringAllNode: Element | null = null;
-      await waitFor(() => {
-        const reactFlowNodes = canvasElement.querySelectorAll('.react-flow__node');
-        for (const node of reactFlowNodes) {
-          if (node.textContent?.includes('Ring All')) {
-            ringAllNode = node;
-            break;
-          }
-        }
-        expect(ringAllNode).not.toBeNull();
-      });
-      await userEvent.click(ringAllNode!);
-    });
-
-    await step('Config panel appears with correct node type label', async () => {
+    await step('Config panel opens automatically for the new node', async () => {
       await waitFor(() => {
         expect(canvasElement.querySelector('.ds-dial-plan-config-panel')).toBeInTheDocument();
       });
-      const configPanel = canvasElement.querySelector('.ds-dial-plan-config-panel')!;
-      const panelScope = within(configPanel as HTMLElement);
-      expect(panelScope.getByText('Ring All')).toBeInTheDocument();
     });
   },
 };
@@ -171,19 +145,13 @@ export const SelectNodeOpensConfigPanel: Story = {
 export const EscClosesConfigPanel: Story = {
   args: { editable: true },
   play: async ({ canvasElement, step }) => {
-    await step('Click on a node to open config panel', async () => {
-      let ringAllNode: Element | null = null;
+    await step('Wait for editor and add a node', async () => {
       await waitFor(() => {
-        const reactFlowNodes = canvasElement.querySelectorAll('.react-flow__node');
-        for (const node of reactFlowNodes) {
-          if (node.textContent?.includes('Ring All')) {
-            ringAllNode = node;
-            break;
-          }
-        }
-        expect(ringAllNode).not.toBeNull();
+        expect(canvasElement.querySelector('.ds-dial-plan-node-library')).toBeInTheDocument();
       });
-      await userEvent.click(ringAllNode!);
+      const library = canvasElement.querySelector('.ds-dial-plan-node-library')!;
+      const libraryScope = within(library as HTMLElement);
+      await userEvent.click(libraryScope.getByText('Schedule'));
     });
 
     await step('Verify config panel is visible', async () => {
@@ -240,19 +208,13 @@ export const AutoLayoutButton: Story = {
 export const DeleteNodeFromConfigPanel: Story = {
   args: { editable: true },
   play: async ({ canvasElement, step }) => {
-    await step('Click Ring All node to select it', async () => {
-      let ringAllNode: Element | null = null;
+    await step('Add a Schedule node from the library', async () => {
       await waitFor(() => {
-        const reactFlowNodes = canvasElement.querySelectorAll('.react-flow__node');
-        for (const node of reactFlowNodes) {
-          if (node.textContent?.includes('Ring All')) {
-            ringAllNode = node;
-            break;
-          }
-        }
-        expect(ringAllNode).not.toBeNull();
+        expect(canvasElement.querySelector('.ds-dial-plan-node-library')).toBeInTheDocument();
       });
-      await userEvent.click(ringAllNode!);
+      const library = canvasElement.querySelector('.ds-dial-plan-node-library')!;
+      const libraryScope = within(library as HTMLElement);
+      await userEvent.click(libraryScope.getByText('Schedule'));
     });
 
     await step('Config panel opens', async () => {
@@ -277,10 +239,10 @@ export const DeleteNodeFromConfigPanel: Story = {
     await step('Deleted node is no longer in the canvas', async () => {
       await waitFor(() => {
         const reactFlowNodes = canvasElement.querySelectorAll('.react-flow__node');
-        const hasRingAll = Array.from(reactFlowNodes).some((n) =>
-          n.textContent?.includes('Ring All')
+        const hasSchedule = Array.from(reactFlowNodes).some((n) =>
+          n.textContent?.includes('Schedule')
         );
-        expect(hasRingAll).toBe(false);
+        expect(hasSchedule).toBe(false);
       });
     });
   },

@@ -15,17 +15,11 @@ export const InternalDialNode = memo(function InternalDialNode({
   data,
   selected,
 }: NodeProps<InternalDialNodeType>) {
-  // Terminal targets (voice apps, dial plans, shared voicemail) have no exits.
-  const targetId = (data.targetId as string) ?? '';
-  const isTerminalTarget =
-    targetId.startsWith('va_') || targetId.startsWith('dp_') || targetId.startsWith('svm_');
-  const hasNextExit = !isTerminalTarget;
-
   const noAnswerLabel = data.locale?.exits.next ?? 'No Answer';
 
   return (
     <div
-      className={`ds-dial-plan-node ds-dial-plan-node--internal-dial ${selected ? 'ds-dial-plan-node--selected' : ''} ${hasNextExit ? 'ds-dial-plan-node--has-exits' : ''}`}
+      className={`ds-dial-plan-node ds-dial-plan-node--internal-dial ${selected ? 'ds-dial-plan-node--selected' : ''} ds-dial-plan-node--has-exits`}
     >
       <Handle type="target" position={Position.Left} className="ds-dial-plan-handle" />
       <div className="ds-dial-plan-node__header">
@@ -45,25 +39,23 @@ export const InternalDialNode = memo(function InternalDialNode({
         </div>
         <span className="ds-dial-plan-node__type-label">
           {data.label}
-          {data.timeout !== undefined && !isTerminalTarget && (
+          {data.timeout !== undefined && (
             <span style={{ textTransform: 'none' }}> ({data.timeout}s)</span>
           )}
         </span>
         {data.targetName && <span className="ds-dial-plan-node__name">{data.targetName}</span>}
       </div>
-      {hasNextExit && (
-        <div className="ds-dial-plan-node__exits">
-          <div className="ds-dial-plan-node__exit-row">
-            <span className="ds-dial-plan-node__exit-label">{noAnswerLabel}</span>
-            <Handle
-              type="source"
-              position={Position.Right}
-              id="next"
-              className="ds-dial-plan-handle ds-dial-plan-handle--next"
-            />
-          </div>
+      <div className="ds-dial-plan-node__exits">
+        <div className="ds-dial-plan-node__exit-row">
+          <span className="ds-dial-plan-node__exit-label">{noAnswerLabel}</span>
+          <Handle
+            type="source"
+            position={Position.Right}
+            id="next"
+            className="ds-dial-plan-handle ds-dial-plan-handle--next"
+          />
         </div>
-      )}
+      </div>
     </div>
   );
 });

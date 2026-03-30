@@ -202,16 +202,6 @@ export function transformGraphToDialPlan(
       }
     }
 
-    // Strip timeout/next for terminal targets (va_, dp_, svm_)
-    const targetId = config.target_id as string | undefined;
-    if (
-      targetId &&
-      (targetId.startsWith('va_') || targetId.startsWith('dp_') || targetId.startsWith('svm_'))
-    ) {
-      config.timeout = 0;
-      config.next = undefined;
-    }
-
     dialPlanNodes.push({
       id: node.id,
       type: reg.apiType ?? originalNode.type,
