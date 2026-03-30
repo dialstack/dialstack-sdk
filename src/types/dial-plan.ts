@@ -180,6 +180,7 @@ export interface DialPlanLocale {
     loading: string;
     createNew: string;
     extensionLabel: string;
+    noName: string;
   };
   status: {
     loading: string;

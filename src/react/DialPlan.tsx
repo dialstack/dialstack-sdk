@@ -157,6 +157,7 @@ const defaultDialPlanLocale: DialPlanLocale = {
     loading: 'Loading...',
     createNew: '+ Create new...',
     extensionLabel: 'Ext.',
+    noName: '(No name)',
   },
   status: {
     loading: 'Loading dial plan...',
@@ -656,7 +657,7 @@ function DialPlanInner({
           case 'user':
             items = (await dialstack.listUsers()).map((u) => ({
               id: u.id,
-              name: u.name || u.email || u.id,
+              name: u.name || locale.combobox.noName,
             }));
             break;
           case 'ring_group':
