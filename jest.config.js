@@ -10,6 +10,7 @@ export default {
         tsconfig: {
           module: 'ESNext',
           moduleResolution: 'Node',
+          ignoreDeprecations: '6.0',
         },
       },
     ],

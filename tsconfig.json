@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2015",
     "module": "ESNext",
-    "lib": ["ES2017", "DOM"],
+    "lib": ["ES2020", "DOM"],
     "jsx": "react",
     "declaration": true,
     "declarationMap": true,
@@ -19,12 +19,12 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "node",
+    "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "baseUrl": ".",
+    "types": ["node", "jest"],
     "paths": {
-      "@dialstack/sdk/react": ["src/react.ts"]
+      "@dialstack/sdk/react": ["./src/react.ts"]
     }
   },
   "include": ["src/**/*"],
