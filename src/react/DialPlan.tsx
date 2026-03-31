@@ -1,11 +1,12 @@
 /**
  * DialPlan Component
  *
- * A unified dial plan component that supports both view-only and edit modes.
- * - View mode (default): renders a read-only flow diagram with optional minimap
- * - Edit mode (editable=true): adds node library, config panel, toolbar, drag/drop
+ * A unified dial plan component with three display modes:
+ * - 'view' (default): read-only flow diagram with pan/zoom and controls
+ * - 'edit': full editor with node library, config panel, toolbar, drag/drop
+ * - 'preview': static thumbnail — no controls, no background, no interaction
  *
- * Supports create mode (no dialPlanId + editable) and edit mode (with dialPlanId).
+ * Supports create mode (no dialPlanId + mode='edit').
  */
 
 import React, { useCallback, useEffect, useState, useRef } from 'react';
@@ -60,11 +61,14 @@ import { formatValidationError } from '../utils/format-validation-error';
 // Types
 // ============================================================================
 
+/** Display mode for the DialPlan component */
+export type DialPlanMode = 'view' | 'edit' | 'preview';
+
 export interface DialPlanProps {
   /** The ID of the dial plan to fetch and display */
   dialPlanId?: string;
-  /** Enable editing mode with node library, config panel, and toolbar */
-  editable?: boolean;
+  /** Display mode: 'view' (default), 'edit', or 'preview' (static thumbnail) */
+  mode?: DialPlanMode;
   /** Locale strings for node labels and exits */
   locale?: DialPlanLocale;
   /** Callback fired when a node is clicked (view mode) */
@@ -93,9 +97,40 @@ export interface DialPlanProps {
   onOpenResource?: (resourceId: string) => void;
 }
 
+/** Derived config from mode — single source of truth for all mode-dependent behavior */
+interface ModeConfig {
+  /** Can the user modify nodes/edges/config? */
+  editable: boolean;
+  /** Is pan/zoom/scroll enabled? */
+  interactive: boolean;
+  /** Show background dots and zoom controls? */
+  showChrome: boolean;
+}
+
+const MODE_CONFIGS: Record<DialPlanMode, ModeConfig> = {
+  view: { editable: false, interactive: true, showChrome: true },
+  edit: { editable: true, interactive: true, showChrome: true },
+  preview: { editable: false, interactive: false, showChrome: false },
+};
+
 // ============================================================================
 // Constants
 // ============================================================================
+
+const defaultDialPlanData: DialPlanData = {
+  id: '',
+  name: 'New Dial Plan',
+  entry_node: '',
+  nodes: [],
+  created_at: '',
+  updated_at: '',
+};
+
+// Node types for React Flow (from registry, shared by both modes)
+const nodeTypes: NodeTypes = {
+  start: StartNode,
+  ...defaultRegistry.getNodeTypesMap(),
+};
 
 const defaultDialPlanLocale: DialPlanLocale = {
   nodeTypes: {
@@ -171,22 +206,10 @@ const defaultDialPlanLocale: DialPlanLocale = {
   },
 };
 
-const defaultDialPlanData: DialPlanData = {
-  id: '',
-  name: 'New Dial Plan',
-  entry_node: '',
-  nodes: [],
-  created_at: '',
-  updated_at: '',
-};
+// ============================================================================
+// Resource resolution helpers
+// ============================================================================
 
-// Node types for React Flow (from registry, shared by both modes)
-const nodeTypes: NodeTypes = {
-  start: StartNode,
-  ...defaultRegistry.getNodeTypesMap(),
-};
-
-// Types for API responses (view mode resource resolution)
 interface Schedule {
   id: string;
   name: string;
@@ -204,11 +227,6 @@ interface ResourceMaps {
   users: Map<string, User>;
 }
 
-// ============================================================================
-// Helpers
-// ============================================================================
-
-/** Fetch schedules and dial targets referenced by dial plan nodes. */
 async function fetchResourceMaps(
   data: DialPlanData,
   dialstack: DialStackInstance
@@ -258,7 +276,6 @@ function resolveTargetType(targetId: string, locale: DialPlanLocale): string {
   return locale.nodeTypes.internalDial;
 }
 
-/** Enrich graph nodes with resolved resource names and locale strings. */
 function enrichNodesWithResources(
   graphNodes: DialPlanGraphNode[],
   maps: ResourceMaps,
@@ -292,7 +309,7 @@ function enrichNodesWithResources(
 
 function DialPlanInner({
   dialPlanId,
-  editable = false,
+  mode = 'view',
   locale = defaultDialPlanLocale,
   onNodeClick,
   onLoaderStart,
@@ -306,6 +323,7 @@ function DialPlanInner({
   onCreateResource,
   onOpenResource,
 }: DialPlanProps) {
+  const { editable, interactive, showChrome } = MODE_CONFIGS[mode];
   const { dialstack } = useDialstackComponents();
   const reactFlowInstance = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
@@ -417,7 +435,7 @@ function DialPlanInner({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- locale is stable; editable only changes UI, not data
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- locale is stable; mode only changes UI, not data
   }, [dialstack, dialPlanId, setNodes, setEdges]);
 
   // ---- Edit mode: dirty tracking ----
@@ -908,8 +926,12 @@ function DialPlanInner({
       elementsSelectable={editable}
       selectionOnDrag={false}
       selectNodesOnDrag={false}
-      panOnDrag
-      panOnScroll
+      panOnDrag={interactive}
+      panOnScroll={interactive}
+      zoomOnScroll={interactive}
+      zoomOnPinch={interactive}
+      zoomOnDoubleClick={interactive}
+      preventScrolling={interactive}
       connectionLineType={ConnectionLineType.SmoothStep}
       selectionKeyCode={null}
       multiSelectionKeyCode={null}
@@ -925,8 +947,8 @@ function DialPlanInner({
       }}
       proOptions={{ hideAttribution: true }}
     >
-      <Background gap={20} size={1} />
-      <Controls showInteractive={false} />
+      {showChrome && <Background gap={20} size={1} />}
+      {showChrome && <Controls showInteractive={false} />}
       {editable && (
         <EditorToolbar onAutoLayout={handleAutoLayout} onSave={handleSave} isDirty={isDirty} />
       )}
@@ -1069,18 +1091,19 @@ function DialPlanInner({
 /**
  * DialPlan renders a dial plan as an interactive flow diagram.
  *
- * Use `editable` prop to switch between view-only and edit modes.
- *
  * @example
  * ```tsx
- * // View mode
+ * // View mode (default)
  * <DialPlan dialPlanId="dp_01abc" />
  *
  * // Edit mode
- * <DialPlan dialPlanId="dp_01abc" editable onSave={(plan) => console.log(plan)} />
+ * <DialPlan dialPlanId="dp_01abc" mode="edit" onSave={(plan) => console.log(plan)} />
+ *
+ * // Preview mode (static thumbnail for card lists)
+ * <DialPlan dialPlanId="dp_01abc" mode="preview" />
  *
  * // Create mode
- * <DialPlan editable onSave={(plan) => console.log(plan)} />
+ * <DialPlan mode="edit" onSave={(plan) => console.log(plan)} />
  * ```
  */
 export const DialPlan: React.FC<DialPlanProps> = (props) => {

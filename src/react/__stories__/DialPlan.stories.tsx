@@ -37,17 +37,17 @@ export const RingAllUsers: Story = {
 // ============================================================================
 
 export const Editable: Story = {
-  args: { dialPlanId: 'dp_01abc', editable: true },
+  args: { dialPlanId: 'dp_01abc', mode: 'edit' },
 };
 
 export const CreateMode: Story = {
-  args: { editable: true },
+  args: { mode: 'edit' },
 };
 
 export const WithCallbacks: Story = {
   args: {
     dialPlanId: 'dp_01abc',
-    editable: true,
+    mode: 'edit',
     onSave: (plan) => console.log('Saved:', plan),
     onDirtyChange: (dirty) => console.log('Dirty:', dirty),
     onError: (error) => console.error('Error:', error),
@@ -60,7 +60,7 @@ export const WithCallbacks: Story = {
  * Valid forward connections are allowed.
  */
 export const DagValidation: Story = {
-  args: { dialPlanId: 'dp_01abc', editable: true },
+  args: { dialPlanId: 'dp_01abc', mode: 'edit' },
 };
 
 // ============================================================================
@@ -68,7 +68,7 @@ export const DagValidation: Story = {
 // ============================================================================
 
 export const EditorRendersInCreateMode: Story = {
-  args: { editable: true },
+  args: { mode: 'edit' },
   play: async ({ canvasElement, step }) => {
     const canvas = within(canvasElement);
 
@@ -95,7 +95,7 @@ export const EditorRendersInCreateMode: Story = {
 };
 
 export const AddNodeFromLibrary: Story = {
-  args: { editable: true },
+  args: { mode: 'edit' },
   play: async ({ canvasElement, step }) => {
     await step('Wait for editor to render', async () => {
       await waitFor(() => {
@@ -120,7 +120,7 @@ export const AddNodeFromLibrary: Story = {
 };
 
 export const SelectNodeOpensConfigPanel: Story = {
-  args: { editable: true },
+  args: { mode: 'edit' },
   play: async ({ canvasElement, step }) => {
     await step('Wait for editor to render', async () => {
       await waitFor(() => {
@@ -143,7 +143,7 @@ export const SelectNodeOpensConfigPanel: Story = {
 };
 
 export const EscClosesConfigPanel: Story = {
-  args: { editable: true },
+  args: { mode: 'edit' },
   play: async ({ canvasElement, step }) => {
     await step('Wait for editor and add a node', async () => {
       await waitFor(() => {
@@ -173,7 +173,7 @@ export const EscClosesConfigPanel: Story = {
 };
 
 export const AutoLayoutButton: Story = {
-  args: { editable: true },
+  args: { mode: 'edit' },
   play: async ({ canvasElement, step }) => {
     const canvas = within(canvasElement);
 
@@ -206,7 +206,7 @@ export const AutoLayoutButton: Story = {
 };
 
 export const DeleteNodeFromConfigPanel: Story = {
-  args: { editable: true },
+  args: { mode: 'edit' },
   play: async ({ canvasElement, step }) => {
     await step('Add a Schedule node from the library', async () => {
       await waitFor(() => {
