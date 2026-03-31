@@ -160,6 +160,7 @@ export interface DialPlanLocale {
     search: string;
     searchTargets: string;
     searchSchedules: string;
+    openInNewTab: string;
   };
   toolbar: {
     autoLayout: string;

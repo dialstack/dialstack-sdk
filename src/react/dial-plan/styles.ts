@@ -438,6 +438,24 @@ export const dialPlanStyles = `
   color: #e2e8f0;
 }
 
+.ds-dial-plan-config-field__open-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 4px;
+  font-size: var(--ds-font-size-xs, 12px);
+  color: var(--ds-color-primary, #3b82f6);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.ds-dial-plan-config-field__open-link:hover {
+  text-decoration: underline;
+}
+
 .ds-dial-plan-config-field__select:focus,
 .ds-dial-plan-config-field__input:focus {
   border-color: var(--ds-color-primary, #3b82f6);

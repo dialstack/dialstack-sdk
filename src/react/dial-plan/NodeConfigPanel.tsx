@@ -14,6 +14,7 @@ interface NodeConfigPanelProps {
   onClose: () => void;
   listResources: ConfigPanelProps['listResources'];
   onCreateResource?: ConfigPanelProps['onCreateResource'];
+  onOpenResource?: ConfigPanelProps['onOpenResource'];
   locale?: DialPlanLocale;
 }
 
@@ -25,6 +26,7 @@ export function NodeConfigPanel({
   onClose,
   listResources,
   onCreateResource,
+  onOpenResource,
   locale,
 }: NodeConfigPanelProps) {
   // Close on Escape key
@@ -82,6 +84,7 @@ export function NodeConfigPanel({
           onConfigChange={(updates, display) => onConfigChange(node.id, updates, display)}
           listResources={listResources}
           onCreateResource={onCreateResource}
+          onOpenResource={onOpenResource}
           locale={locale}
         />
       </div>

@@ -67,7 +67,7 @@ export function ResourceCombobox({
       const item = group.items.find((i) => i.id === value);
       if (item)
         return item.extension_number
-          ? `${item.name} (${extensionLabel} ${item.extension_number})`
+          ? `${item.name} (${extensionLabel}\u00a0${item.extension_number})`
           : item.name;
     }
     return '';
@@ -141,7 +141,7 @@ export function ResourceCombobox({
                     handleSelect(
                       item.id,
                       item.extension_number
-                        ? `${item.name} (${extensionLabel} ${item.extension_number})`
+                        ? `${item.name} (${extensionLabel}\u00a0${item.extension_number})`
                         : item.name
                     )
                   }
@@ -149,7 +149,9 @@ export function ResourceCombobox({
                   <span className="ds-resource-combobox__name">{item.name}</span>
                   {item.extension_number && (
                     <span className="ds-resource-combobox__ext">
-                      ({extensionLabel} {item.extension_number})
+                      ({extensionLabel}
+                      {'\u00a0'}
+                      {item.extension_number})
                     </span>
                   )}
                   <span className="ds-resource-combobox__check">

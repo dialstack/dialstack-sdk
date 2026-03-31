@@ -89,6 +89,8 @@ export interface DialPlanProps {
   onCreateResource?: (
     type: ResourceType
   ) => Promise<{ id: string; name: string; extension_number?: string } | undefined>;
+  /** Optional callback to open a resource in a new tab. Provided by the host app. */
+  onOpenResource?: (resourceId: string) => void;
 }
 
 // ============================================================================
@@ -137,6 +139,7 @@ const defaultDialPlanLocale: DialPlanLocale = {
     search: 'Search...',
     searchTargets: 'Search targets...',
     searchSchedules: 'Search schedules...',
+    openInNewTab: 'Open target details',
   },
   toolbar: {
     autoLayout: 'Auto Layout',
@@ -274,7 +277,7 @@ function enrichNodesWithResources(
       const baseName = user?.name || user?.email;
       const targetName =
         baseName && user?.extension_number
-          ? `${baseName} (${locale.combobox.extensionLabel} ${user.extension_number})`
+          ? `${baseName} (${locale.combobox.extensionLabel}\u00a0${user.extension_number})`
           : baseName;
       const targetType = resolveTargetType(data.targetId, locale);
       return { ...node, data: { ...data, targetName, targetType, locale } };
@@ -301,6 +304,7 @@ function DialPlanInner({
   className,
   style,
   onCreateResource,
+  onOpenResource,
 }: DialPlanProps) {
   const { dialstack } = useDialstackComponents();
   const reactFlowInstance = useReactFlow();
@@ -615,6 +619,35 @@ function DialPlanInner({
     [setEdges, updateDirty]
   );
 
+  // ---- Edit mode: reconnect (drag existing edge endpoint to a different node) ----
+  const handleReconnect = useCallback(
+    (oldEdge: Edge, newConnection: Connection) => {
+      setEdges((prev) => {
+        const filtered = prev.filter(
+          (e) =>
+            e.id !== oldEdge.id &&
+            !(
+              e.source === newConnection.source &&
+              (e.sourceHandle ?? null) === (newConnection.sourceHandle ?? null)
+            )
+        );
+        const reconnected: Edge = {
+          id: `${newConnection.source}-${newConnection.sourceHandle ?? ''}->${newConnection.target}`,
+          source: newConnection.source,
+          target: newConnection.target,
+          sourceHandle: newConnection.sourceHandle ?? undefined,
+          targetHandle: newConnection.targetHandle ?? undefined,
+          type: 'smoothstep',
+          markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: '#94a3b8' },
+        };
+        const next = [...filtered, reconnected];
+        updateDirty(nodesRef.current, next);
+        return next;
+      });
+    },
+    [setEdges, updateDirty]
+  );
+
   // ---- Edit mode: cycle prevention ----
   const isValidConnection = useCallback(
     (connection: Edge | Connection) => {
@@ -673,7 +706,10 @@ function DialPlanInner({
         return next;
       });
       if (configUpdates.target_id) {
-        queueMicrotask(() => updateNodeInternals(nodeId));
+        // Wait for React to commit the DOM update before recalculating handle positions.
+        // queueMicrotask fires too early — before the browser paints the resized node —
+        // which leaves React Flow with stale handle coordinates and broken edges.
+        requestAnimationFrame(() => updateNodeInternals(nodeId));
       }
     },
     [setNodes, updateDirty, updateNodeInternals]
@@ -861,8 +897,10 @@ function DialPlanInner({
       onNodesChange={editable ? handleNodesChange : undefined}
       onEdgesChange={editable ? onEdgesChange : undefined}
       onConnect={editable ? handleConnect : undefined}
+      onReconnect={editable ? handleReconnect : undefined}
       onEdgeClick={editable ? handleEdgeClick : undefined}
       isValidConnection={editable ? isValidConnection : undefined}
+      edgesReconnectable={editable}
       onNodeClick={editable ? handleEditNodeClick : onNodeClick ? handleViewNodeClick : undefined}
       onPaneClick={editable ? handlePaneClick : undefined}
       nodesDraggable={editable}
@@ -926,6 +964,7 @@ function DialPlanInner({
               }}
               listResources={listResources}
               onCreateResource={onCreateResource}
+              onOpenResource={onOpenResource}
             />
           )}
           {selectedEdge && (
@@ -942,8 +981,8 @@ function DialPlanInner({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   >
-                    <path d="M5 12h14" />
-                    <polyline points="12 5 19 12 12 19" />
+                    <path d="M4 8h8v8h8" />
+                    <polyline points="17 13 20 16 17 19" />
                   </svg>
                 </span>
                 <span className="ds-dial-plan-config-panel__header-label">

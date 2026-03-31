@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import type { ConfigPanelProps, ResourceType } from '../registry-types';
+import { OpenResourceLink } from './OpenResourceLink';
 import { ResourceCombobox, type ResourceGroup } from './ResourceCombobox';
 
 export function InternalDialConfigPanel({
@@ -7,6 +8,7 @@ export function InternalDialConfigPanel({
   onConfigChange,
   listResources,
   onCreateResource,
+  onOpenResource,
   locale,
 }: ConfigPanelProps) {
   const [groups, setGroups] = useState<ResourceGroup[]>([]);
@@ -98,6 +100,13 @@ export function InternalDialConfigPanel({
           createNewPrefix={locale?.combobox.createNew}
           extensionLabel={locale?.combobox.extensionLabel}
         />
+        {targetId && onOpenResource && (
+          <OpenResourceLink
+            resourceId={targetId}
+            onOpenResource={onOpenResource}
+            label={locale?.configLabels.openInNewTab ?? 'Open target details'}
+          />
+        )}
       </div>
     </>
   );

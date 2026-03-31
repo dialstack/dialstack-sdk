@@ -27,6 +27,7 @@ export interface ConfigPanelProps {
   onCreateResource?: (
     type: ResourceType
   ) => Promise<{ id: string; name: string; extension_number?: string } | undefined>;
+  onOpenResource?: (resourceId: string) => void;
   locale?: DialPlanLocale;
 }
 
