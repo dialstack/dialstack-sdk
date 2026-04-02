@@ -12,6 +12,7 @@ export function InternalDialConfigPanel({
   locale,
 }: ConfigPanelProps) {
   const [groups, setGroups] = useState<ResourceGroup[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const fetchResources = useCallback(
     () =>
@@ -41,7 +42,8 @@ export function InternalDialConfigPanel({
             },
           ]);
         })
-        .catch(() => {}),
+        .catch(() => {})
+        .finally(() => setLoading(false)),
     [listResources, locale]
   );
 
@@ -91,6 +93,7 @@ export function InternalDialConfigPanel({
         <ResourceCombobox
           groups={groups}
           value={targetId}
+          loading={loading}
           placeholder={locale?.configLabels.searchTargets ?? 'Search targets…'}
           onSelect={handleTargetChange}
           onCreateResource={handleCreateResource}

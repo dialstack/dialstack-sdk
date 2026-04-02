@@ -11,6 +11,7 @@ export interface ResourceGroup {
 interface ResourceComboboxProps {
   groups: ResourceGroup[];
   value: string;
+  loading?: boolean;
   placeholder?: string;
   onSelect: (id: string, name: string) => void;
   onCreateResource?: (
@@ -26,6 +27,7 @@ interface ResourceComboboxProps {
 export function ResourceCombobox({
   groups,
   value,
+  loading = false,
   placeholder = 'Search…',
   onSelect,
   onCreateResource,
@@ -171,7 +173,7 @@ export function ResourceCombobox({
               )}
             </Command.Group>
           ))}
-          {!hasItems && !search && (
+          {!hasItems && !search && loading && (
             <div className="ds-resource-combobox__empty">{loadingLabel}</div>
           )}
         </Command.List>

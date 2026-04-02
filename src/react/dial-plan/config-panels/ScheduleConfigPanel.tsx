@@ -12,6 +12,7 @@ export function ScheduleConfigPanel({
   locale,
 }: ConfigPanelProps) {
   const [groups, setGroups] = useState<ResourceGroup[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const fetchSchedules = useCallback(
     () =>
@@ -25,7 +26,8 @@ export function ScheduleConfigPanel({
             },
           ]);
         })
-        .catch(() => {}),
+        .catch(() => {})
+        .finally(() => setLoading(false)),
     [listResources, locale]
   );
 
@@ -52,6 +54,7 @@ export function ScheduleConfigPanel({
       <ResourceCombobox
         groups={groups}
         value={scheduleId}
+        loading={loading}
         placeholder={locale?.configLabels.searchSchedules ?? 'Search schedules…'}
         onSelect={(id, name) => onConfigChange({ schedule_id: id }, { scheduleName: name })}
         onCreateResource={handleCreateResource}
