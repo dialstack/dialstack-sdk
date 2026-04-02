@@ -328,6 +328,7 @@ export const en = {
     numbers: {
       title: 'Phone Numbers',
       subtitle: "Choose how you'd like to set up your business numbers",
+      defaultDialPlanName: 'Onboarding Dial Plan',
       primaryNumber: {
         heading: 'Primary Number',
         description:

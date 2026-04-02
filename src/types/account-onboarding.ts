@@ -46,6 +46,7 @@ export interface AccountConfig {
     account?: string[];
     numbers?: string[];
     hardware?: string[];
+    default_dial_plan_id?: string;
   };
 }
 

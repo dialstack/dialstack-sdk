@@ -74,6 +74,7 @@ export const NumbersStep: React.FC = () => {
   const orderPollGenRef = useRef(0);
   const e911GenRef = useRef(0);
   const e911PollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const createdDialPlanIdRef = useRef<string | undefined>(undefined);
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -567,6 +568,76 @@ export const NumbersStep: React.FC = () => {
           dispatch({ type: 'e911_set_state', state: 'idle' });
           return;
         }
+
+        // --- Default dial plan creation & DID routing ---
+        if (cancelled()) return;
+        const config = contextAccount?.config;
+        const storedDpId = config?.onboarding_progress?.default_dial_plan_id;
+        let dialPlanId: string | undefined =
+          storedDpId ?? createdDialPlanIdRef.current ?? undefined;
+
+        // Check if stored dial plan still exists
+        if (dialPlanId) {
+          try {
+            await dialstack.getDialPlan(dialPlanId);
+          } catch {
+            dialPlanId = undefined; // Gone — will re-create
+          }
+        }
+        if (cancelled()) return;
+
+        // Create dial plan if needed
+        if (!dialPlanId) {
+          try {
+            const dp = await dialstack.createDialPlan({
+              name: t('accountOnboarding.numbers.defaultDialPlanName'),
+              entry_node: 'ring-all',
+              nodes: [
+                {
+                  id: 'ring-all',
+                  type: 'ring_all_users',
+                  config: { timeout: 30 },
+                },
+              ],
+            });
+            dialPlanId = dp.id;
+            createdDialPlanIdRef.current = dialPlanId;
+          } catch (err) {
+            console.warn('[dialstack] Failed to create default dial plan:', err);
+          }
+
+          // Persist dial plan ID to account config (best-effort — ref keeps it for this session)
+          if (dialPlanId) {
+            try {
+              await dialstack.updateAccount({
+                config: {
+                  ...config,
+                  onboarding_progress: {
+                    ...config?.onboarding_progress,
+                    default_dial_plan_id: dialPlanId,
+                  },
+                },
+              });
+            } catch (err) {
+              console.warn('[dialstack] Failed to persist dial plan ID to account config:', err);
+            }
+          }
+        }
+        if (cancelled()) return;
+
+        // Assign unrouted DIDs to the dial plan
+        if (dialPlanId) {
+          const unroutedDIDs = activeDIDs.filter((d) => !d.routing_target);
+          await Promise.all(
+            unroutedDIDs.map((did) =>
+              dialstack.updatePhoneNumberRoute(did.id, dialPlanId!).catch((err) => {
+                console.warn(`[dialstack] Failed to route DID ${did.id}:`, err);
+              })
+            )
+          );
+        }
+        if (cancelled()) return;
+        // --- End dial plan logic ---
 
         if (cancelled()) return;
         if (contextLocations.length !== 1) {
