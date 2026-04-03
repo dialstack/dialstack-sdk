@@ -416,36 +416,6 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   }
 
   /**
-   * Get the caller ID name for a phone number
-   */
-  async getCallerID(phoneNumberId: string): Promise<{ caller_id_name: string | null }> {
-    const response = await this.fetchApi(`/v1/phone-numbers/${phoneNumberId}/caller-id`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to get caller ID: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Update the caller ID (CNAM) for a phone number
-   */
-  async updateCallerID(phoneNumberId: string, displayName: string): Promise<void> {
-    const response = await this.fetchApi(`/v1/phone-numbers/${phoneNumberId}/caller-id`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ display_name: displayName, visibility: 'PUBLIC' }),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new ApiError(
-        `Failed to update caller ID: ${response.status} ${errorText}`,
-        response.status
-      );
-    }
-  }
-
-  /**
    * Resolve a routing target TypeID to its type and display name
    */
   async resolveRoutingTarget(target: string): Promise<{

@@ -667,12 +667,12 @@ describe('NumbersStep', () => {
       expect(document.querySelector('.num-cid-section')).toBeNull();
     });
 
-    it('submits caller ID via Next button and calls updateCallerID', async () => {
+    it('submits caller ID via Next button and calls updatePhoneNumber', async () => {
       const didWithoutCnam = { ...mockDID, id: 'did_nocnam', caller_id_name: null };
-      const updateCallerID = jest.fn().mockResolvedValue(undefined);
+      const updatePhoneNumber = jest.fn().mockResolvedValue(undefined);
       const result = await renderNumbers({
         listPhoneNumbers: jest.fn().mockResolvedValue(didPage([didWithoutCnam])),
-        updateCallerID,
+        updatePhoneNumber,
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -686,7 +686,9 @@ describe('NumbersStep', () => {
       fireEvent.click(screen.getByRole('button', { name: /Next/i }));
 
       await waitFor(() => {
-        expect(updateCallerID).toHaveBeenCalledWith('did_nocnam', 'Test Corp');
+        expect(updatePhoneNumber).toHaveBeenCalledWith('did_nocnam', {
+          caller_id_name: 'Test Corp',
+        });
       });
     });
 
@@ -715,10 +717,10 @@ describe('NumbersStep', () => {
 
     it('Next triggers bulk submission when caller IDs are not yet submitted', async () => {
       const didWithoutCnam = { ...mockDID, id: 'did_block', caller_id_name: null };
-      const updateCallerID = jest.fn().mockResolvedValue(undefined);
+      const updatePhoneNumber = jest.fn().mockResolvedValue(undefined);
       const result = await renderNumbers({
         listPhoneNumbers: jest.fn().mockResolvedValue(didPage([didWithoutCnam])),
-        updateCallerID,
+        updatePhoneNumber,
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -732,7 +734,7 @@ describe('NumbersStep', () => {
       fireEvent.click(screen.getByRole('button', { name: /Next/i }));
 
       await waitFor(() => {
-        expect(updateCallerID).toHaveBeenCalledWith('did_block', 'My Corp');
+        expect(updatePhoneNumber).toHaveBeenCalledWith('did_block', { caller_id_name: 'My Corp' });
       });
     });
 
@@ -760,13 +762,13 @@ describe('NumbersStep', () => {
         phone_number: '+12125551002',
         caller_id_name: null,
       };
-      const updateCallerID = jest.fn().mockImplementation((id: string) => {
+      const updatePhoneNumber = jest.fn().mockImplementation((id: string) => {
         if (id === 'did_fail') return Promise.reject(new Error('API error'));
         return Promise.resolve(undefined);
       });
       const result = await renderNumbers({
         listPhoneNumbers: jest.fn().mockResolvedValue(didPage([did1, did2])),
-        updateCallerID,
+        updatePhoneNumber,
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -790,10 +792,10 @@ describe('NumbersStep', () => {
 
     it('skip after error advances to next step', async () => {
       const didWithoutCnam = { ...mockDID, id: 'did_skip', caller_id_name: null };
-      const updateCallerID = jest.fn().mockRejectedValue(new Error('fail'));
+      const updatePhoneNumber = jest.fn().mockRejectedValue(new Error('fail'));
       const result = await renderNumbers({
         listPhoneNumbers: jest.fn().mockResolvedValue(didPage([didWithoutCnam])),
-        updateCallerID,
+        updatePhoneNumber,
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -827,7 +829,7 @@ describe('NumbersStep', () => {
         caller_id_name: null,
       };
       let callCount = 0;
-      const updateCallerID = jest.fn().mockImplementation((id: string) => {
+      const updatePhoneNumber = jest.fn().mockImplementation((id: string) => {
         if (id === 'did_retry') {
           callCount++;
           if (callCount <= 1) return Promise.reject(new Error('fail'));
@@ -836,7 +838,7 @@ describe('NumbersStep', () => {
       });
       const result = await renderNumbers({
         listPhoneNumbers: jest.fn().mockResolvedValue(didPage([did1, did2])),
-        updateCallerID,
+        updatePhoneNumber,
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -854,7 +856,7 @@ describe('NumbersStep', () => {
       });
 
       // Clear mock tracking
-      updateCallerID.mockClear();
+      updatePhoneNumber.mockClear();
 
       // Edit the errored input to clear the error state
       const retryInput = inputs[1]!;
@@ -868,8 +870,10 @@ describe('NumbersStep', () => {
       // Second Next — only did_retry should be re-submitted
       fireEvent.click(screen.getByRole('button', { name: /Next/i }));
       await waitFor(() => {
-        expect(updateCallerID).toHaveBeenCalledTimes(1);
-        expect(updateCallerID).toHaveBeenCalledWith('did_retry', 'Retry Corp');
+        expect(updatePhoneNumber).toHaveBeenCalledTimes(1);
+        expect(updatePhoneNumber).toHaveBeenCalledWith('did_retry', {
+          caller_id_name: 'Retry Corp',
+        });
       });
     }, 15000);
   });

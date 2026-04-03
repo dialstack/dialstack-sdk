@@ -202,6 +202,7 @@ export function createMockInstance(overrides?: MockInstanceOverrides): DialStack
       next_page_url: null,
       previous_page_url: null,
     }),
+    updatePhoneNumber: jest.fn().mockResolvedValue(mockDID),
     fetchAllPages: jest
       .fn()
       .mockImplementation(
@@ -210,8 +211,6 @@ export function createMockInstance(overrides?: MockInstanceOverrides): DialStack
           return result.data;
         }
       ),
-    getCallerID: jest.fn().mockResolvedValue({ caller_id_name: '' }),
-    updateCallerID: jest.fn().mockResolvedValue(undefined),
     searchAvailableNumbers: jest.fn().mockResolvedValue({ data: [] }),
     createNumberOrder: jest.fn().mockResolvedValue({
       id: 'order_01',

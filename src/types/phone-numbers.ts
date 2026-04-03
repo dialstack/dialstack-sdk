@@ -49,6 +49,8 @@ export interface UpdatePhoneNumberRequest {
   directory_listing_name?: string;
   directory_listing_type?: DirectoryListingType;
   directory_listing_location_id?: string;
+  caller_id_name?: string;
+  caller_id_visibility?: 'PUBLIC' | 'PRIVATE';
 }
 
 /**

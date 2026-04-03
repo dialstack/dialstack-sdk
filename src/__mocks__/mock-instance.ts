@@ -485,18 +485,12 @@ export function createMockInstance(
 
     // Routing target resolution
     listExtensions: async () => [...mockExtensionsList],
-    getCallerID: async (_phoneNumberId: string) => ({ caller_id_name: 'ACME Corp' }),
     resolveRoutingTarget: async (target: string) => ({
       id: target,
       name: target.startsWith('rg_') ? 'Main Ring Group' : 'Alice Smith',
       type: (target.startsWith('rg_') ? 'ring_group' : 'user') as 'ring_group' | 'user',
       extension_number: '1001',
     }),
-    updateCallerID: async (phoneNumberId: string, displayName: string) => {
-      await delay();
-      const did = mockDIDs.find((d) => d.id === phoneNumberId);
-      if (did) did.caller_id_name = displayName;
-    },
     getPhoneNumber: async (phoneNumberId: string) => {
       await delay();
       const did = mockDIDs.find((d) => d.id === phoneNumberId);

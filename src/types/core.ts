@@ -329,33 +329,6 @@ export interface DialStackInstance {
   listSharedVoicemailBoxes(options?: { limit?: number }): Promise<NamedResource[]>;
 
   /**
-   * Get the caller ID name for a phone number
-   *
-   * @param phoneNumberId - The phone number ID (e.g., 'did_01abc...')
-   * @returns Promise resolving to the caller ID name (or null if not set)
-   *
-   * @example
-   * ```typescript
-   * const result = await dialstack.getCallerID('did_01abc...');
-   * console.log(result.caller_id_name); // 'ACME Corp' or null
-   * ```
-   */
-  getCallerID(phoneNumberId: string): Promise<{ caller_id_name: string | null }>;
-
-  /**
-   * Update the caller ID (CNAM) for a phone number
-   *
-   * @param phoneNumberId - The phone number ID (e.g., 'did_01abc...')
-   * @param displayName - The caller ID display name (max 15 characters)
-   *
-   * @example
-   * ```typescript
-   * await dialstack.updateCallerID('did_01abc...', 'ACME Corp');
-   * ```
-   */
-  updateCallerID(phoneNumberId: string, displayName: string): Promise<void>;
-
-  /**
    * Resolve a routing target TypeID to its type and display name
    *
    * @param target - TypeID string (e.g. 'user_xxx', 'dp_xxx', 'va_xxx', 'rg_xxx')

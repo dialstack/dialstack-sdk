@@ -461,7 +461,7 @@ export const NumbersStep: React.FC = () => {
       );
       if (err) return { status: 'error', error: err };
       try {
-        await dialstackInst.updateCallerID(didId, name.trim());
+        await dialstackInst.updatePhoneNumber(didId, { caller_id_name: name.trim() });
         dispatch({ type: 'caller_id_persist_name', didId, name: name.trim() });
         return { status: 'submitted' };
       } catch (err2) {
