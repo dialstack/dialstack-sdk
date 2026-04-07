@@ -1489,11 +1489,11 @@ export const DeviceAssignment: Story = {
         expect(badges.length).toBe(1);
       });
 
-      // "Assign & Complete" should disappear (not all users have devices)
+      // "Assign & Complete" should still appear (partial assignments allowed)
       const assignBtn = Array.from(canvasElement.querySelectorAll('button')).find((b) =>
         b.textContent?.includes('Assign & Complete')
       );
-      expect(assignBtn).toBeUndefined();
+      expect(assignBtn).not.toBeUndefined();
 
       // A drop zone should reappear for Alice
       const dropZones = canvasElement.querySelectorAll('.hw-drop-zone');

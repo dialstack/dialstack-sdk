@@ -183,7 +183,7 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [gateError, setGateError] = useState<string | null>(null);
+
   const [dragOverUserId, setDragOverUserId] = useState<string | null>(null);
 
   const assignDevice = useCallback((deviceId: string, userId: string) => {
@@ -199,7 +199,6 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
       return next;
     });
     setSelectedDeviceId(null);
-    setGateError(null);
   }, []);
 
   const unassignUser = useCallback((userId: string) => {
@@ -296,10 +295,6 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
   const hasDevices = allDevices.length > 0;
   const unassignedDevices = allDevices.filter((d) => !deviceAssignments.has(d.id));
   const allAssigned = hasDevices && deviceAssignments.size === allDevices.length;
-  const allUsersHaveDevices =
-    contextUsers.length > 0 &&
-    contextUsers.every((u) => new Set(deviceAssignments.values()).has(u.id));
-
   const getDeviceForUser = useCallback(
     (userId: string): AssignableDevice | undefined => {
       for (const [deviceId, assignedUserId] of deviceAssignments.entries()) {
@@ -321,7 +316,6 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
 
   const handleSelectDevice = useCallback((deviceId: string) => {
     setSelectedDeviceId((prev) => (prev === deviceId ? null : deviceId));
-    setGateError(null);
   }, []);
 
   const handleDropZoneClick = useCallback(
@@ -336,14 +330,8 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
   const handleSubmitAssignments = useCallback(async () => {
     if (isSubmitting) return;
 
-    if (!allUsersHaveDevices) {
-      setGateError(hw.gate.allUsersMustHaveDevice);
-      return;
-    }
-
     setIsSubmitting(true);
     setActionError(null);
-    setGateError(null);
 
     // We need a mutable copy of the endpoint map for ensureEndpoint
     const localEndpointMap = new Map(userEndpointMap);
@@ -419,21 +407,18 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
     devices,
     dectHandsets,
     userEndpointMap,
-    allUsersHaveDevices,
     allDevices,
     dialstack,
-    hw.gate.allUsersMustHaveDevice,
     onDone,
   ]);
 
   const handleNext = useCallback(() => {
-    if (hasDevices && !allUsersHaveDevices) {
-      setGateError(hw.gate.allUsersMustHaveDevice);
-      return;
+    if (deviceAssignments.size > 0) {
+      void handleSubmitAssignments();
+    } else {
+      onDone();
     }
-    setGateError(null);
-    onDone();
-  }, [hasDevices, allUsersHaveDevices, hw.gate.allUsersMustHaveDevice, onDone]);
+  }, [deviceAssignments.size, handleSubmitAssignments, onDone]);
 
   // ============================================================================
   // Render
@@ -633,40 +618,25 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
   );
 
   const errorMargin = { marginBottom: 'var(--ds-layout-spacing-sm)' };
-  const gateErrorEl = <ErrorAlert message={gateError} style={errorMargin} />;
   const actionErrorEl = <ErrorAlert message={actionError} style={errorMargin} />;
 
-  const footer =
-    hasDevices && allUsersHaveDevices ? (
-      <>
-        {gateErrorEl}
-        <div className={`footer-bar${onBack ? '' : ' footer-bar-end'}`}>
-          {onBack && (
-            <button type="button" className="btn-ghost" onClick={onBack}>
-              ← {nav.back}
-            </button>
-          )}
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={isSubmitting}
-            onClick={() => void handleSubmitAssignments()}
-          >
-            {isSubmitting ? hw.submitting : hw.assignAndComplete}
-          </button>
-        </div>
-      </>
-    ) : (
-      <>
-        {gateErrorEl}
-        <StepNavigation
-          onBack={onBack}
-          backLabel={onBack ? `\u2190 ${nav.back}` : undefined}
-          onNext={handleNext}
-          nextLabel={`${nav.next} \u2192`}
-        />
-      </>
-    );
+  const footer = (
+    <>
+      <StepNavigation
+        onBack={onBack}
+        backLabel={onBack ? `\u2190 ${nav.back}` : undefined}
+        onNext={handleNext}
+        nextLabel={
+          deviceAssignments.size > 0
+            ? isSubmitting
+              ? hw.submitting
+              : hw.assignAndComplete
+            : `${nav.next} \u2192`
+        }
+        isNextDisabled={isSubmitting}
+      />
+    </>
+  );
 
   return (
     <div>

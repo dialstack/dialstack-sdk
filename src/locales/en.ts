@@ -659,8 +659,6 @@ export const en = {
       cordless: 'Cordless',
       submitting: 'Submitting...',
       gate: {
-        allUsersMustHaveDevice:
-          'Every team member must have a device assigned before completing this step.',
         noDevices:
           'No devices are available for your account. Please contact support to add devices before completing this step.',
       },
