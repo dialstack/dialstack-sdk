@@ -598,6 +598,31 @@
   margin: 0 0 var(--ds-spacing-xs) 0;
 }
 
+.info-tooltip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: var(--ds-spacing-xs);
+  color: var(--ds-color-text-secondary);
+  cursor: help;
+  vertical-align: middle;
+}
+
+.info-tooltip:hover,
+.info-tooltip:focus-visible {
+  color: var(--ds-color-text);
+}
+
+.info-tooltip:focus {
+  outline: none;
+}
+
+.info-tooltip:focus-visible {
+  outline: 2px solid var(--ds-color-primary);
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+
 .section-description {
   font-size: var(--ds-font-size-small);
   color: var(--ds-color-text-secondary);

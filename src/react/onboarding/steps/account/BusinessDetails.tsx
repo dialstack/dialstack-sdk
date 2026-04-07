@@ -10,6 +10,7 @@ import { US_TIMEZONES } from '../../../../constants/us-timezones';
 import { useOnboarding } from '../../OnboardingContext';
 import { StepNavigation } from '../../StepNavigation';
 import { ErrorAlert } from '../../components/ErrorAlert';
+import { InfoIcon } from '../../components/icons';
 import { AddressSearch } from './AddressSearch';
 import type { ManualAddress, AddressMode } from './AddressSearch';
 
@@ -321,7 +322,18 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
 
         <div className="e911-separator">*{t.location.e911Note}*</div>
 
-        <h3 className="section-heading">{t.location.heading}</h3>
+        <h3 className="section-heading">
+          {t.location.heading}
+          <span
+            className="info-tooltip"
+            tabIndex={0}
+            role="note"
+            aria-label={t.location.multipleLocationsTooltip}
+            title={t.location.multipleLocationsTooltip}
+          >
+            <InfoIcon />
+          </span>
+        </h3>
         <p className="section-description">{t.location.description}</p>
 
         <div className="form-group">
