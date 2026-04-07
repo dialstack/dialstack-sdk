@@ -9,7 +9,7 @@
  * Supports create mode (no dialPlanId + mode='edit').
  */
 
-import React, { useCallback, useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useRef, useImperativeHandle } from 'react';
 import {
   ReactFlow,
   Background,
@@ -63,6 +63,12 @@ import { formatValidationError } from '../utils/format-validation-error';
 
 /** Display mode for the DialPlan component */
 export type DialPlanMode = 'view' | 'edit' | 'preview';
+
+/** Imperative handle exposed via ref on the DialPlan component */
+export interface DialPlanHandle {
+  /** Trigger a save programmatically. Resolves when save succeeds, rejects on error. */
+  save: () => Promise<void>;
+}
 
 export interface DialPlanProps {
   /** The ID of the dial plan to fetch and display */
@@ -307,22 +313,25 @@ function enrichNodesWithResources(
 // Inner component (needs ReactFlowProvider context for edit mode)
 // ============================================================================
 
-function DialPlanInner({
-  dialPlanId,
-  mode = 'view',
-  locale = defaultDialPlanLocale,
-  onNodeClick,
-  onLoaderStart,
-  onLoaderEnd,
-  onLoadError,
-  onSave,
-  onDirtyChange,
-  onError,
-  className,
-  style,
-  onCreateResource,
-  onOpenResource,
-}: DialPlanProps) {
+const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function DialPlanInner(
+  {
+    dialPlanId,
+    mode = 'view',
+    locale = defaultDialPlanLocale,
+    onNodeClick,
+    onLoaderStart,
+    onLoaderEnd,
+    onLoadError,
+    onSave,
+    onDirtyChange,
+    onError,
+    className,
+    style,
+    onCreateResource,
+    onOpenResource,
+  },
+  ref
+) {
   const { editable, interactive, showChrome } = MODE_CONFIGS[mode];
   const { dialstack } = useDialstackComponents();
   const reactFlowInstance = useReactFlow();
@@ -814,8 +823,11 @@ function DialPlanInner({
             )
           : error
       );
+      throw err;
     }
   }, [dialstack, dialPlanId]);
+
+  useImperativeHandle(ref, () => ({ save: handleSave }), [handleSave]);
 
   // ---- Edit mode: node click opens config ----
   const handleEditNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
@@ -950,7 +962,13 @@ function DialPlanInner({
       {showChrome && <Background gap={20} size={1} />}
       {showChrome && <Controls showInteractive={false} />}
       {editable && (
-        <EditorToolbar onAutoLayout={handleAutoLayout} onSave={handleSave} isDirty={isDirty} />
+        <EditorToolbar
+          onAutoLayout={handleAutoLayout}
+          onSave={() => {
+            handleSave().catch(() => {});
+          }}
+          isDirty={isDirty}
+        />
       )}
     </ReactFlow>
   );
@@ -1082,7 +1100,7 @@ function DialPlanInner({
       )}
     </div>
   );
-}
+});
 
 // ============================================================================
 // Public component
@@ -1106,10 +1124,12 @@ function DialPlanInner({
  * <DialPlan mode="edit" onSave={(plan) => console.log(plan)} />
  * ```
  */
-export const DialPlan: React.FC<DialPlanProps> = (props) => {
+export const DialPlan = React.forwardRef<DialPlanHandle, DialPlanProps>((props, ref) => {
   return (
     <ReactFlowProvider>
-      <DialPlanInner {...props} />
+      <DialPlanInner ref={ref} {...props} />
     </ReactFlowProvider>
   );
-};
+});
+
+DialPlan.displayName = 'DialPlan';
