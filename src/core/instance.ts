@@ -339,81 +339,980 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     });
   }
 
-  /**
-   * Initiate an outbound call
-   */
-  async initiateCall(userId: string, dialString: string): Promise<void> {
-    const response = await this.fetchApi('/v1/calls', {
-      method: 'POST',
-      body: JSON.stringify({ user_id: userId, dial_string: dialString }),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to initiate call: ${response.status} ${errorText}`);
-    }
-  }
+  // ===========================================================================
+  // Resource Namespaces
+  // ===========================================================================
 
-  /**
-   * Retrieve the transcript for a call
-   */
-  async getTranscript(callId: string): Promise<Transcript> {
-    const response = await this.fetchApi(`/v1/calls/${callId}/transcript`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to get transcript: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
+  calls = {
+    create: async (params: { userId: string; dialString: string }): Promise<void> => {
+      const response = await this.fetchApi('/v1/calls', {
+        method: 'POST',
+        body: JSON.stringify({ user_id: params.userId, dial_string: params.dialString }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to initiate call: ${response.status} ${errorText}`);
+      }
+    },
+    retrieve: async (callId: string): Promise<CallLog> => {
+      const response = await this.fetchApi(`/v1/calls/${callId}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new ApiError(
+          `Failed to get call log: ${response.status} ${errorText}`,
+          response.status
+        );
+      }
+      return response.json();
+    },
+    transcripts: {
+      retrieve: async (callId: string): Promise<Transcript> => {
+        const response = await this.fetchApi(`/v1/calls/${callId}/transcript`);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to get transcript: ${response.status} ${errorText}`);
+        }
+        return response.json();
+      },
+    },
+  };
 
-  /**
-   * Retrieve the transcript for a voicemail
-   */
-  async getVoicemailTranscript(userId: string, voicemailId: string): Promise<VoicemailTranscript> {
-    const response = await this.fetchApi(
-      `/v1/users/${userId}/voicemails/${voicemailId}/transcript`
-    );
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to get voicemail transcript: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
+  voicemails = {
+    retrieveTranscript: async (
+      userId: string,
+      voicemailId: string
+    ): Promise<VoicemailTranscript> => {
+      const response = await this.fetchApi(
+        `/v1/users/${userId}/voicemails/${voicemailId}/transcript`
+      );
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to get voicemail transcript: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+  };
 
-  /**
-   * List extensions, optionally filtered by target ID
-   */
-  async listExtensions(options?: {
-    target?: string;
-    limit?: number;
-    starting_after?: string;
-    ending_before?: string;
-  }): Promise<Extension[]> {
-    const params = new URLSearchParams();
-    if (options?.target) {
-      params.set('target', options.target);
-    }
-    if (options?.limit) {
-      params.set('limit', String(options.limit));
-    }
-    if (options?.starting_after) {
-      params.set('starting_after', options.starting_after);
-    }
-    if (options?.ending_before) {
-      params.set('ending_before', options.ending_before);
-    }
+  phoneNumbers = {
+    retrieve: async (phoneNumberId: string): Promise<DIDItem> => {
+      const response = await this.fetchApi(`/v1/phone-numbers/${phoneNumberId}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new ApiError(
+          `Failed to get phone number: ${response.status} ${errorText}`,
+          response.status
+        );
+      }
+      return response.json();
+    },
+    list: async (options?: {
+      limit?: number;
+      status?: string;
+    }): Promise<PaginatedResponse<DIDItem>> => {
+      const params = new URLSearchParams();
+      if (options?.limit) params.set('limit', String(options.limit));
+      if (options?.status) params.set('status', options.status);
 
-    const queryString = params.toString();
-    const path = queryString ? `/v1/extensions?${queryString}` : '/v1/extensions';
+      const queryString = params.toString();
+      const path = queryString ? `/v1/phone-numbers?${queryString}` : '/v1/phone-numbers';
 
-    const response = await this.fetchApi(path);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to list extensions: ${response.status} ${errorText}`);
-    }
+      const response = await this.fetchApi(path);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to list phone numbers: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    update: async (phoneNumberId: string, data: UpdatePhoneNumberRequest): Promise<DIDItem> => {
+      const response = await this.fetchApi(`/v1/phone-numbers/${phoneNumberId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new ApiError(
+          `Failed to update phone number: ${response.status} ${errorText}`,
+          response.status
+        );
+      }
+      return response.json();
+    },
+    updateRoute: async (phoneNumberId: string, routingTarget: string | null): Promise<DIDItem> => {
+      const response = await this.fetchApi(`/v1/phone-numbers/${phoneNumberId}/route`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ routing_target: routingTarget }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new ApiError(
+          `Failed to update routing target: ${response.status} ${errorText}`,
+          response.status
+        );
+      }
+      return response.json();
+    },
+  };
 
-    const data: ExtensionListResponse = await response.json();
-    return data.data ?? [];
-  }
+  availablePhoneNumbers = {
+    search: async (options: SearchAvailableNumbersOptions): Promise<AvailablePhoneNumber[]> => {
+      const params = new URLSearchParams();
+      if (options.areaCode) params.set('area_code', options.areaCode);
+      if (options.city) params.set('city', options.city);
+      if (options.state) params.set('state', options.state);
+      if (options.zip) params.set('zip', options.zip);
+      if (options.quantity) params.set('quantity', String(options.quantity));
+
+      const response = await this.fetchApi(`/v1/available-phone-numbers?${params}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to search available numbers: ${response.status} ${errorText}`);
+      }
+
+      const body = await response.json();
+      return body.data;
+    },
+  };
+
+  phoneNumberOrders = {
+    create: async (phoneNumbers: string[]): Promise<NumberOrder> => {
+      const response = await this.fetchApi('/v1/phone-number-orders', {
+        method: 'POST',
+        body: JSON.stringify({ phone_numbers: phoneNumbers }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create phone number order: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    retrieve: async (orderId: string): Promise<NumberOrder> => {
+      const response = await this.fetchApi(`/v1/phone-number-orders/${orderId}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to get phone number order: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    list: async (options?: {
+      limit?: number;
+      status?: string;
+      order_type?: string;
+    }): Promise<PaginatedResponse<NumberOrder>> => {
+      const params = new URLSearchParams();
+      if (options?.limit) params.set('limit', String(options.limit));
+      if (options?.status) params.set('status', options.status);
+      if (options?.order_type) params.set('order_type', options.order_type);
+
+      const queryString = params.toString();
+      const path = queryString
+        ? `/v1/phone-number-orders?${queryString}`
+        : '/v1/phone-number-orders';
+
+      const response = await this.fetchApi(path);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to list number orders: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+  };
+
+  portOrders = {
+    create: async (request: CreatePortOrderRequest): Promise<PortOrder> => {
+      const response = await this.fetchApi('/v1/port-orders', {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create port order: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    retrieve: async (orderId: string): Promise<PortOrder> => {
+      const response = await this.fetchApi(`/v1/port-orders/${orderId}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to get port order: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    list: async (options?: {
+      limit?: number;
+      status?: string;
+    }): Promise<PaginatedResponse<PortOrder>> => {
+      const params = new URLSearchParams();
+      if (options?.limit) params.set('limit', String(options.limit));
+      if (options?.status) params.set('status', options.status);
+
+      const queryString = params.toString();
+      const path = queryString ? `/v1/port-orders?${queryString}` : '/v1/port-orders';
+
+      const response = await this.fetchApi(path);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to list port orders: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    approve: async (orderId: string, request: ApprovePortOrderRequest): Promise<PortOrder> => {
+      const response = await this.fetchApi(`/v1/port-orders/${orderId}/approve`, {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to approve port order: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    submit: async (orderId: string): Promise<PortOrder> => {
+      const response = await this.fetchApi(`/v1/port-orders/${orderId}/submit`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to submit port order: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    cancel: async (orderId: string): Promise<PortOrder> => {
+      const response = await this.fetchApi(`/v1/port-orders/${orderId}/cancel`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to cancel port order: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    checkEligibility: async (phoneNumbers: string[]): Promise<PortEligibilityResult> => {
+      const response = await this.fetchApi('/v1/port-in-eligibility', {
+        method: 'POST',
+        body: JSON.stringify({ phone_numbers: phoneNumbers }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to check port eligibility: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    uploadCSR: async (orderId: string, file: File): Promise<void> => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await this.fetchApi(`/v1/port-orders/${orderId}/csr`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to upload CSR: ${response.status} ${errorText}`);
+      }
+    },
+    uploadBillCopy: async (orderId: string, file: File): Promise<void> => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await this.fetchApi(`/v1/port-orders/${orderId}/bill-copy`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to upload bill copy: ${response.status} ${errorText}`);
+      }
+    },
+    downloadCSR: async (orderId: string): Promise<Blob> => {
+      const response = await this.fetchApi(`/v1/port-orders/${orderId}/csr`, {
+        method: 'GET',
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to download CSR: ${response.status} ${errorText}`);
+      }
+      return response.blob();
+    },
+    downloadBillCopy: async (orderId: string): Promise<Blob> => {
+      const response = await this.fetchApi(`/v1/port-orders/${orderId}/bill-copy`, {
+        method: 'GET',
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to download bill copy: ${response.status} ${errorText}`);
+      }
+      return response.blob();
+    },
+  };
+
+  dialPlans = {
+    retrieve: async (dialPlanId: string): Promise<DialPlanData> => {
+      const response = await this.fetchApi(`/v1/dialplans/${dialPlanId}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to get dial plan: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    list: async (options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]> => {
+      const params = new URLSearchParams();
+      if (options?.limit) params.set('limit', String(options.limit));
+      for (const e of options?.expand ?? []) params.append('expand[]', e);
+      const queryString = params.toString();
+      const path = queryString ? `/v1/dialplans?${queryString}` : '/v1/dialplans';
+      const response = await this.fetchApi(path);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to list dial plans: ${response.status} ${errorText}`);
+      }
+      const data = await response.json();
+      return (data.data ?? []).map((r: Record<string, unknown>) => ({
+        id: r.id as string,
+        name: r.name as string,
+        extension_number: (r.extensions as { data?: Array<{ number?: string }> })?.data?.[0]
+          ?.number,
+      }));
+    },
+    create: async (data: Record<string, unknown>): Promise<DialPlanData> => {
+      const response = await this.fetchApi('/v1/dialplans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(errorData.error ?? `Failed to create dial plan: ${response.status}`);
+      }
+      return response.json();
+    },
+    update: async (dialPlanId: string, data: Record<string, unknown>): Promise<DialPlanData> => {
+      const response = await this.fetchApi(`/v1/dialplans/${dialPlanId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(errorData.error ?? `Failed to update dial plan: ${response.status}`);
+      }
+      return response.json();
+    },
+  };
+
+  schedules = {
+    retrieve: async (scheduleId: string): Promise<NamedResource> => {
+      const response = await this.fetchApi(`/v1/schedules/${scheduleId}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to get schedule: ${response.status} ${errorText}`);
+      }
+      const data = await response.json();
+      return { id: data.id, name: data.name };
+    },
+    list: async (options?: { limit?: number }): Promise<NamedResource[]> => {
+      const params = new URLSearchParams();
+      if (options?.limit) params.set('limit', String(options.limit));
+      const queryString = params.toString();
+      const path = queryString ? `/v1/schedules?${queryString}` : '/v1/schedules';
+      const response = await this.fetchApi(path);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to list schedules: ${response.status} ${errorText}`);
+      }
+      const data = await response.json();
+      return (data.data ?? []).map((r: NamedResource) => ({ id: r.id, name: r.name }));
+    },
+  };
+
+  ringGroups = {
+    list: async (options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]> => {
+      const params = new URLSearchParams();
+      if (options?.limit) params.set('limit', String(options.limit));
+      for (const e of options?.expand ?? []) params.append('expand[]', e);
+      const queryString = params.toString();
+      const path = queryString ? `/v1/ring_groups?${queryString}` : '/v1/ring_groups';
+      const response = await this.fetchApi(path);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to list ring groups: ${response.status} ${errorText}`);
+      }
+      const data = await response.json();
+      return (data.data ?? []).map((r: Record<string, unknown>) => ({
+        id: r.id as string,
+        name: r.name as string,
+        extension_number: (r.extensions as { data?: Array<{ number?: string }> })?.data?.[0]
+          ?.number,
+      }));
+    },
+  };
+
+  voiceApps = {
+    list: async (options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]> => {
+      const params = new URLSearchParams();
+      if (options?.limit) params.set('limit', String(options.limit));
+      for (const e of options?.expand ?? []) params.append('expand[]', e);
+      const queryString = params.toString();
+      const path = queryString ? `/v1/voice-apps?${queryString}` : '/v1/voice-apps';
+      const response = await this.fetchApi(path);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to list voice apps: ${response.status} ${errorText}`);
+      }
+      const data = await response.json();
+      return (data.data ?? []).map((r: Record<string, unknown>) => ({
+        id: r.id as string,
+        name: r.name as string,
+        extension_number: (r.extensions as { data?: Array<{ number?: string }> })?.data?.[0]
+          ?.number,
+      }));
+    },
+  };
+
+  sharedVoicemailBoxes = {
+    list: async (options?: { limit?: number }): Promise<NamedResource[]> => {
+      const params = new URLSearchParams();
+      if (options?.limit) params.set('limit', String(options.limit));
+      const queryString = params.toString();
+      const path = queryString
+        ? `/v1/shared_voicemail_boxes?${queryString}`
+        : '/v1/shared_voicemail_boxes';
+      const response = await this.fetchApi(path);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to list shared voicemail boxes: ${response.status} ${errorText}`);
+      }
+      const data = await response.json();
+      return (data.data ?? []).map((r: NamedResource) => ({ id: r.id, name: r.name }));
+    },
+  };
+
+  extensions = {
+    list: async (options?: { target?: string; limit?: number }): Promise<Extension[]> => {
+      const params = new URLSearchParams();
+      if (options?.target) {
+        params.set('target', options.target);
+      }
+      if (options?.limit) {
+        params.set('limit', String(options.limit));
+      }
+
+      const queryString = params.toString();
+      const path = queryString ? `/v1/extensions?${queryString}` : '/v1/extensions';
+
+      const response = await this.fetchApi(path);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to list extensions: ${response.status} ${errorText}`);
+      }
+
+      const data: ExtensionListResponse = await response.json();
+      return data.data ?? [];
+    },
+    create: async (request: CreateExtensionRequest): Promise<Extension> => {
+      const response = await this.fetchApi('/v1/extensions', {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create extension: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+  };
+
+  deskphones = {
+    create: async (data: CreateDeskphoneRequest): Promise<ProvisionedDevice> => {
+      const response = await this.fetchApi('/v1/deskphones', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create deskphone: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    update: async (id: string, data: UpdateDeskphoneRequest): Promise<ProvisionedDevice> => {
+      const response = await this.fetchApi(`/v1/deskphones/${id}`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to update deskphone: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    del: async (id: string): Promise<void> => {
+      const response = await this.fetchApi(`/v1/deskphones/${id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to delete deskphone: ${response.status} ${errorText}`);
+      }
+    },
+    lines: {
+      create: async (
+        deskphoneId: string,
+        data: CreateDeskphoneLineRequest
+      ): Promise<DeviceLine> => {
+        const response = await this.fetchApi(`/v1/deskphones/${deskphoneId}/lines`, {
+          method: 'POST',
+          body: JSON.stringify(data),
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to create deskphone line: ${response.status} ${errorText}`);
+        }
+        return response.json();
+      },
+      list: async (deskphoneId: string): Promise<DeviceLine[]> => {
+        const response = await this.fetchApi(`/v1/deskphones/${deskphoneId}/lines`);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to list deskphone lines: ${response.status} ${errorText}`);
+        }
+        const data = await response.json();
+        return data.data ?? [];
+      },
+      update: async (
+        deskphoneId: string,
+        lineId: string,
+        data: UpdateDeskphoneLineRequest
+      ): Promise<DeviceLine> => {
+        const response = await this.fetchApi(`/v1/deskphones/${deskphoneId}/lines/${lineId}`, {
+          method: 'POST',
+          body: JSON.stringify(data),
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to update deskphone line: ${response.status} ${errorText}`);
+        }
+        return response.json();
+      },
+      del: async (deskphoneId: string, lineId: string): Promise<void> => {
+        const response = await this.fetchApi(`/v1/deskphones/${deskphoneId}/lines/${lineId}`, {
+          method: 'DELETE',
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to delete deskphone line: ${response.status} ${errorText}`);
+        }
+      },
+    },
+    provisioningEvents: {
+      list: async (
+        deskphoneId: string,
+        options?: ProvisioningEventListOptions
+      ): Promise<ProvisioningEvent[]> => {
+        const params = new URLSearchParams();
+        if (options?.limit) {
+          params.set('limit', options.limit.toString());
+        }
+        if (options?.from) {
+          params.set('from', options.from);
+        }
+        if (options?.to) {
+          params.set('to', options.to);
+        }
+
+        const queryString = params.toString();
+        const path = queryString
+          ? `/v1/deskphones/${deskphoneId}/events?${queryString}`
+          : `/v1/deskphones/${deskphoneId}/events`;
+
+        const response = await this.fetchApi(path);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to list provisioning events: ${response.status} ${errorText}`);
+        }
+
+        const data = await response.json();
+        return data.data ?? [];
+      },
+    },
+  };
+
+  devices = {
+    retrieve: async (id: string): Promise<Device> => {
+      const response = await this.fetchApi(`/v1/devices/${id}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to get device: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    list: async (options?: DeviceListOptions): Promise<Device[]> => {
+      const params = new URLSearchParams();
+      if (options?.limit) {
+        params.set('limit', options.limit.toString());
+      }
+      if (options?.type) {
+        params.set('type', options.type);
+      }
+
+      const queryString = params.toString();
+      const path = queryString ? `/v1/devices?${queryString}` : '/v1/devices';
+
+      const response = await this.fetchApi(path);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to list devices: ${response.status} ${errorText}`);
+      }
+
+      const data = await response.json();
+      return data.data ?? [];
+    },
+  };
+
+  dectBases = {
+    create: async (data: CreateDECTBaseRequest): Promise<DECTBase> => {
+      const response = await this.fetchApi('/v1/dect-bases', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create DECT base: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    retrieve: async (id: string): Promise<DECTBase> => {
+      const response = await this.fetchApi(`/v1/dect-bases/${id}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to get DECT base: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    list: async (options?: DeviceListOptions): Promise<DECTBase[]> => {
+      const params = new URLSearchParams();
+      if (options?.limit) {
+        params.set('limit', options.limit.toString());
+      }
+      const queryString = params.toString();
+      const path = queryString ? `/v1/dect-bases?${queryString}` : '/v1/dect-bases';
+
+      const response = await this.fetchApi(path);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to list DECT bases: ${response.status} ${errorText}`);
+      }
+
+      const data = await response.json();
+      return data.data ?? [];
+    },
+    update: async (id: string, data: UpdateDECTBaseRequest): Promise<DECTBase> => {
+      const response = await this.fetchApi(`/v1/dect-bases/${id}`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to update DECT base: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    del: async (id: string): Promise<void> => {
+      const response = await this.fetchApi(`/v1/dect-bases/${id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to delete DECT base: ${response.status} ${errorText}`);
+      }
+    },
+    handsets: {
+      create: async (baseId: string, data: CreateDECTHandsetRequest): Promise<DECTHandset> => {
+        const response = await this.fetchApi(`/v1/dect-bases/${baseId}/handsets`, {
+          method: 'POST',
+          body: JSON.stringify(data),
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to create DECT handset: ${response.status} ${errorText}`);
+        }
+        return response.json();
+      },
+      retrieve: async (baseId: string, handsetId: string): Promise<DECTHandset> => {
+        const response = await this.fetchApi(`/v1/dect-bases/${baseId}/handsets/${handsetId}`);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to get DECT handset: ${response.status} ${errorText}`);
+        }
+        return response.json();
+      },
+      list: async (baseId: string): Promise<DECTHandset[]> => {
+        const response = await this.fetchApi(`/v1/dect-bases/${baseId}/handsets`);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to list DECT handsets: ${response.status} ${errorText}`);
+        }
+
+        const data = await response.json();
+        return data.data ?? [];
+      },
+      update: async (
+        baseId: string,
+        handsetId: string,
+        data: UpdateDECTHandsetRequest
+      ): Promise<DECTHandset> => {
+        const response = await this.fetchApi(`/v1/dect-bases/${baseId}/handsets/${handsetId}`, {
+          method: 'POST',
+          body: JSON.stringify(data),
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to update DECT handset: ${response.status} ${errorText}`);
+        }
+        return response.json();
+      },
+      del: async (baseId: string, handsetId: string): Promise<void> => {
+        const response = await this.fetchApi(`/v1/dect-bases/${baseId}/handsets/${handsetId}`, {
+          method: 'DELETE',
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to delete DECT handset: ${response.status} ${errorText}`);
+        }
+      },
+    },
+    extensions: {
+      create: async (
+        baseId: string,
+        handsetId: string,
+        data: CreateDECTExtensionRequest
+      ): Promise<DECTExtension> => {
+        const response = await this.fetchApi(
+          `/v1/dect-bases/${baseId}/handsets/${handsetId}/extensions`,
+          {
+            method: 'POST',
+            body: JSON.stringify(data),
+          }
+        );
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to create DECT extension: ${response.status} ${errorText}`);
+        }
+        return response.json();
+      },
+      list: async (baseId: string, handsetId: string): Promise<DECTExtension[]> => {
+        const response = await this.fetchApi(
+          `/v1/dect-bases/${baseId}/handsets/${handsetId}/extensions`
+        );
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to list DECT extensions: ${response.status} ${errorText}`);
+        }
+
+        const data = await response.json();
+        return data.data ?? [];
+      },
+      del: async (baseId: string, handsetId: string, extensionId: string): Promise<void> => {
+        const response = await this.fetchApi(
+          `/v1/dect-bases/${baseId}/handsets/${handsetId}/extensions/${extensionId}`,
+          {
+            method: 'DELETE',
+          }
+        );
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to delete DECT extension: ${response.status} ${errorText}`);
+        }
+      },
+    },
+  };
+
+  account = {
+    retrieve: async (): Promise<Account> => {
+      const accountId = await this.getAccountId();
+      const response = await this.fetchApi(`/v1/accounts/${accountId}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to get account: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    update: async (request: UpdateAccountRequest): Promise<Account> => {
+      const accountId = await this.getAccountId();
+      const response = await this.fetchApi(`/v1/accounts/${accountId}`, {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to update account: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+  };
+
+  users = {
+    create: async (request: CreateUserRequest): Promise<OnboardingUser> => {
+      const response = await this.fetchApi('/v1/users', {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
+      if (!response.ok) {
+        if (response.status === 409) {
+          throw new Error('A user with this email already exists');
+        }
+        const errorText = await response.text();
+        throw new Error(`Failed to create user: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    list: async (options?: { limit?: number; expand?: string[] }): Promise<OnboardingUser[]> => {
+      const params = new URLSearchParams();
+      if (options?.limit) params.set('limit', String(options.limit));
+      for (const e of options?.expand ?? []) params.append('expand[]', e);
+
+      const queryString = params.toString();
+      const path = queryString ? `/v1/users?${queryString}` : '/v1/users';
+
+      const response = await this.fetchApi(path);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to list users: ${response.status} ${errorText}`);
+      }
+
+      const data = await response.json();
+      return data.data ?? [];
+    },
+    del: async (userId: string): Promise<void> => {
+      const response = await this.fetchApi(`/v1/users/${userId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to delete user: ${response.status} ${errorText}`);
+      }
+    },
+    endpoints: {
+      create: async (
+        userId: string,
+        request?: CreateEndpointRequest
+      ): Promise<OnboardingEndpoint> => {
+        const response = await this.fetchApi(`/v1/users/${userId}/endpoints`, {
+          method: 'POST',
+          body: JSON.stringify(request ?? {}),
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to create endpoint: ${response.status} ${errorText}`);
+        }
+        return response.json();
+      },
+      list: async (userId: string): Promise<OnboardingEndpoint[]> => {
+        const response = await this.fetchApi(`/v1/users/${userId}/endpoints`);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to list endpoints: ${response.status} ${errorText}`);
+        }
+
+        const data = await response.json();
+        return data.data ?? [];
+      },
+    },
+  };
+
+  locations = {
+    create: async (request: CreateLocationRequest): Promise<OnboardingLocation> => {
+      const response = await this.fetchApi('/v1/locations', {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create location: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    retrieve: async (locationId: string): Promise<OnboardingLocation> => {
+      const response = await this.fetchApi(`/v1/locations/${locationId}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to get location: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    list: async (): Promise<OnboardingLocation[]> => {
+      const response = await this.fetchApi('/v1/locations?limit=100');
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to list locations: ${response.status} ${errorText}`);
+      }
+
+      const data = await response.json();
+      return data.data ?? [];
+    },
+    update: async (
+      locationId: string,
+      request: UpdateLocationRequest
+    ): Promise<OnboardingLocation> => {
+      const response = await this.fetchApi(`/v1/locations/${locationId}`, {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to update location: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    validateE911: async (locationId: string): Promise<E911ValidationResult> => {
+      const response = await this.fetchApi(`/v1/locations/${locationId}/validate-e911`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to validate E911 address: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    provisionE911: async (locationId: string): Promise<OnboardingLocation> => {
+      const response = await this.fetchApi(`/v1/locations/${locationId}/provision-e911`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to provision E911: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+  };
+
+  addresses = {
+    suggest: async (query: string, country?: string): Promise<AddressSuggestion[]> => {
+      const params = new URLSearchParams({ query });
+      if (country) params.set('country', country);
+
+      const response = await this.fetchBffApi(`/bff/v1/address-suggestions?${params}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to suggest addresses: ${response.status} ${errorText}`);
+      }
+
+      const data = await response.json();
+      return data.suggestions;
+    },
+    getPlaceDetails: async (placeId: string): Promise<ResolvedAddress> => {
+      const response = await this.fetchBffApi(
+        `/bff/v1/address-suggestions/${encodeURIComponent(placeId)}`
+      );
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to get place details: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+  };
+
+  // ===========================================================================
+  // Non-resource methods
+  // ===========================================================================
 
   /**
    * Resolve a routing target TypeID to its type and display name
@@ -459,149 +1358,6 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   }
 
   /**
-   * Get a single phone number (DID) by ID
-   */
-  async getPhoneNumber(phoneNumberId: string): Promise<DIDItem> {
-    const response = await this.fetchApi(`/v1/phone-numbers/${phoneNumberId}`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new ApiError(
-        `Failed to get phone number: ${response.status} ${errorText}`,
-        response.status
-      );
-    }
-    return response.json();
-  }
-
-  /**
-   * Get a single call log (CDR) by ID
-   */
-  async getCallLog(callId: string): Promise<CallLog> {
-    const response = await this.fetchApi(`/v1/calls/${callId}`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new ApiError(
-        `Failed to get call log: ${response.status} ${errorText}`,
-        response.status
-      );
-    }
-    return response.json();
-  }
-
-  /**
-   * Update the routing target for a phone number
-   */
-  async updatePhoneNumber(
-    phoneNumberId: string,
-    update: UpdatePhoneNumberRequest
-  ): Promise<DIDItem> {
-    const response = await this.fetchApi(`/v1/phone-numbers/${phoneNumberId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(update),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new ApiError(
-        `Failed to update phone number: ${response.status} ${errorText}`,
-        response.status
-      );
-    }
-    return response.json();
-  }
-
-  async updatePhoneNumberRoute(
-    phoneNumberId: string,
-    routingTarget: string | null
-  ): Promise<DIDItem> {
-    const response = await this.fetchApi(`/v1/phone-numbers/${phoneNumberId}/route`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ routing_target: routingTarget }),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new ApiError(
-        `Failed to update routing target: ${response.status} ${errorText}`,
-        response.status
-      );
-    }
-    return response.json();
-  }
-
-  // ===========================================================================
-  // Phone Number List Methods
-  // ===========================================================================
-
-  /**
-   * List phone numbers (DIDs) for the account
-   */
-  async listPhoneNumbers(options?: {
-    limit?: number;
-    status?: string;
-  }): Promise<PaginatedResponse<DIDItem>> {
-    const params = new URLSearchParams();
-    if (options?.limit) params.set('limit', String(options.limit));
-    if (options?.status) params.set('status', options.status);
-
-    const queryString = params.toString();
-    const path = queryString ? `/v1/phone-numbers?${queryString}` : '/v1/phone-numbers';
-
-    const response = await this.fetchApi(path);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to list phone numbers: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * List phone number orders for the account
-   */
-  async listNumberOrders(options?: {
-    limit?: number;
-    status?: string;
-    order_type?: string;
-  }): Promise<PaginatedResponse<NumberOrder>> {
-    const params = new URLSearchParams();
-    if (options?.limit) params.set('limit', String(options.limit));
-    if (options?.status) params.set('status', options.status);
-    if (options?.order_type) params.set('order_type', options.order_type);
-
-    const queryString = params.toString();
-    const path = queryString ? `/v1/phone-number-orders?${queryString}` : '/v1/phone-number-orders';
-
-    const response = await this.fetchApi(path);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to list number orders: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * List port orders for the account
-   */
-  async listPortOrders(options?: {
-    limit?: number;
-    status?: string;
-  }): Promise<PaginatedResponse<PortOrder>> {
-    const params = new URLSearchParams();
-    if (options?.limit) params.set('limit', String(options.limit));
-    if (options?.status) params.set('status', options.status);
-
-    const queryString = params.toString();
-    const path = queryString ? `/v1/port-orders?${queryString}` : '/v1/port-orders';
-
-    const response = await this.fetchApi(path);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to list port orders: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
    * Fetch all pages of a paginated list endpoint, following next_page_url links.
    */
   async fetchAllPages<T>(
@@ -621,60 +1377,6 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     }
 
     return allData;
-  }
-
-  // ===========================================================================
-  // Phone Number Ordering Methods
-  // ===========================================================================
-
-  /**
-   * Search for available phone numbers to purchase
-   */
-  async searchAvailableNumbers(
-    options: SearchAvailableNumbersOptions
-  ): Promise<AvailablePhoneNumber[]> {
-    const params = new URLSearchParams();
-    if (options.areaCode) params.set('area_code', options.areaCode);
-    if (options.city) params.set('city', options.city);
-    if (options.state) params.set('state', options.state);
-    if (options.zip) params.set('zip', options.zip);
-    if (options.quantity) params.set('quantity', String(options.quantity));
-
-    const response = await this.fetchApi(`/v1/available-phone-numbers?${params}`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to search available numbers: ${response.status} ${errorText}`);
-    }
-
-    const body = await response.json();
-    return body.data;
-  }
-
-  /**
-   * Create a phone number order
-   */
-  async createPhoneNumberOrder(phoneNumbers: string[]): Promise<NumberOrder> {
-    const response = await this.fetchApi('/v1/phone-number-orders', {
-      method: 'POST',
-      body: JSON.stringify({ phone_numbers: phoneNumbers }),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to create phone number order: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Get the current status of a phone number order
-   */
-  async getPhoneNumberOrder(orderId: string): Promise<NumberOrder> {
-    const response = await this.fetchApi(`/v1/phone-number-orders/${orderId}`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to get phone number order: ${response.status} ${errorText}`);
-    }
-    return response.json();
   }
 
   /**
@@ -943,805 +1645,6 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   }
 
   // ===========================================================================
-  // Deskphone Methods
-  // ===========================================================================
-
-  /**
-   * Create a new provisioned deskphone
-   */
-  async createDeskphone(data: CreateDeskphoneRequest): Promise<ProvisionedDevice> {
-    const response = await this.fetchApi('/v1/deskphones', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to create deskphone: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Get a device by ID (deskphone or DECT base)
-   */
-  async getDevice(id: string): Promise<Device> {
-    const response = await this.fetchApi(`/v1/devices/${id}`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to get device: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * List all devices (deskphones and DECT bases)
-   */
-  async listDevices(options?: DeviceListOptions): Promise<Device[]> {
-    const params = new URLSearchParams();
-    if (options?.limit) {
-      params.set('limit', options.limit.toString());
-    }
-    if (options?.starting_after) {
-      params.set('starting_after', options.starting_after);
-    }
-    if (options?.ending_before) {
-      params.set('ending_before', options.ending_before);
-    }
-    if (options?.type) {
-      params.set('type', options.type);
-    }
-
-    const queryString = params.toString();
-    const path = queryString ? `/v1/devices?${queryString}` : '/v1/devices';
-
-    const response = await this.fetchApi(path);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to list devices: ${response.status} ${errorText}`);
-    }
-
-    const data = await response.json();
-    return data.data ?? [];
-  }
-
-  /**
-   * Update a deskphone
-   */
-  async updateDeskphone(id: string, data: UpdateDeskphoneRequest): Promise<ProvisionedDevice> {
-    const response = await this.fetchApi(`/v1/deskphones/${id}`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to update deskphone: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Delete a deskphone
-   */
-  async deleteDeskphone(id: string): Promise<void> {
-    const response = await this.fetchApi(`/v1/deskphones/${id}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to delete deskphone: ${response.status} ${errorText}`);
-    }
-  }
-
-  /**
-   * Create a deskphone line (assign an endpoint to a deskphone)
-   */
-  async createDeskphoneLine(
-    deskphoneId: string,
-    data: CreateDeskphoneLineRequest
-  ): Promise<DeviceLine> {
-    const response = await this.fetchApi(`/v1/deskphones/${deskphoneId}/lines`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to create deskphone line: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Update a deskphone line (atomically reassign endpoint)
-   */
-  async updateDeskphoneLine(
-    deskphoneId: string,
-    lineId: string,
-    data: UpdateDeskphoneLineRequest
-  ): Promise<DeviceLine> {
-    const response = await this.fetchApi(`/v1/deskphones/${deskphoneId}/lines/${lineId}`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to update deskphone line: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * List all lines for a deskphone
-   */
-  async listDeskphoneLines(deskphoneId: string): Promise<DeviceLine[]> {
-    const response = await this.fetchApi(`/v1/deskphones/${deskphoneId}/lines`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to list deskphone lines: ${response.status} ${errorText}`);
-    }
-    const data = await response.json();
-    return data.data ?? [];
-  }
-
-  /**
-   * Delete a deskphone line
-   */
-  async deleteDeskphoneLine(deskphoneId: string, lineId: string): Promise<void> {
-    const response = await this.fetchApi(`/v1/deskphones/${deskphoneId}/lines/${lineId}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to delete deskphone line: ${response.status} ${errorText}`);
-    }
-  }
-
-  /**
-   * List provisioning events for a deskphone
-   */
-  async listDeskphoneProvisioningEvents(
-    deskphoneId: string,
-    options?: ProvisioningEventListOptions
-  ): Promise<ProvisioningEvent[]> {
-    const params = new URLSearchParams();
-    if (options?.limit) {
-      params.set('limit', options.limit.toString());
-    }
-    if (options?.starting_after) {
-      params.set('starting_after', options.starting_after);
-    }
-    if (options?.ending_before) {
-      params.set('ending_before', options.ending_before);
-    }
-    if (options?.from) {
-      params.set('from', options.from);
-    }
-    if (options?.to) {
-      params.set('to', options.to);
-    }
-
-    const queryString = params.toString();
-    const path = queryString
-      ? `/v1/deskphones/${deskphoneId}/events?${queryString}`
-      : `/v1/deskphones/${deskphoneId}/events`;
-
-    const response = await this.fetchApi(path);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to list provisioning events: ${response.status} ${errorText}`);
-    }
-
-    const data = await response.json();
-    return data.data ?? [];
-  }
-
-  // ===========================================================================
-  // Number Porting Methods
-  // ===========================================================================
-
-  /**
-   * Check port-in eligibility for phone numbers
-   */
-  async checkPortEligibility(phoneNumbers: string[]): Promise<PortEligibilityResult> {
-    const response = await this.fetchApi('/v1/port-in-eligibility', {
-      method: 'POST',
-      body: JSON.stringify({ phone_numbers: phoneNumbers }),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to check port eligibility: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Create a new port order in draft status
-   */
-  async createPortOrder(request: CreatePortOrderRequest): Promise<PortOrder> {
-    const response = await this.fetchApi('/v1/port-orders', {
-      method: 'POST',
-      body: JSON.stringify(request),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to create port order: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Get the current status of a port order
-   */
-  async getPortOrder(orderId: string): Promise<PortOrder> {
-    const response = await this.fetchApi(`/v1/port-orders/${orderId}`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to get port order: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Approve a port order with the customer's electronic signature
-   */
-  async approvePortOrder(orderId: string, request: ApprovePortOrderRequest): Promise<PortOrder> {
-    const response = await this.fetchApi(`/v1/port-orders/${orderId}/approve`, {
-      method: 'POST',
-      body: JSON.stringify(request),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to approve port order: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Submit a port order to the carrier
-   */
-  async submitPortOrder(orderId: string): Promise<PortOrder> {
-    const response = await this.fetchApi(`/v1/port-orders/${orderId}/submit`, {
-      method: 'POST',
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to submit port order: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Cancel a port order
-   */
-  async cancelPortOrder(orderId: string): Promise<PortOrder> {
-    const response = await this.fetchApi(`/v1/port-orders/${orderId}/cancel`, {
-      method: 'POST',
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to cancel port order: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Upload a CSR document for a port order
-   */
-  async uploadCSR(orderId: string, file: File): Promise<void> {
-    const formData = new FormData();
-    formData.append('file', file);
-    const response = await this.fetchApi(`/v1/port-orders/${orderId}/csr`, {
-      method: 'POST',
-      body: formData,
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to upload CSR: ${response.status} ${errorText}`);
-    }
-  }
-
-  /**
-   * Upload a bill copy for a port order
-   */
-  async uploadBillCopy(orderId: string, file: File): Promise<void> {
-    const formData = new FormData();
-    formData.append('file', file);
-    const response = await this.fetchApi(`/v1/port-orders/${orderId}/bill-copy`, {
-      method: 'POST',
-      body: formData,
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to upload bill copy: ${response.status} ${errorText}`);
-    }
-  }
-
-  /**
-   * Download the CSR document for a port order
-   */
-  async downloadCSR(orderId: string): Promise<Blob> {
-    const response = await this.fetchApi(`/v1/port-orders/${orderId}/csr`, {
-      method: 'GET',
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to download CSR: ${response.status} ${errorText}`);
-    }
-    return response.blob();
-  }
-
-  /**
-   * Download the bill copy for a port order
-   */
-  async downloadBillCopy(orderId: string): Promise<Blob> {
-    const response = await this.fetchApi(`/v1/port-orders/${orderId}/bill-copy`, {
-      method: 'GET',
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to download bill copy: ${response.status} ${errorText}`);
-    }
-    return response.blob();
-  }
-
-  // ===========================================================================
-  // DECT Base Methods
-  // ===========================================================================
-
-  /**
-   * Create a new DECT base station
-   */
-  async createDECTBase(data: CreateDECTBaseRequest): Promise<DECTBase> {
-    const response = await this.fetchApi('/v1/dect-bases', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to create DECT base: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Get a DECT base by ID
-   */
-  async getDECTBase(id: string): Promise<DECTBase> {
-    const response = await this.fetchApi(`/v1/dect-bases/${id}`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to get DECT base: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * List all DECT bases
-   */
-  async listDECTBases(options?: DeviceListOptions): Promise<DECTBase[]> {
-    const params = new URLSearchParams();
-    if (options?.limit) {
-      params.set('limit', options.limit.toString());
-    }
-    if (options?.starting_after) {
-      params.set('starting_after', options.starting_after);
-    }
-    if (options?.ending_before) {
-      params.set('ending_before', options.ending_before);
-    }
-
-    const queryString = params.toString();
-    const path = queryString ? `/v1/dect-bases?${queryString}` : '/v1/dect-bases';
-
-    const response = await this.fetchApi(path);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to list DECT bases: ${response.status} ${errorText}`);
-    }
-
-    const data = await response.json();
-    return data.data ?? [];
-  }
-
-  /**
-   * Update a DECT base
-   */
-  async updateDECTBase(id: string, data: UpdateDECTBaseRequest): Promise<DECTBase> {
-    const response = await this.fetchApi(`/v1/dect-bases/${id}`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to update DECT base: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Delete a DECT base
-   */
-  async deleteDECTBase(id: string): Promise<void> {
-    const response = await this.fetchApi(`/v1/dect-bases/${id}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to delete DECT base: ${response.status} ${errorText}`);
-    }
-  }
-
-  // ===========================================================================
-  // DECT Handset Methods
-  // ===========================================================================
-
-  /**
-   * Create a new DECT handset on a base station
-   */
-  async createDECTHandset(baseId: string, data: CreateDECTHandsetRequest): Promise<DECTHandset> {
-    const response = await this.fetchApi(`/v1/dect-bases/${baseId}/handsets`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to create DECT handset: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Get a DECT handset by ID
-   */
-  async getDECTHandset(baseId: string, handsetId: string): Promise<DECTHandset> {
-    const response = await this.fetchApi(`/v1/dect-bases/${baseId}/handsets/${handsetId}`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to get DECT handset: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * List all handsets for a DECT base
-   */
-  async listDECTHandsets(baseId: string): Promise<DECTHandset[]> {
-    const response = await this.fetchApi(`/v1/dect-bases/${baseId}/handsets`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to list DECT handsets: ${response.status} ${errorText}`);
-    }
-
-    const data = await response.json();
-    return data.data ?? [];
-  }
-
-  /**
-   * Update a DECT handset
-   */
-  async updateDECTHandset(
-    baseId: string,
-    handsetId: string,
-    data: UpdateDECTHandsetRequest
-  ): Promise<DECTHandset> {
-    const response = await this.fetchApi(`/v1/dect-bases/${baseId}/handsets/${handsetId}`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to update DECT handset: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Delete a DECT handset
-   */
-  async deleteDECTHandset(baseId: string, handsetId: string): Promise<void> {
-    const response = await this.fetchApi(`/v1/dect-bases/${baseId}/handsets/${handsetId}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to delete DECT handset: ${response.status} ${errorText}`);
-    }
-  }
-
-  // ===========================================================================
-  // DECT Extension Methods
-  // ===========================================================================
-
-  /**
-   * Create a DECT extension (assign a SIP line to a handset)
-   */
-  async createDECTExtension(
-    baseId: string,
-    handsetId: string,
-    data: CreateDECTExtensionRequest
-  ): Promise<DECTExtension> {
-    const response = await this.fetchApi(
-      `/v1/dect-bases/${baseId}/handsets/${handsetId}/extensions`,
-      {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }
-    );
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to create DECT extension: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * List all extensions for a DECT handset
-   */
-  async listDECTExtensions(baseId: string, handsetId: string): Promise<DECTExtension[]> {
-    const response = await this.fetchApi(
-      `/v1/dect-bases/${baseId}/handsets/${handsetId}/extensions`
-    );
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to list DECT extensions: ${response.status} ${errorText}`);
-    }
-
-    const data = await response.json();
-    return data.data ?? [];
-  }
-
-  /**
-   * Delete a DECT extension
-   */
-  async deleteDECTExtension(baseId: string, handsetId: string, extensionId: string): Promise<void> {
-    const response = await this.fetchApi(
-      `/v1/dect-bases/${baseId}/handsets/${handsetId}/extensions/${extensionId}`,
-      {
-        method: 'DELETE',
-      }
-    );
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to delete DECT extension: ${response.status} ${errorText}`);
-    }
-  }
-
-  // ===========================================================================
-  // Account Management Methods (session-scoped)
-  // ===========================================================================
-
-  /**
-   * Get the current account details
-   */
-  async getAccount(): Promise<Account> {
-    const accountId = await this.getAccountId();
-    const response = await this.fetchApi(`/v1/accounts/${accountId}`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to get account: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Update the current account
-   */
-  async updateAccount(request: UpdateAccountRequest): Promise<Account> {
-    const accountId = await this.getAccountId();
-    const response = await this.fetchApi(`/v1/accounts/${accountId}`, {
-      method: 'POST',
-      body: JSON.stringify(request),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to update account: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Create a new user in the current account
-   */
-  async createUser(request: CreateUserRequest): Promise<OnboardingUser> {
-    const response = await this.fetchApi('/v1/users', {
-      method: 'POST',
-      body: JSON.stringify(request),
-    });
-    if (!response.ok) {
-      if (response.status === 409) {
-        throw new Error('A user with this email already exists');
-      }
-      const errorText = await response.text();
-      throw new Error(`Failed to create user: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * List users in the current account
-   */
-  async listUsers(options?: { limit?: number; expand?: string[] }): Promise<OnboardingUser[]> {
-    const params = new URLSearchParams();
-    if (options?.limit) params.set('limit', String(options.limit));
-    for (const e of options?.expand ?? []) params.append('expand[]', e);
-
-    const queryString = params.toString();
-    const path = queryString ? `/v1/users?${queryString}` : '/v1/users';
-
-    const response = await this.fetchApi(path);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to list users: ${response.status} ${errorText}`);
-    }
-
-    const data = await response.json();
-    return data.data ?? [];
-  }
-
-  // ===========================================================================
-  // Dial Plan Resource Methods
-  // ===========================================================================
-
-  async getDialPlan(dialPlanId: string): Promise<DialPlanData> {
-    const response = await this.fetchApi(`/v1/dialplans/${dialPlanId}`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to get dial plan: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  async listDialPlans(options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]> {
-    const params = new URLSearchParams();
-    if (options?.limit) params.set('limit', String(options.limit));
-    for (const e of options?.expand ?? []) params.append('expand[]', e);
-    const queryString = params.toString();
-    const path = queryString ? `/v1/dialplans?${queryString}` : '/v1/dialplans';
-    const response = await this.fetchApi(path);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to list dial plans: ${response.status} ${errorText}`);
-    }
-    const data = await response.json();
-    return (data.data ?? []).map((r: Record<string, unknown>) => ({
-      id: r.id as string,
-      name: r.name as string,
-      extension_number: (r.extensions as { data?: Array<{ number?: string }> })?.data?.[0]?.number,
-    }));
-  }
-
-  async createDialPlan(data: Record<string, unknown>): Promise<DialPlanData> {
-    const response = await this.fetchApi('/v1/dialplans', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-      const errorData = (await response.json().catch(() => ({}))) as { error?: string };
-      throw new Error(errorData.error ?? `Failed to create dial plan: ${response.status}`);
-    }
-    return response.json();
-  }
-
-  async updateDialPlan(dialPlanId: string, data: Record<string, unknown>): Promise<DialPlanData> {
-    const response = await this.fetchApi(`/v1/dialplans/${dialPlanId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-      const errorData = (await response.json().catch(() => ({}))) as { error?: string };
-      throw new Error(errorData.error ?? `Failed to update dial plan: ${response.status}`);
-    }
-    return response.json();
-  }
-
-  async getSchedule(scheduleId: string): Promise<NamedResource> {
-    const response = await this.fetchApi(`/v1/schedules/${scheduleId}`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to get schedule: ${response.status} ${errorText}`);
-    }
-    const data = await response.json();
-    return { id: data.id, name: data.name };
-  }
-
-  async listSchedules(options?: { limit?: number }): Promise<NamedResource[]> {
-    const params = new URLSearchParams();
-    if (options?.limit) params.set('limit', String(options.limit));
-    const queryString = params.toString();
-    const path = queryString ? `/v1/schedules?${queryString}` : '/v1/schedules';
-    const response = await this.fetchApi(path);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to list schedules: ${response.status} ${errorText}`);
-    }
-    const data = await response.json();
-    return (data.data ?? []).map((r: NamedResource) => ({ id: r.id, name: r.name }));
-  }
-
-  async listRingGroups(options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]> {
-    const params = new URLSearchParams();
-    if (options?.limit) params.set('limit', String(options.limit));
-    for (const e of options?.expand ?? []) params.append('expand[]', e);
-    const queryString = params.toString();
-    const path = queryString ? `/v1/ring_groups?${queryString}` : '/v1/ring_groups';
-    const response = await this.fetchApi(path);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to list ring groups: ${response.status} ${errorText}`);
-    }
-    const data = await response.json();
-    return (data.data ?? []).map((r: Record<string, unknown>) => ({
-      id: r.id as string,
-      name: r.name as string,
-      extension_number: (r.extensions as { data?: Array<{ number?: string }> })?.data?.[0]?.number,
-    }));
-  }
-
-  async listVoiceApps(options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]> {
-    const params = new URLSearchParams();
-    if (options?.limit) params.set('limit', String(options.limit));
-    for (const e of options?.expand ?? []) params.append('expand[]', e);
-    const queryString = params.toString();
-    const path = queryString ? `/v1/voice-apps?${queryString}` : '/v1/voice-apps';
-    const response = await this.fetchApi(path);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to list voice apps: ${response.status} ${errorText}`);
-    }
-    const data = await response.json();
-    return (data.data ?? []).map((r: Record<string, unknown>) => ({
-      id: r.id as string,
-      name: r.name as string,
-      extension_number: (r.extensions as { data?: Array<{ number?: string }> })?.data?.[0]?.number,
-    }));
-  }
-
-  async listSharedVoicemailBoxes(options?: { limit?: number }): Promise<NamedResource[]> {
-    const params = new URLSearchParams();
-    if (options?.limit) params.set('limit', String(options.limit));
-    const queryString = params.toString();
-    const path = queryString
-      ? `/v1/shared_voicemail_boxes?${queryString}`
-      : '/v1/shared_voicemail_boxes';
-    const response = await this.fetchApi(path);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to list shared voicemail boxes: ${response.status} ${errorText}`);
-    }
-    const data = await response.json();
-    return (data.data ?? []).map((r: NamedResource) => ({ id: r.id, name: r.name }));
-  }
-
-  /**
-   * Delete a user
-   */
-  async deleteUser(userId: string): Promise<void> {
-    const response = await this.fetchApi(`/v1/users/${userId}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to delete user: ${response.status} ${errorText}`);
-    }
-  }
-
-  /**
-   * Create an extension
-   */
-  async createExtension(request: CreateExtensionRequest): Promise<Extension> {
-    const response = await this.fetchApi('/v1/extensions', {
-      method: 'POST',
-      body: JSON.stringify(request),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to create extension: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  // ===========================================================================
   // BFF Methods (publishable key auth)
   // ===========================================================================
 
@@ -1757,167 +1660,5 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       ...options,
       headers,
     });
-  }
-
-  /**
-   * Search for address suggestions via BFF autocomplete
-   */
-  async suggestAddresses(query: string, country?: string): Promise<AddressSuggestion[]> {
-    const params = new URLSearchParams({ query });
-    if (country) params.set('country', country);
-
-    const response = await this.fetchBffApi(`/bff/v1/address-suggestions?${params}`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to suggest addresses: ${response.status} ${errorText}`);
-    }
-
-    const data = await response.json();
-    return data.suggestions;
-  }
-
-  /**
-   * Get detailed place information by place ID
-   */
-  async getPlaceDetails(placeId: string): Promise<ResolvedAddress> {
-    const response = await this.fetchBffApi(
-      `/bff/v1/address-suggestions/${encodeURIComponent(placeId)}`
-    );
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to get place details: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  // ===========================================================================
-  // Location Methods (session-scoped)
-  // ===========================================================================
-
-  /**
-   * Create a new location for the current account
-   */
-  async createLocation(request: CreateLocationRequest): Promise<OnboardingLocation> {
-    const response = await this.fetchApi('/v1/locations', {
-      method: 'POST',
-      body: JSON.stringify(request),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to create location: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Update an existing location
-   */
-  async updateLocation(
-    locationId: string,
-    request: UpdateLocationRequest
-  ): Promise<OnboardingLocation> {
-    const response = await this.fetchApi(`/v1/locations/${locationId}`, {
-      method: 'POST',
-      body: JSON.stringify(request),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to update location: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * List locations for the current account
-   */
-  async listLocations(): Promise<OnboardingLocation[]> {
-    const response = await this.fetchApi('/v1/locations?limit=100');
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to list locations: ${response.status} ${errorText}`);
-    }
-
-    const data = await response.json();
-    return data.data ?? [];
-  }
-
-  /**
-   * Get a single location by ID
-   */
-  async getLocation(locationId: string): Promise<OnboardingLocation> {
-    const response = await this.fetchApi(`/v1/locations/${locationId}`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to get location: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  // ===========================================================================
-  // E911 Methods (session-scoped)
-  // ===========================================================================
-
-  /**
-   * Validate a location's address for E911 emergency services
-   */
-  async validateLocationE911(locationId: string): Promise<E911ValidationResult> {
-    const response = await this.fetchApi(`/v1/locations/${locationId}/validate-e911`, {
-      method: 'POST',
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to validate E911 address: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Provision E911 emergency services for a location
-   */
-  async provisionLocationE911(locationId: string): Promise<OnboardingLocation> {
-    const response = await this.fetchApi(`/v1/locations/${locationId}/provision-e911`, {
-      method: 'POST',
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to provision E911: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  // ===========================================================================
-  // Endpoint Methods (session-scoped)
-  // ===========================================================================
-
-  /**
-   * Create an endpoint for a user
-   */
-  async createEndpoint(
-    userId: string,
-    request?: CreateEndpointRequest
-  ): Promise<OnboardingEndpoint> {
-    const response = await this.fetchApi(`/v1/users/${userId}/endpoints`, {
-      method: 'POST',
-      body: JSON.stringify(request ?? {}),
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to create endpoint: ${response.status} ${errorText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * List endpoints for a user
-   */
-  async listEndpoints(userId: string): Promise<OnboardingEndpoint[]> {
-    const response = await this.fetchApi(`/v1/users/${userId}/endpoints`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to list endpoints: ${response.status} ${errorText}`);
-    }
-
-    const data = await response.json();
-    return data.data ?? [];
   }
 }

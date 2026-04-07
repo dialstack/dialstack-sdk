@@ -174,9 +174,9 @@ const PortalInner: React.FC<PortalInnerProps> = (props) => {
     void (async () => {
       try {
         const [dids, orders, ports] = await Promise.all([
-          dialstack.fetchAllPages<DIDItem>((opts) => dialstack.listPhoneNumbers(opts)),
-          dialstack.fetchAllPages<NumberOrder>((opts) => dialstack.listNumberOrders(opts)),
-          dialstack.fetchAllPages<PortOrder>((opts) => dialstack.listPortOrders(opts)),
+          dialstack.fetchAllPages<DIDItem>((opts) => dialstack.phoneNumbers.list(opts)),
+          dialstack.fetchAllPages<NumberOrder>((opts) => dialstack.phoneNumberOrders.list(opts)),
+          dialstack.fetchAllPages<PortOrder>((opts) => dialstack.portOrders.list(opts)),
         ]);
         if (!cancelled) setPhoneNumbers(mergePhoneNumbers(dids, orders, ports));
       } catch {

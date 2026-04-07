@@ -195,17 +195,53 @@ export function createMockInstance(
     },
     update: (_updateOptions: UpdateOptions) => {},
     logout: async () => {},
-    initiateCall: async (_userId: string, _dialString: string) => {},
-    getTranscript: async (_callId: string) => ({
-      call_id: 'mock',
-      status: 'pending' as const,
-      text: null,
-    }),
-    getVoicemailTranscript: async (_userId: string, _voicemailId: string) => ({
-      voicemail_id: 'mock',
-      status: 'completed' as const,
-      text: 'Hello, this is a test voicemail. Please call me back when you get a chance. Thanks!',
-    }),
+
+    calls: {
+      create: async (_params: { userId: string; dialString: string }) => {},
+      retrieve: async (callId: string) => {
+        await delay();
+        return {
+          id: callId,
+          direction: 'inbound' as const,
+          from_number: '+15551234567',
+          from_label: 'John Doe',
+          to_number: '+15559876543',
+          to_label: 'Front Desk',
+          started_at: new Date(Date.now() - 300000).toISOString(),
+          answered_at: new Date(Date.now() - 295000).toISOString(),
+          ended_at: new Date(Date.now() - 60000).toISOString(),
+          duration_seconds: 235,
+          status: 'completed' as const,
+          summary: 'Customer called to inquire about their account balance.',
+          recording_url: 'https://example.com/mock-recording.wav',
+          quality_metrics: [
+            {
+              leg: 'pstn',
+              mos: 4.2,
+              jitter_ms: 12.5,
+              packet_loss_pct: 0.1,
+              rtt_ms: 45.0,
+            },
+          ],
+        };
+      },
+      transcripts: {
+        retrieve: async (_callId: string) => ({
+          call_id: 'mock',
+          status: 'pending' as const,
+          text: null,
+        }),
+      },
+    },
+
+    voicemails: {
+      retrieveTranscript: async (_userId: string, _voicemailId: string) => ({
+        voicemail_id: 'mock',
+        status: 'completed' as const,
+        text: 'Hello, this is a test voicemail. Please call me back when you get a chance. Thanks!',
+      }),
+    },
+
     on: <K extends keyof CallEventMap>(
       _event: K,
       _handler: CallEventHandler<CallEventMap[K]>
@@ -215,546 +251,601 @@ export function createMockInstance(
       _handler?: CallEventHandler<CallEventMap[K]>
     ) => {},
 
-    // Phone numbers component uses these typed methods
-    listPhoneNumbers: async (options?: { status?: string }) => {
-      const filtered = options?.status
-        ? mockDIDs.filter((d) => d.status === options.status)
-        : mockDIDs;
-      return {
-        object: 'list',
-        url: '/v1/phone-numbers',
-        data: filtered,
+    phoneNumbers: {
+      retrieve: async (phoneNumberId: string) => {
+        await delay();
+        const did = mockDIDs.find((d) => d.id === phoneNumberId);
+        if (!did) throw new Error('Phone number not found');
+        return { ...did };
+      },
+      list: async (options?: { status?: string }) => {
+        const filtered = options?.status
+          ? mockDIDs.filter((d) => d.status === options.status)
+          : mockDIDs;
+        return {
+          object: 'list',
+          url: '/v1/phone-numbers',
+          data: filtered,
+          next_page_url: null,
+          previous_page_url: null,
+        } as PaginatedResponse<DIDItem>;
+      },
+      update: async (phoneNumberId: string, update: Record<string, unknown>) => {
+        await delay();
+        const did = mockDIDs.find((d) => d.id === phoneNumberId);
+        if (!did) throw new Error('Phone number not found');
+        if (update.directory_listing_type !== undefined)
+          (did as Record<string, unknown>).directory_listing_type = update.directory_listing_type;
+        if (update.directory_listing_name !== undefined)
+          (did as Record<string, unknown>).directory_listing_name = update.directory_listing_name;
+        if (update.directory_listing_location_id !== undefined)
+          (did as Record<string, unknown>).directory_listing_location_id =
+            update.directory_listing_location_id;
+        return { ...did };
+      },
+      updateRoute: async (phoneNumberId: string, routingTarget: string | null) => {
+        await delay();
+        const did = mockDIDs.find((d) => d.id === phoneNumberId);
+        if (!did) throw new Error('Phone number not found');
+        did.routing_target = routingTarget;
+        return { ...did };
+      },
+    },
+
+    availablePhoneNumbers: {
+      search: async (opts: SearchAvailableNumbersOptions) => {
+        await delay();
+        const qty = opts.quantity || 10;
+        return empty
+          ? []
+          : MOCK_AVAILABLE_NUMBERS.slice(0, Math.min(qty, MOCK_AVAILABLE_NUMBERS.length));
+      },
+    },
+
+    phoneNumberOrders: {
+      create: async (phoneNumbers: string[]) => {
+        await delay();
+        const order: NumberOrder = {
+          id: 'ord_' + Math.random().toString(36).slice(2, 10),
+          order_type: 'purchase',
+          status: 'pending',
+          phone_numbers: phoneNumbers,
+          completed_numbers: [],
+          failed_numbers: [],
+          error_message: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        mockOrders.set(order.id, order);
+        setTimeout(() => {
+          order.status = 'complete';
+          order.completed_numbers = phoneNumbers;
+          // Add ordered numbers as active DIDs
+          for (const pn of phoneNumbers) {
+            const id = 'did_' + Math.random().toString(36).slice(2, 10);
+            mockDIDs.push({
+              id,
+              phone_number: pn,
+              status: 'active',
+              outbound_enabled: true,
+              routing_target: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
+          }
+        }, 3000);
+        return order;
+      },
+      retrieve: async (orderId: string) => {
+        const order = mockOrders.get(orderId);
+        if (!order) throw new Error(`Order ${orderId} not found`);
+        return order;
+      },
+      list: async () => MOCK_EMPTY_RESPONSE,
+    },
+
+    portOrders: {
+      create: async (request: CreatePortOrderRequest) => {
+        await delay();
+        const order: PortOrder = {
+          id: 'po_mock_' + Math.random().toString(36).slice(2, 10),
+          status: 'draft',
+          details: {
+            phone_numbers: request.phone_numbers,
+            subscriber: request.subscriber,
+            requested_foc_date: request.requested_foc_date,
+            requested_foc_time: request.requested_foc_time ?? null,
+          },
+          submitted_at: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        mockPortOrders.set(order.id, order);
+        return order;
+      },
+      retrieve: async (orderId: string) => {
+        const order = mockPortOrders.get(orderId);
+        if (order) return order;
+        return {
+          id: orderId,
+          status: 'submitted' as const,
+          details: { phone_numbers: [] as string[] },
+          submitted_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      },
+      list: async () => ({
+        object: 'list' as const,
+        url: '/v1/port-orders',
+        data: Array.from(mockPortOrders.values()),
         next_page_url: null,
         previous_page_url: null,
-      } as PaginatedResponse<DIDItem>;
+      }),
+      approve: async (orderId: string, _request: ApprovePortOrderRequest) => {
+        const order = mockPortOrders.get(orderId);
+        if (order) {
+          order.status = 'approved';
+          order.updated_at = new Date().toISOString();
+          return order;
+        }
+        return {
+          id: orderId,
+          status: 'approved' as const,
+          details: { phone_numbers: [] as string[] },
+          submitted_at: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      },
+      submit: async (orderId: string) => {
+        const order = mockPortOrders.get(orderId);
+        if (order) {
+          order.status = 'submitted';
+          order.submitted_at = new Date().toISOString();
+          order.updated_at = new Date().toISOString();
+          return order;
+        }
+        return {
+          id: orderId,
+          status: 'submitted' as const,
+          details: { phone_numbers: [] as string[] },
+          submitted_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      },
+      cancel: async (_orderId: string) => {
+        await delay();
+      },
+      checkEligibility: async (phoneNumbers: string[]) => {
+        await delay();
+        return {
+          portable_numbers: phoneNumbers.map((n) => ({
+            phone_number: n,
+            losing_carrier_name: 'AT&T Mobility',
+            losing_carrier_spid: '6214',
+            is_wireless: false,
+            account_number_required: true,
+          })),
+          non_portable_numbers: [],
+        };
+      },
+      uploadCSR: async () => {},
+      uploadBillCopy: async () => {},
+      downloadCSR: async () => new Blob(),
+      downloadBillCopy: async () => new Blob(),
     },
-    listNumberOrders: async () => MOCK_EMPTY_RESPONSE,
-    listPortOrders: async () => ({
-      object: 'list' as const,
-      url: '/v1/port-orders',
-      data: Array.from(mockPortOrders.values()),
-      next_page_url: null,
-      previous_page_url: null,
-    }),
 
-    // Phone number ordering component
-    searchAvailableNumbers: async (opts: SearchAvailableNumbersOptions) => {
-      await delay();
-      const qty = opts.quantity || 10;
-      return empty
-        ? []
-        : MOCK_AVAILABLE_NUMBERS.slice(0, Math.min(qty, MOCK_AVAILABLE_NUMBERS.length));
+    dialPlans: {
+      retrieve: async (_dialPlanId: string) => MOCK_DIAL_PLAN_DEFAULT,
+      list: async () => [],
+      create: async (_data: Record<string, unknown>) => MOCK_DIAL_PLAN_DEFAULT,
+      update: async (_dialPlanId: string, _data: Record<string, unknown>) => MOCK_DIAL_PLAN_DEFAULT,
     },
-    createPhoneNumberOrder: async (phoneNumbers: string[]) => {
-      await delay();
-      const order: NumberOrder = {
-        id: 'ord_' + Math.random().toString(36).slice(2, 10),
-        order_type: 'purchase',
-        status: 'pending',
-        phone_numbers: phoneNumbers,
-        completed_numbers: [],
-        failed_numbers: [],
-        error_message: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      mockOrders.set(order.id, order);
-      setTimeout(() => {
-        order.status = 'complete';
-        order.completed_numbers = phoneNumbers;
-        // Add ordered numbers as active DIDs
-        for (const pn of phoneNumbers) {
-          const id = 'did_' + Math.random().toString(36).slice(2, 10);
-          mockDIDs.push({
-            id,
-            phone_number: pn,
-            status: 'active',
-            outbound_enabled: true,
-            routing_target: null,
+
+    schedules: {
+      retrieve: async (_scheduleId: string) => ({
+        id: 'sched_01abc',
+        name: 'Business Hours',
+      }),
+      list: async () => [],
+    },
+
+    ringGroups: {
+      list: async () => [],
+    },
+
+    voiceApps: {
+      list: async () => [],
+    },
+
+    sharedVoicemailBoxes: {
+      list: async () => [],
+    },
+
+    extensions: {
+      list: async () => [...mockExtensionsList],
+      create: async (request: CreateExtensionRequest): Promise<Extension> => {
+        await delay();
+        const ext: Extension = {
+          number: request.number,
+          target: request.target,
+          status: 'active' as const,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        mockExtensionsList.push(ext);
+        return ext;
+      },
+    },
+
+    deskphones: {
+      create: async (data: CreateDeskphoneRequest) => {
+        await delay();
+        const dev: Device = {
+          id: 'dev_' + Math.random().toString(36).slice(2, 10),
+          type: 'deskphone',
+          mac_address: data.mac_address,
+          vendor: 'snom',
+          model: 'D785',
+          status: 'pending-sync',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        mockDevices.push(dev);
+        return dev;
+      },
+      update: async (_id: string, _data: UpdateDeskphoneRequest) => {
+        throw new Error('Not implemented in mock');
+      },
+      del: async (_id: string) => {},
+      lines: {
+        create: async (
+          deskphoneId: string,
+          data: CreateDeskphoneLineRequest
+        ): Promise<DeviceLine> => {
+          await delay();
+          const existing = mockDeviceLines.get(deskphoneId) ?? [];
+          const line: DeviceLine = {
+            id: 'dln_' + Math.random().toString(36).slice(2, 10),
+            device_id: deskphoneId,
+            line_number: existing.length + 1,
+            endpoint_id: data.endpoint_id,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-          });
-        }
-      }, 3000);
-      return order;
-    },
-    getPhoneNumberOrder: async (orderId: string) => {
-      const order = mockOrders.get(orderId);
-      if (!order) throw new Error(`Order ${orderId} not found`);
-      return order;
+          };
+          mockDeviceLines.set(deskphoneId, [...existing, line]);
+          return line;
+        },
+        list: async (deskphoneId: string): Promise<DeviceLine[]> =>
+          mockDeviceLines.get(deskphoneId) ?? [],
+        update: async (_deskphoneId: string, _lineId: string, _data) => {
+          throw new Error('Not implemented in mock');
+        },
+        del: async (deskphoneId: string, lineId: string): Promise<void> => {
+          const lines = mockDeviceLines.get(deskphoneId) ?? [];
+          mockDeviceLines.set(
+            deskphoneId,
+            lines.filter((l) => l.id !== lineId)
+          );
+        },
+      },
+      provisioningEvents: {
+        list: async (_deskphoneId: string, _options?: ProvisioningEventListOptions) => [],
+      },
     },
 
-    // Account onboarding methods
-    getAccount: async (): Promise<Account> => {
-      await delay();
-      return {
-        id: 'acct_mock01',
-        name: 'Acme Corp',
-        email: 'admin@acme.com',
-        phone: '+12018401234',
-        primary_contact_name: 'Jane Doe',
-        config: { timezone: 'America/New_York', extension_length: 4 },
-        created_at: '2025-01-01T00:00:00Z',
-        updated_at: '2025-01-01T00:00:00Z',
-      };
+    devices: {
+      retrieve: async (_id: string) => {
+        throw new Error('Not implemented in mock');
+      },
+      list: async (_options?: DeviceListOptions) => [...mockDevices],
     },
-    updateAccount: async (_request) => {
-      await delay();
-      return {
-        id: 'acct_mock01',
-        name: 'Acme Corp',
-        email: 'admin@acme.com',
-        phone: '+12018401234',
-        primary_contact_name: 'Jane Doe',
-        config: { timezone: 'America/New_York' },
-        created_at: '2025-01-01T00:00:00Z',
-        updated_at: new Date().toISOString(),
-      };
-    },
-    listUsers: async (): Promise<OnboardingUser[]> => {
-      await delay();
-      return [...mockUsersList];
-    },
-    createUser: async (request: CreateUserRequest): Promise<OnboardingUser> => {
-      await delay();
-      const user: OnboardingUser = {
-        id: 'usr_' + Math.random().toString(36).slice(2, 10),
-        name: request.name ?? null,
-        email: request.email ?? null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      mockUsersList.push(user);
-      return user;
-    },
-    deleteUser: async (userId: string) => {
-      await delay();
-      const idx = mockUsersList.findIndex((u) => u.id === userId);
-      if (idx !== -1) mockUsersList.splice(idx, 1);
-    },
-    createExtension: async (request: CreateExtensionRequest): Promise<Extension> => {
-      await delay();
-      const ext: Extension = {
-        number: request.number,
-        target: request.target,
-        status: 'active' as const,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      mockExtensionsList.push(ext);
-      return ext;
-    },
-    listLocations: async (): Promise<OnboardingLocation[]> => {
-      await delay();
-      return empty
-        ? []
-        : [
-            {
-              id: 'loc_mock01',
-              name: 'Main Office',
-              address: {
-                street: '123 Main St',
-                city: 'New York',
-                state: 'NY',
-                postal_code: '10001',
-                country: 'US',
-                formatted_address: '123 Main St, New York, NY 10001, US',
+
+    dectBases: {
+      create: async (_data: CreateDECTBaseRequest) => {
+        throw new Error('Not implemented in mock');
+      },
+      retrieve: async (_id: string) => {
+        throw new Error('Not implemented in mock');
+      },
+      list: async () =>
+        empty
+          ? []
+          : [
+              {
+                id: 'dectb_mock001',
+                mac_address: '00:04:13:D0:00:01',
+                vendor: 'snom',
+                model: 'M500',
+                status: 'provisioned' as const,
+                multicell_role: 'single' as const,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
               },
-              status: 'active',
-              created_at: '2025-01-01T00:00:00Z',
-              updated_at: '2025-01-01T00:00:00Z',
+            ],
+      update: async (_id: string, _data: UpdateDECTBaseRequest) => {
+        throw new Error('Not implemented in mock');
+      },
+      del: async (_id: string) => {},
+      handsets: {
+        create: async (_baseId: string, _data: CreateDECTHandsetRequest) => {
+          throw new Error('Not implemented in mock');
+        },
+        retrieve: async (_baseId: string, _handsetId: string) => {
+          throw new Error('Not implemented in mock');
+        },
+        list: async (baseId: string) => {
+          if (empty) return [];
+          const handsets = [
+            {
+              id: 'decth_mock001',
+              base_id: baseId,
+              ipei: '00000000001',
+              status: 'registered' as const,
+              display_name: 'Snom E425',
+              slot_number: 1,
+              model: 'E425',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              extensions: undefined as DECTExtension[] | undefined,
+            },
+            {
+              id: 'decth_mock002',
+              base_id: baseId,
+              ipei: '00000000002',
+              status: 'registered' as const,
+              display_name: 'Snom E425',
+              slot_number: 2,
+              model: 'E425',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              extensions: undefined as DECTExtension[] | undefined,
             },
           ];
-    },
-    createLocation: async (request: CreateLocationRequest): Promise<OnboardingLocation> => {
-      await delay();
-      return {
-        id: 'loc_' + Math.random().toString(36).slice(2, 10),
-        name: request.name,
-        address: {
-          ...request.address,
-          city: request.address.city,
-          state: request.address.state,
-          postal_code: request.address.postal_code,
-          country: request.address.country,
+          for (const hs of handsets) {
+            const exts = mockDECTExts.get(`${baseId}/${hs.id}`);
+            if (exts?.length) hs.extensions = exts;
+          }
+          return handsets;
         },
-        status: 'active',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-    },
-    updateLocation: async (
-      _locationId: string,
-      request: UpdateLocationRequest
-    ): Promise<OnboardingLocation> => {
-      await delay();
-      return {
-        id: _locationId,
-        name: request.name,
-        address: {
-          ...request.address,
-          city: request.address.city,
-          state: request.address.state,
-          postal_code: request.address.postal_code,
-          country: request.address.country,
+        update: async (_baseId: string, _handsetId: string, _data: UpdateDECTHandsetRequest) => {
+          throw new Error('Not implemented in mock');
         },
-        status: 'active',
-        created_at: '2025-01-01T00:00:00Z',
-        updated_at: new Date().toISOString(),
-      };
-    },
-    suggestAddresses: async (_query: string) => {
-      await delay(100);
-      return [
-        {
-          place_id: 'place_01',
-          title: '123 Main St',
-          formatted_address: '123 Main St, New York, NY 10001',
+        del: async (_baseId: string, _handsetId: string) => {},
+      },
+      extensions: {
+        create: async (
+          baseId: string,
+          handsetId: string,
+          data: CreateDECTExtensionRequest
+        ): Promise<DECTExtension> => {
+          await delay();
+          const ext: DECTExtension = {
+            id: 'decte_' + Math.random().toString(36).slice(2, 10),
+            handset_id: handsetId,
+            endpoint_id: data.endpoint_id,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          const key = `${baseId}/${handsetId}`;
+          const existing = mockDECTExts.get(key) ?? [];
+          mockDECTExts.set(key, [...existing, ext]);
+          return ext;
         },
-        {
-          place_id: 'place_02',
-          title: '456 Oak Ave',
-          formatted_address: '456 Oak Ave, Brooklyn, NY 11201',
+        list: async (baseId: string, handsetId: string) =>
+          mockDECTExts.get(`${baseId}/${handsetId}`) ?? [],
+        del: async (baseId: string, handsetId: string, extensionId: string) => {
+          const key = `${baseId}/${handsetId}`;
+          const exts = mockDECTExts.get(key) ?? [];
+          mockDECTExts.set(
+            key,
+            exts.filter((e) => e.id !== extensionId)
+          );
         },
-      ];
+      },
     },
-    getPlaceDetails: async (_placeId: string) => {
-      await delay(100);
-      return {
-        place_id: _placeId,
-        address_number: '123',
-        street: 'Main St',
-        city: 'New York',
-        state: 'NY',
-        postal_code: '10001',
-        country: 'US',
-        latitude: 40.7128,
-        longitude: -74.006,
-        timezone: 'America/New_York',
-      };
+
+    account: {
+      retrieve: async (): Promise<Account> => {
+        await delay();
+        return {
+          id: 'acct_mock01',
+          name: 'Acme Corp',
+          email: 'admin@acme.com',
+          phone: '+12018401234',
+          primary_contact_name: 'Jane Doe',
+          config: { timezone: 'America/New_York', extension_length: 4 },
+          created_at: '2025-01-01T00:00:00Z',
+          updated_at: '2025-01-01T00:00:00Z',
+        };
+      },
+      update: async (_request) => {
+        await delay();
+        return {
+          id: 'acct_mock01',
+          name: 'Acme Corp',
+          email: 'admin@acme.com',
+          phone: '+12018401234',
+          primary_contact_name: 'Jane Doe',
+          config: { timezone: 'America/New_York' },
+          created_at: '2025-01-01T00:00:00Z',
+          updated_at: new Date().toISOString(),
+        };
+      },
     },
-    createEndpoint: async (
-      userId: string,
-      _request?: CreateEndpointRequest
-    ): Promise<OnboardingEndpoint> => {
-      await delay();
-      const ep: OnboardingEndpoint = {
-        id: 'ep_' + Math.random().toString(36).slice(2, 10),
-        user_id: userId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      const existing = mockEndpoints.get(userId) ?? [];
-      mockEndpoints.set(userId, [...existing, ep]);
-      return ep;
+
+    users: {
+      create: async (request: CreateUserRequest): Promise<OnboardingUser> => {
+        await delay();
+        const user: OnboardingUser = {
+          id: 'usr_' + Math.random().toString(36).slice(2, 10),
+          name: request.name ?? null,
+          email: request.email ?? null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        mockUsersList.push(user);
+        return user;
+      },
+      list: async (): Promise<OnboardingUser[]> => {
+        await delay();
+        return [...mockUsersList];
+      },
+      del: async (userId: string) => {
+        await delay();
+        const idx = mockUsersList.findIndex((u) => u.id === userId);
+        if (idx !== -1) mockUsersList.splice(idx, 1);
+      },
+      endpoints: {
+        create: async (
+          userId: string,
+          _request?: CreateEndpointRequest
+        ): Promise<OnboardingEndpoint> => {
+          await delay();
+          const ep: OnboardingEndpoint = {
+            id: 'ep_' + Math.random().toString(36).slice(2, 10),
+            user_id: userId,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          const existing = mockEndpoints.get(userId) ?? [];
+          mockEndpoints.set(userId, [...existing, ep]);
+          return ep;
+        },
+        list: async (userId: string): Promise<OnboardingEndpoint[]> =>
+          mockEndpoints.get(userId) ?? [],
+      },
     },
-    listEndpoints: async (userId: string): Promise<OnboardingEndpoint[]> =>
-      mockEndpoints.get(userId) ?? [],
-    createDeskphoneLine: async (
-      deskphoneId: string,
-      data: CreateDeskphoneLineRequest
-    ): Promise<DeviceLine> => {
-      await delay();
-      const existing = mockDeviceLines.get(deskphoneId) ?? [];
-      const line: DeviceLine = {
-        id: 'dln_' + Math.random().toString(36).slice(2, 10),
-        device_id: deskphoneId,
-        line_number: existing.length + 1,
-        endpoint_id: data.endpoint_id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      mockDeviceLines.set(deskphoneId, [...existing, line]);
-      return line;
+
+    locations: {
+      create: async (request: CreateLocationRequest): Promise<OnboardingLocation> => {
+        await delay();
+        return {
+          id: 'loc_' + Math.random().toString(36).slice(2, 10),
+          name: request.name,
+          address: {
+            ...request.address,
+            city: request.address.city,
+            state: request.address.state,
+            postal_code: request.address.postal_code,
+            country: request.address.country,
+          },
+          status: 'active',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      },
+      retrieve: async (_locationId: string) => {
+        throw new Error('Not implemented in mock');
+      },
+      list: async (): Promise<OnboardingLocation[]> => {
+        await delay();
+        return empty
+          ? []
+          : [
+              {
+                id: 'loc_mock01',
+                name: 'Main Office',
+                address: {
+                  street: '123 Main St',
+                  city: 'New York',
+                  state: 'NY',
+                  postal_code: '10001',
+                  country: 'US',
+                  formatted_address: '123 Main St, New York, NY 10001, US',
+                },
+                status: 'active',
+                created_at: '2025-01-01T00:00:00Z',
+                updated_at: '2025-01-01T00:00:00Z',
+              },
+            ];
+      },
+      update: async (
+        _locationId: string,
+        request: UpdateLocationRequest
+      ): Promise<OnboardingLocation> => {
+        await delay();
+        return {
+          id: _locationId,
+          name: request.name,
+          address: {
+            ...request.address,
+            city: request.address.city,
+            state: request.address.state,
+            postal_code: request.address.postal_code,
+            country: request.address.country,
+          },
+          status: 'active',
+          created_at: '2025-01-01T00:00:00Z',
+          updated_at: new Date().toISOString(),
+        };
+      },
+      validateE911: async (_locationId: string) => {
+        await delay();
+        return { valid: true };
+      },
+      provisionE911: async (_locationId: string) => {
+        await delay();
+        return {
+          id: _locationId,
+          name: 'Main Office',
+          status: 'active',
+          e911_status: 'provisioned',
+          created_at: '2025-01-01T00:00:00Z',
+          updated_at: new Date().toISOString(),
+        } as OnboardingLocation;
+      },
     },
-    deleteDeskphoneLine: async (deskphoneId: string, lineId: string): Promise<void> => {
-      const lines = mockDeviceLines.get(deskphoneId) ?? [];
-      mockDeviceLines.set(
-        deskphoneId,
-        lines.filter((l) => l.id !== lineId)
-      );
+
+    addresses: {
+      suggest: async (_query: string) => {
+        await delay(100);
+        return [
+          {
+            place_id: 'place_01',
+            title: '123 Main St',
+            formatted_address: '123 Main St, New York, NY 10001',
+          },
+          {
+            place_id: 'place_02',
+            title: '456 Oak Ave',
+            formatted_address: '456 Oak Ave, Brooklyn, NY 11201',
+          },
+        ];
+      },
+      getPlaceDetails: async (_placeId: string) => {
+        await delay(100);
+        return {
+          place_id: _placeId,
+          address_number: '123',
+          street: 'Main St',
+          city: 'New York',
+          state: 'NY',
+          postal_code: '10001',
+          country: 'US',
+          latitude: 40.7128,
+          longitude: -74.006,
+          timezone: 'America/New_York',
+        };
+      },
     },
+
     fetchAllPages: async <T>(
       fetcher: (opts: { limit: number }) => Promise<{ data: T[] }>
     ): Promise<T[]> => {
       const result = await fetcher({ limit: 100 });
       return result.data;
     },
-    uploadBillCopy: async () => {},
-    uploadCSR: async () => {},
 
     // Routing target resolution
-    listExtensions: async () => [...mockExtensionsList],
     resolveRoutingTarget: async (target: string) => ({
       id: target,
       name: target.startsWith('rg_') ? 'Main Ring Group' : 'Alice Smith',
       type: (target.startsWith('rg_') ? 'ring_group' : 'user') as 'ring_group' | 'user',
       extension_number: '1001',
     }),
-    getPhoneNumber: async (phoneNumberId: string) => {
-      await delay();
-      const did = mockDIDs.find((d) => d.id === phoneNumberId);
-      if (!did) throw new Error('Phone number not found');
-      return { ...did };
-    },
-    getCallLog: async (callId: string) => {
-      await delay();
-      return {
-        id: callId,
-        direction: 'inbound' as const,
-        from_number: '+15551234567',
-        from_label: 'John Doe',
-        to_number: '+15559876543',
-        to_label: 'Front Desk',
-        started_at: new Date(Date.now() - 300000).toISOString(),
-        answered_at: new Date(Date.now() - 295000).toISOString(),
-        ended_at: new Date(Date.now() - 60000).toISOString(),
-        duration_seconds: 235,
-        status: 'completed' as const,
-        summary: 'Customer called to inquire about their account balance.',
-        recording_url: 'https://example.com/mock-recording.wav',
-        quality_metrics: [
-          {
-            leg: 'pstn',
-            mos: 4.2,
-            jitter_ms: 12.5,
-            packet_loss_pct: 0.1,
-            rtt_ms: 45.0,
-          },
-        ],
-      };
-    },
-    updatePhoneNumber: async (phoneNumberId: string, update: Record<string, unknown>) => {
-      await delay();
-      const did = mockDIDs.find((d) => d.id === phoneNumberId);
-      if (!did) throw new Error('Phone number not found');
-      if (update.directory_listing_type !== undefined)
-        (did as Record<string, unknown>).directory_listing_type = update.directory_listing_type;
-      if (update.directory_listing_name !== undefined)
-        (did as Record<string, unknown>).directory_listing_name = update.directory_listing_name;
-      if (update.directory_listing_location_id !== undefined)
-        (did as Record<string, unknown>).directory_listing_location_id =
-          update.directory_listing_location_id;
-      return { ...did };
-    },
-
-    updatePhoneNumberRoute: async (phoneNumberId: string, routingTarget: string | null) => {
-      await delay();
-      const did = mockDIDs.find((d) => d.id === phoneNumberId);
-      if (!did) throw new Error('Phone number not found');
-      did.routing_target = routingTarget;
-      return { ...did };
-    },
-
-    checkPortEligibility: async (phoneNumbers: string[]) => {
-      await delay();
-      return {
-        portable_numbers: phoneNumbers.map((n) => ({
-          phone_number: n,
-          losing_carrier_name: 'AT&T Mobility',
-          losing_carrier_spid: '6214',
-          is_wireless: false,
-          account_number_required: true,
-        })),
-        non_portable_numbers: [],
-      };
-    },
-    createPortOrder: async (request: CreatePortOrderRequest) => {
-      await delay();
-      const order: PortOrder = {
-        id: 'po_mock_' + Math.random().toString(36).slice(2, 10),
-        status: 'draft',
-        details: {
-          phone_numbers: request.phone_numbers,
-          subscriber: request.subscriber,
-          requested_foc_date: request.requested_foc_date,
-          requested_foc_time: request.requested_foc_time ?? null,
-        },
-        submitted_at: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      mockPortOrders.set(order.id, order);
-      return order;
-    },
-    getPortOrder: async (orderId: string) => {
-      const order = mockPortOrders.get(orderId);
-      if (order) return order;
-      return {
-        id: orderId,
-        status: 'submitted' as const,
-        details: { phone_numbers: [] as string[] },
-        submitted_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-    },
-    approvePortOrder: async (orderId: string, _request: ApprovePortOrderRequest) => {
-      const order = mockPortOrders.get(orderId);
-      if (order) {
-        order.status = 'approved';
-        order.updated_at = new Date().toISOString();
-        return order;
-      }
-      return {
-        id: orderId,
-        status: 'approved' as const,
-        details: { phone_numbers: [] as string[] },
-        submitted_at: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-    },
-    submitPortOrder: async (orderId: string) => {
-      const order = mockPortOrders.get(orderId);
-      if (order) {
-        order.status = 'submitted';
-        order.submitted_at = new Date().toISOString();
-        order.updated_at = new Date().toISOString();
-        return order;
-      }
-      return {
-        id: orderId,
-        status: 'submitted' as const,
-        details: { phone_numbers: [] as string[] },
-        submitted_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-    },
-    cancelPortOrder: async (_orderId: string) => {
-      await delay();
-    },
-    createDeskphone: async (data: CreateDeskphoneRequest) => {
-      await delay();
-      const dev: Device = {
-        id: 'dev_' + Math.random().toString(36).slice(2, 10),
-        type: 'deskphone',
-        mac_address: data.mac_address,
-        vendor: 'snom',
-        model: 'D785',
-        status: 'pending-sync',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      mockDevices.push(dev);
-      return dev;
-    },
-    getDevice: async (_id: string) => {
-      throw new Error('Not implemented in mock');
-    },
-    listDevices: async (_options?: DeviceListOptions) => [...mockDevices],
-    listDeskphoneLines: async (deskphoneId: string): Promise<DeviceLine[]> =>
-      mockDeviceLines.get(deskphoneId) ?? [],
-    updateDeskphone: async (_id: string, _data: UpdateDeskphoneRequest) => {
-      throw new Error('Not implemented in mock');
-    },
-    deleteDeskphone: async (_id: string) => {},
-    listDeskphoneProvisioningEvents: async (
-      _deskphoneId: string,
-      _options?: ProvisioningEventListOptions
-    ) => [],
-    createDECTBase: async (_data: CreateDECTBaseRequest) => {
-      throw new Error('Not implemented in mock');
-    },
-    getDECTBase: async (_id: string) => {
-      throw new Error('Not implemented in mock');
-    },
-    listDECTBases: async () =>
-      empty
-        ? []
-        : [
-            {
-              id: 'dectb_mock001',
-              mac_address: '00:04:13:D0:00:01',
-              vendor: 'snom',
-              model: 'M500',
-              status: 'provisioned' as const,
-              multicell_role: 'single' as const,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            },
-          ],
-    updateDECTBase: async (_id: string, _data: UpdateDECTBaseRequest) => {
-      throw new Error('Not implemented in mock');
-    },
-    deleteDECTBase: async (_id: string) => {},
-    createDECTHandset: async (_baseId: string, _data: CreateDECTHandsetRequest) => {
-      throw new Error('Not implemented in mock');
-    },
-    getDECTHandset: async (_baseId: string, _handsetId: string) => {
-      throw new Error('Not implemented in mock');
-    },
-    listDECTHandsets: async (baseId: string) => {
-      if (empty) return [];
-      const handsets = [
-        {
-          id: 'decth_mock001',
-          base_id: baseId,
-          ipei: '00000000001',
-          status: 'registered' as const,
-          display_name: 'Snom E425',
-          slot_number: 1,
-          model: 'E425',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          extensions: undefined as DECTExtension[] | undefined,
-        },
-        {
-          id: 'decth_mock002',
-          base_id: baseId,
-          ipei: '00000000002',
-          status: 'registered' as const,
-          display_name: 'Snom E425',
-          slot_number: 2,
-          model: 'E425',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          extensions: undefined as DECTExtension[] | undefined,
-        },
-      ];
-      for (const hs of handsets) {
-        const exts = mockDECTExts.get(`${baseId}/${hs.id}`);
-        if (exts?.length) hs.extensions = exts;
-      }
-      return handsets;
-    },
-    updateDECTHandset: async (
-      _baseId: string,
-      _handsetId: string,
-      _data: UpdateDECTHandsetRequest
-    ) => {
-      throw new Error('Not implemented in mock');
-    },
-    deleteDECTHandset: async (_baseId: string, _handsetId: string) => {},
-    createDECTExtension: async (
-      baseId: string,
-      handsetId: string,
-      data: CreateDECTExtensionRequest
-    ): Promise<DECTExtension> => {
-      await delay();
-      const ext: DECTExtension = {
-        id: 'decte_' + Math.random().toString(36).slice(2, 10),
-        handset_id: handsetId,
-        endpoint_id: data.endpoint_id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      const key = `${baseId}/${handsetId}`;
-      const existing = mockDECTExts.get(key) ?? [];
-      mockDECTExts.set(key, [...existing, ext]);
-      return ext;
-    },
-    listDECTExtensions: async (baseId: string, handsetId: string) =>
-      mockDECTExts.get(`${baseId}/${handsetId}`) ?? [],
-    deleteDECTExtension: async (baseId: string, handsetId: string, extensionId: string) => {
-      const key = `${baseId}/${handsetId}`;
-      const exts = mockDECTExts.get(key) ?? [];
-      mockDECTExts.set(
-        key,
-        exts.filter((e) => e.id !== extensionId)
-      );
-    },
   };
 
   return instance;

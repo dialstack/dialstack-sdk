@@ -144,9 +144,9 @@ export const NumbersStep: React.FC = () => {
     dispatch({ type: 'load_numbers_start' });
     try {
       const [dids, orders, ports] = await Promise.all([
-        dialstack.fetchAllPages<DIDItem>((opts) => dialstack.listPhoneNumbers(opts)),
-        dialstack.fetchAllPages<NumberOrder>((opts) => dialstack.listNumberOrders(opts)),
-        dialstack.fetchAllPages<PortOrder>((opts) => dialstack.listPortOrders(opts)),
+        dialstack.fetchAllPages<DIDItem>((opts) => dialstack.phoneNumbers.list(opts)),
+        dialstack.fetchAllPages<NumberOrder>((opts) => dialstack.phoneNumberOrders.list(opts)),
+        dialstack.fetchAllPages<PortOrder>((opts) => dialstack.portOrders.list(opts)),
       ]);
       dispatch({
         type: 'load_numbers_success',
@@ -172,7 +172,7 @@ export const NumbersStep: React.FC = () => {
       pollTimerRef.current = setTimeout(async () => {
         if (orderPollGenRef.current !== gen) return;
         try {
-          const order = await dialstack.getPhoneNumberOrder(orderId);
+          const order = await dialstack.phoneNumberOrders.retrieve(orderId);
           if (orderPollGenRef.current !== gen) return;
           const newCount = pollCount + 1;
           dispatch({ type: 'order_poll_update', order, pollCount: newCount });
@@ -192,7 +192,7 @@ export const NumbersStep: React.FC = () => {
       dispatch({ type: 'load_dids_start' });
       try {
         const dids = await dialstack.fetchAllPages<DIDItem>((opts) =>
-          dialstack.listPhoneNumbers({ ...opts, status: 'active' })
+          dialstack.phoneNumbers.list({ ...opts, status: 'active' })
         );
 
         const savedPrimaryDIDId = contextLocations[0]?.primary_did_id ?? null;
@@ -239,7 +239,7 @@ export const NumbersStep: React.FC = () => {
           opts.city = s.orderSearchCity;
           opts.state = s.orderSearchState;
         } else opts.zip = s.orderSearchValue;
-        const results = await dialstack.searchAvailableNumbers(opts);
+        const results = await dialstack.availablePhoneNumbers.search(opts);
         dispatch({ type: 'order_search_success', results });
       } catch (err) {
         dispatch({
@@ -257,7 +257,7 @@ export const NumbersStep: React.FC = () => {
       if (selectedNumbers.length === 0) return;
       dispatch({ type: 'order_place_start' });
       try {
-        const order = await dialstack.createPhoneNumberOrder(selectedNumbers);
+        const order = await dialstack.phoneNumberOrders.create(selectedNumbers);
         dispatch({ type: 'order_place_success', order });
         startOrderPoll(order.id, 0);
       } catch (err) {
@@ -296,7 +296,7 @@ export const NumbersStep: React.FC = () => {
       }
       dispatch({ type: 'port_check_eligibility_start' });
       try {
-        const result = await dialstack.checkPortEligibility(validNumbers);
+        const result = await dialstack.portOrders.checkEligibility(validNumbers);
         dispatch({ type: 'port_check_eligibility_success', result });
       } catch (err) {
         dispatch({
@@ -408,14 +408,14 @@ export const NumbersStep: React.FC = () => {
           requested_foc_date: s.portFocDate,
           requested_foc_time: s.portFocTime || undefined,
         };
-        const order = await dialstack.createPortOrder(request);
-        if (s.portBillFile) await dialstack.uploadBillCopy(order.id, s.portBillFile);
-        if (s.portCsrFile) await dialstack.uploadCSR(order.id, s.portCsrFile);
-        await dialstack.approvePortOrder(order.id, {
+        const order = await dialstack.portOrders.create(request);
+        if (s.portBillFile) await dialstack.portOrders.uploadBillCopy(order.id, s.portBillFile);
+        if (s.portCsrFile) await dialstack.portOrders.uploadCSR(order.id, s.portCsrFile);
+        await dialstack.portOrders.approve(order.id, {
           signature: s.portSignature.trim(),
           ip: '0.0.0.0',
         });
-        await dialstack.submitPortOrder(order.id);
+        await dialstack.portOrders.submit(order.id);
 
         // Multi-carrier: mark this carrier as done and go back to carrier select or finish
         if (isMultiCarrier && s.portCurrentCarrier) {
@@ -461,7 +461,7 @@ export const NumbersStep: React.FC = () => {
       );
       if (err) return { status: 'error', error: err };
       try {
-        await dialstackInst.updatePhoneNumber(didId, { caller_id_name: name.trim() });
+        await dialstackInst.phoneNumbers.update(didId, { caller_id_name: name.trim() });
         dispatch({ type: 'caller_id_persist_name', didId, name: name.trim() });
         return { status: 'submitted' };
       } catch (err2) {
@@ -490,7 +490,7 @@ export const NumbersStep: React.FC = () => {
           if (e911GenRef.current !== gen) return;
           count++;
           try {
-            const loc = await dialstack.getLocation(locationId);
+            const loc = await dialstack.locations.retrieve(locationId);
             if (e911GenRef.current !== gen) return;
 
             if (loc.e911_status === 'provisioned') {
@@ -560,7 +560,7 @@ export const NumbersStep: React.FC = () => {
 
       try {
         const activeDIDs = await dialstack.fetchAllPages<DIDItem>((opts) =>
-          dialstack.listPhoneNumbers({ ...opts, status: 'active' })
+          dialstack.phoneNumbers.list({ ...opts, status: 'active' })
         );
 
         if (cancelled()) return;
@@ -579,7 +579,7 @@ export const NumbersStep: React.FC = () => {
         // Check if stored dial plan still exists
         if (dialPlanId) {
           try {
-            await dialstack.getDialPlan(dialPlanId);
+            await dialstack.dialPlans.retrieve(dialPlanId);
           } catch {
             dialPlanId = undefined; // Gone — will re-create
           }
@@ -589,7 +589,7 @@ export const NumbersStep: React.FC = () => {
         // Create dial plan if needed
         if (!dialPlanId) {
           try {
-            const dp = await dialstack.createDialPlan({
+            const dp = await dialstack.dialPlans.create({
               name: t('accountOnboarding.numbers.defaultDialPlanName'),
               entry_node: 'ring-all',
               nodes: [
@@ -609,7 +609,7 @@ export const NumbersStep: React.FC = () => {
           // Persist dial plan ID to account config (best-effort — ref keeps it for this session)
           if (dialPlanId) {
             try {
-              await dialstack.updateAccount({
+              await dialstack.account.update({
                 config: {
                   ...config,
                   onboarding_progress: {
@@ -630,7 +630,7 @@ export const NumbersStep: React.FC = () => {
           const unroutedDIDs = activeDIDs.filter((d) => !d.routing_target);
           await Promise.all(
             unroutedDIDs.map((did) =>
-              dialstack.updatePhoneNumberRoute(did.id, dialPlanId!).catch((err) => {
+              dialstack.phoneNumbers.updateRoute(did.id, dialPlanId!).catch((err) => {
                 console.warn(`[dialstack] Failed to route DID ${did.id}:`, err);
               })
             )
@@ -659,9 +659,9 @@ export const NumbersStep: React.FC = () => {
           }
           if (location.e911_status === 'none' || location.e911_status === 'failed') {
             try {
-              await dialstack.validateLocationE911(location.id);
+              await dialstack.locations.validateE911(location.id);
               if (cancelled()) return;
-              const provisioned = await dialstack.provisionLocationE911(location.id);
+              const provisioned = await dialstack.locations.provisionE911(location.id);
               if (cancelled()) return;
               handleProvisionResult(provisioned, location.id, gen);
               return;
@@ -689,11 +689,11 @@ export const NumbersStep: React.FC = () => {
           return;
         }
 
-        await dialstack.updateLocation(location.id, { primary_did_id: selectedDID.id });
+        await dialstack.locations.update(location.id, { primary_did_id: selectedDID.id });
         if (cancelled()) return;
-        await dialstack.validateLocationE911(location.id);
+        await dialstack.locations.validateE911(location.id);
         if (cancelled()) return;
-        const provisioned = await dialstack.provisionLocationE911(location.id);
+        const provisioned = await dialstack.locations.provisionE911(location.id);
         if (cancelled()) return;
         handleProvisionResult(provisioned, location.id, gen);
       } catch (err) {
@@ -838,7 +838,7 @@ export const NumbersStep: React.FC = () => {
       try {
         await Promise.all(
           toUpdate.map((did) =>
-            dialstack.updatePhoneNumber(did.id, {
+            dialstack.phoneNumbers.update(did.id, {
               directory_listing_name: (s.dlBusinessNames[did.id] ?? '').trim(),
               directory_listing_type: s.dlListingTypes[did.id] ?? 'listed',
               ...(s.dlLocationIds[did.id] && {

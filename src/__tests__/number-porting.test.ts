@@ -396,7 +396,7 @@ describe('Number Porting Instance Methods', () => {
     };
     mockFetch.mockResolvedValueOnce(mockJsonResponse(order));
 
-    const result = await instance.approvePortOrder('port_abc123', {
+    const result = await instance.portOrders.approve('port_abc123', {
       signature: 'Jane Smith',
     });
     expect(result.status).toBe('approved');
@@ -412,7 +412,7 @@ describe('Number Porting Instance Methods', () => {
     );
 
     await expect(
-      instance.approvePortOrder('port_abc123', { signature: 'Jane Smith' })
+      instance.portOrders.approve('port_abc123', { signature: 'Jane Smith' })
     ).rejects.toThrow('Failed to approve port order');
   });
 
@@ -423,7 +423,7 @@ describe('Number Porting Instance Methods', () => {
     };
     mockFetch.mockResolvedValueOnce(mockJsonResponse(eligibilityResult));
 
-    const result = await instance.checkPortEligibility(['+19195551234']);
+    const result = await instance.portOrders.checkEligibility(['+19195551234']);
     expect(result.portable_numbers).toHaveLength(1);
 
     const lastCall = mockFetch.mock.calls[mockFetch.mock.calls.length - 1];
@@ -435,7 +435,7 @@ describe('Number Porting Instance Methods', () => {
     const order = { id: 'port_123', status: 'draft', details: { phone_numbers: ['+19195551234'] } };
     mockFetch.mockResolvedValueOnce(mockJsonResponse(order));
 
-    const result = await instance.createPortOrder({
+    const result = await instance.portOrders.create({
       phone_numbers: ['+19195551234'],
       subscriber: {
         btn: '+19195551234',
@@ -462,7 +462,7 @@ describe('Number Porting Instance Methods', () => {
     const order = { id: 'port_123', status: 'draft', details: { phone_numbers: ['+19195551234'] } };
     mockFetch.mockResolvedValueOnce(mockJsonResponse(order));
 
-    const result = await instance.getPortOrder('port_123');
+    const result = await instance.portOrders.retrieve('port_123');
     expect(result.id).toBe('port_123');
 
     const lastCall = mockFetch.mock.calls[mockFetch.mock.calls.length - 1];
@@ -473,7 +473,7 @@ describe('Number Porting Instance Methods', () => {
     const order = { id: 'port_123', status: 'submitted' };
     mockFetch.mockResolvedValueOnce(mockJsonResponse(order));
 
-    const result = await instance.submitPortOrder('port_123');
+    const result = await instance.portOrders.submit('port_123');
     expect(result.status).toBe('submitted');
 
     const lastCall = mockFetch.mock.calls[mockFetch.mock.calls.length - 1];
@@ -485,7 +485,7 @@ describe('Number Porting Instance Methods', () => {
     const order = { id: 'port_123', status: 'cancelled' };
     mockFetch.mockResolvedValueOnce(mockJsonResponse(order));
 
-    const result = await instance.cancelPortOrder('port_123');
+    const result = await instance.portOrders.cancel('port_123');
     expect(result.status).toBe('cancelled');
 
     const lastCall = mockFetch.mock.calls[mockFetch.mock.calls.length - 1];

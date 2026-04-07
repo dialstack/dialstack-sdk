@@ -148,838 +148,315 @@ export interface DialStackInitParams {
   apiUrl?: string;
 }
 
+// =============================================================================
+// Resource Namespace Types
+// =============================================================================
+
+export interface CallsTranscriptsResource {
+  /** Retrieve the transcript for a call */
+  retrieve(callId: string): Promise<Transcript>;
+}
+
+export interface CallsResource {
+  /** Initiate an outbound call */
+  create(params: { userId: string; dialString: string }): Promise<void>;
+  /** Retrieve a call log (CDR) by ID */
+  retrieve(callId: string): Promise<CallLog>;
+  /** Call transcript sub-resource */
+  transcripts: CallsTranscriptsResource;
+}
+
+export interface VoicemailsResource {
+  /** Retrieve the transcript for a voicemail */
+  retrieveTranscript(userId: string, voicemailId: string): Promise<VoicemailTranscript>;
+}
+
+export interface PhoneNumbersResource {
+  /** Retrieve a phone number by ID */
+  retrieve(phoneNumberId: string): Promise<DIDItem>;
+  /** List phone numbers for the account */
+  list(options?: { limit?: number; status?: string }): Promise<PaginatedResponse<DIDItem>>;
+  /** Update a phone number */
+  update(phoneNumberId: string, data: UpdatePhoneNumberRequest): Promise<DIDItem>;
+  /** Update just the routing target for a phone number */
+  updateRoute(phoneNumberId: string, routingTarget: string | null): Promise<DIDItem>;
+}
+
+export interface AvailablePhoneNumbersResource {
+  /** Search for available phone numbers to purchase */
+  search(options: SearchAvailableNumbersOptions): Promise<AvailablePhoneNumber[]>;
+}
+
+export interface PhoneNumberOrdersResource {
+  /** Create a phone number order */
+  create(phoneNumbers: string[]): Promise<NumberOrder>;
+  /** Retrieve a phone number order by ID */
+  retrieve(orderId: string): Promise<NumberOrder>;
+  /** List phone number orders */
+  list(options?: {
+    limit?: number;
+    status?: string;
+    order_type?: string;
+  }): Promise<PaginatedResponse<NumberOrder>>;
+}
+
+export interface PortOrdersResource {
+  /** Create a new port order */
+  create(request: CreatePortOrderRequest): Promise<PortOrder>;
+  /** Retrieve a port order by ID */
+  retrieve(orderId: string): Promise<PortOrder>;
+  /** List port orders */
+  list(options?: { limit?: number; status?: string }): Promise<PaginatedResponse<PortOrder>>;
+  /** Approve a port order */
+  approve(orderId: string, request: ApprovePortOrderRequest): Promise<PortOrder>;
+  /** Submit a port order for processing */
+  submit(orderId: string): Promise<PortOrder>;
+  /** Cancel a port order */
+  cancel(orderId: string): Promise<PortOrder>;
+  /** Check port-in eligibility for phone numbers */
+  checkEligibility(phoneNumbers: string[]): Promise<PortEligibilityResult>;
+  /** Upload a CSR document */
+  uploadCSR(orderId: string, file: File): Promise<void>;
+  /** Upload a bill copy */
+  uploadBillCopy(orderId: string, file: File): Promise<void>;
+  /** Download a CSR document */
+  downloadCSR(orderId: string): Promise<Blob>;
+  /** Download a bill copy */
+  downloadBillCopy(orderId: string): Promise<Blob>;
+}
+
+export interface DialPlansResource {
+  /** Retrieve a dial plan by ID */
+  retrieve(dialPlanId: string): Promise<DialPlanData>;
+  /** List dial plans */
+  list(options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]>;
+  /** Create a dial plan */
+  create(data: Record<string, unknown>): Promise<DialPlanData>;
+  /** Update a dial plan */
+  update(dialPlanId: string, data: Record<string, unknown>): Promise<DialPlanData>;
+}
+
+export interface SchedulesResource {
+  /** Retrieve a schedule by ID */
+  retrieve(scheduleId: string): Promise<NamedResource>;
+  /** List schedules */
+  list(options?: { limit?: number }): Promise<NamedResource[]>;
+}
+
+export interface RingGroupsResource {
+  /** List ring groups */
+  list(options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]>;
+}
+
+export interface VoiceAppsResource {
+  /** List voice apps */
+  list(options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]>;
+}
+
+export interface SharedVoicemailBoxesResource {
+  /** List shared voicemail boxes */
+  list(options?: { limit?: number }): Promise<NamedResource[]>;
+}
+
+export interface ExtensionsResource {
+  /** List extensions */
+  list(options?: { target?: string; limit?: number }): Promise<Extension[]>;
+  /** Create an extension */
+  create(request: CreateExtensionRequest): Promise<Extension>;
+}
+
+export interface DeskphoneLinesResource {
+  /** Create a deskphone line */
+  create(deskphoneId: string, data: CreateDeskphoneLineRequest): Promise<DeviceLine>;
+  /** List lines for a deskphone */
+  list(deskphoneId: string): Promise<DeviceLine[]>;
+  /** Update a deskphone line */
+  update(
+    deskphoneId: string,
+    lineId: string,
+    data: UpdateDeskphoneLineRequest
+  ): Promise<DeviceLine>;
+  /** Delete a deskphone line */
+  del(deskphoneId: string, lineId: string): Promise<void>;
+}
+
+export interface DeskphoneProvisioningEventsResource {
+  /** List provisioning events for a deskphone */
+  list(deskphoneId: string, options?: ProvisioningEventListOptions): Promise<ProvisioningEvent[]>;
+}
+
+export interface DeskphonesResource {
+  /** Create a deskphone */
+  create(data: CreateDeskphoneRequest): Promise<ProvisionedDevice>;
+  /** Update a deskphone */
+  update(id: string, data: UpdateDeskphoneRequest): Promise<ProvisionedDevice>;
+  /** Delete a deskphone */
+  del(id: string): Promise<void>;
+  /** Deskphone lines sub-resource */
+  lines: DeskphoneLinesResource;
+  /** Provisioning events sub-resource */
+  provisioningEvents: DeskphoneProvisioningEventsResource;
+}
+
+export interface DevicesResource {
+  /** Retrieve a device by ID */
+  retrieve(id: string): Promise<Device>;
+  /** List all devices */
+  list(options?: DeviceListOptions): Promise<Device[]>;
+}
+
+export interface DECTHandsetsResource {
+  /** Create a DECT handset */
+  create(baseId: string, data: CreateDECTHandsetRequest): Promise<DECTHandset>;
+  /** Retrieve a DECT handset */
+  retrieve(baseId: string, handsetId: string): Promise<DECTHandset>;
+  /** List handsets for a DECT base */
+  list(baseId: string): Promise<DECTHandset[]>;
+  /** Update a DECT handset */
+  update(baseId: string, handsetId: string, data: UpdateDECTHandsetRequest): Promise<DECTHandset>;
+  /** Delete a DECT handset */
+  del(baseId: string, handsetId: string): Promise<void>;
+}
+
+export interface DECTExtensionsResource {
+  /** Create a DECT extension */
+  create(
+    baseId: string,
+    handsetId: string,
+    data: CreateDECTExtensionRequest
+  ): Promise<DECTExtension>;
+  /** List extensions for a DECT handset */
+  list(baseId: string, handsetId: string): Promise<DECTExtension[]>;
+  /** Delete a DECT extension */
+  del(baseId: string, handsetId: string, extensionId: string): Promise<void>;
+}
+
+export interface DECTBasesResource {
+  /** Create a DECT base station */
+  create(data: CreateDECTBaseRequest): Promise<DECTBase>;
+  /** Retrieve a DECT base */
+  retrieve(id: string): Promise<DECTBase>;
+  /** List DECT bases */
+  list(options?: DeviceListOptions): Promise<DECTBase[]>;
+  /** Update a DECT base */
+  update(id: string, data: UpdateDECTBaseRequest): Promise<DECTBase>;
+  /** Delete a DECT base */
+  del(id: string): Promise<void>;
+  /** DECT handsets sub-resource */
+  handsets: DECTHandsetsResource;
+  /** DECT extensions sub-resource */
+  extensions: DECTExtensionsResource;
+}
+
+export interface AccountResource {
+  /** Retrieve the current account */
+  retrieve(): Promise<Account>;
+  /** Update the current account */
+  update(request: UpdateAccountRequest): Promise<Account>;
+}
+
+export interface UserEndpointsResource {
+  /** Create an endpoint for a user */
+  create(userId: string, request?: CreateEndpointRequest): Promise<OnboardingEndpoint>;
+  /** List endpoints for a user */
+  list(userId: string): Promise<OnboardingEndpoint[]>;
+}
+
+export interface UsersResource {
+  /** Create a user */
+  create(request: CreateUserRequest): Promise<OnboardingUser>;
+  /** List users */
+  list(options?: { limit?: number; expand?: string[] }): Promise<OnboardingUser[]>;
+  /** Delete a user */
+  del(userId: string): Promise<void>;
+  /** User endpoints sub-resource */
+  endpoints: UserEndpointsResource;
+}
+
+export interface LocationsResource {
+  /** Create a location */
+  create(request: CreateLocationRequest): Promise<OnboardingLocation>;
+  /** Retrieve a location by ID */
+  retrieve(locationId: string): Promise<OnboardingLocation>;
+  /** List locations */
+  list(): Promise<OnboardingLocation[]>;
+  /** Update a location */
+  update(locationId: string, request: UpdateLocationRequest): Promise<OnboardingLocation>;
+  /** Validate a location for E911 */
+  validateE911(locationId: string): Promise<E911ValidationResult>;
+  /** Provision E911 for a location */
+  provisionE911(locationId: string): Promise<OnboardingLocation>;
+}
+
+/** Address lookup (BFF-only, not a public API resource) */
+export interface AddressesResource {
+  /** Search for address suggestions */
+  suggest(query: string, country?: string): Promise<AddressSuggestion[]>;
+  /** Get detailed place information */
+  getPlaceDetails(placeId: string): Promise<ResolvedAddress>;
+}
+
+// =============================================================================
+// DialStack SDK Instance
+// =============================================================================
+
 /**
  * The DialStack SDK instance returned by loadDialstackAndInitialize()
  */
 export interface DialStackInstance {
-  /**
-   * Create a new embedded component
-   *
-   * @param tagName - The component type to create
-   * @returns The component element
-   *
-   * @example
-   * ```typescript
-   * const callLogs = dialstack.create('call-logs');
-   * document.getElementById('container').appendChild(callLogs);
-   * ```
-   */
+  // ---------------------------------------------------------------------------
+  // Elements lifecycle (not resource namespaces)
+  // ---------------------------------------------------------------------------
+
+  /** Create a new embedded component */
   create<T extends ComponentTagName>(tagName: T): ComponentElement[T];
-
-  /**
-   * Update appearance for all components
-   *
-   * @param updateOptions - The options to update
-   *
-   * @example
-   * ```typescript
-   * dialstack.update({
-   *   appearance: {
-   *     theme: 'dark',
-   *     variables: { colorPrimary: '#6772E5' }
-   *   }
-   * });
-   * ```
-   */
+  /** Update appearance for all components */
   update(updateOptions: UpdateOptions): void;
-
-  /**
-   * Log out and clean up the session
-   *
-   * @returns Promise that resolves when logout is complete
-   *
-   * @example
-   * ```typescript
-   * await dialstack.logout();
-   * ```
-   */
+  /** Log out and clean up the session */
   logout(): Promise<void>;
-
-  /**
-   * Make an authenticated API request to the DialStack API
-   *
-   * @param path - API path (e.g., '/v1/phone-numbers')
-   * @param options - Optional fetch options
-   * @returns Promise resolving to the Response
-   *
-   * @example
-   * ```typescript
-   * const response = await dialstack.fetchApi('/v1/phone-numbers?limit=1');
-   * const data = await response.json();
-   * ```
-   */
+  /** Make an authenticated API request */
   fetchApi(path: string, options?: RequestInit): Promise<Response>;
-
-  /**
-   * Initiate an outbound call from a user to a phone number
-   *
-   * @param userId - The user initiating the call
-   * @param dialString - The phone number or SIP URI to dial
-   *
-   * @example
-   * ```typescript
-   * await dialstack.initiateCall('user_01abc...', '+15551234567');
-   * ```
-   */
-  initiateCall(userId: string, dialString: string): Promise<void>;
-
-  /**
-   * Retrieve the transcript for a call
-   *
-   * @param callId - The ID of the call to get transcript for
-   * @returns Promise resolving to the transcript object
-   *
-   * @example
-   * ```typescript
-   * const transcript = await dialstack.getTranscript('cdr_01abc...');
-   * if (transcript.status === 'completed') {
-   *   console.log(transcript.text);
-   * }
-   * ```
-   */
-  getTranscript(callId: string): Promise<Transcript>;
-
-  /**
-   * Retrieve the transcript for a voicemail
-   *
-   * @param userId - The ID of the user who owns the voicemail
-   * @param voicemailId - The ID of the voicemail to get transcript for
-   * @returns Promise resolving to the voicemail transcript object
-   *
-   * @example
-   * ```typescript
-   * const transcript = await dialstack.getVoicemailTranscript('user_01abc...', 'vm_01xyz...');
-   * if (transcript.status === 'completed') {
-   *   console.log(transcript.text);
-   * }
-   * ```
-   */
-  getVoicemailTranscript(userId: string, voicemailId: string): Promise<VoicemailTranscript>;
-
-  /**
-   * Subscribe to real-time call events
-   *
-   * @param event - The event type to listen for
-   * @param handler - Callback function called when the event occurs
-   *
-   * @example
-   * ```typescript
-   * dialstack.on('call.incoming', (call) => {
-   *   console.log('Incoming call from:', call.from_number);
-   * });
-   * ```
-   */
+  /** Fetch all pages of a paginated list endpoint */
+  fetchAllPages<T>(
+    fetchFn: (opts: { limit: number }) => Promise<PaginatedResponse<T>>
+  ): Promise<T[]>;
+  /** Subscribe to real-time call events */
   on<K extends keyof CallEventMap>(event: K, handler: CallEventHandler<CallEventMap[K]>): void;
-
-  /**
-   * Unsubscribe from real-time call events
-   *
-   * @param event - The event type to stop listening for
-   * @param handler - The callback to remove (if omitted, removes all handlers for this event)
-   *
-   * @example
-   * ```typescript
-   * dialstack.off('call.incoming', myHandler);
-   * ```
-   */
+  /** Unsubscribe from real-time call events */
   off<K extends keyof CallEventMap>(event: K, handler?: CallEventHandler<CallEventMap[K]>): void;
-
-  /**
-   * List extensions, optionally filtered by target ID
-   *
-   * @param options - Optional filter options
-   * @returns Promise resolving to an array of extensions
-   *
-   * @example
-   * ```typescript
-   * // List all extensions
-   * const extensions = await dialstack.listExtensions();
-   *
-   * // List extensions for a specific user
-   * const userExtensions = await dialstack.listExtensions({ target: 'user_01abc...' });
-   * ```
-   */
-  listExtensions(options?: { target?: string; limit?: number }): Promise<Extension[]>;
-
-  /** Get a single dial plan by ID */
-  getDialPlan(dialPlanId: string): Promise<DialPlanData>;
-
-  /** List dial plans in the current account */
-  listDialPlans(options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]>;
-
-  /** Create a new dial plan */
-  createDialPlan(data: Record<string, unknown>): Promise<DialPlanData>;
-
-  /** Update an existing dial plan */
-  updateDialPlan(dialPlanId: string, data: Record<string, unknown>): Promise<DialPlanData>;
-
-  /** Get a single schedule by ID */
-  getSchedule(scheduleId: string): Promise<NamedResource>;
-
-  /** List schedules in the current account */
-  listSchedules(options?: { limit?: number }): Promise<NamedResource[]>;
-
-  /** List ring groups in the current account */
-  listRingGroups(options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]>;
-
-  /** List voice apps in the current account */
-  listVoiceApps(options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]>;
-
-  /** List shared voicemail boxes in the current account */
-  listSharedVoicemailBoxes(options?: { limit?: number }): Promise<NamedResource[]>;
-
-  /**
-   * Resolve a routing target TypeID to its type and display name
-   *
-   * @param target - TypeID string (e.g. 'user_xxx', 'dp_xxx', 'va_xxx', 'rg_xxx')
-   * @returns Promise resolving to the resolved target, or null if not found
-   */
+  /** Resolve a routing target TypeID to its type and display name */
   resolveRoutingTarget(target: string): Promise<{
     id: string;
     name: string | null;
     type: 'user' | 'dial_plan' | 'voice_app' | 'ring_group' | 'shared_voicemail';
     extension_number?: string | null;
   } | null>;
-
-  /**
-   * Get a single phone number (DID) by ID
-   *
-   * @param phoneNumberId - The phone number ID (e.g., 'did_01abc...')
-   * @returns Promise resolving to the phone number details
-   */
-  getPhoneNumber(phoneNumberId: string): Promise<DIDItem>;
-
-  /**
-   * Get a single call log (CDR) by ID
-   *
-   * @param callId - The call log ID (e.g., 'cdr_01abc...')
-   * @returns Promise resolving to the call log details
-   */
-  getCallLog(callId: string): Promise<CallLog>;
-
-  /**
-   * Update the routing target for a phone number
-   *
-   * @param phoneNumberId - The phone number ID (e.g., 'did_01abc...')
-   * @param routingTarget - The target TypeID to route to, or null to clear
-   * @returns Promise resolving to the updated phone number
-   */
-  updatePhoneNumber(phoneNumberId: string, update: UpdatePhoneNumberRequest): Promise<DIDItem>;
-  updatePhoneNumberRoute(phoneNumberId: string, routingTarget: string | null): Promise<DIDItem>;
-
-  // ===========================================================================
-  // Phone Number List Methods
-  // ===========================================================================
-
-  /**
-   * List phone numbers (DIDs) for the account
-   *
-   * @param options - Optional filter/pagination options
-   * @returns Promise resolving to a paginated list of DIDs
-   */
-  listPhoneNumbers(options?: {
-    limit?: number;
-    status?: string;
-  }): Promise<PaginatedResponse<DIDItem>>;
-
-  /**
-   * List phone number orders for the account
-   *
-   * @param options - Optional filter/pagination options
-   * @returns Promise resolving to a paginated list of number orders
-   */
-  listNumberOrders(options?: {
-    limit?: number;
-    status?: string;
-    order_type?: string;
-  }): Promise<PaginatedResponse<NumberOrder>>;
-
-  /**
-   * List port orders for the account
-   *
-   * @param options - Optional filter/pagination options
-   * @returns Promise resolving to a paginated list of port orders
-   */
-  listPortOrders(options?: {
-    limit?: number;
-    status?: string;
-  }): Promise<PaginatedResponse<PortOrder>>;
-
-  /**
-   * Fetch all pages of a paginated list endpoint, following next_page_url links.
-   *
-   * @param fetchFn - A function that fetches a single page (e.g., `(opts) => this.listPhoneNumbers(opts)`)
-   * @returns Promise resolving to the full array of items across all pages
-   */
-  fetchAllPages<T>(
-    fetchFn: (opts: { limit: number }) => Promise<PaginatedResponse<T>>
-  ): Promise<T[]>;
-
-  // ===========================================================================
-  // Phone Number Ordering Methods
-  // ===========================================================================
-
-  /**
-   * Search for available phone numbers to purchase
-   *
-   * @param options - Search criteria (at least one of areaCode, state, zip, npaNxx, or city+state is required)
-   * @returns Promise resolving to an array of available phone numbers
-   *
-   * @example
-   * ```typescript
-   * const numbers = await dialstack.searchAvailableNumbers({ areaCode: '212', quantity: 5 });
-   * ```
-   */
-  searchAvailableNumbers(options: SearchAvailableNumbersOptions): Promise<AvailablePhoneNumber[]>;
-
-  /**
-   * Create a phone number order to purchase one or more numbers
-   *
-   * @param phoneNumbers - Array of E.164 phone numbers to order
-   * @returns Promise resolving to the created order
-   *
-   * @example
-   * ```typescript
-   * const order = await dialstack.createPhoneNumberOrder(['+12125551001']);
-   * ```
-   */
-  createPhoneNumberOrder(phoneNumbers: string[]): Promise<NumberOrder>;
-
-  /**
-   * Get the current status of a phone number order
-   *
-   * @param orderId - The order ID
-   * @returns Promise resolving to the order
-   *
-   * @example
-   * ```typescript
-   * const order = await dialstack.getPhoneNumberOrder('ord_abc123');
-   * ```
-   */
-  getPhoneNumberOrder(orderId: string): Promise<NumberOrder>;
-
-  // ===========================================================================
-  // Deskphone Methods
-  // ===========================================================================
-
-  /**
-   * Create a new provisioned deskphone
-   *
-   * @param data - Deskphone creation data
-   * @returns Promise resolving to the created deskphone
-   *
-   * @example
-   * ```typescript
-   * const deskphone = await dialstack.createDeskphone({
-   *   mac_address: '00:04:13:aa:bb:cc',
-   *   model: 'D785',
-   * });
-   * ```
-   */
-  createDeskphone(data: CreateDeskphoneRequest): Promise<ProvisionedDevice>;
-
-  /**
-   * Get a device by ID (deskphone or DECT base)
-   *
-   * @param id - Device ID (e.g., 'dev_01abc...' or 'dectb_01abc...')
-   * @returns Promise resolving to the unified device
-   */
-  getDevice(id: string): Promise<Device>;
-
-  /**
-   * List all devices (deskphones and DECT bases)
-   *
-   * @param options - Optional pagination and filter options
-   * @returns Promise resolving to an array of unified devices
-   */
-  listDevices(options?: DeviceListOptions): Promise<Device[]>;
-
-  /**
-   * Update a deskphone
-   *
-   * @param id - Deskphone ID
-   * @param data - Update data
-   * @returns Promise resolving to the updated deskphone
-   */
-  updateDeskphone(id: string, data: UpdateDeskphoneRequest): Promise<ProvisionedDevice>;
-
-  /**
-   * Delete a deskphone
-   *
-   * @param id - Deskphone ID
-   */
-  deleteDeskphone(id: string): Promise<void>;
-
-  /**
-   * List provisioning events for a deskphone
-   *
-   * @param deskphoneId - Deskphone ID
-   * @param options - Optional pagination and filter options
-   * @returns Promise resolving to an array of provisioning events
-   */
-  listDeskphoneProvisioningEvents(
-    deskphoneId: string,
-    options?: ProvisioningEventListOptions
-  ): Promise<ProvisioningEvent[]>;
-
-  /**
-   * Create a deskphone line (assign an endpoint to a deskphone)
-   *
-   * @param deskphoneId - Deskphone ID
-   * @param data - Line creation data
-   * @returns Promise resolving to the created line
-   */
-  createDeskphoneLine(deskphoneId: string, data: CreateDeskphoneLineRequest): Promise<DeviceLine>;
-
-  /**
-   * Update a deskphone line (atomically reassign endpoint)
-   *
-   * @param deskphoneId - Deskphone ID
-   * @param lineId - Line ID
-   * @param data - Update data with new endpoint_id
-   * @returns Promise resolving to the updated line
-   */
-  updateDeskphoneLine(
-    deskphoneId: string,
-    lineId: string,
-    data: UpdateDeskphoneLineRequest
-  ): Promise<DeviceLine>;
-
-  /**
-   * List all lines for a deskphone
-   *
-   * @param deskphoneId - Deskphone ID
-   * @returns Promise resolving to array of deskphone lines
-   */
-  listDeskphoneLines(deskphoneId: string): Promise<DeviceLine[]>;
-
-  /**
-   * Delete a deskphone line
-   *
-   * @param deskphoneId - Deskphone ID
-   * @param lineId - Line ID
-   */
-  deleteDeskphoneLine(deskphoneId: string, lineId: string): Promise<void>;
-
-  // ===========================================================================
-  // Number Porting Methods
-  // ===========================================================================
-
-  /**
-   * Check port-in eligibility for one or more phone numbers
-   *
-   * @param phoneNumbers - Array of E.164 phone numbers to check
-   * @returns Promise resolving to eligibility results
-   *
-   * @example
-   * ```typescript
-   * const result = await dialstack.checkPortEligibility(['+15551234567']);
-   * console.log(result.portable_numbers);
-   * ```
-   */
-  checkPortEligibility(phoneNumbers: string[]): Promise<PortEligibilityResult>;
-
-  /**
-   * Create a new port order in draft status
-   *
-   * @param request - Port order details including subscriber info and phone numbers
-   * @returns Promise resolving to the created port order
-   *
-   * @example
-   * ```typescript
-   * const order = await dialstack.createPortOrder({
-   *   phone_numbers: ['+15551234567'],
-   *   subscriber: {
-   *     btn: '+15551234567',
-   *     business_name: 'Doe Enterprises',
-   *     approver_name: 'John Doe',
-   *     address: { house_number: '123', street_name: 'Main St', city: 'Anytown', state: 'NY', zip: '10001' },
-   *   },
-   *   requested_foc_date: '2026-03-01',
-   * });
-   * ```
-   */
-  createPortOrder(request: CreatePortOrderRequest): Promise<PortOrder>;
-
-  /**
-   * Get the current status of a port order
-   *
-   * @param orderId - The port order ID
-   * @returns Promise resolving to the port order
-   */
-  getPortOrder(orderId: string): Promise<PortOrder>;
-
-  /**
-   * Approve a port order with the customer's electronic signature
-   *
-   * The order must be in draft status and have subscriber details.
-   * After approval, the order can be submitted.
-   *
-   * @param orderId - The port order ID (must be in draft status)
-   * @param request - The approval details (signature and IP)
-   * @returns Promise resolving to the updated port order
-   *
-   * @example
-   * ```typescript
-   * const order = await dialstack.approvePortOrder('port_01abc...', {
-   *   signature: 'Jane Smith',
-   *   ip: '203.0.113.42',
-   * });
-   * ```
-   */
-  approvePortOrder(orderId: string, request: ApprovePortOrderRequest): Promise<PortOrder>;
-
-  /**
-   * Submit a port order to the carrier for processing
-   *
-   * The order must be approved before submission.
-   *
-   * @param orderId - The port order ID (must be in approved status)
-   * @returns Promise resolving to the updated port order
-   */
-  submitPortOrder(orderId: string): Promise<PortOrder>;
-
-  /**
-   * Cancel a port order
-   *
-   * @param orderId - The port order ID
-   * @returns Promise resolving to the updated port order
-   */
-  cancelPortOrder(orderId: string): Promise<PortOrder>;
-
-  /**
-   * Upload a CSR document for a port order
-   *
-   * @param orderId - The port order ID
-   * @param file - The CSR file to upload
-   */
-  uploadCSR(orderId: string, file: File): Promise<void>;
-
-  /**
-   * Upload a bill copy for a port order
-   *
-   * @param orderId - The port order ID
-   * @param file - The bill copy file to upload
-   */
-  uploadBillCopy(orderId: string, file: File): Promise<void>;
-
-  /**
-   * Download the CSR document for a port order
-   *
-   * @param orderId - The port order ID
-   * @returns Promise resolving to the document as a Blob
-   */
-  downloadCSR(orderId: string): Promise<Blob>;
-
-  /**
-   * Download the bill copy for a port order
-   *
-   * @param orderId - The port order ID
-   * @returns Promise resolving to the document as a Blob
-   */
-  downloadBillCopy(orderId: string): Promise<Blob>;
-
-  // ===========================================================================
-  // DECT Base Methods
-  // ===========================================================================
-
-  /**
-   * Create a new DECT base station
-   *
-   * @param data - DECT base creation data
-   * @returns Promise resolving to the created base
-   *
-   * @example
-   * ```typescript
-   * const base = await dialstack.createDECTBase({
-   *   mac_address: '00:04:13:aa:bb:cc',
-   *   model: 'M700',
-   * });
-   * ```
-   */
-  createDECTBase(data: CreateDECTBaseRequest): Promise<DECTBase>;
-
-  /**
-   * Get a DECT base by ID
-   *
-   * @param id - DECT base ID (e.g., 'dectb_01abc...')
-   * @returns Promise resolving to the base
-   */
-  getDECTBase(id: string): Promise<DECTBase>;
-
-  /**
-   * List all DECT bases
-   *
-   * @param options - Optional pagination options
-   * @returns Promise resolving to an array of bases
-   */
-  listDECTBases(options?: DeviceListOptions): Promise<DECTBase[]>;
-
-  /**
-   * Update a DECT base
-   *
-   * @param id - DECT base ID
-   * @param data - Update data
-   * @returns Promise resolving to the updated base
-   */
-  updateDECTBase(id: string, data: UpdateDECTBaseRequest): Promise<DECTBase>;
-
-  /**
-   * Delete a DECT base
-   *
-   * @param id - DECT base ID
-   */
-  deleteDECTBase(id: string): Promise<void>;
-
-  // ===========================================================================
-  // DECT Handset Methods
-  // ===========================================================================
-
-  /**
-   * Create a new DECT handset on a base station
-   *
-   * @param baseId - DECT base ID
-   * @param data - Handset creation data
-   * @returns Promise resolving to the created handset
-   */
-  createDECTHandset(baseId: string, data: CreateDECTHandsetRequest): Promise<DECTHandset>;
-
-  /**
-   * Get a DECT handset by ID
-   *
-   * @param baseId - DECT base ID
-   * @param handsetId - Handset ID (e.g., 'decth_01abc...')
-   * @returns Promise resolving to the handset
-   */
-  getDECTHandset(baseId: string, handsetId: string): Promise<DECTHandset>;
-
-  /**
-   * List all handsets for a DECT base
-   *
-   * @param baseId - DECT base ID
-   * @returns Promise resolving to an array of handsets
-   */
-  listDECTHandsets(baseId: string): Promise<DECTHandset[]>;
-
-  /**
-   * Update a DECT handset
-   *
-   * @param baseId - DECT base ID
-   * @param handsetId - Handset ID
-   * @param data - Update data
-   * @returns Promise resolving to the updated handset
-   */
-  updateDECTHandset(
-    baseId: string,
-    handsetId: string,
-    data: UpdateDECTHandsetRequest
-  ): Promise<DECTHandset>;
-
-  /**
-   * Delete a DECT handset
-   *
-   * @param baseId - DECT base ID
-   * @param handsetId - Handset ID
-   */
-  deleteDECTHandset(baseId: string, handsetId: string): Promise<void>;
-
-  // ===========================================================================
-  // DECT Extension Methods
-  // ===========================================================================
-
-  /**
-   * Create a DECT extension (assign a SIP line to a handset)
-   *
-   * @param baseId - DECT base ID
-   * @param handsetId - Handset ID
-   * @param data - Extension creation data
-   * @returns Promise resolving to the created extension
-   *
-   * @example
-   * ```typescript
-   * const extension = await dialstack.createDECTExtension(
-   *   'dectb_01abc...',
-   *   'decth_01xyz...',
-   *   { endpoint_id: 'ep_01def...', display_name: 'Line 1' }
-   * );
-   * ```
-   */
-  createDECTExtension(
-    baseId: string,
-    handsetId: string,
-    data: CreateDECTExtensionRequest
-  ): Promise<DECTExtension>;
-
-  /**
-   * List all extensions for a DECT handset
-   *
-   * @param baseId - DECT base ID
-   * @param handsetId - Handset ID
-   * @returns Promise resolving to an array of extensions
-   */
-  listDECTExtensions(baseId: string, handsetId: string): Promise<DECTExtension[]>;
-
-  /**
-   * Delete a DECT extension
-   *
-   * @param baseId - DECT base ID
-   * @param handsetId - Handset ID
-   * @param extensionId - Extension ID
-   */
-  deleteDECTExtension(baseId: string, handsetId: string, extensionId: string): Promise<void>;
-
-  // ===========================================================================
-  // Account Management Methods (session-scoped)
-  // ===========================================================================
-
-  /**
-   * Get the current account details
-   *
-   * @returns Promise resolving to the account
-   */
-  getAccount(): Promise<Account>;
-
-  /**
-   * Update the current account
-   *
-   * @param request - Account update data
-   * @returns Promise resolving to the updated account
-   */
-  updateAccount(request: UpdateAccountRequest): Promise<Account>;
-
-  /**
-   * Create a new user in the current account
-   *
-   * @param request - User creation data
-   * @returns Promise resolving to the created user
-   */
-  createUser(request: CreateUserRequest): Promise<OnboardingUser>;
-
-  /**
-   * List users in the current account
-   *
-   * @param options - Optional pagination options
-   * @returns Promise resolving to an array of users
-   */
-  listUsers(options?: { limit?: number; expand?: string[] }): Promise<OnboardingUser[]>;
-
-  /**
-   * Delete a user
-   *
-   * @param userId - The user ID to delete
-   */
-  deleteUser(userId: string): Promise<void>;
-
-  /**
-   * Create an extension
-   *
-   * @param request - Extension creation data
-   * @returns Promise resolving to the created extension
-   */
-  createExtension(request: CreateExtensionRequest): Promise<Extension>;
-
-  // ===========================================================================
-  // BFF Methods (publishable key auth)
-  // ===========================================================================
-
-  /**
-   * Search for address suggestions via BFF autocomplete
-   *
-   * @param query - Search query (min 3 characters)
-   * @param country - Optional country code (defaults to 'US')
-   * @returns Promise resolving to an array of address suggestions
-   */
-  suggestAddresses(query: string, country?: string): Promise<AddressSuggestion[]>;
-
-  /**
-   * Get detailed place information by place ID
-   *
-   * @param placeId - The place ID from an address suggestion
-   * @returns Promise resolving to the resolved address details
-   */
-  getPlaceDetails(placeId: string): Promise<ResolvedAddress>;
-
-  // ===========================================================================
-  // Location Methods (session-scoped)
-  // ===========================================================================
-
-  /**
-   * Create a new location for the current account
-   *
-   * @param request - Location creation data
-   * @returns Promise resolving to the created location
-   */
-  createLocation(request: CreateLocationRequest): Promise<OnboardingLocation>;
-
-  /**
-   * Update an existing location
-   *
-   * @param locationId - The location ID to update
-   * @param request - Location update data
-   * @returns Promise resolving to the updated location
-   */
-  updateLocation(locationId: string, request: UpdateLocationRequest): Promise<OnboardingLocation>;
-
-  /**
-   * List locations for the current account
-   *
-   * @returns Promise resolving to an array of locations
-   */
-  listLocations(): Promise<OnboardingLocation[]>;
-
-  /**
-   * Get a single location by ID
-   *
-   * @param locationId - The location ID to retrieve
-   * @returns Promise resolving to the location
-   */
-  getLocation(locationId: string): Promise<OnboardingLocation>;
-
-  // ===========================================================================
-  // E911 Methods (session-scoped)
-  // ===========================================================================
-
-  /**
-   * Validate a location's address for E911 emergency services
-   *
-   * @param locationId - The location ID to validate
-   * @returns Promise resolving to the validation result
-   */
-  validateLocationE911(locationId: string): Promise<E911ValidationResult>;
-
-  /**
-   * Provision E911 emergency services for a location
-   *
-   * @param locationId - The location ID to provision
-   * @returns Promise resolving to the updated location
-   */
-  provisionLocationE911(locationId: string): Promise<OnboardingLocation>;
-
-  // ===========================================================================
-  // Endpoint Methods (session-scoped)
-  // ===========================================================================
-
-  /**
-   * Create an endpoint for a user
-   *
-   * @param userId - The user ID
-   * @param request - Optional endpoint creation data
-   * @returns Promise resolving to the created endpoint
-   */
-  createEndpoint(userId: string, request?: CreateEndpointRequest): Promise<OnboardingEndpoint>;
-
-  /**
-   * List endpoints for a user
-   *
-   * @param userId - The user ID
-   * @returns Promise resolving to an array of endpoints
-   */
-  listEndpoints(userId: string): Promise<OnboardingEndpoint[]>;
-
-  /**
-   * Get current appearance options
-   */
+  /** Get current appearance options */
   getAppearance(): AppearanceOptions | undefined;
+
+  // ---------------------------------------------------------------------------
+  // Resource namespaces
+  // ---------------------------------------------------------------------------
+
+  calls: CallsResource;
+  voicemails: VoicemailsResource;
+  phoneNumbers: PhoneNumbersResource;
+  availablePhoneNumbers: AvailablePhoneNumbersResource;
+  phoneNumberOrders: PhoneNumberOrdersResource;
+  portOrders: PortOrdersResource;
+  dialPlans: DialPlansResource;
+  schedules: SchedulesResource;
+  ringGroups: RingGroupsResource;
+  voiceApps: VoiceAppsResource;
+  sharedVoicemailBoxes: SharedVoicemailBoxesResource;
+  extensions: ExtensionsResource;
+  deskphones: DeskphonesResource;
+  devices: DevicesResource;
+  dectBases: DECTBasesResource;
+  account: AccountResource;
+  users: UsersResource;
+  locations: LocationsResource;
+  addresses: AddressesResource;
 }
 
 /**

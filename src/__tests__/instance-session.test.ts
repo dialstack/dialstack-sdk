@@ -40,7 +40,7 @@ describe('DialStackInstanceImplClass session behavior', () => {
       })
     );
 
-    await instance.getAccount();
+    await instance.account.retrieve();
 
     const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toContain('/v1/accounts/acct_01h00000000000000000000000');
@@ -70,7 +70,7 @@ describe('DialStackInstanceImplClass session behavior', () => {
       })
     );
 
-    await instance.updateAccount({ name: 'Updated Name' });
+    await instance.account.update({ name: 'Updated Name' });
 
     const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(options.method).toBe('POST');
@@ -87,7 +87,7 @@ describe('DialStackInstanceImplClass session behavior', () => {
 
     await instance.startSession();
 
-    await expect(instance.getAccount()).rejects.toThrow(
+    await expect(instance.account.retrieve()).rejects.toThrow(
       'DialStack: accountId is required for account-scoped methods. Return { clientSecret, accountId } from fetchClientSecret.'
     );
     expect(mockFetch).not.toHaveBeenCalled();
@@ -108,7 +108,7 @@ describe('DialStackInstanceImplClass session behavior', () => {
     const validationResult = { adjusted: true, address: { house_number: '123', city: 'NY' } };
     mockFetch.mockResolvedValueOnce(mockJsonResponse(validationResult));
 
-    const result = await instance.validateLocationE911('loc_01abc');
+    const result = await instance.locations.validateE911('loc_01abc');
 
     const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toContain('/v1/locations/loc_01abc/validate-e911');
@@ -130,7 +130,7 @@ describe('DialStackInstanceImplClass session behavior', () => {
 
     mockFetch.mockResolvedValueOnce(mockJsonResponse({ error: 'not found' }, 404));
 
-    await expect(instance.validateLocationE911('loc_bad')).rejects.toThrow(
+    await expect(instance.locations.validateE911('loc_bad')).rejects.toThrow(
       'Failed to validate E911 address: 404'
     );
   });
@@ -158,7 +158,7 @@ describe('DialStackInstanceImplClass session behavior', () => {
     };
     mockFetch.mockResolvedValueOnce(mockJsonResponse(locationData));
 
-    const result = await instance.provisionLocationE911('loc_01abc');
+    const result = await instance.locations.provisionE911('loc_01abc');
 
     const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toContain('/v1/locations/loc_01abc/provision-e911');
@@ -180,7 +180,7 @@ describe('DialStackInstanceImplClass session behavior', () => {
 
     mockFetch.mockResolvedValueOnce(mockJsonResponse({ error: 'bad gateway' }, 502));
 
-    await expect(instance.provisionLocationE911('loc_bad')).rejects.toThrow(
+    await expect(instance.locations.provisionE911('loc_bad')).rejects.toThrow(
       'Failed to provision E911: 502'
     );
   });

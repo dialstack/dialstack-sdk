@@ -65,7 +65,7 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ accountEmail, onBack, 
     setIsAddingUser(true);
 
     try {
-      const user = await dialstack.createUser({
+      const user = await dialstack.users.create({
         name: newUserName.trim(),
         email: newUserEmail.trim(),
       });
@@ -73,13 +73,13 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ accountEmail, onBack, 
       const extNumber = newUserExtension.trim() || getNextExtensionNumber(contextExtensions);
 
       try {
-        await dialstack.createExtension({
+        await dialstack.extensions.create({
           number: extNumber,
           target: user.id,
         });
       } catch (extErr) {
         // Roll back user creation on extension failure
-        await dialstack.deleteUser(user.id).catch(() => {});
+        await dialstack.users.del(user.id).catch(() => {});
         throw extErr;
       }
 
@@ -114,7 +114,7 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ accountEmail, onBack, 
       if (deletingUserId) return;
       setDeletingUserId(userId);
       try {
-        await dialstack.deleteUser(userId);
+        await dialstack.users.del(userId);
         await reloadSharedData();
       } catch (err) {
         setUserError(err instanceof Error ? err.message : String(err));

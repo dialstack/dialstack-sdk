@@ -126,83 +126,52 @@ export const mockMatchingDID = {
 // Mock instance factory
 // ============================================================================
 
-export interface MockInstanceOverrides {
-  [key: string]: unknown;
+/** Recursive partial type for overriding nested namespace methods. */
+export type MockInstanceOverrides = {
+  [K in keyof DialStackInstance]?: DialStackInstance[K] extends object
+    ? { [M in keyof DialStackInstance[K]]?: unknown }
+    : unknown;
+};
+
+/** Deep-merge overrides into base, so partial namespace overrides don't clobber siblings. */
+function deepMerge(
+  target: Record<string, unknown>,
+  source: Record<string, unknown>
+): Record<string, unknown> {
+  const result = { ...target };
+  for (const key of Object.keys(source)) {
+    const srcVal = source[key];
+    const tgtVal = target[key];
+    if (
+      srcVal &&
+      tgtVal &&
+      typeof srcVal === 'object' &&
+      typeof tgtVal === 'object' &&
+      !jest.isMockFunction(srcVal)
+    ) {
+      result[key] = deepMerge(tgtVal as Record<string, unknown>, srcVal as Record<string, unknown>);
+    } else {
+      result[key] = srcVal;
+    }
+  }
+  return result;
 }
 
 /**
  * Creates a jest.fn()-based mock DialStackInstance with sensible defaults.
- * Pass overrides to customize individual methods.
+ * Pass overrides to customize individual methods — partial namespace overrides
+ * are deep-merged so sibling methods are preserved.
  */
 export function createMockInstance(overrides?: MockInstanceOverrides): DialStackInstance {
   const base = {
-    getAccount: jest.fn().mockResolvedValue(mockAccount),
-    updateAccount: jest.fn().mockResolvedValue(mockAccount),
-    listUsers: jest.fn().mockResolvedValue(mockUsers),
-    listExtensions: jest.fn().mockResolvedValue(mockExtensions),
-    listLocations: jest.fn().mockResolvedValue([mockLocation]),
-    createUser: jest.fn().mockImplementation(async (data: { name: string; email: string }) => ({
-      id: 'user_new',
-      name: data.name,
-      email: data.email,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })),
-    deleteUser: jest.fn().mockResolvedValue(undefined),
-    createExtension: jest.fn().mockResolvedValue({
-      number: '1002',
-      target: 'user_new',
-      status: 'active',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }),
-    createLocation: jest.fn().mockImplementation(async (data: unknown) => ({
-      id: 'loc_new',
-      ...(data as Record<string, unknown>),
-      status: 'active',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })),
-    updateLocation: jest.fn().mockResolvedValue(mockLocation),
-    suggestAddresses: jest.fn().mockResolvedValue([]),
-    getPlaceDetails: jest.fn().mockResolvedValue({}),
-    listDevices: jest.fn().mockResolvedValue([]),
-    listDECTBases: jest.fn().mockResolvedValue([]),
-    listEndpoints: jest.fn().mockResolvedValue([]),
-    listDECTHandsets: jest.fn().mockResolvedValue([]),
-    listDeskphoneLines: jest.fn().mockResolvedValue([]),
-    createEndpoint: jest.fn().mockImplementation(async (userId: string) => ({
-      id: 'ep_new_' + Math.random().toString(36).slice(2, 8),
-      user_id: userId,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })),
-    createDeskphoneLine: jest
-      .fn()
-      .mockImplementation(async (deskphoneId: string, data: { endpoint_id: string }) => ({
-        id: 'dln_new',
-        device_id: deskphoneId,
-        line_number: 1,
-        endpoint_id: data.endpoint_id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })),
-    deleteDeskphoneLine: jest.fn().mockResolvedValue(undefined),
-    createDECTExtension: jest.fn().mockResolvedValue({
-      id: 'decte_new',
-      handset_id: 'hs_01',
-      endpoint_id: 'ep_01abc',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }),
-    deleteDECTExtension: jest.fn().mockResolvedValue(undefined),
-    listPhoneNumbers: jest.fn().mockResolvedValue({
-      object: 'list',
-      data: [mockDID],
-      next_page_url: null,
-      previous_page_url: null,
-    }),
-    updatePhoneNumber: jest.fn().mockResolvedValue(mockDID),
+    create: jest.fn(),
+    update: jest.fn(),
+    logout: jest.fn().mockResolvedValue(undefined),
+    fetchApi: jest.fn(),
+    on: jest.fn(),
+    off: jest.fn(),
+    resolveRoutingTarget: jest.fn().mockResolvedValue(null),
+    getAppearance: jest.fn(),
     fetchAllPages: jest
       .fn()
       .mockImplementation(
@@ -211,46 +180,212 @@ export function createMockInstance(overrides?: MockInstanceOverrides): DialStack
           return result.data;
         }
       ),
-    searchAvailableNumbers: jest.fn().mockResolvedValue({ data: [] }),
-    createNumberOrder: jest.fn().mockResolvedValue({
-      id: 'order_01',
-      status: 'pending',
-      phone_numbers: [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }),
-    listNumberOrders: jest.fn().mockResolvedValue({
-      object: 'list',
-      data: [],
-      next_page_url: null,
-      previous_page_url: null,
-    }),
-    listPortOrders: jest.fn().mockResolvedValue({
-      object: 'list',
-      data: [],
-      next_page_url: null,
-      previous_page_url: null,
-    }),
-    createPortOrder: jest.fn().mockResolvedValue({
-      id: 'port_01',
-      status: 'draft',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }),
-    approvePortOrder: jest.fn().mockResolvedValue(undefined),
-    submitPortOrder: jest.fn().mockResolvedValue(undefined),
-    uploadCSR: jest.fn().mockResolvedValue(undefined),
-    uploadBillCopy: jest.fn().mockResolvedValue(undefined),
-    checkPortEligibility: jest.fn().mockResolvedValue({ eligible: true, phone_numbers: [] }),
-    deleteDeskphone: jest.fn().mockResolvedValue(undefined),
-    getPhoneNumber: jest.fn().mockResolvedValue(mockDID),
-    create: jest.fn(),
-    update: jest.fn(),
-    logout: jest.fn().mockResolvedValue(undefined),
-    ...overrides,
+    calls: {
+      create: jest.fn().mockResolvedValue(undefined),
+      retrieve: jest.fn().mockResolvedValue({}),
+      transcripts: { retrieve: jest.fn().mockResolvedValue({}) },
+    },
+    voicemails: {
+      retrieveTranscript: jest.fn().mockResolvedValue({}),
+    },
+    phoneNumbers: {
+      retrieve: jest.fn().mockResolvedValue(mockDID),
+      list: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [mockDID],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+      update: jest.fn().mockResolvedValue(mockDID),
+      updateRoute: jest.fn().mockResolvedValue(mockDID),
+    },
+    availablePhoneNumbers: {
+      search: jest.fn().mockResolvedValue([]),
+    },
+    phoneNumberOrders: {
+      create: jest.fn().mockResolvedValue({
+        id: 'order_01',
+        status: 'pending',
+        phone_numbers: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+      retrieve: jest.fn().mockResolvedValue({}),
+      list: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+    },
+    portOrders: {
+      create: jest.fn().mockResolvedValue({
+        id: 'port_01',
+        status: 'draft',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+      retrieve: jest.fn().mockResolvedValue({}),
+      list: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+      approve: jest.fn().mockResolvedValue({
+        id: 'port_01',
+        status: 'approved',
+        details: {},
+        submitted_at: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+      submit: jest.fn().mockResolvedValue({
+        id: 'port_01',
+        status: 'submitted',
+        details: {},
+        submitted_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+      cancel: jest.fn().mockResolvedValue({
+        id: 'port_01',
+        status: 'cancelled',
+        details: {},
+        submitted_at: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+      checkEligibility: jest
+        .fn()
+        .mockResolvedValue({ portable_numbers: [], non_portable_numbers: [] }),
+      uploadCSR: jest.fn().mockResolvedValue(undefined),
+      uploadBillCopy: jest.fn().mockResolvedValue(undefined),
+      downloadCSR: jest.fn().mockResolvedValue(new Blob()),
+      downloadBillCopy: jest.fn().mockResolvedValue(new Blob()),
+    },
+    dialPlans: {
+      retrieve: jest.fn().mockResolvedValue({}),
+      list: jest.fn().mockResolvedValue([]),
+      create: jest.fn().mockResolvedValue({}),
+      update: jest.fn().mockResolvedValue({}),
+    },
+    schedules: {
+      retrieve: jest.fn().mockResolvedValue({}),
+      list: jest.fn().mockResolvedValue([]),
+    },
+    ringGroups: { list: jest.fn().mockResolvedValue([]) },
+    voiceApps: { list: jest.fn().mockResolvedValue([]) },
+    sharedVoicemailBoxes: { list: jest.fn().mockResolvedValue([]) },
+    extensions: {
+      list: jest.fn().mockResolvedValue(mockExtensions),
+      create: jest.fn().mockResolvedValue({
+        number: '1002',
+        target: 'user_new',
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+    },
+    deskphones: {
+      create: jest.fn().mockResolvedValue({}),
+      update: jest.fn().mockResolvedValue({}),
+      del: jest.fn().mockResolvedValue(undefined),
+      lines: {
+        create: jest
+          .fn()
+          .mockImplementation(async (deskphoneId: string, data: { endpoint_id: string }) => ({
+            id: 'dln_new',
+            device_id: deskphoneId,
+            line_number: 1,
+            endpoint_id: data.endpoint_id,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })),
+        list: jest.fn().mockResolvedValue([]),
+        update: jest.fn().mockResolvedValue({}),
+        del: jest.fn().mockResolvedValue(undefined),
+      },
+      provisioningEvents: { list: jest.fn().mockResolvedValue([]) },
+    },
+    devices: {
+      retrieve: jest.fn().mockResolvedValue({}),
+      list: jest.fn().mockResolvedValue([]),
+    },
+    dectBases: {
+      create: jest.fn().mockResolvedValue({}),
+      retrieve: jest.fn().mockResolvedValue({}),
+      list: jest.fn().mockResolvedValue([]),
+      update: jest.fn().mockResolvedValue({}),
+      del: jest.fn().mockResolvedValue(undefined),
+      handsets: {
+        create: jest.fn().mockResolvedValue({}),
+        retrieve: jest.fn().mockResolvedValue({}),
+        list: jest.fn().mockResolvedValue([]),
+        update: jest.fn().mockResolvedValue({}),
+        del: jest.fn().mockResolvedValue(undefined),
+      },
+      extensions: {
+        create: jest.fn().mockResolvedValue({
+          id: 'decte_new',
+          handset_id: 'hs_01',
+          endpoint_id: 'ep_01abc',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }),
+        list: jest.fn().mockResolvedValue([]),
+        del: jest.fn().mockResolvedValue(undefined),
+      },
+    },
+    account: {
+      retrieve: jest.fn().mockResolvedValue(mockAccount),
+      update: jest.fn().mockResolvedValue(mockAccount),
+    },
+    users: {
+      create: jest.fn().mockImplementation(async (data: { name: string; email: string }) => ({
+        id: 'user_new',
+        name: data.name,
+        email: data.email,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })),
+      list: jest.fn().mockResolvedValue(mockUsers),
+      del: jest.fn().mockResolvedValue(undefined),
+      endpoints: {
+        create: jest.fn().mockImplementation(async (userId: string) => ({
+          id: 'ep_new_' + Math.random().toString(36).slice(2, 8),
+          user_id: userId,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })),
+        list: jest.fn().mockResolvedValue([]),
+      },
+    },
+    locations: {
+      create: jest.fn().mockImplementation(async (data: unknown) => ({
+        id: 'loc_new',
+        ...(data as Record<string, unknown>),
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })),
+      retrieve: jest.fn().mockResolvedValue(mockLocation),
+      list: jest.fn().mockResolvedValue([mockLocation]),
+      update: jest.fn().mockResolvedValue(mockLocation),
+      validateE911: jest.fn().mockResolvedValue({ valid: true }),
+      provisionE911: jest.fn().mockResolvedValue(mockLocation),
+    },
+    addresses: {
+      suggest: jest.fn().mockResolvedValue([]),
+      getPlaceDetails: jest.fn().mockResolvedValue({}),
+    },
   };
 
-  return base as unknown as DialStackInstance;
+  const merged = overrides
+    ? deepMerge(base as Record<string, unknown>, overrides as Record<string, unknown>)
+    : base;
+
+  return merged as unknown as DialStackInstance;
 }
 
 // ============================================================================
@@ -329,15 +464,16 @@ export async function renderWithOnboarding(
   // Resolve shared data: explicit sharedData overrides take priority, then
   // we extract from instanceOverrides mock return values, finally defaults.
   const resolvedAccount =
-    sharedData?.account ?? (await resolveJestMockValue(instanceOverrides?.getAccount, mockAccount));
+    sharedData?.account ??
+    (await resolveJestMockValue(instanceOverrides?.account?.retrieve, mockAccount));
   const resolvedUsers =
-    sharedData?.users ?? (await resolveJestMockValue(instanceOverrides?.listUsers, mockUsers));
+    sharedData?.users ?? (await resolveJestMockValue(instanceOverrides?.users?.list, mockUsers));
   const resolvedExtensions =
     sharedData?.extensions ??
-    (await resolveJestMockValue(instanceOverrides?.listExtensions, mockExtensions));
+    (await resolveJestMockValue(instanceOverrides?.extensions?.list, mockExtensions));
   const resolvedLocations =
     sharedData?.locations ??
-    (await resolveJestMockValue(instanceOverrides?.listLocations, [mockLocation]));
+    (await resolveJestMockValue(instanceOverrides?.locations?.list, [mockLocation]));
 
   const Wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
     <DialstackComponentsProvider dialstack={instance}>

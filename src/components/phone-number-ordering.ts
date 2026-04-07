@@ -643,7 +643,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
         options.areaCode = this.searchValue;
       }
 
-      this.availableNumbers = await this.instance.searchAvailableNumbers(options);
+      this.availableNumbers = await this.instance.availablePhoneNumbers.search(options);
       this.selectedNumbers = new Set();
       this.step = 'results';
     } catch (err) {
@@ -667,7 +667,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     this.render();
 
     try {
-      const order = await this.instance.createPhoneNumberOrder([...this.selectedNumbers]);
+      const order = await this.instance.phoneNumberOrders.create([...this.selectedNumbers]);
       this.order = order;
       this.step = 'complete';
       this.render();
@@ -719,7 +719,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     this.pollTimer = setTimeout(async () => {
       this.pollCount++;
       try {
-        const order = await this.instance!.getPhoneNumberOrder(orderId);
+        const order = await this.instance!.phoneNumberOrders.retrieve(orderId);
         this.order = order;
         this.render();
 

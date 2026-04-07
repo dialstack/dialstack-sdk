@@ -251,7 +251,7 @@ async function fetchResourceMaps(
     Promise.all(
       Array.from(scheduleIds).map(async (id) => {
         try {
-          return await dialstack.getSchedule(id);
+          return await dialstack.schedules.retrieve(id);
         } catch {
           return null;
         }
@@ -415,7 +415,7 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
       callbacksRef.current.onLoaderStart?.();
 
       try {
-        const data = await dialstack.getDialPlan(dialPlanId!);
+        const data = await dialstack.dialPlans.retrieve(dialPlanId!);
         if (cancelled) return;
 
         // Resolve referenced resources (schedules, users, extensions)
@@ -765,24 +765,24 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
         const expand = { expand: ['extensions'] as string[] };
         switch (type) {
           case 'schedule':
-            return await dialstack.listSchedules();
+            return await dialstack.schedules.list();
           case 'user':
-            return (await dialstack.listUsers(expand)).map((u) => ({
+            return (await dialstack.users.list(expand)).map((u) => ({
               id: u.id,
               name: u.name || locale.combobox.noName,
               extension_number: u.extensions?.data?.[0]?.number,
             }));
           case 'ring_group':
-            return await dialstack.listRingGroups(expand);
+            return await dialstack.ringGroups.list(expand);
           case 'dial_plan': {
-            const all = await dialstack.listDialPlans(expand);
+            const all = await dialstack.dialPlans.list(expand);
             const currentId = dialPlanMeta?.id ?? dialPlanId;
             return all.filter((p) => p.id !== currentId);
           }
           case 'voice_app':
-            return await dialstack.listVoiceApps(expand);
+            return await dialstack.voiceApps.list(expand);
           case 'shared_voicemail':
-            return await dialstack.listSharedVoicemailBoxes();
+            return await dialstack.sharedVoicemailBoxes.list();
           default:
             return [];
         }
@@ -800,8 +800,8 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
       const currentEdges = edgesRef.current;
       const payload = transformGraphToDialPlan(currentNodes, currentEdges, defaultRegistry);
       const saved = dialPlanId
-        ? await dialstack.updateDialPlan(dialPlanId, payload)
-        : await dialstack.createDialPlan(payload);
+        ? await dialstack.dialPlans.update(dialPlanId, payload)
+        : await dialstack.dialPlans.create(payload);
       initialGraphRef.current = { nodes: [...currentNodes], edges: [...currentEdges] };
       setIsDirty(false);
       callbacksRef.current.onDirtyChange?.(false);

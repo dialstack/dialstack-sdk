@@ -143,9 +143,9 @@ export class PhoneNumbersComponent extends BaseComponent {
       // Fetch all three sources in parallel — use allSettled so partial failures
       // (e.g. port orders endpoint unavailable) don't block the entire component
       const [didsResult, ordersResult, portsResult] = await Promise.allSettled([
-        this.fetchAllPages<DIDItem>((opts) => this.instance!.listPhoneNumbers(opts)),
-        this.fetchAllPages<NumberOrder>((opts) => this.instance!.listNumberOrders(opts)),
-        this.fetchAllPages<PortOrder>((opts) => this.instance!.listPortOrders(opts)),
+        this.fetchAllPages<DIDItem>((opts) => this.instance!.phoneNumbers.list(opts)),
+        this.fetchAllPages<NumberOrder>((opts) => this.instance!.phoneNumberOrders.list(opts)),
+        this.fetchAllPages<PortOrder>((opts) => this.instance!.portOrders.list(opts)),
       ]);
 
       // DIDs are required — if they fail, show an error

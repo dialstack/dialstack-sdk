@@ -347,7 +347,10 @@ export class VoicemailsComponent extends BaseComponent {
     this.updateTranscriptUI();
 
     try {
-      const transcript = await this.instance.getVoicemailTranscript(this.userId, voicemailId);
+      const transcript = await this.instance.voicemails.retrieveTranscript(
+        this.userId,
+        voicemailId
+      );
       this.transcriptCache.set(voicemailId, { status: transcript.status, text: transcript.text });
     } catch {
       this.transcriptCache.set(voicemailId, { status: 'failed', text: null });
@@ -672,7 +675,7 @@ export class VoicemailsComponent extends BaseComponent {
     if (!this.instance || !this.userId) return;
 
     try {
-      await this.instance.initiateCall(this.userId, phoneNumber);
+      await this.instance.calls.create({ userId: this.userId, dialString: phoneNumber });
       // Fire callback after successful initiation
       this._onCallBack?.({ phoneNumber });
     } catch (err) {

@@ -173,7 +173,7 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
         ...(timezone ? { timezone } : {}),
       };
 
-      await dialstack.updateAccount({
+      await dialstack.account.update({
         email: accountEmail.trim(),
         name: accountName.trim(),
         phone: parsed.number,
@@ -204,9 +204,9 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
         const locationPayload = { name: locationName.trim(), address };
 
         if (editingLocationId) {
-          await dialstack.updateLocation(editingLocationId, locationPayload);
+          await dialstack.locations.update(editingLocationId, locationPayload);
         } else {
-          await dialstack.createLocation(locationPayload);
+          await dialstack.locations.create(locationPayload);
         }
       } else if (
         existingLocation.name !== locationName.trim() ||
@@ -215,7 +215,7 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
         (existingLocation.address?.state ?? '') !== manualAddress.state.trim() ||
         (existingLocation.address?.postal_code ?? '') !== manualAddress.postalCode.trim()
       ) {
-        await dialstack.updateLocation(existingLocation.id, {
+        await dialstack.locations.update(existingLocation.id, {
           name: locationName.trim(),
           address: {
             address_number: manualAddress.addressNumber.trim() || undefined,
@@ -360,8 +360,8 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
             onAddressResolved={handleAddressResolved}
             onManualAddressChange={setManualAddress}
             onEditAddress={handleEditAddress}
-            suggestAddresses={dialstack.suggestAddresses.bind(dialstack)}
-            getPlaceDetails={dialstack.getPlaceDetails.bind(dialstack)}
+            suggestAddresses={dialstack.addresses.suggest}
+            getPlaceDetails={dialstack.addresses.getPlaceDetails}
             locale={t.location}
           />
           {validationErrors.address && <div className="form-error">{validationErrors.address}</div>}

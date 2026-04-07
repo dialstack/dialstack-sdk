@@ -2053,7 +2053,7 @@ export const MultiCarrierPort: Story = {
   render: () => {
     const rawInstance = createMockInstance({ theme: 'light' });
     // Override checkPortEligibility to return multi-carrier results
-    rawInstance.checkPortEligibility = async () => ({
+    rawInstance.portOrders.checkEligibility = async () => ({
       portable_numbers: [
         {
           phone_number: '+12125551001',

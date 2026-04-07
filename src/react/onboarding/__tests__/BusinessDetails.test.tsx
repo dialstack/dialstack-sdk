@@ -60,6 +60,38 @@ describe('BusinessDetails', () => {
     fireEvent.click(nextBtn);
   }
 
+  /** Build a locations namespace override with sensible defaults. */
+  function locationsNS(overrides: Record<string, unknown> = {}) {
+    return {
+      locations: {
+        list: jest.fn().mockResolvedValue([mockLocation]),
+        create: jest.fn().mockResolvedValue({
+          id: 'loc_new',
+          name: 'New',
+          status: 'active',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }),
+        retrieve: jest.fn().mockResolvedValue(mockLocation),
+        update: jest.fn().mockResolvedValue(mockLocation),
+        validateE911: jest.fn().mockResolvedValue({ valid: true }),
+        provisionE911: jest.fn().mockResolvedValue(mockLocation),
+        ...overrides,
+      },
+    };
+  }
+
+  /** Build an account namespace override with sensible defaults. */
+  function accountNS(overrides: Record<string, unknown> = {}) {
+    return {
+      account: {
+        retrieve: jest.fn().mockResolvedValue(mockAccount),
+        update: jest.fn().mockResolvedValue(mockAccount),
+        ...overrides,
+      },
+    };
+  }
+
   // ==========================================================================
   // Pre-population tests
   // ==========================================================================
@@ -94,7 +126,7 @@ describe('BusinessDetails', () => {
 
   it('pre-populates location name from existing location data', async () => {
     const { container } = await renderBD({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([mockLocation]) }),
     });
 
     const nameInput = getFieldByLabel(container, 'Location Name') as HTMLInputElement;
@@ -103,7 +135,7 @@ describe('BusinessDetails', () => {
 
   it('shows confirmed address card when existing location is loaded', async () => {
     const { container } = await renderBD({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([mockLocation]) }),
     });
 
     expect(container.querySelector('.address-confirmed')).not.toBeNull();
@@ -115,7 +147,7 @@ describe('BusinessDetails', () => {
 
   it('validates company name required', async () => {
     await renderBD({
-      getAccount: jest.fn().mockResolvedValue({ ...mockAccount, name: null }),
+      ...accountNS({ retrieve: jest.fn().mockResolvedValue({ ...mockAccount, name: null }) }),
     });
 
     clickNext();
@@ -127,7 +159,7 @@ describe('BusinessDetails', () => {
 
   it('validates email required', async () => {
     await renderBD({
-      getAccount: jest.fn().mockResolvedValue({ ...mockAccount, email: null }),
+      ...accountNS({ retrieve: jest.fn().mockResolvedValue({ ...mockAccount, email: null }) }),
     });
 
     clickNext();
@@ -139,7 +171,7 @@ describe('BusinessDetails', () => {
 
   it('validates phone number required', async () => {
     await renderBD({
-      getAccount: jest.fn().mockResolvedValue({ ...mockAccount, phone: null }),
+      ...accountNS({ retrieve: jest.fn().mockResolvedValue({ ...mockAccount, phone: null }) }),
     });
 
     clickNext();
@@ -151,7 +183,9 @@ describe('BusinessDetails', () => {
 
   it('validates primary contact required', async () => {
     await renderBD({
-      getAccount: jest.fn().mockResolvedValue({ ...mockAccount, primary_contact_name: null }),
+      ...accountNS({
+        retrieve: jest.fn().mockResolvedValue({ ...mockAccount, primary_contact_name: null }),
+      }),
     });
 
     clickNext();
@@ -163,7 +197,7 @@ describe('BusinessDetails', () => {
 
   it('validates phone number format', async () => {
     await renderBD({
-      getAccount: jest.fn().mockResolvedValue({ ...mockAccount, phone: '123' }),
+      ...accountNS({ retrieve: jest.fn().mockResolvedValue({ ...mockAccount, phone: '123' }) }),
     });
 
     clickNext();
@@ -175,7 +209,7 @@ describe('BusinessDetails', () => {
 
   it('validates location name required', async () => {
     const { container } = await renderBD({
-      listLocations: jest.fn().mockResolvedValue([]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([]) }),
     });
 
     // Clear the pre-populated location name
@@ -190,7 +224,7 @@ describe('BusinessDetails', () => {
 
   it('validates address required when location name is filled but no address', async () => {
     const { container } = await renderBD({
-      listLocations: jest.fn().mockResolvedValue([]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([]) }),
     });
 
     fireEvent.change(getFieldByLabel(container, 'Location Name'), { target: { value: 'HQ' } });
@@ -204,8 +238,8 @@ describe('BusinessDetails', () => {
 
   it('validates timezone required when no timezone is set', async () => {
     await renderBD({
-      getAccount: jest.fn().mockResolvedValue({ ...mockAccount, config: {} }),
-      listLocations: jest.fn().mockResolvedValue([]),
+      ...accountNS({ retrieve: jest.fn().mockResolvedValue({ ...mockAccount, config: {} }) }),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([]) }),
       __accountConfig: { region: 'us-east', extension_length: 4 } as AccountConfig,
     });
 
@@ -222,25 +256,25 @@ describe('BusinessDetails', () => {
 
   it('calls updateAccount on successful save', async () => {
     const { instance } = await renderBD({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([mockLocation]) }),
     });
 
     clickNext();
 
     await waitFor(() => {
-      expect(instance.updateAccount).toHaveBeenCalled();
+      expect(instance.account.update).toHaveBeenCalled();
     });
   });
 
   it('includes all fields in updateAccount call', async () => {
     const { instance } = await renderBD({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([mockLocation]) }),
     });
 
     clickNext();
 
     await waitFor(() => {
-      const call = (instance.updateAccount as jest.Mock).mock.calls[0]?.[0];
+      const call = (instance.account.update as jest.Mock).mock.calls[0]?.[0];
       expect(call.name).toBe('Acme Corp');
       expect(call.email).toBe('existing@example.com');
       expect(call.phone).toBe('+12125550100');
@@ -250,17 +284,19 @@ describe('BusinessDetails', () => {
 
   it('preserves existing config fields when saving', async () => {
     const { instance } = await renderBD({
-      getAccount: jest.fn().mockResolvedValue({
-        ...mockAccount,
-        config: { region: 'us-east', extension_length: 4, timezone: 'America/New_York' },
+      ...accountNS({
+        retrieve: jest.fn().mockResolvedValue({
+          ...mockAccount,
+          config: { region: 'us-east', extension_length: 4, timezone: 'America/New_York' },
+        }),
       }),
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([mockLocation]) }),
     });
 
     clickNext();
 
     await waitFor(() => {
-      const call = (instance.updateAccount as jest.Mock).mock.calls[0]?.[0];
+      const call = (instance.account.update as jest.Mock).mock.calls[0]?.[0];
       expect(call.config.region).toBe('us-east');
       expect(call.config.extension_length).toBe(4);
       expect(call.config.timezone).toBe('America/New_York');
@@ -269,7 +305,7 @@ describe('BusinessDetails', () => {
 
   it('calls onAdvance with email after successful save', async () => {
     await renderBD({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([mockLocation]) }),
     });
 
     clickNext();
@@ -281,7 +317,7 @@ describe('BusinessDetails', () => {
 
   it('completes the business-details sub-step in progressStore', async () => {
     const { progressStore } = await renderBD({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([mockLocation]) }),
     });
 
     clickNext();
@@ -297,7 +333,7 @@ describe('BusinessDetails', () => {
 
   it('renders address search input by default (no existing location)', async () => {
     await renderBD({
-      listLocations: jest.fn().mockResolvedValue([]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([]) }),
     });
 
     expect(screen.getByPlaceholderText('Start typing an address...')).toBeTruthy();
@@ -306,7 +342,7 @@ describe('BusinessDetails', () => {
 
   it('switches to manual fields when "Enter manually" is clicked', async () => {
     const { container } = await renderBD({
-      listLocations: jest.fn().mockResolvedValue([]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([]) }),
     });
 
     fireEvent.click(screen.getByText('Enter manually'));
@@ -321,7 +357,7 @@ describe('BusinessDetails', () => {
 
   it('switches back to search when "Search instead" is clicked', async () => {
     await renderBD({
-      listLocations: jest.fn().mockResolvedValue([]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([]) }),
     });
 
     fireEvent.click(screen.getByText('Enter manually'));
@@ -339,7 +375,7 @@ describe('BusinessDetails', () => {
 
   it('shows edit button on confirmed address', async () => {
     await renderBD({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([mockLocation]) }),
     });
 
     expect(screen.getByText('Edit')).toBeTruthy();
@@ -347,7 +383,7 @@ describe('BusinessDetails', () => {
 
   it('switches to edit mode when Edit is clicked on confirmed address', async () => {
     const { container } = await renderBD({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([mockLocation]) }),
     });
 
     fireEvent.click(screen.getByText('Edit'));
@@ -363,7 +399,7 @@ describe('BusinessDetails', () => {
 
   it('calls createLocation with manual address data on save', async () => {
     const { container, instance } = await renderBD({
-      listLocations: jest.fn().mockResolvedValue([]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([]) }),
     });
 
     // Fill location name
@@ -391,7 +427,7 @@ describe('BusinessDetails', () => {
     clickNext();
 
     await waitFor(() => {
-      expect(instance.createLocation).toHaveBeenCalledWith({
+      expect(instance.locations.create).toHaveBeenCalledWith({
         name: 'HQ',
         address: {
           address_number: '456',
@@ -407,16 +443,16 @@ describe('BusinessDetails', () => {
 
   it('skips createLocation when an existing location is loaded', async () => {
     const { instance } = await renderBD({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([mockLocation]) }),
     });
 
     clickNext();
 
     await waitFor(() => {
-      expect(instance.updateAccount).toHaveBeenCalled();
+      expect(instance.account.update).toHaveBeenCalled();
     });
 
-    expect(instance.createLocation).not.toHaveBeenCalled();
+    expect(instance.locations.create).not.toHaveBeenCalled();
   });
 
   it('calls updateLocation when location name changes on existing location', async () => {
@@ -424,8 +460,10 @@ describe('BusinessDetails', () => {
       .fn()
       .mockResolvedValue({ ...mockLocation, name: 'Renamed Office' });
     const { container, instance } = await renderBD({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
-      updateLocation: updateLocationMock,
+      ...locationsNS({
+        list: jest.fn().mockResolvedValue([mockLocation]),
+        update: updateLocationMock,
+      }),
     });
 
     // Change location name
@@ -442,7 +480,7 @@ describe('BusinessDetails', () => {
       );
     });
 
-    expect(instance.createLocation).not.toHaveBeenCalled();
+    expect(instance.locations.create).not.toHaveBeenCalled();
   });
 
   it('calls updateLocation after editing a confirmed address', async () => {
@@ -458,8 +496,10 @@ describe('BusinessDetails', () => {
       },
     });
     const { container } = await renderBD({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
-      updateLocation: updateLocationMock,
+      ...locationsNS({
+        list: jest.fn().mockResolvedValue([mockLocation]),
+        update: updateLocationMock,
+      }),
     });
 
     // Click edit on confirmed address
@@ -501,8 +541,10 @@ describe('BusinessDetails', () => {
   it('uses updateLocation (not createLocation) when editing confirmed address', async () => {
     const updateLocationMock = jest.fn().mockResolvedValue(mockLocation);
     const { container, instance } = await renderBD({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
-      updateLocation: updateLocationMock,
+      ...locationsNS({
+        list: jest.fn().mockResolvedValue([mockLocation]),
+        update: updateLocationMock,
+      }),
     });
 
     // Click edit
@@ -527,7 +569,7 @@ describe('BusinessDetails', () => {
       expect(updateLocationMock).toHaveBeenCalled();
     });
 
-    expect(instance.createLocation).not.toHaveBeenCalled();
+    expect(instance.locations.create).not.toHaveBeenCalled();
   });
 
   it('reads locations from shared context (no direct listLocations call)', async () => {
@@ -535,7 +577,7 @@ describe('BusinessDetails', () => {
 
     // BusinessDetails reads locations from OnboardingContext (pre-fetched at portal level),
     // so it should NOT call listLocations directly.
-    expect(instance.listLocations).not.toHaveBeenCalled();
+    expect(instance.locations.list).not.toHaveBeenCalled();
   });
 
   // ==========================================================================
@@ -544,7 +586,7 @@ describe('BusinessDetails', () => {
 
   it('displays readonly timezone when address is confirmed', async () => {
     await renderBD({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([mockLocation]) }),
     });
 
     expect(screen.getByText(/Eastern/)).toBeTruthy();
@@ -552,7 +594,7 @@ describe('BusinessDetails', () => {
 
   it('shows timezone dropdown after editing a confirmed address', async () => {
     const { container } = await renderBD({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([mockLocation]) }),
     });
 
     fireEvent.click(screen.getByText('Edit'));
@@ -565,7 +607,7 @@ describe('BusinessDetails', () => {
 
   it('preserves timezone value when editing a confirmed address', async () => {
     const { container } = await renderBD({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([mockLocation]) }),
     });
 
     fireEvent.click(screen.getByText('Edit'));
@@ -578,7 +620,7 @@ describe('BusinessDetails', () => {
 
   it('allows changing timezone via select after editing address', async () => {
     const { container, instance } = await renderBD({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([mockLocation]) }),
     });
 
     fireEvent.click(screen.getByText('Edit'));
@@ -600,18 +642,20 @@ describe('BusinessDetails', () => {
     clickNext();
 
     await waitFor(() => {
-      const call = (instance.updateAccount as jest.Mock).mock.calls[0]?.[0];
+      const call = (instance.account.update as jest.Mock).mock.calls[0]?.[0];
       expect(call.config.timezone).toBe('America/Chicago');
     });
   });
 
   it('preserves timezone when switching between address modes', async () => {
     const { container } = await renderBD({
-      getAccount: jest.fn().mockResolvedValue({
-        ...mockAccount,
-        config: { timezone: 'America/New_York' },
+      ...accountNS({
+        retrieve: jest.fn().mockResolvedValue({
+          ...mockAccount,
+          config: { timezone: 'America/New_York' },
+        }),
       }),
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([mockLocation]) }),
     });
 
     // Edit confirmed address
@@ -640,8 +684,8 @@ describe('BusinessDetails', () => {
 
   it('shows timezone placeholder when account has no timezone', async () => {
     const { container } = await renderBD({
-      getAccount: jest.fn().mockResolvedValue({ ...mockAccount, config: {} }),
-      listLocations: jest.fn().mockResolvedValue([]),
+      ...accountNS({ retrieve: jest.fn().mockResolvedValue({ ...mockAccount, config: {} }) }),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([]) }),
       __accountConfig: { region: 'us-east', extension_length: 4 } as AccountConfig,
     });
 
@@ -655,8 +699,8 @@ describe('BusinessDetails', () => {
 
   it('shows save error when updateAccount fails', async () => {
     await renderBD({
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
-      updateAccount: jest.fn().mockRejectedValue(new Error('Network error')),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([mockLocation]) }),
+      ...accountNS({ update: jest.fn().mockRejectedValue(new Error('Network error')) }),
     });
 
     clickNext();
@@ -672,7 +716,7 @@ describe('BusinessDetails', () => {
 
   it('formats phone number on input', async () => {
     const { container } = await renderBD({
-      getAccount: jest.fn().mockResolvedValue({ ...mockAccount, phone: null }),
+      ...accountNS({ retrieve: jest.fn().mockResolvedValue({ ...mockAccount, phone: null }) }),
     });
 
     const phoneInput = getFieldByLabel(container, 'Phone Number') as HTMLInputElement;

@@ -189,15 +189,11 @@ export interface UpdateDeskphoneRequest {
 // ============================================================================
 
 /**
- * Options for listing devices with cursor-based pagination.
+ * Options for listing devices.
  */
 export interface DeviceListOptions {
   /** Maximum number of devices to return (default: 10, max: 100) */
   limit?: number;
-  /** Cursor for forward pagination (device ID to start after) */
-  starting_after?: string;
-  /** Cursor for backward pagination (device ID to end before) */
-  ending_before?: string;
   /** Filter by device type ('deskphone' or 'dect_base') */
   type?: DeviceType;
 }

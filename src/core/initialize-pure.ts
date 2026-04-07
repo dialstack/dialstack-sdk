@@ -81,250 +81,41 @@ export async function loadDialstackAndInitialize(
     fetchApi: (path, options) => {
       return instance.fetchApi(path, options);
     },
-    initiateCall: (userId, dialString) => {
-      return instance.initiateCall(userId, dialString);
-    },
-    getTranscript: (callId) => {
-      return instance.getTranscript(callId);
-    },
-    getVoicemailTranscript: (userId, voicemailId) => {
-      return instance.getVoicemailTranscript(userId, voicemailId);
-    },
     on: (event, handler) => {
       instance.on(event, handler);
     },
     off: (event, handler) => {
       instance.off(event, handler);
     },
-    listExtensions: (options) => {
-      return instance.listExtensions(options);
-    },
-    getPhoneNumber: (phoneNumberId) => {
-      return instance.getPhoneNumber(phoneNumberId);
-    },
-    getCallLog: (callId) => {
-      return instance.getCallLog(callId);
-    },
-    updatePhoneNumber: (phoneNumberId, update) => {
-      return instance.updatePhoneNumber(phoneNumberId, update);
-    },
-    updatePhoneNumberRoute: (phoneNumberId, routingTarget) => {
-      return instance.updatePhoneNumberRoute(phoneNumberId, routingTarget);
-    },
     resolveRoutingTarget: (target) => {
       return instance.resolveRoutingTarget(target);
-    },
-    // Phone number list methods
-    listPhoneNumbers: (options) => {
-      return instance.listPhoneNumbers(options);
-    },
-    listNumberOrders: (options) => {
-      return instance.listNumberOrders(options);
-    },
-    listPortOrders: (options) => {
-      return instance.listPortOrders(options);
     },
     fetchAllPages: (fetchFn) => {
       return instance.fetchAllPages(fetchFn);
     },
-    // Phone number ordering methods
-    searchAvailableNumbers: (options) => {
-      return instance.searchAvailableNumbers(options);
-    },
-    createPhoneNumberOrder: (phoneNumbers) => {
-      return instance.createPhoneNumberOrder(phoneNumbers);
-    },
-    getPhoneNumberOrder: (orderId) => {
-      return instance.getPhoneNumberOrder(orderId);
-    },
-    // Deskphone methods
-    createDeskphone: (data) => {
-      return instance.createDeskphone(data);
-    },
-    getDevice: (id) => {
-      return instance.getDevice(id);
-    },
-    listDevices: (options) => {
-      return instance.listDevices(options);
-    },
-    updateDeskphone: (id, data) => {
-      return instance.updateDeskphone(id, data);
-    },
-    deleteDeskphone: (id) => {
-      return instance.deleteDeskphone(id);
-    },
-    listDeskphoneProvisioningEvents: (deskphoneId, options) => {
-      return instance.listDeskphoneProvisioningEvents(deskphoneId, options);
-    },
-    // Number porting methods
-    checkPortEligibility: (phoneNumbers) => {
-      return instance.checkPortEligibility(phoneNumbers);
-    },
-    createPortOrder: (request) => {
-      return instance.createPortOrder(request);
-    },
-    getPortOrder: (orderId) => {
-      return instance.getPortOrder(orderId);
-    },
-    approvePortOrder: (orderId, request) => {
-      return instance.approvePortOrder(orderId, request);
-    },
-    submitPortOrder: (orderId) => {
-      return instance.submitPortOrder(orderId);
-    },
-    cancelPortOrder: (orderId) => {
-      return instance.cancelPortOrder(orderId);
-    },
-    uploadCSR: (orderId, file) => {
-      return instance.uploadCSR(orderId, file);
-    },
-    uploadBillCopy: (orderId, file) => {
-      return instance.uploadBillCopy(orderId, file);
-    },
-    downloadCSR: (orderId) => {
-      return instance.downloadCSR(orderId);
-    },
-    downloadBillCopy: (orderId) => {
-      return instance.downloadBillCopy(orderId);
-    },
-    // DECT base methods
-    createDECTBase: (data) => {
-      return instance.createDECTBase(data);
-    },
-    getDECTBase: (id) => {
-      return instance.getDECTBase(id);
-    },
-    listDECTBases: (options) => {
-      return instance.listDECTBases(options);
-    },
-    updateDECTBase: (id, data) => {
-      return instance.updateDECTBase(id, data);
-    },
-    deleteDECTBase: (id) => {
-      return instance.deleteDECTBase(id);
-    },
-    // DECT handset methods
-    createDECTHandset: (baseId, data) => {
-      return instance.createDECTHandset(baseId, data);
-    },
-    getDECTHandset: (baseId, handsetId) => {
-      return instance.getDECTHandset(baseId, handsetId);
-    },
-    listDECTHandsets: (baseId) => {
-      return instance.listDECTHandsets(baseId);
-    },
-    updateDECTHandset: (baseId, handsetId, data) => {
-      return instance.updateDECTHandset(baseId, handsetId, data);
-    },
-    deleteDECTHandset: (baseId, handsetId) => {
-      return instance.deleteDECTHandset(baseId, handsetId);
-    },
-    // DECT extension methods
-    createDECTExtension: (baseId, handsetId, data) => {
-      return instance.createDECTExtension(baseId, handsetId, data);
-    },
-    listDECTExtensions: (baseId, handsetId) => {
-      return instance.listDECTExtensions(baseId, handsetId);
-    },
-    deleteDECTExtension: (baseId, handsetId, extensionId) => {
-      return instance.deleteDECTExtension(baseId, handsetId, extensionId);
-    },
-    // Account management methods
-    getAccount: () => {
-      return instance.getAccount();
-    },
-    updateAccount: (request) => {
-      return instance.updateAccount(request);
-    },
-    createUser: (request) => {
-      return instance.createUser(request);
-    },
-    listUsers: (options) => {
-      return instance.listUsers(options);
-    },
-    // Dial plan resource methods
-    getDialPlan: (dialPlanId) => {
-      return instance.getDialPlan(dialPlanId);
-    },
-    listDialPlans: (options) => {
-      return instance.listDialPlans(options);
-    },
-    createDialPlan: (data) => {
-      return instance.createDialPlan(data);
-    },
-    updateDialPlan: (dialPlanId, data) => {
-      return instance.updateDialPlan(dialPlanId, data);
-    },
-    getSchedule: (scheduleId) => {
-      return instance.getSchedule(scheduleId);
-    },
-    listSchedules: (options) => {
-      return instance.listSchedules(options);
-    },
-    listRingGroups: (options) => {
-      return instance.listRingGroups(options);
-    },
-    listVoiceApps: (options) => {
-      return instance.listVoiceApps(options);
-    },
-    listSharedVoicemailBoxes: (options) => {
-      return instance.listSharedVoicemailBoxes(options);
-    },
-    deleteUser: (userId) => {
-      return instance.deleteUser(userId);
-    },
-    createExtension: (request) => {
-      return instance.createExtension(request);
-    },
-    // Address and location methods
-    suggestAddresses: (query, country) => {
-      return instance.suggestAddresses(query, country);
-    },
-    getPlaceDetails: (placeId) => {
-      return instance.getPlaceDetails(placeId);
-    },
-    createLocation: (request) => {
-      return instance.createLocation(request);
-    },
-    updateLocation: (locationId, request) => {
-      return instance.updateLocation(locationId, request);
-    },
-    listLocations: () => {
-      return instance.listLocations();
-    },
-    getLocation: (locationId) => {
-      return instance.getLocation(locationId);
-    },
-    // E911 methods
-    validateLocationE911: (locationId) => {
-      return instance.validateLocationE911(locationId);
-    },
-    provisionLocationE911: (locationId) => {
-      return instance.provisionLocationE911(locationId);
-    },
-    // Deskphone line methods
-    createDeskphoneLine: (deskphoneId, data) => {
-      return instance.createDeskphoneLine(deskphoneId, data);
-    },
-    listDeskphoneLines: (deskphoneId) => {
-      return instance.listDeskphoneLines(deskphoneId);
-    },
-    updateDeskphoneLine: (deskphoneId, lineId, data) => {
-      return instance.updateDeskphoneLine(deskphoneId, lineId, data);
-    },
-    deleteDeskphoneLine: (deskphoneId, lineId) => {
-      return instance.deleteDeskphoneLine(deskphoneId, lineId);
-    },
-    // Endpoint methods
-    createEndpoint: (userId, request) => {
-      return instance.createEndpoint(userId, request);
-    },
-    listEndpoints: (userId) => {
-      return instance.listEndpoints(userId);
-    },
     getAppearance: () => {
       return instance.getAppearance();
     },
+    // Resource namespaces — delegate directly to the instance properties
+    calls: instance.calls,
+    voicemails: instance.voicemails,
+    phoneNumbers: instance.phoneNumbers,
+    availablePhoneNumbers: instance.availablePhoneNumbers,
+    phoneNumberOrders: instance.phoneNumberOrders,
+    portOrders: instance.portOrders,
+    dialPlans: instance.dialPlans,
+    schedules: instance.schedules,
+    ringGroups: instance.ringGroups,
+    voiceApps: instance.voiceApps,
+    sharedVoicemailBoxes: instance.sharedVoicemailBoxes,
+    extensions: instance.extensions,
+    deskphones: instance.deskphones,
+    devices: instance.devices,
+    dectBases: instance.dectBases,
+    account: instance.account,
+    users: instance.users,
+    locations: instance.locations,
+    addresses: instance.addresses,
   };
 
   return wrapper;

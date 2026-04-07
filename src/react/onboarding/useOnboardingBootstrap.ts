@@ -34,8 +34,8 @@ export function useOnboardingBootstrap(
   const progressStore = useMemo(
     () =>
       new OnboardingProgressStore((progress) => {
-        dialstack
-          .updateAccount({ config: { onboarding_progress: progress } })
+        dialstack.account
+          .update({ config: { onboarding_progress: progress } })
           .catch((err) => console.warn('Failed to persist onboarding progress:', err));
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -53,10 +53,10 @@ export function useOnboardingBootstrap(
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      dialstack.getAccount(),
-      dialstack.listUsers(),
-      dialstack.listExtensions(),
-      dialstack.listLocations(),
+      dialstack.account.retrieve(),
+      dialstack.users.list(),
+      dialstack.extensions.list(),
+      dialstack.locations.list(),
     ])
       .then(([account, users, extensions, locations]) => {
         if (cancelled) return;
@@ -79,10 +79,10 @@ export function useOnboardingBootstrap(
 
   const reloadSharedData = useCallback(async () => {
     const [account, users, extensions, locations] = await Promise.all([
-      dialstack.getAccount(),
-      dialstack.listUsers(),
-      dialstack.listExtensions(),
-      dialstack.listLocations(),
+      dialstack.account.retrieve(),
+      dialstack.users.list(),
+      dialstack.extensions.list(),
+      dialstack.locations.list(),
     ]);
     setSharedData({ account, users, extensions, locations });
   }, [dialstack]);

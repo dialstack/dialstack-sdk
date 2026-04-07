@@ -347,8 +347,6 @@ export interface ExtensionUpdateParams {
 export interface ExtensionListParams {
   limit?: number;
   target?: string;
-  starting_after?: string;
-  ending_before?: string;
 }
 
 // Ring Group types
@@ -1077,8 +1075,6 @@ export class DialStack {
       const queryParams = new URLSearchParams();
       if (params?.limit) queryParams.set('limit', String(params.limit));
       if (params?.target) queryParams.set('target', params.target);
-      if (params?.starting_after) queryParams.set('starting_after', params.starting_after);
-      if (params?.ending_before) queryParams.set('ending_before', params.ending_before);
 
       const query = queryParams.toString();
       const path = `/v1/extensions${query ? `?${query}` : ''}`;

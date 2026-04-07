@@ -60,6 +60,49 @@ describe('TeamMembers', () => {
     fireEvent.click(addBtn);
   }
 
+  /** Build a users namespace override with sensible defaults. */
+  function usersNS(overrides: Record<string, unknown> = {}) {
+    return {
+      users: {
+        create: jest.fn().mockImplementation(async (data: { name: string; email: string }) => ({
+          id: 'user_new',
+          name: data.name,
+          email: data.email,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })),
+        list: jest.fn().mockResolvedValue([]),
+        del: jest.fn().mockResolvedValue(undefined),
+        endpoints: {
+          create: jest.fn().mockResolvedValue({
+            id: 'ep_new',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }),
+          list: jest.fn().mockResolvedValue([]),
+        },
+        ...overrides,
+      },
+    };
+  }
+
+  /** Build an extensions namespace override with sensible defaults. */
+  function extensionsNS(overrides: Record<string, unknown> = {}) {
+    return {
+      extensions: {
+        list: jest.fn().mockResolvedValue([]),
+        create: jest.fn().mockResolvedValue({
+          number: '1002',
+          target: 'user_new',
+          status: 'active',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }),
+        ...overrides,
+      },
+    };
+  }
+
   // ==========================================================================
   // Rendering existing users
   // ==========================================================================
@@ -89,14 +132,14 @@ describe('TeamMembers', () => {
     clickAddUser();
 
     await waitFor(() => {
-      expect(instance.createUser).toHaveBeenCalledWith({
+      expect(instance.users.create).toHaveBeenCalledWith({
         name: 'Bob',
         email: 'bob@example.com',
       });
     });
 
     await waitFor(() => {
-      expect(instance.createExtension).toHaveBeenCalled();
+      expect(instance.extensions.create).toHaveBeenCalled();
     });
   });
 
@@ -118,7 +161,7 @@ describe('TeamMembers', () => {
     clickAddUser();
 
     await waitFor(() => {
-      expect(instance.createExtension).toHaveBeenCalledWith({
+      expect(instance.extensions.create).toHaveBeenCalledWith({
         number: '2000',
         target: 'user_new',
       });
@@ -136,7 +179,7 @@ describe('TeamMembers', () => {
     fireEvent.click(removeBtn);
 
     await waitFor(() => {
-      expect(instance.deleteUser).toHaveBeenCalledWith('user_01abc');
+      expect(instance.users.del).toHaveBeenCalledWith('user_01abc');
     });
   });
 
@@ -156,7 +199,9 @@ describe('TeamMembers', () => {
 
   it('shows duplicate email error', async () => {
     const { container } = await renderTM({
-      createUser: jest.fn().mockRejectedValue(new Error('A user with this email already exists')),
+      ...usersNS({
+        create: jest.fn().mockRejectedValue(new Error('A user with this email already exists')),
+      }),
     });
 
     fireEvent.change(getFieldByLabel(container, 'Full name'), { target: { value: 'Duplicate' } });
@@ -173,8 +218,8 @@ describe('TeamMembers', () => {
 
   it('requires at least one team member before advancing', async () => {
     await renderTM({
-      listUsers: jest.fn().mockResolvedValue([]),
-      listExtensions: jest.fn().mockResolvedValue([]),
+      ...usersNS({ list: jest.fn().mockResolvedValue([]) }),
+      ...extensionsNS({ list: jest.fn().mockResolvedValue([]) }),
     });
 
     clickNext();
@@ -191,8 +236,8 @@ describe('TeamMembers', () => {
   it('rolls back user creation when extension creation fails', async () => {
     const deleteUserMock = jest.fn().mockResolvedValue(undefined);
     const { container } = await renderTM({
-      createExtension: jest.fn().mockRejectedValue(new Error('Extension conflict')),
-      deleteUser: deleteUserMock,
+      ...extensionsNS({ create: jest.fn().mockRejectedValue(new Error('Extension conflict')) }),
+      ...usersNS({ del: deleteUserMock }),
     });
 
     fireEvent.change(getFieldByLabel(container, 'Full name'), { target: { value: 'Bob' } });

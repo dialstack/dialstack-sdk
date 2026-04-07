@@ -19,9 +19,81 @@ import {
 
 // Default instance overrides that provide users + extensions so the team table renders.
 const withUsersAndExtensions = {
-  listUsers: jest.fn().mockResolvedValue(mockUsers),
-  listExtensions: jest.fn().mockResolvedValue(mockExtensions),
+  users: {
+    create: jest.fn().mockResolvedValue({}),
+    list: jest.fn().mockResolvedValue(mockUsers),
+    del: jest.fn().mockResolvedValue(undefined),
+    endpoints: {
+      create: jest.fn().mockResolvedValue({}),
+      list: jest.fn().mockResolvedValue([]),
+    },
+  },
+  extensions: {
+    list: jest.fn().mockResolvedValue(mockExtensions),
+    create: jest.fn().mockResolvedValue({}),
+  },
 };
+
+/** Build devices namespace override. */
+function devicesNS(overrides: Record<string, unknown> = {}) {
+  return {
+    devices: {
+      retrieve: jest.fn().mockResolvedValue({}),
+      list: jest.fn().mockResolvedValue([]),
+      ...overrides,
+    },
+  };
+}
+
+/** Build deskphones namespace override with nested lines. */
+function deskphonesNS(overrides: Record<string, unknown> = {}) {
+  const { lines: linesOverrides, ...rest } = overrides as Record<string, unknown> & {
+    lines?: Record<string, unknown>;
+  };
+  return {
+    deskphones: {
+      create: jest.fn().mockResolvedValue({}),
+      update: jest.fn().mockResolvedValue({}),
+      del: jest.fn().mockResolvedValue(undefined),
+      lines: {
+        create: jest.fn().mockResolvedValue({
+          id: 'dln_new',
+          device_id: '',
+          line_number: 1,
+          endpoint_id: '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }),
+        list: jest.fn().mockResolvedValue([]),
+        update: jest.fn().mockResolvedValue({}),
+        del: jest.fn().mockResolvedValue(undefined),
+        ...linesOverrides,
+      },
+      provisioningEvents: { list: jest.fn().mockResolvedValue([]) },
+      ...rest,
+    },
+  };
+}
+
+/** Build a users namespace override with endpoints sub-namespace. */
+function usersNS(overrides: Record<string, unknown> = {}) {
+  const { endpoints: endpointsOverrides, ...rest } = overrides as Record<string, unknown> & {
+    endpoints?: Record<string, unknown>;
+  };
+  return {
+    users: {
+      create: jest.fn().mockResolvedValue({}),
+      list: jest.fn().mockResolvedValue(mockUsers),
+      del: jest.fn().mockResolvedValue(undefined),
+      endpoints: {
+        create: jest.fn().mockResolvedValue({}),
+        list: jest.fn().mockResolvedValue([]),
+        ...endpointsOverrides,
+      },
+      ...rest,
+    },
+  };
+}
 
 // Helper: render HardwareStep with optional instance overrides and wait for loading.
 async function renderHardwareStep(instanceOverrides = {}) {
@@ -41,7 +113,7 @@ describe('HardwareStep', () => {
     await renderWithOnboarding(<HardwareStep />, {
       instanceOverrides: {
         // Use a never-resolving promise for device fetch to keep the loading state visible
-        listDevices: jest.fn().mockReturnValue(new Promise(() => {})),
+        ...devicesNS({ list: jest.fn().mockReturnValue(new Promise(() => {})) }),
       },
       collectionOptions: { steps: { include: ['hardware'] } },
     });
@@ -71,8 +143,11 @@ describe('HardwareStep', () => {
 
   it('shows no users message when user list is empty on hardware step', async () => {
     await renderHardwareStep({
-      listUsers: jest.fn().mockResolvedValue([]),
-      listExtensions: jest.fn().mockResolvedValue([]),
+      ...usersNS({ list: jest.fn().mockResolvedValue([]) }),
+      extensions: {
+        list: jest.fn().mockResolvedValue([]),
+        create: jest.fn().mockResolvedValue({}),
+      },
     });
 
     expect(screen.getByText(/no team members found/i)).toBeInTheDocument();
@@ -81,9 +156,9 @@ describe('HardwareStep', () => {
   it('renders device cards with draggable attribute', async () => {
     const unassignedDevice = { ...mockDevice, lines: [] };
     await renderHardwareStep({
-      listDevices: jest.fn().mockResolvedValue([unassignedDevice]),
-      listDeskphoneLines: jest.fn().mockResolvedValue([]),
-      listEndpoints: jest.fn().mockResolvedValue([]),
+      ...devicesNS({ list: jest.fn().mockResolvedValue([unassignedDevice]) }),
+      ...deskphonesNS(),
+      ...usersNS({ endpoints: { list: jest.fn().mockResolvedValue([]) } }),
     });
 
     const card = document.querySelector('.hw-device-card') as HTMLElement;
@@ -93,9 +168,9 @@ describe('HardwareStep', () => {
 
   it('renders team member table with drop zones', async () => {
     await renderHardwareStep({
-      listDevices: jest.fn().mockResolvedValue([{ ...mockDevice, lines: [] }]),
-      listDeskphoneLines: jest.fn().mockResolvedValue([]),
-      listEndpoints: jest.fn().mockResolvedValue([]),
+      ...devicesNS({ list: jest.fn().mockResolvedValue([{ ...mockDevice, lines: [] }]) }),
+      ...deskphonesNS(),
+      ...usersNS({ endpoints: { list: jest.fn().mockResolvedValue([]) } }),
     });
 
     const table = document.querySelector('.hw-team-table');
@@ -109,9 +184,9 @@ describe('HardwareStep', () => {
   it('assigns device via drag-and-drop and shows badge chip', async () => {
     const unassignedDevice = { ...mockDevice, lines: [] };
     await renderHardwareStep({
-      listDevices: jest.fn().mockResolvedValue([unassignedDevice]),
-      listDeskphoneLines: jest.fn().mockResolvedValue([]),
-      listEndpoints: jest.fn().mockResolvedValue([]),
+      ...devicesNS({ list: jest.fn().mockResolvedValue([unassignedDevice]) }),
+      ...deskphonesNS(),
+      ...usersNS({ endpoints: { list: jest.fn().mockResolvedValue([]) } }),
     });
 
     const card = document.querySelector('.hw-device-card') as HTMLElement;
@@ -144,9 +219,9 @@ describe('HardwareStep', () => {
   it('assigns device via click-to-assign and shows badge chip', async () => {
     const unassignedDevice = { ...mockDevice, lines: [] };
     await renderHardwareStep({
-      listDevices: jest.fn().mockResolvedValue([unassignedDevice]),
-      listDeskphoneLines: jest.fn().mockResolvedValue([]),
-      listEndpoints: jest.fn().mockResolvedValue([]),
+      ...devicesNS({ list: jest.fn().mockResolvedValue([unassignedDevice]) }),
+      ...deskphonesNS(),
+      ...usersNS({ endpoints: { list: jest.fn().mockResolvedValue([]) } }),
     });
 
     // Click the device card to select it
@@ -175,9 +250,9 @@ describe('HardwareStep', () => {
   it('unassign removes badge and returns card to available', async () => {
     const unassignedDevice = { ...mockDevice, lines: [] };
     await renderHardwareStep({
-      listDevices: jest.fn().mockResolvedValue([unassignedDevice]),
-      listDeskphoneLines: jest.fn().mockResolvedValue([]),
-      listEndpoints: jest.fn().mockResolvedValue([]),
+      ...devicesNS({ list: jest.fn().mockResolvedValue([unassignedDevice]) }),
+      ...deskphonesNS(),
+      ...usersNS({ endpoints: { list: jest.fn().mockResolvedValue([]) } }),
     });
 
     // Assign via click
@@ -206,9 +281,9 @@ describe('HardwareStep', () => {
   it('shows Assign & Complete when all devices assigned', async () => {
     const unassignedDevice = { ...mockDevice, lines: [] };
     await renderHardwareStep({
-      listDevices: jest.fn().mockResolvedValue([unassignedDevice]),
-      listDeskphoneLines: jest.fn().mockResolvedValue([]),
-      listEndpoints: jest.fn().mockResolvedValue([]),
+      ...devicesNS({ list: jest.fn().mockResolvedValue([unassignedDevice]) }),
+      ...deskphonesNS(),
+      ...usersNS({ endpoints: { list: jest.fn().mockResolvedValue([]) } }),
     });
 
     // Assign via click
@@ -237,10 +312,11 @@ describe('HardwareStep', () => {
     const unassignedDevice = { ...mockDevice, lines: [] };
 
     const { instance: _instance } = await renderHardwareStep({
-      listDevices: jest.fn().mockResolvedValue([unassignedDevice]),
-      listDeskphoneLines: jest.fn().mockResolvedValue([]),
-      listEndpoints: jest.fn().mockResolvedValue([mockEndpoint]),
-      createDeskphoneLine,
+      ...devicesNS({ list: jest.fn().mockResolvedValue([unassignedDevice]) }),
+      ...deskphonesNS({
+        lines: { create: createDeskphoneLine, list: jest.fn().mockResolvedValue([]) },
+      }),
+      ...usersNS({ endpoints: { list: jest.fn().mockResolvedValue([mockEndpoint]) } }),
     });
 
     // Assign via click
@@ -281,18 +357,22 @@ describe('HardwareStep', () => {
     };
 
     await renderHardwareStep({
-      listDevices: jest.fn().mockResolvedValue([deviceWithLine]),
-      listDeskphoneLines: jest.fn().mockResolvedValue([
-        {
-          id: 'dln_01abc',
-          device_id: mockDevice.id,
-          line_number: 1,
-          endpoint_id: 'ep_01abc',
-          created_at: '2026-01-01T00:00:00Z',
-          updated_at: '2026-01-01T00:00:00Z',
+      ...devicesNS({ list: jest.fn().mockResolvedValue([deviceWithLine]) }),
+      ...deskphonesNS({
+        lines: {
+          list: jest.fn().mockResolvedValue([
+            {
+              id: 'dln_01abc',
+              device_id: mockDevice.id,
+              line_number: 1,
+              endpoint_id: 'ep_01abc',
+              created_at: '2026-01-01T00:00:00Z',
+              updated_at: '2026-01-01T00:00:00Z',
+            },
+          ]),
         },
-      ]),
-      listEndpoints: jest.fn().mockResolvedValue([mockEndpoint]),
+      }),
+      ...usersNS({ endpoints: { list: jest.fn().mockResolvedValue([mockEndpoint]) } }),
     });
 
     // The device should already be assigned — badge chip visible, no unassigned card

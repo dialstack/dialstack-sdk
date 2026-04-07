@@ -119,7 +119,7 @@ async function ensureEndpoint(
 ): Promise<{ endpoint: OnboardingEndpoint; isNew: boolean }> {
   const existing = userEndpointMap.get(userId) ?? [];
   if (existing.length > 0) return { endpoint: existing[0]!, isNew: false };
-  const endpoint = await dialstack.createEndpoint(userId);
+  const endpoint = await dialstack.users.endpoints.create(userId);
   return { endpoint, isNew: true };
 }
 
@@ -134,9 +134,9 @@ async function deleteDeviceRecord(
   dialstack: DialStackInstance
 ): Promise<void> {
   if (record.type === 'line') {
-    await dialstack.deleteDeskphoneLine(record.deviceId, record.recordId);
+    await dialstack.deskphones.lines.del(record.deviceId, record.recordId);
   } else if (record.baseId && record.handsetId) {
-    await dialstack.deleteDECTExtension(record.baseId, record.handsetId, record.recordId);
+    await dialstack.dectBases.extensions.del(record.baseId, record.handsetId, record.recordId);
   }
 }
 
@@ -223,8 +223,8 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
       setLoadError(null);
       try {
         const [devicesResult, dectBasesResult] = await Promise.all([
-          dialstack.listDevices({ type: 'deskphone' }).catch(() => [] as Device[]),
-          dialstack.listDECTBases().catch(() => [] as DECTBase[]),
+          dialstack.devices.list({ type: 'deskphone' }).catch(() => [] as Device[]),
+          dialstack.dectBases.list().catch(() => [] as DECTBase[]),
         ]);
 
         if (cancelled) return;
@@ -234,7 +234,7 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
         const devices = devicesResult ?? [];
         await Promise.all(
           devices.map(async (dev) => {
-            dev.lines = await dialstack.listDeskphoneLines(dev.id);
+            dev.lines = await dialstack.deskphones.lines.list(dev.id);
           })
         );
 
@@ -244,7 +244,7 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
         const handsetMap = new Map<string, DECTHandset[]>();
         await Promise.all(
           dectBases.map(async (b) => {
-            const hs = await dialstack.listDECTHandsets(b.id);
+            const hs = await dialstack.dectBases.handsets.list(b.id);
             handsetMap.set(b.id, hs);
           })
         );
@@ -254,7 +254,7 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
         const endpointMap = new Map<string, OnboardingEndpoint[]>();
         await Promise.all(
           contextUsers.map(async (u) => {
-            const eps = await dialstack.listEndpoints(u.id);
+            const eps = await dialstack.users.endpoints.list(u.id);
             endpointMap.set(u.id, eps);
           })
         );
@@ -379,7 +379,7 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
           const lines = dev?.lines ?? [];
           const existingLine = lines.find((l) => l.endpoint_id === endpoint.id);
           if (!existingLine) {
-            await dialstack.createDeskphoneLine(deviceId, { endpoint_id: endpoint.id });
+            await dialstack.deskphones.lines.create(deviceId, { endpoint_id: endpoint.id });
           }
         } else if (device.type === 'dect-handset' && device.baseId) {
           const handsets = dectHandsets.get(device.baseId) ?? [];
@@ -387,7 +387,7 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
           const exts = hs?.extensions ?? [];
           const existingExt = exts.find((e) => e.endpoint_id === endpoint.id);
           if (!existingExt) {
-            await dialstack.createDECTExtension(device.baseId, deviceId, {
+            await dialstack.dectBases.extensions.create(device.baseId, deviceId, {
               endpoint_id: endpoint.id,
             });
           }

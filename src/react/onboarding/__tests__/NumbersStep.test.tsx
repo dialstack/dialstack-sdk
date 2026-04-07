@@ -46,22 +46,35 @@ const didPage = (data: unknown[]) => ({
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Render NumbersStep with given instance overrides. */
-async function renderNumbers(
-  overrides: RenderOnboardingOptions['instanceOverrides'] = {}
-): Promise<RenderOnboardingResult> {
-  return await renderWithOnboarding(<NumbersStep />, {
-    instanceOverrides: {
-      listLocations: jest.fn().mockResolvedValue([mockLocation]),
-      // E911 methods required by navigateToNext
-      validateLocationE911: jest.fn().mockResolvedValue({ adjusted: false, address: {} }),
-      provisionLocationE911: jest.fn().mockResolvedValue({
+/** Default locations namespace for NumbersStep tests. */
+function defaultLocationsNS(overrides: Record<string, unknown> = {}) {
+  return {
+    locations: {
+      list: jest.fn().mockResolvedValue([mockLocation]),
+      create: jest.fn().mockResolvedValue({
+        id: 'loc_new',
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+      retrieve: jest.fn().mockResolvedValue(mockLocation),
+      update: jest.fn().mockResolvedValue(mockLocation),
+      validateE911: jest.fn().mockResolvedValue({ adjusted: false, address: {} }),
+      provisionE911: jest.fn().mockResolvedValue({
         ...mockLocation,
         e911_status: 'pending',
         primary_did_id: 'did_01abc',
       }),
-      // Number order methods
-      createPhoneNumberOrder: jest.fn().mockResolvedValue({
+      ...overrides,
+    },
+  };
+}
+
+/** Default phoneNumberOrders namespace. */
+function defaultPhoneNumberOrdersNS(overrides: Record<string, unknown> = {}) {
+  return {
+    phoneNumberOrders: {
+      create: jest.fn().mockResolvedValue({
         id: 'no_01abc',
         order_type: 'purchase',
         status: 'complete',
@@ -72,7 +85,7 @@ async function renderNumbers(
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',
       }),
-      getPhoneNumberOrder: jest.fn().mockResolvedValue({
+      retrieve: jest.fn().mockResolvedValue({
         id: 'no_01abc',
         order_type: 'purchase',
         status: 'complete',
@@ -83,8 +96,22 @@ async function renderNumbers(
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',
       }),
-      // Port order methods
-      checkPortEligibility: jest.fn().mockResolvedValue({
+      list: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+      ...overrides,
+    },
+  };
+}
+
+/** Default portOrders namespace. */
+function defaultPortOrdersNS(overrides: Record<string, unknown> = {}) {
+  return {
+    portOrders: {
+      checkEligibility: jest.fn().mockResolvedValue({
         portable_numbers: [
           {
             phone_number: '+12125551001',
@@ -95,7 +122,7 @@ async function renderNumbers(
         ],
         non_portable_numbers: [],
       }),
-      createPortOrder: jest.fn().mockResolvedValue({
+      create: jest.fn().mockResolvedValue({
         id: 'po_01abc',
         status: 'draft',
         details: { phone_numbers: ['+12125551001'], subscriber: null },
@@ -103,7 +130,7 @@ async function renderNumbers(
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',
       }),
-      approvePortOrder: jest.fn().mockResolvedValue({
+      approve: jest.fn().mockResolvedValue({
         id: 'po_01abc',
         status: 'approved',
         details: { phone_numbers: ['+12125551001'] },
@@ -111,14 +138,68 @@ async function renderNumbers(
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',
       }),
-      submitPortOrder: jest.fn().mockResolvedValue({
+      submit: jest.fn().mockResolvedValue({
         id: 'po_01abc',
         status: 'submitted',
         details: { phone_numbers: ['+12125551001'] },
         submitted_at: '2026-01-01T00:00:00Z',
         created_at: '2026-01-01T00:00:00Z',
-        updated_at: '2026-01-01T00:00:00Z',
       }),
+      cancel: jest.fn().mockResolvedValue(undefined),
+      retrieve: jest.fn().mockResolvedValue({}),
+      list: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+      uploadCSR: jest.fn().mockResolvedValue(undefined),
+      uploadBillCopy: jest.fn().mockResolvedValue(undefined),
+      downloadCSR: jest.fn().mockResolvedValue(new Blob()),
+      downloadBillCopy: jest.fn().mockResolvedValue(new Blob()),
+      ...overrides,
+    },
+  };
+}
+
+/** Default availablePhoneNumbers namespace. */
+function defaultAvailablePhoneNumbersNS(overrides: Record<string, unknown> = {}) {
+  return {
+    availablePhoneNumbers: {
+      search: jest.fn().mockResolvedValue([]),
+      ...overrides,
+    },
+  };
+}
+
+/** Default phoneNumbers namespace. */
+function phoneNumbersNS(overrides: Record<string, unknown> = {}) {
+  return {
+    phoneNumbers: {
+      retrieve: jest.fn().mockResolvedValue(mockDID),
+      list: jest.fn().mockResolvedValue({
+        object: 'list',
+        data: [mockDID],
+        next_page_url: null,
+        previous_page_url: null,
+      }),
+      update: jest.fn().mockResolvedValue(mockDID),
+      updateRoute: jest.fn().mockResolvedValue(mockDID),
+      ...overrides,
+    },
+  };
+}
+
+/** Render NumbersStep with given instance overrides. */
+async function renderNumbers(
+  overrides: RenderOnboardingOptions['instanceOverrides'] = {}
+): Promise<RenderOnboardingResult> {
+  return await renderWithOnboarding(<NumbersStep />, {
+    instanceOverrides: {
+      ...defaultLocationsNS(),
+      ...defaultPhoneNumberOrdersNS(),
+      ...defaultPortOrdersNS(),
+      ...defaultAvailablePhoneNumbersNS(),
       ...overrides,
     },
   });
@@ -316,7 +397,7 @@ describe('NumbersStep', () => {
   describe('Overview + Navigation', () => {
     it('renders overview with empty state when no numbers exist', async () => {
       await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(emptyPage),
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(emptyPage) }),
       });
       await waitForOverview();
       expect(document.body.textContent).toContain('No telephone numbers yet');
@@ -325,18 +406,20 @@ describe('NumbersStep', () => {
 
     it('renders existing phone numbers in the overview table', async () => {
       await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(
-          didPage([
-            {
-              id: 'did_01',
-              phone_number: '+12125551001',
-              status: 'active',
-              outbound_enabled: true,
-              created_at: '2026-01-01T00:00:00Z',
-              updated_at: '2026-01-01T00:00:00Z',
-            },
-          ])
-        ),
+        ...phoneNumbersNS({
+          list: jest.fn().mockResolvedValue(
+            didPage([
+              {
+                id: 'did_01',
+                phone_number: '+12125551001',
+                status: 'active',
+                outbound_enabled: true,
+                created_at: '2026-01-01T00:00:00Z',
+                updated_at: '2026-01-01T00:00:00Z',
+              },
+            ])
+          ),
+        }),
       });
 
       await waitFor(() => {
@@ -359,7 +442,7 @@ describe('NumbersStep', () => {
 
     it('advances past numbers step from overview via Next', async () => {
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([mockDID])),
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([mockDID])) }),
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -370,7 +453,7 @@ describe('NumbersStep', () => {
 
     it('shows error when numbers data fails to load', async () => {
       await renderNumbers({
-        listPhoneNumbers: jest.fn().mockRejectedValue(new Error('Network error')),
+        ...phoneNumbersNS({ list: jest.fn().mockRejectedValue(new Error('Network error')) }),
       });
 
       await waitFor(() => {
@@ -387,7 +470,9 @@ describe('NumbersStep', () => {
   describe('Primary DID Selection', () => {
     it('auto-selects primary DID when account phone matches (+12125550100)', async () => {
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([mockDID, mockAccountDID])),
+        ...phoneNumbersNS({
+          list: jest.fn().mockResolvedValue(didPage([mockDID, mockAccountDID])),
+        }),
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -412,7 +497,9 @@ describe('NumbersStep', () => {
       const nonMatchingDID2 = { ...mockDID, id: 'did_other2', phone_number: '+13105550102' };
 
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([nonMatchingDID1, nonMatchingDID2])),
+        ...phoneNumbersNS({
+          list: jest.fn().mockResolvedValue(didPage([nonMatchingDID1, nonMatchingDID2])),
+        }),
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -434,7 +521,7 @@ describe('NumbersStep', () => {
       const singleDID = { ...mockDID, id: 'did_single', phone_number: '+13105550999' };
 
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([singleDID])),
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([singleDID])) }),
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -449,7 +536,9 @@ describe('NumbersStep', () => {
 
     it('user can manually select a different DID', async () => {
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([mockDID, mockAccountDID])),
+        ...phoneNumbersNS({
+          list: jest.fn().mockResolvedValue(didPage([mockDID, mockAccountDID])),
+        }),
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -480,7 +569,7 @@ describe('NumbersStep', () => {
 
     it('shows no DIDs message when none are available', async () => {
       await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(emptyPage),
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(emptyPage) }),
       });
 
       await waitForOverview();
@@ -505,7 +594,7 @@ describe('NumbersStep', () => {
       };
 
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([tempDID])),
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([tempDID])) }),
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -518,12 +607,12 @@ describe('NumbersStep', () => {
     });
 
     it('does not refetch DIDs after rejection when clicking next again on overview', async () => {
-      const listPhoneNumbers = jest
+      const listPhoneNumbersMock = jest
         .fn()
         .mockResolvedValueOnce(emptyPage) // consumed by overview loadNumbersData
         .mockRejectedValueOnce(new Error('Network error')); // consumed by loadActiveDIDs
 
-      await renderNumbers({ listPhoneNumbers });
+      await renderNumbers({ ...phoneNumbersNS({ list: listPhoneNumbersMock }) });
 
       await waitForOverview();
 
@@ -539,16 +628,16 @@ describe('NumbersStep', () => {
       // listPhoneNumbers called: once by overview load (via fetchAllPages), once by loadActiveDIDs
       // fetchAllPages calls listPhoneNumbers, plus the direct loadActiveDIDs call
       // The key assertion: no additional calls after second click
-      const totalCalls = listPhoneNumbers.mock.calls.length;
+      const totalCalls = listPhoneNumbersMock.mock.calls.length;
       fireEvent.click(screen.getByRole('button', { name: /Next/i }));
       // Should not have increased
-      expect(listPhoneNumbers.mock.calls.length).toBe(totalCalls);
+      expect(listPhoneNumbersMock.mock.calls.length).toBe(totalCalls);
     });
 
     it('does not refetch when empty result and next is clicked again on overview', async () => {
-      const listPhoneNumbers = jest.fn().mockResolvedValue(emptyPage);
+      const listPhoneNumbersMock = jest.fn().mockResolvedValue(emptyPage);
 
-      await renderNumbers({ listPhoneNumbers });
+      await renderNumbers({ ...phoneNumbersNS({ list: listPhoneNumbersMock }) });
 
       await waitForOverview();
 
@@ -558,11 +647,11 @@ describe('NumbersStep', () => {
         expect(document.body.textContent).toContain('You need at least one phone number');
       });
 
-      const callsAfterFirstNext = listPhoneNumbers.mock.calls.length;
+      const callsAfterFirstNext = listPhoneNumbersMock.mock.calls.length;
 
       // Click next again — should not refetch
       fireEvent.click(screen.getByRole('button', { name: /Next/i }));
-      expect(listPhoneNumbers.mock.calls.length).toBe(callsAfterFirstNext);
+      expect(listPhoneNumbersMock.mock.calls.length).toBe(callsAfterFirstNext);
       expect(document.body.textContent).toContain('You need at least one phone number');
     });
 
@@ -575,7 +664,7 @@ describe('NumbersStep', () => {
       };
 
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([page1DID])),
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([page1DID])) }),
         // fetchAllPages simulates two-page fetch returning both DIDs
         fetchAllPages: jest.fn().mockResolvedValue([page1DID, mockAccountDID]),
       });
@@ -594,7 +683,9 @@ describe('NumbersStep', () => {
 
     it('allows user to override auto-matched DID in primary-did sub-step', async () => {
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([mockDID, mockAccountDID])),
+        ...phoneNumbersNS({
+          list: jest.fn().mockResolvedValue(didPage([mockDID, mockAccountDID])),
+        }),
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -622,7 +713,9 @@ describe('NumbersStep', () => {
     it('renders caller ID cards for each active DID', async () => {
       const didWithoutCnam = { ...mockDID, caller_id_name: null };
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([didWithoutCnam, mockAccountDID])),
+        ...phoneNumbersNS({
+          list: jest.fn().mockResolvedValue(didPage([didWithoutCnam, mockAccountDID])),
+        }),
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -634,7 +727,7 @@ describe('NumbersStep', () => {
 
     it('pre-fills and marks submitted for DIDs with existing caller_id_name', async () => {
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([mockDID])), // has caller_id_name
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([mockDID])) }), // has caller_id_name
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -651,7 +744,7 @@ describe('NumbersStep', () => {
 
     it('blocks at overview when no active DIDs exist (cannot reach caller-id)', async () => {
       await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(emptyPage),
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(emptyPage) }),
       });
 
       await waitForOverview();
@@ -671,8 +764,10 @@ describe('NumbersStep', () => {
       const didWithoutCnam = { ...mockDID, id: 'did_nocnam', caller_id_name: null };
       const updatePhoneNumber = jest.fn().mockResolvedValue(undefined);
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([didWithoutCnam])),
-        updatePhoneNumber,
+        ...phoneNumbersNS({
+          list: jest.fn().mockResolvedValue(didPage([didWithoutCnam])),
+          update: updatePhoneNumber,
+        }),
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -695,7 +790,7 @@ describe('NumbersStep', () => {
     it('shows validation error when Next is clicked with invalid caller ID', async () => {
       const didWithoutCnam = { ...mockDID, id: 'did_invalid', caller_id_name: null };
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([didWithoutCnam])),
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([didWithoutCnam])) }),
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -719,8 +814,10 @@ describe('NumbersStep', () => {
       const didWithoutCnam = { ...mockDID, id: 'did_block', caller_id_name: null };
       const updatePhoneNumber = jest.fn().mockResolvedValue(undefined);
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([didWithoutCnam])),
-        updatePhoneNumber,
+        ...phoneNumbersNS({
+          list: jest.fn().mockResolvedValue(didPage([didWithoutCnam])),
+          update: updatePhoneNumber,
+        }),
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -740,7 +837,7 @@ describe('NumbersStep', () => {
 
     it('advances immediately when all caller IDs are pre-submitted', async () => {
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([mockDID])), // has caller_id_name
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([mockDID])) }), // has caller_id_name
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -767,8 +864,10 @@ describe('NumbersStep', () => {
         return Promise.resolve(undefined);
       });
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([did1, did2])),
-        updatePhoneNumber,
+        ...phoneNumbersNS({
+          list: jest.fn().mockResolvedValue(didPage([did1, did2])),
+          update: updatePhoneNumber,
+        }),
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -794,8 +893,10 @@ describe('NumbersStep', () => {
       const didWithoutCnam = { ...mockDID, id: 'did_skip', caller_id_name: null };
       const updatePhoneNumber = jest.fn().mockRejectedValue(new Error('fail'));
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([didWithoutCnam])),
-        updatePhoneNumber,
+        ...phoneNumbersNS({
+          list: jest.fn().mockResolvedValue(didPage([didWithoutCnam])),
+          update: updatePhoneNumber,
+        }),
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -837,8 +938,10 @@ describe('NumbersStep', () => {
         return Promise.resolve(undefined);
       });
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([did1, did2])),
-        updatePhoneNumber,
+        ...phoneNumbersNS({
+          list: jest.fn().mockResolvedValue(didPage([did1, did2])),
+          update: updatePhoneNumber,
+        }),
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -908,7 +1011,7 @@ describe('NumbersStep', () => {
       ];
 
       await renderNumbers({
-        searchAvailableNumbers: jest.fn().mockResolvedValue(mockAvailable),
+        ...defaultAvailablePhoneNumbersNS({ search: jest.fn().mockResolvedValue(mockAvailable) }),
       });
 
       await navigateToOrder();
@@ -938,7 +1041,7 @@ describe('NumbersStep', () => {
       ];
 
       const result = await renderNumbers({
-        searchAvailableNumbers: jest.fn().mockResolvedValue(mockAvailable),
+        ...defaultAvailablePhoneNumbersNS({ search: jest.fn().mockResolvedValue(mockAvailable) }),
       });
 
       await navigateToOrder();
@@ -967,8 +1070,10 @@ describe('NumbersStep', () => {
       fireEvent.click(screen.getByRole('button', { name: /Place Order/i }));
 
       await waitFor(() => {
-        const mock = result.instance as unknown as Record<string, jest.Mock>;
-        expect(mock.createPhoneNumberOrder).toHaveBeenCalledWith(['+12125559001']);
+        expect(
+          (result.instance as unknown as Record<string, Record<string, jest.Mock>>)
+            .phoneNumberOrders.create
+        ).toHaveBeenCalledWith(['+12125559001']);
       });
 
       // Should show order status
@@ -1035,8 +1140,10 @@ describe('NumbersStep', () => {
       fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
 
       await waitFor(() => {
-        const mock = result.instance as unknown as Record<string, jest.Mock>;
-        expect(mock.checkPortEligibility).toHaveBeenCalled();
+        expect(
+          (result.instance as unknown as Record<string, Record<string, jest.Mock>>).portOrders
+            .checkEligibility
+        ).toHaveBeenCalled();
         expect(document.body.textContent).toContain('Portable');
         expect(document.body.textContent).toContain('OldCo');
       });
@@ -1073,9 +1180,11 @@ describe('NumbersStep', () => {
 
     it('shows non-portable numbers in eligibility results', async () => {
       await renderNumbers({
-        checkPortEligibility: jest.fn().mockResolvedValue({
-          portable_numbers: [],
-          non_portable_numbers: [{ phone_number: '+12125551001', city: 'New York', state: 'NY' }],
+        ...defaultPortOrdersNS({
+          checkEligibility: jest.fn().mockResolvedValue({
+            portable_numbers: [],
+            non_portable_numbers: [{ phone_number: '+12125551001', city: 'New York', state: 'NY' }],
+          }),
         }),
       });
 
@@ -1103,8 +1212,10 @@ describe('NumbersStep', () => {
 
       await waitFor(() => {
         expect(document.body.textContent).toContain('Enter a valid US phone number');
-        const mock = result.instance as unknown as Record<string, jest.Mock>;
-        expect(mock.checkPortEligibility).not.toHaveBeenCalled();
+        expect(
+          (result.instance as unknown as Record<string, Record<string, jest.Mock>>).portOrders
+            .checkEligibility
+        ).not.toHaveBeenCalled();
       });
     });
 
@@ -1189,9 +1300,10 @@ describe('NumbersStep', () => {
       await navigatePortFlowTo(result.instance, 'submitted');
 
       // Verify API calls
-      const mock = result.instance as unknown as Record<string, jest.Mock>;
-      expect(mock.checkPortEligibility).toHaveBeenCalled();
-      expect(mock.createPortOrder).toHaveBeenCalledWith(
+      const portOrders = (result.instance as unknown as Record<string, Record<string, jest.Mock>>)
+        .portOrders;
+      expect(portOrders.checkEligibility).toHaveBeenCalled();
+      expect(portOrders.create).toHaveBeenCalledWith(
         expect.objectContaining({
           phone_numbers: ['+12125551001'],
           subscriber: expect.objectContaining({
@@ -1200,12 +1312,12 @@ describe('NumbersStep', () => {
           }),
         })
       );
-      expect(mock.uploadBillCopy).toHaveBeenCalledWith('po_01abc', expect.any(File));
-      expect(mock.approvePortOrder).toHaveBeenCalledWith(
+      expect(portOrders.uploadBillCopy).toHaveBeenCalledWith('po_01abc', expect.any(File));
+      expect(portOrders.approve).toHaveBeenCalledWith(
         'po_01abc',
         expect.objectContaining({ signature: 'John Doe' })
       );
-      expect(mock.submitPortOrder).toHaveBeenCalledWith('po_01abc');
+      expect(portOrders.submit).toHaveBeenCalledWith('po_01abc');
 
       expect(document.body.textContent).toContain('Port Request Submitted');
     });
@@ -1232,8 +1344,9 @@ describe('NumbersStep', () => {
         expect(document.body.textContent).toContain('Signature is required');
       });
 
-      const mock = result.instance as unknown as Record<string, jest.Mock>;
-      expect(mock.createPortOrder).not.toHaveBeenCalled();
+      expect(
+        (result.instance as unknown as Record<string, Record<string, jest.Mock>>).portOrders.create
+      ).not.toHaveBeenCalled();
     });
 
     it('returns to overview after port submission', async () => {
@@ -1250,7 +1363,9 @@ describe('NumbersStep', () => {
 
     it('shows port submission error when API fails', async () => {
       const result = await renderNumbers({
-        createPortOrder: jest.fn().mockRejectedValue(new Error('Network failure')),
+        ...defaultPortOrdersNS({
+          create: jest.fn().mockRejectedValue(new Error('Network failure')),
+        }),
       });
 
       await navigatePortFlowTo(result.instance, 'review');
@@ -1322,8 +1437,8 @@ describe('NumbersStep', () => {
       ]);
 
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([mockAccountDID])),
-        listLocations: listLocationsMock,
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([mockAccountDID])) }),
+        ...defaultLocationsNS({ list: listLocationsMock }),
       });
 
       await completeToE911(result.instance);
@@ -1344,14 +1459,22 @@ describe('NumbersStep', () => {
         e911_status: 'provisioned' as const,
       };
 
+      const updateLocationMock = jest.fn().mockResolvedValue(provisionedLocation);
+      const validateE911Mock = jest.fn().mockResolvedValue({
+        adjusted: false,
+        address: { house_number: '123', street_name: 'Main', city: 'New York' },
+      });
+      const provisionE911Mock = jest.fn().mockResolvedValue(provisionedLocation);
+
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([mockDID, mockAccountDID])),
-        updateLocation: jest.fn().mockResolvedValue(provisionedLocation),
-        validateLocationE911: jest.fn().mockResolvedValue({
-          adjusted: false,
-          address: { house_number: '123', street_name: 'Main', city: 'New York' },
+        ...phoneNumbersNS({
+          list: jest.fn().mockResolvedValue(didPage([mockDID, mockAccountDID])),
         }),
-        provisionLocationE911: jest.fn().mockResolvedValue(provisionedLocation),
+        ...defaultLocationsNS({
+          update: updateLocationMock,
+          validateE911: validateE911Mock,
+          provisionE911: provisionE911Mock,
+        }),
       });
 
       await completeToE911(result.instance);
@@ -1360,12 +1483,11 @@ describe('NumbersStep', () => {
         expect(document.body.textContent).toContain('E911 emergency address is verified');
       });
 
-      const mock = result.instance as unknown as Record<string, jest.Mock>;
-      expect(mock.updateLocation).toHaveBeenCalledWith('loc_01abc', {
+      expect(updateLocationMock).toHaveBeenCalledWith('loc_01abc', {
         primary_did_id: 'did_02acct',
       });
-      expect(mock.validateLocationE911).toHaveBeenCalledWith('loc_01abc');
-      expect(mock.provisionLocationE911).toHaveBeenCalledWith('loc_01abc');
+      expect(validateE911Mock).toHaveBeenCalledWith('loc_01abc');
+      expect(provisionE911Mock).toHaveBeenCalledWith('loc_01abc');
     }, 15000);
 
     it('shows warning banner for complex case (multiple locations)', async () => {
@@ -1376,11 +1498,13 @@ describe('NumbersStep', () => {
       };
 
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([mockDID])),
-        listLocations: jest
-          .fn()
-          .mockResolvedValueOnce([mockLocation, secondLocation])
-          .mockResolvedValue([mockLocation, secondLocation]),
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([mockDID])) }),
+        ...defaultLocationsNS({
+          list: jest
+            .fn()
+            .mockResolvedValueOnce([mockLocation, secondLocation])
+            .mockResolvedValue([mockLocation, secondLocation]),
+        }),
       });
 
       await completeToE911(result.instance);
@@ -1391,15 +1515,22 @@ describe('NumbersStep', () => {
         );
       });
 
-      const mock = result.instance as unknown as Record<string, jest.Mock>;
-      expect(mock.validateLocationE911).not.toHaveBeenCalled();
-      expect(mock.provisionLocationE911).not.toHaveBeenCalled();
+      expect(
+        (result.instance as unknown as Record<string, Record<string, jest.Mock>>).locations
+          .validateE911
+      ).not.toHaveBeenCalled();
+      expect(
+        (result.instance as unknown as Record<string, Record<string, jest.Mock>>).locations
+          .provisionE911
+      ).not.toHaveBeenCalled();
     }, 15000);
 
     it('shows error state with retry button on provisioning API error', async () => {
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([mockAccountDID])),
-        validateLocationE911: jest.fn().mockRejectedValue(new Error('Validation failed')),
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([mockAccountDID])) }),
+        ...defaultLocationsNS({
+          validateE911: jest.fn().mockRejectedValue(new Error('Validation failed')),
+        }),
       });
 
       await completeToE911(result.instance);
@@ -1431,11 +1562,13 @@ describe('NumbersStep', () => {
       const getLocationMock = jest.fn().mockResolvedValue(provisionedLocation);
 
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([mockAccountDID])),
-        updateLocation: jest.fn().mockResolvedValue(pendingLocation),
-        validateLocationE911: jest.fn().mockResolvedValue({ adjusted: false, address: {} }),
-        provisionLocationE911: jest.fn().mockResolvedValue(pendingLocation),
-        getLocation: getLocationMock,
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([mockAccountDID])) }),
+        ...defaultLocationsNS({
+          update: jest.fn().mockResolvedValue(pendingLocation),
+          validateE911: jest.fn().mockResolvedValue({ adjusted: false, address: {} }),
+          provisionE911: jest.fn().mockResolvedValue(pendingLocation),
+          retrieve: getLocationMock,
+        }),
       });
 
       await completeToE911(result.instance);
@@ -1461,11 +1594,13 @@ describe('NumbersStep', () => {
       const getLocationMock = jest.fn().mockResolvedValue(pendingLocation);
 
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([mockAccountDID])),
-        updateLocation: jest.fn().mockResolvedValue(pendingLocation),
-        validateLocationE911: jest.fn().mockResolvedValue({ adjusted: false, address: {} }),
-        provisionLocationE911: jest.fn().mockResolvedValue(pendingLocation),
-        getLocation: getLocationMock,
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([mockAccountDID])) }),
+        ...defaultLocationsNS({
+          update: jest.fn().mockResolvedValue(pendingLocation),
+          validateE911: jest.fn().mockResolvedValue({ adjusted: false, address: {} }),
+          provisionE911: jest.fn().mockResolvedValue(pendingLocation),
+          retrieve: getLocationMock,
+        }),
       });
 
       await completeToE911(result.instance);
@@ -1495,11 +1630,14 @@ describe('NumbersStep', () => {
         .mockRejectedValueOnce(new Error('Validation failed'))
         .mockResolvedValueOnce({ adjusted: false, address: {} });
 
+      const provisionE911Mock = jest.fn().mockResolvedValue(provisionedLocation);
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([mockAccountDID])),
-        updateLocation: jest.fn().mockResolvedValue(provisionedLocation),
-        validateLocationE911: validateMock,
-        provisionLocationE911: jest.fn().mockResolvedValue(provisionedLocation),
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([mockAccountDID])) }),
+        ...defaultLocationsNS({
+          update: jest.fn().mockResolvedValue(provisionedLocation),
+          validateE911: validateMock,
+          provisionE911: provisionE911Mock,
+        }),
       });
 
       await completeToE911(result.instance);
@@ -1519,8 +1657,7 @@ describe('NumbersStep', () => {
       });
 
       expect(validateMock).toHaveBeenCalledTimes(2);
-      const mock = result.instance as unknown as Record<string, jest.Mock>;
-      expect(mock.provisionLocationE911).toHaveBeenCalledWith('loc_01abc');
+      expect(provisionE911Mock).toHaveBeenCalledWith('loc_01abc');
     }, 15000);
 
     it('shows polling status message during active polling', async () => {
@@ -1540,11 +1677,13 @@ describe('NumbersStep', () => {
         });
 
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([mockAccountDID])),
-        updateLocation: jest.fn().mockResolvedValue(pendingLocation),
-        validateLocationE911: jest.fn().mockResolvedValue({ adjusted: false, address: {} }),
-        provisionLocationE911: jest.fn().mockResolvedValue(pendingLocation),
-        getLocation: getLocationMock,
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([mockAccountDID])) }),
+        ...defaultLocationsNS({
+          update: jest.fn().mockResolvedValue(pendingLocation),
+          validateE911: jest.fn().mockResolvedValue({ adjusted: false, address: {} }),
+          provisionE911: jest.fn().mockResolvedValue(pendingLocation),
+          retrieve: getLocationMock,
+        }),
       });
 
       await completeToE911(result.instance);
@@ -1568,11 +1707,13 @@ describe('NumbersStep', () => {
       const getLocationMock = jest.fn().mockRejectedValue(new Error('Network error'));
 
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([mockAccountDID])),
-        updateLocation: jest.fn().mockResolvedValue(pendingLocation),
-        validateLocationE911: jest.fn().mockResolvedValue({ adjusted: false, address: {} }),
-        provisionLocationE911: jest.fn().mockResolvedValue(pendingLocation),
-        getLocation: getLocationMock,
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([mockAccountDID])) }),
+        ...defaultLocationsNS({
+          update: jest.fn().mockResolvedValue(pendingLocation),
+          validateE911: jest.fn().mockResolvedValue({ adjusted: false, address: {} }),
+          provisionE911: jest.fn().mockResolvedValue(pendingLocation),
+          retrieve: getLocationMock,
+        }),
       });
 
       await completeToE911(result.instance);
@@ -1590,8 +1731,10 @@ describe('NumbersStep', () => {
 
     it('Done button always present regardless of E911 state', async () => {
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([mockAccountDID])),
-        validateLocationE911: jest.fn().mockRejectedValue(new Error('Validation failed')),
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([mockAccountDID])) }),
+        ...defaultLocationsNS({
+          validateE911: jest.fn().mockRejectedValue(new Error('Validation failed')),
+        }),
       });
 
       await completeToE911(result.instance);
@@ -1611,8 +1754,8 @@ describe('NumbersStep', () => {
       ]);
 
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([mockDID])),
-        listLocations: listLocationsMock,
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([mockDID])) }),
+        ...defaultLocationsNS({ list: listLocationsMock }),
       });
 
       await completeToE911(result.instance);
@@ -1624,10 +1767,17 @@ describe('NumbersStep', () => {
       resolveSecond([mockLocation]);
       await new Promise((r) => setTimeout(r, 50));
 
-      const mock = result.instance as unknown as Record<string, jest.Mock>;
-      expect(mock.updateLocation).not.toHaveBeenCalled();
-      expect(mock.validateLocationE911).not.toHaveBeenCalled();
-      expect(mock.provisionLocationE911).not.toHaveBeenCalled();
+      expect(
+        (result.instance as unknown as Record<string, Record<string, jest.Mock>>).locations.update
+      ).not.toHaveBeenCalled();
+      expect(
+        (result.instance as unknown as Record<string, Record<string, jest.Mock>>).locations
+          .validateE911
+      ).not.toHaveBeenCalled();
+      expect(
+        (result.instance as unknown as Record<string, Record<string, jest.Mock>>).locations
+          .provisionE911
+      ).not.toHaveBeenCalled();
     }, 15000);
   });
 
@@ -1645,7 +1795,7 @@ describe('NumbersStep', () => {
 
     it('shows temporary banner when temporary DID exists', async () => {
       await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([tempDID])),
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([tempDID])) }),
       });
 
       await waitForOverview();
@@ -1657,7 +1807,7 @@ describe('NumbersStep', () => {
 
     it('shows Temporary badge on card', async () => {
       await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([tempDID])),
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([tempDID])) }),
       });
 
       await waitForOverview();
@@ -1671,7 +1821,7 @@ describe('NumbersStep', () => {
 
     it('shows temporary note in Primary DID step', async () => {
       const result = await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(didPage([tempDID])),
+        ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([tempDID])) }),
       });
 
       await advanceToPrimaryDID(result.instance);
@@ -1685,18 +1835,20 @@ describe('NumbersStep', () => {
 
     it('does not show banner when no temporary DIDs', async () => {
       await renderNumbers({
-        listPhoneNumbers: jest.fn().mockResolvedValue(
-          didPage([
-            {
-              id: 'did_regular',
-              phone_number: '+12125551001',
-              status: 'active',
-              outbound_enabled: true,
-              created_at: '2026-01-01T00:00:00Z',
-              updated_at: '2026-01-01T00:00:00Z',
-            },
-          ])
-        ),
+        ...phoneNumbersNS({
+          list: jest.fn().mockResolvedValue(
+            didPage([
+              {
+                id: 'did_regular',
+                phone_number: '+12125551001',
+                status: 'active',
+                outbound_enabled: true,
+                created_at: '2026-01-01T00:00:00Z',
+                updated_at: '2026-01-01T00:00:00Z',
+              },
+            ])
+          ),
+        }),
       });
 
       await waitForOverview();
@@ -1739,9 +1891,20 @@ describe('NumbersStep', () => {
     async function navigateToCarrierSelect(
       overrides: RenderOnboardingOptions['instanceOverrides'] = {}
     ) {
+      // Merge portOrders overrides with the multiCarrier checkEligibility default
+      const portOrdersOverride = (overrides as Record<string, unknown>)?.portOrders as
+        | Record<string, unknown>
+        | undefined;
+      const { portOrders: _discarded, ...restOverrides } = (overrides || {}) as Record<
+        string,
+        unknown
+      >;
       const result = await renderNumbers({
-        checkPortEligibility: jest.fn().mockResolvedValue(multiCarrierEligibility),
-        ...overrides,
+        ...defaultPortOrdersNS({
+          ...portOrdersOverride,
+          checkEligibility: jest.fn().mockResolvedValue(multiCarrierEligibility),
+        }),
+        ...restOverrides,
       });
       await navigateToPort();
 
@@ -1866,22 +2029,24 @@ describe('NumbersStep', () => {
 
     it('single carrier skips carrier select', async () => {
       await renderNumbers({
-        checkPortEligibility: jest.fn().mockResolvedValue({
-          portable_numbers: [
-            {
-              phone_number: '+12125551001',
-              losing_carrier_name: 'AT&T Mobility',
-              is_wireless: false,
-              account_number_required: false,
-            },
-            {
-              phone_number: '+12125551002',
-              losing_carrier_name: 'AT&T Mobility',
-              is_wireless: false,
-              account_number_required: false,
-            },
-          ],
-          non_portable_numbers: [],
+        ...defaultPortOrdersNS({
+          checkEligibility: jest.fn().mockResolvedValue({
+            portable_numbers: [
+              {
+                phone_number: '+12125551001',
+                losing_carrier_name: 'AT&T Mobility',
+                is_wireless: false,
+                account_number_required: false,
+              },
+              {
+                phone_number: '+12125551002',
+                losing_carrier_name: 'AT&T Mobility',
+                is_wireless: false,
+                account_number_required: false,
+              },
+            ],
+            non_portable_numbers: [],
+          }),
         }),
       });
 
@@ -1942,7 +2107,7 @@ describe('NumbersStep', () => {
         updated_at: '2026-01-01T00:00:00Z',
       });
 
-      await navigateToCarrierSelect({ createPortOrder });
+      await navigateToCarrierSelect({ ...defaultPortOrdersNS({ create: createPortOrder }) });
 
       // Click Start on AT&T carrier group
       const groups = document.querySelectorAll('.num-carrier-group');
@@ -1984,7 +2149,7 @@ describe('NumbersStep', () => {
         });
       });
 
-      await navigateToCarrierSelect({ createPortOrder });
+      await navigateToCarrierSelect({ ...defaultPortOrdersNS({ create: createPortOrder }) });
 
       // --- Complete AT&T carrier ---
       const groups1 = document.querySelectorAll('.num-carrier-group');
