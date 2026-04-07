@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import type { ConfigPanelProps, ResourceType } from '../registry-types';
+import type { ConfigPanelProps } from '../registry-types';
 import { OpenResourceLink } from './OpenResourceLink';
 import { ResourceCombobox, type ResourceGroup } from './ResourceCombobox';
 
-export function InternalDialConfigPanel({
+export function VoiceAppConfigPanel({
   config,
   onConfigChange,
   listResources,
@@ -12,28 +12,20 @@ export function InternalDialConfigPanel({
   locale,
 }: ConfigPanelProps) {
   const [groups, setGroups] = useState<ResourceGroup[]>([]);
-  const [loading, setLoading] = useState(true);
 
   const fetchResources = useCallback(
     () =>
-      Promise.all([listResources('user'), listResources('ring_group'), listResources('dial_plan')])
-        .then(([users, ringGroups, dialPlans]) => {
+      listResources('voice_app')
+        .then((voiceApps) => {
           setGroups([
-            { label: locale?.resourceGroups.users ?? 'Users', type: 'user', items: users },
             {
-              label: locale?.resourceGroups.ringGroups ?? 'Ring Groups',
-              type: 'ring_group',
-              items: ringGroups,
-            },
-            {
-              label: locale?.resourceGroups.dialPlans ?? 'Dial Plans',
-              type: 'dial_plan',
-              items: dialPlans,
+              label: locale?.resourceGroups.voiceApps ?? 'Voice Apps',
+              type: 'voice_app',
+              items: voiceApps,
             },
           ]);
         })
-        .catch(() => {})
-        .finally(() => setLoading(false)),
+        .catch(() => {}),
     [listResources, locale]
   );
 
@@ -43,23 +35,6 @@ export function InternalDialConfigPanel({
 
   const targetId = (config.target_id as string) ?? '';
   const timeout = (config.timeout as number) ?? 30;
-
-  function handleChange(updates: Record<string, unknown>, display?: Record<string, unknown>) {
-    onConfigChange({ target_id: targetId, timeout, ...updates }, display);
-  }
-
-  function handleTargetChange(newTargetId: string, targetName: string) {
-    handleChange({ target_id: newTargetId }, { targetName });
-  }
-
-  async function handleCreateResource(type: ResourceType) {
-    if (!onCreateResource) return undefined;
-    const created = await onCreateResource(type);
-    if (created) {
-      await fetchResources();
-    }
-    return created;
-  }
 
   return (
     <>
@@ -73,7 +48,7 @@ export function InternalDialConfigPanel({
           min={0}
           max={300}
           value={timeout}
-          onChange={(e) => handleChange({ timeout: Number(e.target.value) })}
+          onChange={(e) => onConfigChange({ timeout: Number(e.target.value) })}
         />
       </div>
       <div className="ds-dial-plan-config-field">
@@ -83,10 +58,17 @@ export function InternalDialConfigPanel({
         <ResourceCombobox
           groups={groups}
           value={targetId}
-          loading={loading}
-          placeholder={locale?.configLabels.searchTargets ?? 'Search targets…'}
-          onSelect={handleTargetChange}
-          onCreateResource={handleCreateResource}
+          placeholder={locale?.configLabels.searchTargets ?? 'Search targets\u2026'}
+          onSelect={(id, name) => onConfigChange({ target_id: id }, { targetName: name })}
+          onCreateResource={
+            onCreateResource
+              ? async (type) => {
+                  const created = await onCreateResource(type);
+                  if (created) await fetchResources();
+                  return created;
+                }
+              : undefined
+          }
           selectLabel={locale?.combobox.select}
           noResultsLabel={locale?.combobox.noResults}
           loadingLabel={locale?.combobox.loading}

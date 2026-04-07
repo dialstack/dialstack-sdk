@@ -7,7 +7,7 @@
 import type { Node, Edge } from '@xyflow/react';
 import dagre from 'dagre';
 import type { DialPlan, DialPlanNode, StartNodeData } from '../types/dial-plan';
-import type { NodeTypeRegistry } from '../react/dial-plan/registry';
+import { DIAL_PLAN_EDGE_TYPE, type NodeTypeRegistry } from '../react/dial-plan/registry';
 import { defaultRegistry } from '../react/dial-plan/default-registry';
 
 // ============================================================================
@@ -106,7 +106,7 @@ export function transformDialPlanToGraph(
       id: `${START_NODE_ID}->${dialPlan.entry_node}`,
       source: START_NODE_ID,
       target: dialPlan.entry_node,
-      type: 'smoothstep',
+      type: DIAL_PLAN_EDGE_TYPE,
     });
   }
 

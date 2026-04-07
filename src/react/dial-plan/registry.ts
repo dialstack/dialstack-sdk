@@ -2,6 +2,9 @@ import type { NodeTypes, Edge } from '@xyflow/react';
 import type { NodeTypeRegistration } from './registry-types';
 import type { DialPlanNode } from '../../types/dial-plan';
 
+/** Edge type used for all dial plan connections */
+export const DIAL_PLAN_EDGE_TYPE = 'smoothstep' as const;
+
 export class NodeTypeRegistry {
   private byType = new Map<string, NodeTypeRegistration>();
   private byFlowType = new Map<string, NodeTypeRegistration>();
@@ -53,7 +56,7 @@ export class NodeTypeRegistry {
           source: node.id,
           target: targetId,
           sourceHandle: exit.id,
-          type: 'smoothstep',
+          type: DIAL_PLAN_EDGE_TYPE,
         });
       }
     }

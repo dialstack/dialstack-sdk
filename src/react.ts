@@ -46,4 +46,5 @@ export type {
   InternalDialNode,
   ScheduleNodeConfig,
   InternalDialNodeConfig,
+  VoiceAppNodeData,
 } from './types/dial-plan';

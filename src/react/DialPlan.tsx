@@ -41,6 +41,7 @@ import {
   type DialPlanGraphNode,
 } from '../utils/dial-plan-graph';
 import { defaultRegistry } from './dial-plan/default-registry';
+import { DIAL_PLAN_EDGE_TYPE } from './dial-plan/registry';
 import { StartNode } from './dial-plan/StartNode';
 import { NodeLibrary } from './dial-plan/NodeLibrary';
 import { NodeConfigPanel } from './dial-plan/NodeConfigPanel';
@@ -145,6 +146,7 @@ const defaultDialPlanLocale: DialPlanLocale = {
     internalDial: 'Dial',
     voicemail: 'Voicemail',
     ringAllUsers: 'Ring All Users',
+    voiceApp: 'Voice App',
   },
   exits: {
     open: 'Open',
@@ -157,6 +159,7 @@ const defaultDialPlanLocale: DialPlanLocale = {
     internalDial: 'Dial a user or group',
     voicemail: 'Send to voicemail',
     ringAllUsers: 'Ring all users',
+    voiceApp: 'Route to a voice application',
   },
   targetTypes: {
     user: 'User',
@@ -294,7 +297,11 @@ function enrichNodesWithResources(
       const data = node.data as ScheduleNodeData;
       const schedule = maps.schedules.get(data.scheduleId);
       return { ...node, data: { ...data, scheduleName: schedule?.name, locale } };
-    } else if (node.type === 'internalDial' || node.type === 'voicemail') {
+    } else if (
+      node.type === 'internalDial' ||
+      node.type === 'voicemail' ||
+      node.type === 'voiceApp'
+    ) {
       const data = node.data as InternalDialNodeData;
       const user = maps.users.get(data.targetId);
       const baseName = user?.name || user?.email;
@@ -627,7 +634,7 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
         target: connection.target,
         sourceHandle: connection.sourceHandle ?? undefined,
         targetHandle: connection.targetHandle ?? undefined,
-        type: 'smoothstep',
+        type: DIAL_PLAN_EDGE_TYPE,
         markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: '#94a3b8' },
       };
       setEdges((prev) => {
@@ -664,7 +671,7 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
           target: newConnection.target,
           sourceHandle: newConnection.sourceHandle ?? undefined,
           targetHandle: newConnection.targetHandle ?? undefined,
-          type: 'smoothstep',
+          type: DIAL_PLAN_EDGE_TYPE,
           markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: '#94a3b8' },
         };
         const next = [...filtered, reconnected];
@@ -953,7 +960,7 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
       minZoom={0.3}
       maxZoom={2}
       defaultEdgeOptions={{
-        type: 'smoothstep',
+        type: DIAL_PLAN_EDGE_TYPE,
         animated: false,
         markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: '#94a3b8' },
       }}

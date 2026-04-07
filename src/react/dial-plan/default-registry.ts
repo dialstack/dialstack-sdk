@@ -6,10 +6,12 @@ import { ScheduleNode } from './ScheduleNode';
 import { InternalDialNode } from './InternalDialNode';
 import { RingAllUsersNode } from './RingAllUsersNode';
 import { VoicemailNode } from './VoicemailNode';
+import { VoiceAppNode } from './VoiceAppNode';
 import { ScheduleConfigPanel } from './config-panels/ScheduleConfigPanel';
 import { InternalDialConfigPanel } from './config-panels/InternalDialConfigPanel';
 import { RingAllUsersConfigPanel } from './config-panels/RingAllUsersConfigPanel';
 import { VoicemailConfigPanel } from './config-panels/VoicemailConfigPanel';
+import { VoiceAppConfigPanel } from './config-panels/VoiceAppConfigPanel';
 import type {
   DialPlanNode,
   ScheduleNode as ScheduleNodeType,
@@ -85,6 +87,27 @@ const voicemailIcon = React.createElement(
   React.createElement('line', { x1: '5.5', y1: '16', x2: '18.5', y2: '16' })
 );
 
+// Bot icon — matches lucide-react "Bot" used in admin sidebar and voice-apps page
+const voiceAppIcon = React.createElement(
+  'svg',
+  {
+    width: '16',
+    height: '16',
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: '2',
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+  },
+  React.createElement('path', { d: 'M12 8V4H8' }),
+  React.createElement('rect', { width: '16', height: '12', x: '4', y: '8', rx: '2' }),
+  React.createElement('path', { d: 'M2 14h2' }),
+  React.createElement('path', { d: 'M20 14h2' }),
+  React.createElement('path', { d: 'M15 13v2' }),
+  React.createElement('path', { d: 'M9 13v2' })
+);
+
 export const defaultRegistry = new NodeTypeRegistry();
 
 defaultRegistry.register({
@@ -144,6 +167,10 @@ defaultRegistry.register({
     if (targetId.startsWith('user_') && config.timeout === 0 && !config.next) {
       return defaultRegistry.get('voicemail');
     }
+    // Voice app targets render as voice app node
+    if (targetId.startsWith('va_')) {
+      return defaultRegistry.get('voice_app');
+    }
     return undefined;
   },
 });
@@ -167,6 +194,29 @@ defaultRegistry.register({
     };
   },
   icon: usersIcon,
+});
+
+defaultRegistry.register({
+  type: 'voice_app',
+  apiType: 'internal_dial',
+  flowType: 'voiceApp',
+  label: 'Voice App',
+  description: 'Route to a voice application',
+  color: '#6366f1',
+  exits: [{ id: 'next', label: 'No Answer', configKey: 'next' }],
+  component: VoiceAppNode as unknown as ComponentType<NodeProps>,
+  configPanel: VoiceAppConfigPanel,
+  defaultConfig: { target_id: '', timeout: 30 },
+  toFlowNode: (node: DialPlanNode) => {
+    const n = node as InternalDialNodeType;
+    return {
+      label: 'Voice App',
+      targetId: n.config.target_id,
+      timeout: n.config.timeout,
+      originalNode: n,
+    };
+  },
+  icon: voiceAppIcon,
 });
 
 defaultRegistry.register({

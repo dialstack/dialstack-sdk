@@ -22,6 +22,8 @@ export function NodeLibrary({ registry, onAddNode, locale }: NodeLibraryProps): 
         return locale.nodeTypes.ringAllUsers;
       case 'voicemail':
         return locale.nodeTypes.voicemail;
+      case 'voice_app':
+        return locale.nodeTypes.voiceApp;
       default:
         return reg.label;
     }
@@ -38,6 +40,8 @@ export function NodeLibrary({ registry, onAddNode, locale }: NodeLibraryProps): 
         return locale.nodeDescriptions.ringAllUsers;
       case 'voicemail':
         return locale.nodeDescriptions.voicemail;
+      case 'voice_app':
+        return locale.nodeDescriptions.voiceApp;
       default:
         return reg.description;
     }

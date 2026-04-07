@@ -756,6 +756,7 @@ export const en = {
       schedule: 'Schedule',
       internalDial: 'Dial',
       voicemail: 'Voicemail',
+      voiceApp: 'Voice App',
     },
     exits: {
       open: 'Open',

@@ -4,7 +4,7 @@
 
 import React from 'react';
 import type { NodeProps } from '@xyflow/react';
-import { NodeTypeRegistry } from '../dial-plan/registry';
+import { DIAL_PLAN_EDGE_TYPE, NodeTypeRegistry } from '../dial-plan/registry';
 import type { NodeTypeRegistration, ConfigPanelProps } from '../dial-plan/registry-types';
 import type { DialPlanNode } from '../../types/dial-plan';
 
@@ -136,14 +136,14 @@ describe('NodeTypeRegistry', () => {
         source: 'n1',
         target: 'n2',
         sourceHandle: 'open',
-        type: 'smoothstep',
+        type: DIAL_PLAN_EDGE_TYPE,
       });
       expect(edges[1]).toMatchObject({
         id: 'n1-closed->n3',
         source: 'n1',
         target: 'n3',
         sourceHandle: 'closed',
-        type: 'smoothstep',
+        type: DIAL_PLAN_EDGE_TYPE,
       });
     });
 

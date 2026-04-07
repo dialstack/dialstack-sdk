@@ -49,7 +49,7 @@ export interface RingAllUsersNodeConfig {
 // Dial Plan Node Types
 // ============================================================================
 
-/** Supported dial plan node types */
+/** Supported dial plan node types (as sent by the API) */
 export type DialPlanNodeType = 'schedule' | 'internal_dial' | 'ring_all_users';
 
 /**
@@ -125,6 +125,7 @@ export interface DialPlanLocale {
     internalDial: string;
     voicemail: string;
     ringAllUsers: string;
+    voiceApp: string;
   };
   exits: {
     open: string;
@@ -137,6 +138,7 @@ export interface DialPlanLocale {
     internalDial: string;
     voicemail: string;
     ringAllUsers: string;
+    voiceApp: string;
   };
   targetTypes: {
     user: string;
@@ -197,7 +199,13 @@ export interface DialPlanLocale {
 // ============================================================================
 
 /** Types of nodes in the visual graph */
-export type GraphNodeType = 'start' | 'schedule' | 'internalDial' | 'ringAllUsers' | 'voicemail';
+export type GraphNodeType =
+  | 'start'
+  | 'schedule'
+  | 'internalDial'
+  | 'ringAllUsers'
+  | 'voicemail'
+  | 'voiceApp';
 
 /**
  * Data payload for the Start node.
@@ -241,12 +249,25 @@ export interface RingAllUsersNodeData extends Record<string, unknown> {
   locale?: DialPlanLocale;
 }
 
+/**
+ * Data payload for a Voice App node in the graph.
+ */
+export interface VoiceAppNodeData extends Record<string, unknown> {
+  label: string;
+  targetId: string;
+  targetName?: string;
+  timeout?: number;
+  originalNode: InternalDialNode;
+  locale?: DialPlanLocale;
+}
+
 /** Union type for all graph node data */
 export type GraphNodeData =
   | StartNodeData
   | ScheduleNodeData
   | InternalDialNodeData
-  | RingAllUsersNodeData;
+  | RingAllUsersNodeData
+  | VoiceAppNodeData;
 
 /** Edge labels for schedule exits */
 export type ScheduleExitType = 'open' | 'closed';
