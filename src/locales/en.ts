@@ -299,9 +299,6 @@ export const en = {
       location: {
         heading: 'Business Location',
         description: 'Add your business address for E911 and caller ID.',
-        multipleLocationsTooltip:
-          'If your business has multiple locations, add your primary one here. You can add the others later from the Admin portal.',
-        e911Note: 'Add your business address for E911 and caller ID',
         nameLabel: 'Location Name',
         namePlaceholder: 'Main Office',
         nameRequired: 'Location name is required',

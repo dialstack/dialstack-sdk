@@ -207,12 +207,3 @@
 .address-manual-row-2 .form-group {
   margin-bottom: 0;
 }
-
-/* ── E911 Separator ── */
-.e911-separator {
-  text-align: center;
-  font-style: italic;
-  color: var(--ds-color-text-secondary);
-  font-size: var(--ds-font-size-small);
-  margin: var(--ds-layout-spacing-md) 0;
-}
