@@ -99,7 +99,7 @@ describe('BusinessDetails', () => {
   it('renders with pre-populated email from API', async () => {
     const { container } = await renderBD();
 
-    const emailInput = getFieldByLabel(container, 'Email') as HTMLInputElement;
+    const emailInput = getFieldByLabel(container, 'Primary Contact Email') as HTMLInputElement;
     expect(emailInput.value).toBe('existing@example.com');
   });
 
@@ -113,7 +113,10 @@ describe('BusinessDetails', () => {
   it('renders with pre-populated phone from API', async () => {
     const { container } = await renderBD();
 
-    const phoneInput = getFieldByLabel(container, 'Phone Number') as HTMLInputElement;
+    const phoneInput = getFieldByLabel(
+      container,
+      'Primary Contact Phone Number'
+    ) as HTMLInputElement;
     expect(phoneInput.value).toBe('(212) 555-0100');
   });
 
@@ -165,7 +168,7 @@ describe('BusinessDetails', () => {
     clickNext();
 
     await waitFor(() => {
-      expect(screen.getByText('Email is required')).toBeTruthy();
+      expect(screen.getByText('Primary contact email is required')).toBeTruthy();
     });
   });
 
@@ -177,7 +180,7 @@ describe('BusinessDetails', () => {
     clickNext();
 
     await waitFor(() => {
-      expect(screen.getByText('Phone number is required')).toBeTruthy();
+      expect(screen.getByText('Primary contact phone number is required')).toBeTruthy();
     });
   });
 
@@ -719,7 +722,10 @@ describe('BusinessDetails', () => {
       ...accountNS({ retrieve: jest.fn().mockResolvedValue({ ...mockAccount, phone: null }) }),
     });
 
-    const phoneInput = getFieldByLabel(container, 'Phone Number') as HTMLInputElement;
+    const phoneInput = getFieldByLabel(
+      container,
+      'Primary Contact Phone Number'
+    ) as HTMLInputElement;
     fireEvent.change(phoneInput, { target: { value: '2125550100' } });
 
     // The component strips non-digits and formats via AsYouType
