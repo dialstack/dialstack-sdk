@@ -19,7 +19,13 @@ export function PhoneCardStrip({
   dispatch: Dispatcher;
 }) {
   // Use activeDIDs for primary-did and caller-id modes, phoneNumbers for overview
-  const items = mode === 'overview' ? state.phoneNumbers : state.activeDIDs;
+  // Exclude temporary numbers from caller-id — they don't need caller ID configuration
+  const items =
+    mode === 'overview'
+      ? state.phoneNumbers
+      : mode === 'caller-id'
+        ? state.activeDIDs.filter((d) => d.number_class !== 'temporary')
+        : state.activeDIDs;
   if (items.length === 0) return null;
 
   return (

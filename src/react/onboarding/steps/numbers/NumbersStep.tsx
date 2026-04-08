@@ -743,6 +743,7 @@ export const NumbersStep: React.FC = () => {
 
       const pending = s.activeDIDs.filter(
         (did) =>
+          did.number_class !== 'temporary' &&
           s.callerIdStatuses[did.id] !== 'submitted' &&
           (s.callerIdInputs[did.id] ?? '').trim() !== ''
       );
@@ -901,6 +902,7 @@ export const NumbersStep: React.FC = () => {
       const inputs: Record<string, string> = {};
       const statuses: Record<string, 'idle' | 'submitted'> = {};
       for (const did of s.activeDIDs) {
+        if (did.number_class === 'temporary') continue;
         inputs[did.id] = did.caller_id_name ?? '';
         statuses[did.id] = did.caller_id_name ? 'submitted' : 'idle';
       }
