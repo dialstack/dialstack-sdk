@@ -157,16 +157,14 @@ defaultRegistry.register({
   resolveAlias: (node: DialPlanNode) => {
     const config = node.config as unknown as Record<string, unknown>;
     const targetId = config.target_id as string | undefined;
+
+    // Voicemail: shared VM target, user direct-to-VM, or unassigned VM
+    const isVoicemail = targetId?.startsWith('svm_') || (config.timeout === 0 && !config.next);
+    if (isVoicemail) {
+      return defaultRegistry.get('voicemail');
+    }
     if (!targetId) return undefined;
 
-    // Shared voicemail targets render as voicemail node
-    if (targetId.startsWith('svm_')) {
-      return defaultRegistry.get('voicemail');
-    }
-    // User target with timeout=0 and no next = direct-to-voicemail
-    if (targetId.startsWith('user_') && config.timeout === 0 && !config.next) {
-      return defaultRegistry.get('voicemail');
-    }
     // Voice app targets render as voice app node
     if (targetId.startsWith('va_')) {
       return defaultRegistry.get('voice_app');
