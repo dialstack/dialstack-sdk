@@ -403,3 +403,44 @@
   background: var(--ds-color-primary, #692cff);
   color: #fff;
 }
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .overview-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .overview-container {
+    padding: 24px 16px;
+  }
+
+  .overview-progress-card {
+    padding: 20px;
+  }
+
+  .overview-help-buttons {
+    flex-direction: column;
+  }
+
+  .overview-phone-status {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .overview-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .overview-phone-status-header,
+  .overview-phone-status-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .overview-phone-status-header span:nth-child(3),
+  .overview-phone-status-row > :nth-child(3) {
+    display: none;
+  }
+}

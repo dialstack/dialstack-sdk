@@ -2,6 +2,8 @@
   display: flex;
   height: 100vh;
   width: 100%;
+  position: relative;
+  overflow: hidden;
   font-family: var(
     --ds-font-family,
     -apple-system,
@@ -250,4 +252,78 @@
 /* Overview active state */
 .portal-nav-link.active {
   background: var(--ds-portal-sidebar-active);
+}
+
+/* ── Mobile: hamburger/backdrop hidden ── */
+.portal-mobile-toggle,
+.portal-sidebar-backdrop {
+  display: none;
+}
+
+/* ── Responsive: sidebar becomes top bar on narrow viewports ── */
+@media (max-width: 768px) {
+  .portal-layout {
+    flex-direction: column;
+  }
+
+  .portal-sidebar {
+    width: 100%;
+    flex-shrink: 0;
+    padding: 10px 16px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+  }
+
+  .portal-logo {
+    padding: 2px 8px;
+    width: 100%;
+  }
+
+  .portal-nav-link {
+    height: 32px;
+    padding: 0 10px;
+    font-size: 13px;
+    gap: 6px;
+  }
+
+  .portal-steps-label {
+    display: none;
+  }
+
+  .portal-step-item {
+    height: 32px;
+    padding: 0 8px;
+    font-size: 13px;
+    gap: 6px;
+    border-radius: 8px;
+  }
+
+  .portal-step-name {
+    font-size: 13px;
+  }
+
+  .portal-step-indicator {
+    width: 20px;
+    height: 20px;
+  }
+
+  .portal-step-indicator .progress-ring {
+    width: 20px;
+    height: 20px;
+  }
+
+  .portal-step-indicator .check-circle {
+    width: 20px;
+    height: 20px;
+  }
+
+  .portal-sidebar-footer {
+    display: none;
+  }
+
+  .portal-wizard-header {
+    padding: 12px 16px;
+  }
 }

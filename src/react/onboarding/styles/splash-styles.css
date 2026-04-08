@@ -138,39 +138,6 @@
   gap: 16px;
 }
 
-@container portal (max-height: 820px) {
-  .splash-title {
-    font-size: 52px;
-  }
-
-  .splash-content {
-    top: 5%;
-    bottom: 5%;
-    right: 45%;
-    flex-direction: row;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 24px;
-  }
-
-  .splash-text {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .splash-chips {
-    align-items: flex-end;
-    gap: 12px;
-    flex-shrink: 0;
-  }
-
-  .splash-chip:nth-child(1),
-  .splash-chip:nth-child(2),
-  .splash-chip:nth-child(3) {
-    margin-left: 0;
-  }
-}
-
 .splash-chip:nth-child(1) {
   margin-left: 97px;
   animation-delay: 0.3s;
@@ -184,6 +151,58 @@
 .splash-chip:nth-child(3) {
   margin-left: 166px;
   animation-delay: 0.5s;
+}
+
+@container portal (max-width: 700px) {
+  .splash-content {
+    right: 10%;
+    left: 5%;
+    flex-direction: column;
+  }
+
+  .splash-visual,
+  .splash-shelf,
+  .splash-plant {
+    display: none;
+  }
+
+  .splash-chip:nth-child(1),
+  .splash-chip:nth-child(2),
+  .splash-chip:nth-child(3) {
+    margin-left: 0;
+  }
+}
+
+@container portal (max-width: 500px) {
+  .splash-content {
+    left: 5%;
+    right: 5%;
+    min-width: 0;
+  }
+
+  .splash-title {
+    font-size: clamp(22px, 8cqw, 52px);
+  }
+
+  .splash-subtitle {
+    font-size: clamp(14px, 3.5cqw, 20px);
+  }
+
+  .splash-btn {
+    font-size: 18px;
+    height: 56px;
+    padding: 10px 16px 10px 18px;
+  }
+
+  .splash-chip-number {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+
+  .splash-chip-label {
+    font-size: 14px;
+  }
 }
 
 .splash-chip {

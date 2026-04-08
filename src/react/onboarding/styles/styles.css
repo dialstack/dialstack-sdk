@@ -823,3 +823,24 @@
   border-radius: 12px;
   padding: 16px;
 }
+
+/* ── Responsive: stack timeline sidebar above content on narrow viewports ── */
+@media (max-width: 1024px) {
+  .step-layout {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    padding: var(--ds-layout-spacing-md);
+  }
+
+  .container {
+    max-width: 100%;
+  }
+
+  .section-title {
+    font-size: 24px;
+  }
+
+  .section-subtitle {
+    font-size: 14px;
+  }
+}
