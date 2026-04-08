@@ -419,6 +419,27 @@ export interface WebhookEvent {
   to_number: string;
 }
 
+// Customer Lookup Webhook types
+export interface CustomerLookupWebhook {
+  account_id: string;
+  customer: {
+    phone: string;
+  };
+}
+
+export interface CustomerLookupResponse {
+  found: boolean;
+  customer?: {
+    name: string;
+    phone: string;
+    existing_appointment?: {
+      start_at: string;
+      end_at: string;
+      status: string;
+    };
+  };
+}
+
 // Appointments Webhook types
 export interface AvailabilitySearchWebhook {
   account_id: string;
