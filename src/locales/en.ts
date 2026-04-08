@@ -736,6 +736,7 @@ export const en = {
       phoneStatusTypePort: 'Port',
       phoneStatusProcessing: 'Processing',
       phoneStatusComplete: 'Complete',
+      phoneStatusTemporary: 'Temporary',
     },
     splash: {
       title: 'Welcome\nto {platformName}',

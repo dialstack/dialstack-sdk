@@ -217,6 +217,11 @@ function PhoneStatus({ phoneNumbers, locale }: PhoneStatusProps) {
                   dangerouslySetInnerHTML={{ __html: PHONE_SVG }}
                 />
                 <span className="overview-phone-status-phone-text">{displayNumber}</span>
+                {item.number_class === 'temporary' && (
+                  <span className="overview-phone-status-temporary-badge">
+                    {locale.onboardingPortal.overview.phoneStatusTemporary}
+                  </span>
+                )}
               </div>
               <span className="overview-phone-status-type">{typeText}</span>
               <span className={badgeClass}>{badgeText}</span>
