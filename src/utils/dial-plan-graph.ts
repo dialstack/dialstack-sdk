@@ -94,8 +94,6 @@ export function transformDialPlanToGraph(
     id: START_NODE_ID,
     type: 'start',
     position: { x: 0, y: 0 },
-    width: START_NODE_SIZE,
-    height: START_NODE_SIZE,
     data: { label: 'Start' },
   };
   nodes.push(startNode);
@@ -121,8 +119,6 @@ export function transformDialPlanToGraph(
         id: node.id,
         type: reg.flowType,
         position,
-        width: NODE_WIDTH,
-        height: reg.flowType === 'schedule' ? SCHEDULE_NODE_HEIGHT : NODE_HEIGHT,
         data,
       };
       nodes.push(flowNode);
@@ -132,8 +128,6 @@ export function transformDialPlanToGraph(
         id: node.id,
         type: 'default',
         position,
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
         data: { label: node.id, originalNode: node },
       });
     }
@@ -272,24 +266,26 @@ export function validateDialPlanNodes(nodes: Node[]): ValidationError[] {
 // Auto Layout
 // ============================================================================
 
-/** Y offset in pixels for nodes connected to each exit type */
-const EXIT_OFFSETS: Record<string, number> = {
-  open: -75, // Move up
-  closed: 75, // Move down
-  next: 50, // Move down slightly
-};
+function nodeDimensions(node: DialPlanGraphNode): { width: number; height: number } {
+  // Use React Flow's measured dimensions when available (after first render)
+  if (node.measured?.width && node.measured?.height)
+    return { width: node.measured.width, height: node.measured.height };
+  // Fallback to estimates for initial layout (before first render)
+  if (node.type === 'start') return { width: START_NODE_SIZE, height: START_NODE_SIZE };
+  if (node.type === 'schedule') return { width: NODE_WIDTH, height: SCHEDULE_NODE_HEIGHT };
+  return { width: NODE_WIDTH, height: NODE_HEIGHT };
+}
 
 /**
- * Apply dagre auto-layout to position nodes, with post-layout adjustments
- * to account for specific exit handle positions.
+ * Apply dagre auto-layout to position nodes.
  */
 export function applyAutoLayout(nodes: DialPlanGraphNode[], edges: Edge[]): TransformResult {
   const g = new dagre.graphlib.Graph();
 
   g.setGraph({
     rankdir: 'LR', // Left to right
-    nodesep: 150, // Vertical separation between nodes (large to avoid edge/node overlaps)
-    ranksep: 100, // Horizontal separation between ranks
+    nodesep: 60, // Vertical separation between nodes
+    ranksep: 80, // Horizontal separation between ranks
     marginx: 40,
     marginy: 40,
   });
@@ -298,8 +294,8 @@ export function applyAutoLayout(nodes: DialPlanGraphNode[], edges: Edge[]): Tran
 
   // Add nodes to dagre graph
   for (const node of nodes) {
-    const height = node.type === 'schedule' ? SCHEDULE_NODE_HEIGHT : NODE_HEIGHT;
-    g.setNode(node.id, { width: NODE_WIDTH, height });
+    const { width, height } = nodeDimensions(node);
+    g.setNode(node.id, { width, height });
   }
 
   // Add edges to dagre graph
@@ -310,65 +306,96 @@ export function applyAutoLayout(nodes: DialPlanGraphNode[], edges: Edge[]): Tran
   // Run the layout algorithm
   dagre.layout(g);
 
-  // Apply calculated positions to nodes
-  let positionedNodes = nodes.map((node) => {
+  // Calculate dagre positions (center-anchor → top-left)
+  const dagrePositions = new Map<string, { x: number; y: number }>();
+  for (const node of nodes) {
     const nodeWithPosition = g.node(node.id);
-    const height = node.type === 'schedule' ? SCHEDULE_NODE_HEIGHT : NODE_HEIGHT;
-
-    return {
-      ...node,
-      position: {
-        x: nodeWithPosition.x - NODE_WIDTH / 2,
-        y: nodeWithPosition.y - height / 2,
-      },
-    };
-  });
-
-  // Post-layout adjustment: offset nodes based on their incoming edge source handles
-  // This helps prevent edges from passing through other nodes
-  positionedNodes = adjustNodePositionsForExits(positionedNodes, edges);
-
-  return { nodes: positionedNodes, edges };
-}
-
-/**
- * Adjust node Y positions based on which source handles their incoming edges connect from.
- * Nodes connected to 'open' exits move up, nodes connected to 'closed' exits move down.
- */
-function adjustNodePositionsForExits(
-  nodes: DialPlanGraphNode[],
-  edges: Edge[]
-): DialPlanGraphNode[] {
-  // Calculate Y offset for each node based on incoming edges
-  const nodeOffsets = new Map<string, { total: number; count: number }>();
-
-  for (const edge of edges) {
-    const sourceHandle = edge.sourceHandle;
-    if (!sourceHandle || EXIT_OFFSETS[sourceHandle] === undefined) continue;
-
-    const offset = EXIT_OFFSETS[sourceHandle];
-
-    // Accumulate offsets for averaging
-    const current = nodeOffsets.get(edge.target) ?? { total: 0, count: 0 };
-    nodeOffsets.set(edge.target, {
-      total: current.total + offset,
-      count: current.count + 1,
+    const { width, height } = nodeDimensions(node);
+    dagrePositions.set(node.id, {
+      x: Math.round(nodeWithPosition.x - width / 2),
+      y: Math.round(nodeWithPosition.y - height / 2),
     });
   }
 
-  // Apply averaged offsets to nodes
-  return nodes.map((node) => {
-    const offsetData = nodeOffsets.get(node.id);
-    if (!offsetData) return node;
+  // Fix edge crossing from ordered exits (e.g. Schedule: open above closed).
+  // Swap entire subtrees so the exit order matches the Y ordering.
+  const adjacency = new Map<string, string[]>();
+  for (const edge of edges) {
+    const list = adjacency.get(edge.source);
+    if (list) list.push(edge.target);
+    else adjacency.set(edge.source, [edge.target]);
+  }
 
-    const avgOffset = offsetData.total / offsetData.count;
+  const descendants = (rootId: string): Set<string> => {
+    const visited = new Set<string>([rootId]);
+    const queue = [rootId];
+    while (queue.length > 0) {
+      const id = queue.shift()!;
+      for (const child of adjacency.get(id) ?? []) {
+        if (!visited.has(child)) {
+          visited.add(child);
+          queue.push(child);
+        }
+      }
+    }
+    return visited;
+  };
 
+  for (const node of nodes) {
+    const reg = defaultRegistry.getByFlowType(node.type ?? '');
+    if (!reg || reg.exits.length < 2) continue;
+
+    const targets: string[] = [];
+    for (const exit of reg.exits) {
+      const edge = edges.find((e) => e.source === node.id && e.sourceHandle === exit.id);
+      if (edge) targets.push(edge.target);
+    }
+    if (targets.length < 2) continue;
+
+    // Compare first two targets (exit order: top to bottom in DOM)
+    const topTarget = targets[0]!;
+    const bottomTarget = targets[1]!;
+    const topPos = dagrePositions.get(topTarget);
+    const bottomPos = dagrePositions.get(bottomTarget);
+    if (!topPos || !bottomPos) continue;
+
+    // Already in correct order
+    if (topPos.y <= bottomPos.y) continue;
+
+    const topGroup = descendants(topTarget);
+    const bottomGroup = descendants(bottomTarget);
+
+    // Skip if subtrees share nodes (diamond/merge topology)
+    if ([...topGroup].some((id) => bottomGroup.has(id))) continue;
+
+    // Swap the two subtrees by shifting each by the Y difference
+    const delta = topPos.y - bottomPos.y;
+    for (const id of topGroup) {
+      const pos = dagrePositions.get(id);
+      if (pos) pos.y -= delta;
+    }
+    for (const id of bottomGroup) {
+      const pos = dagrePositions.get(id);
+      if (pos) pos.y += delta;
+    }
+  }
+
+  // Anchor layout to the start node's current position
+  const startNode = nodes.find((n) => n.id === START_NODE_ID);
+  const startDagre = dagrePositions.get(START_NODE_ID);
+  const offsetX = startNode && startDagre ? startNode.position.x - startDagre.x : 0;
+  const offsetY = startNode && startDagre ? startNode.position.y - startDagre.y : 0;
+
+  const positionedNodes = nodes.map((node) => {
+    const pos = dagrePositions.get(node.id)!;
     return {
       ...node,
       position: {
-        x: node.position.x,
-        y: node.position.y + avgOffset,
+        x: pos.x + offsetX,
+        y: pos.y + offsetY,
       },
     };
   });
+
+  return { nodes: positionedNodes, edges };
 }

@@ -7,13 +7,27 @@
 
 export const dialPlanStyles = `
 /* ============================================================================
+   Shadow DOM Reset
+   ============================================================================ */
+
+:host {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* ============================================================================
    Container
    ============================================================================ */
 
 .ds-dial-plan-viewer {
   width: 100%;
   height: 100%;
-  min-height: 400px;
   background: var(--ds-color-background, #ffffff);
   border-radius: var(--ds-border-radius, 8px);
   overflow: hidden;
@@ -1021,6 +1035,10 @@ export const dialPlanStyles = `
   overflow: hidden;
 }
 
+.ds-dial-plan-editor--preview {
+  min-height: 0;
+}
+
 .ds-dial-plan-editor__canvas {
   flex: 1;
   position: relative;
@@ -1051,26 +1069,3 @@ export const dialPlanStyles = `
 
 
 `;
-
-const injected = new Set<string>();
-
-/**
- * Inject a CSS string into the document head, keyed by name.
- * Idempotent — calling with the same name twice is a no-op.
- */
-export function injectStyles(name: string, css: string): void {
-  if (injected.has(name) || typeof document === 'undefined') return;
-  const el = document.createElement('style');
-  el.setAttribute('data-dialstack', name);
-  el.textContent = css;
-  document.head.appendChild(el);
-  injected.add(name);
-}
-
-/**
- * Inject the dial plan styles into the document head.
- * This is idempotent - calling multiple times will only inject once.
- */
-export function injectDialPlanStyles(): void {
-  injectStyles('dial-plan', dialPlanStyles);
-}

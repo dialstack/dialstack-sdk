@@ -42,11 +42,13 @@ import {
 } from '../utils/dial-plan-graph';
 import { defaultRegistry } from './dial-plan/default-registry';
 import { DIAL_PLAN_EDGE_TYPE } from './dial-plan/registry';
+import { SmartEdge } from './dial-plan/SmartEdge';
 import { StartNode } from './dial-plan/StartNode';
 import { NodeLibrary } from './dial-plan/NodeLibrary';
 import { NodeConfigPanel } from './dial-plan/NodeConfigPanel';
 import { EditorToolbar } from './dial-plan/EditorToolbar';
-import { injectDialPlanStyles, injectStyles } from './dial-plan/styles';
+import { dialPlanStyles } from './dial-plan/styles';
+import { ShadowContainer } from './onboarding/ShadowRoot';
 import type { ResourceType } from './dial-plan/registry-types';
 import type {
   DialPlan as DialPlanData,
@@ -92,6 +94,8 @@ export interface DialPlanProps {
   onDirtyChange?: (isDirty: boolean) => void;
   /** Alias for onLoadError, used in edit mode */
   onError?: (error: Error) => void;
+  /** Color theme: 'light' (default) or 'dark' */
+  theme?: 'light' | 'dark';
   /** Optional CSS class name for the container */
   className?: string;
   /** Optional inline styles for the container */
@@ -137,6 +141,10 @@ const defaultDialPlanData: DialPlanData = {
 const nodeTypes: NodeTypes = {
   start: StartNode,
   ...defaultRegistry.getNodeTypesMap(),
+};
+
+const edgeTypes = {
+  [DIAL_PLAN_EDGE_TYPE]: SmartEdge,
 };
 
 const defaultDialPlanLocale: DialPlanLocale = {
@@ -383,13 +391,6 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
     onDirtyChange,
   };
   const initialGraphRef = useRef<{ nodes: Node[]; edges: Edge[] } | null>(null);
-
-  // Inject styles on mount
-  useEffect(() => {
-    injectStyles('xyflow', xyflowStyles);
-    injectDialPlanStyles();
-  }, []);
-
   // ---- Fetch dial plan + resolve resources (shared by view and edit modes) ----
   useEffect(() => {
     let cancelled = false;
@@ -601,6 +602,14 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
         return next;
       });
       setSelectedNodeId(id);
+
+      // After the config panel opens, center the viewport on the new node
+      requestAnimationFrame(() => {
+        reactFlowInstance.setCenter(pos.x, pos.y, {
+          zoom: reactFlowInstance.getZoom(),
+          duration: 200,
+        });
+      });
     },
     [reactFlowInstance, setNodes, updateDirty]
   );
@@ -931,6 +940,7 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}
+      edgeTypes={edgeTypes}
       onNodesChange={editable ? handleNodesChange : undefined}
       onEdgesChange={editable ? onEdgesChange : undefined}
       onConnect={editable ? handleConnect : undefined}
@@ -956,8 +966,12 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
       multiSelectionKeyCode={null}
       deleteKeyCode={editable ? ['Backspace', 'Delete'] : null}
       fitView
-      fitViewOptions={{ padding: 0.3, minZoom: 0.5, maxZoom: 1.5 }}
-      minZoom={0.3}
+      fitViewOptions={{
+        padding: interactive ? 0.2 : 0.15,
+        minZoom: interactive ? 0.5 : 0,
+        maxZoom: 1.5,
+      }}
+      minZoom={interactive ? 0.3 : 0}
       maxZoom={2}
       defaultEdgeOptions={{
         type: DIAL_PLAN_EDGE_TYPE,
@@ -981,7 +995,10 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
   );
 
   return (
-    <div className={`ds-dial-plan-editor ${className || ''}`} style={style}>
+    <div
+      className={`ds-dial-plan-editor ${mode === 'preview' ? 'ds-dial-plan-editor--preview' : ''} ${className || ''}`}
+      style={style}
+    >
       {editable && (
         <div className="ds-dial-plan-node-library-wrapper">
           <NodeLibrary registry={defaultRegistry} onAddNode={handleAddNode} />
@@ -1131,11 +1148,28 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
  * <DialPlan mode="edit" onSave={(plan) => console.log(plan)} />
  * ```
  */
+const dialPlanStylesheets = [xyflowStyles, dialPlanStyles];
+
 export const DialPlan = React.forwardRef<DialPlanHandle, DialPlanProps>((props, ref) => {
+  const { dialstack } = useDialstackComponents();
+  const instanceTheme = dialstack.getAppearance()?.theme ?? 'light';
+  const theme = props.theme ?? instanceTheme;
+
   return (
-    <ReactFlowProvider>
-      <DialPlanInner ref={ref} {...props} />
-    </ReactFlowProvider>
+    <ShadowContainer
+      stylesheets={dialPlanStylesheets}
+      className={props.className}
+      style={{ width: '100%', height: '100%', flex: 1, minHeight: 0, ...props.style }}
+    >
+      <div
+        data-theme={theme}
+        style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
+      >
+        <ReactFlowProvider>
+          <DialPlanInner ref={ref} {...props} />
+        </ReactFlowProvider>
+      </div>
+    </ShadowContainer>
   );
 });
 

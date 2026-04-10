@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import type { DialPlanLocale } from '../../types/dial-plan';
 import type { NodeTypeRegistration, ConfigPanelProps } from './registry-types';
 
@@ -30,12 +30,17 @@ export function NodeConfigPanel({
   locale,
 }: NodeConfigPanelProps) {
   // Close on Escape key
+  const panelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
     }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    const rootNode = panelRef.current?.getRootNode();
+    const target: Pick<Document, 'addEventListener' | 'removeEventListener'> =
+      rootNode instanceof ShadowRoot || rootNode instanceof Document ? rootNode : document;
+    const onKey = ((e: KeyboardEvent) => handleKeyDown(e)) as EventListener;
+    target.addEventListener('keydown', onKey);
+    return () => target.removeEventListener('keydown', onKey);
   }, [onClose]);
   const originalNode = node.data.originalNode as { config: Record<string, unknown> } | undefined;
   const config = originalNode?.config ?? {};
@@ -43,7 +48,7 @@ export function NodeConfigPanel({
   const ConfigPanel = registration.configPanel;
 
   return (
-    <div className="ds-dial-plan-config-panel">
+    <div ref={panelRef} className="ds-dial-plan-config-panel">
       <div className="ds-dial-plan-config-panel__header">
         <span className="ds-dial-plan-config-panel__header-icon">{registration.icon}</span>
         <span className="ds-dial-plan-config-panel__header-label">{registration.label}</span>

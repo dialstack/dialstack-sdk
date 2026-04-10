@@ -55,11 +55,16 @@ export function ResourceCombobox({
         setSearch('');
       }
     }
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('mousedown', handleMouseDown);
+    const root = containerRef.current?.getRootNode();
+    const target: Pick<Document, 'addEventListener' | 'removeEventListener'> =
+      root instanceof ShadowRoot || root instanceof Document ? root : document;
+    const onKey = ((e: KeyboardEvent) => handleKeyDown(e)) as EventListener;
+    const onMouse = ((e: MouseEvent) => handleMouseDown(e)) as EventListener;
+    target.addEventListener('keydown', onKey);
+    target.addEventListener('mousedown', onMouse);
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('mousedown', handleMouseDown);
+      target.removeEventListener('keydown', onKey);
+      target.removeEventListener('mousedown', onMouse);
     };
   }, [open]);
 
