@@ -18,7 +18,12 @@ import { DialstackComponentsProvider } from '../../DialstackComponentsProvider';
 import { OnboardingProvider } from '../OnboardingContext';
 import { OnboardingProgressStore } from '../progress-store';
 import { defaultLocale } from '../../../locales';
-import type { DialStackInstance, AccountConfig, OnboardingCollectionOptions } from '../../../types';
+import type {
+  DialStackInstance,
+  AccountConfig,
+  OnboardingCollectionOptions,
+  OnboardingUser,
+} from '../../../types';
 import type { Extension } from '../../../types/dial-plan';
 
 // ============================================================================
@@ -406,6 +411,70 @@ async function resolveJestMockValue<T>(override: unknown, defaultValue: T): Prom
 }
 
 // ============================================================================
+// Stateful mock helpers (mutable in-memory state, like the Storybook mock)
+// ============================================================================
+
+/**
+ * Creates user mock methods backed by a mutable array.
+ * Calling `create` pushes to the array; `list` returns the current snapshot;
+ * `del` removes by ID. This mirrors the Storybook mock at __mocks__/mock-instance.ts.
+ */
+export function createStatefulUserMocks(initialUsers: OnboardingUser[] = [...mockUsers]) {
+  const usersList: OnboardingUser[] = [...initialUsers];
+  return {
+    users: {
+      create: jest.fn().mockImplementation(async (data: { name: string; email: string }) => {
+        const user: OnboardingUser = {
+          id: 'user_' + Math.random().toString(36).slice(2, 10),
+          name: data.name,
+          email: data.email,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        usersList.push(user);
+        return user;
+      }),
+      list: jest.fn().mockImplementation(async () => [...usersList]),
+      del: jest.fn().mockImplementation(async (userId: string) => {
+        const idx = usersList.findIndex((u) => u.id === userId);
+        if (idx !== -1) usersList.splice(idx, 1);
+      }),
+      endpoints: {
+        create: jest.fn().mockResolvedValue({
+          id: 'ep_new',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }),
+        list: jest.fn().mockResolvedValue([]),
+      },
+    },
+  };
+}
+
+/**
+ * Creates extension mock methods backed by a mutable array.
+ */
+export function createStatefulExtensionMocks(initialExtensions: Extension[] = [...mockExtensions]) {
+  const extensionsList: Extension[] = [...initialExtensions];
+  return {
+    extensions: {
+      list: jest.fn().mockImplementation(async () => [...extensionsList]),
+      create: jest.fn().mockImplementation(async (data: { number: string; target: string }) => {
+        const ext: Extension = {
+          number: data.number,
+          target: data.target,
+          status: 'active' as const,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        extensionsList.push(ext);
+        return ext;
+      }),
+    },
+  };
+}
+
+// ============================================================================
 // Render wrapper
 // ============================================================================
 
@@ -475,25 +544,45 @@ export async function renderWithOnboarding(
     sharedData?.locations ??
     (await resolveJestMockValue(instanceOverrides?.locations?.list, [mockLocation]));
 
-  const Wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <DialstackComponentsProvider dialstack={instance}>
-      <OnboardingProvider
-        progressStore={progressStore}
-        accountConfig={accountConfig ?? resolvedAccount.config}
-        account={resolvedAccount}
-        users={resolvedUsers}
-        extensions={resolvedExtensions}
-        locations={resolvedLocations}
-        reloadSharedData={async () => {}}
-        locale={defaultLocale}
-        collectionOptions={collectionOptions}
-      >
-        {children}
-      </OnboardingProvider>
-    </DialstackComponentsProvider>
-  );
+  const StatefulWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const [users, setUsers] = React.useState<OnboardingUser[]>(resolvedUsers);
+    const [extensions, setExtensions] = React.useState<Extension[]>(resolvedExtensions);
+    const [locations, setLocations] = React.useState(resolvedLocations);
+    const [account, setAccount] = React.useState(resolvedAccount);
 
-  const result = render(ui, { wrapper: Wrapper, ...renderOptions });
+    const reloadSharedData = React.useCallback(async () => {
+      const [newAccount, newUsers, newExtensions, newLocations] = await Promise.all([
+        (instance.account.retrieve as () => Promise<typeof mockAccount>)(),
+        (instance.users.list as () => Promise<OnboardingUser[]>)(),
+        (instance.extensions.list as () => Promise<Extension[]>)(),
+        (instance.locations.list as () => Promise<Array<typeof mockLocation>>)(),
+      ]);
+      setAccount(newAccount);
+      setUsers(newUsers);
+      setExtensions(newExtensions);
+      setLocations(newLocations);
+    }, []);
+
+    return (
+      <DialstackComponentsProvider dialstack={instance}>
+        <OnboardingProvider
+          progressStore={progressStore}
+          accountConfig={accountConfig ?? account.config}
+          account={account}
+          users={users}
+          extensions={extensions}
+          locations={locations}
+          reloadSharedData={reloadSharedData}
+          locale={defaultLocale}
+          collectionOptions={collectionOptions}
+        >
+          {children}
+        </OnboardingProvider>
+      </DialstackComponentsProvider>
+    );
+  };
+
+  const result = render(ui, { wrapper: StatefulWrapper, ...renderOptions });
 
   return {
     ...result,

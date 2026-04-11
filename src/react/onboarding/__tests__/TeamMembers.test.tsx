@@ -7,7 +7,11 @@
 import React from 'react';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { TeamMembers } from '../steps/account/TeamMembers';
-import { renderWithOnboarding } from '../__test-helpers__/onboarding';
+import {
+  renderWithOnboarding,
+  createStatefulUserMocks,
+  createStatefulExtensionMocks,
+} from '../__test-helpers__/onboarding';
 
 /**
  * Query helper: labels lack htmlFor so getByLabelText won't work.
@@ -169,6 +173,59 @@ describe('TeamMembers', () => {
   });
 
   // ==========================================================================
+  // User list persistence (DIA-557)
+  // ==========================================================================
+
+  it('shows newly added user in the table after creation', async () => {
+    const statefulUsers = createStatefulUserMocks([]);
+    const statefulExts = createStatefulExtensionMocks([]);
+
+    const { container } = await renderTM({
+      ...statefulUsers,
+      ...statefulExts,
+    });
+
+    fireEvent.change(getFieldByLabel(container, 'Full name'), { target: { value: 'Bob' } });
+    fireEvent.change(getFieldByLabel(container, 'Email'), { target: { value: 'bob@example.com' } });
+
+    clickAddUser();
+
+    await waitFor(() => {
+      expect(screen.getByText('Bob')).toBeTruthy();
+    });
+  });
+
+  it('shows all added users after adding multiple', async () => {
+    const statefulUsers = createStatefulUserMocks([]);
+    const statefulExts = createStatefulExtensionMocks([]);
+
+    const { container } = await renderTM({
+      ...statefulUsers,
+      ...statefulExts,
+    });
+
+    fireEvent.change(getFieldByLabel(container, 'Full name'), { target: { value: 'Bob' } });
+    fireEvent.change(getFieldByLabel(container, 'Email'), { target: { value: 'bob@example.com' } });
+    clickAddUser();
+
+    await waitFor(() => {
+      expect(screen.getByText('Bob')).toBeTruthy();
+    });
+
+    fireEvent.change(getFieldByLabel(container, 'Full name'), { target: { value: 'Charlie' } });
+    fireEvent.change(getFieldByLabel(container, 'Email'), {
+      target: { value: 'charlie@example.com' },
+    });
+    clickAddUser();
+
+    await waitFor(() => {
+      expect(screen.getByText('Charlie')).toBeTruthy();
+    });
+
+    expect(screen.getByText('Bob')).toBeTruthy();
+  });
+
+  // ==========================================================================
   // Removing users
   // ==========================================================================
 
@@ -180,6 +237,25 @@ describe('TeamMembers', () => {
 
     await waitFor(() => {
       expect(instance.users.del).toHaveBeenCalledWith('user_01abc');
+    });
+  });
+
+  it('removes user from the table after deletion', async () => {
+    const statefulUsers = createStatefulUserMocks();
+    const statefulExts = createStatefulExtensionMocks();
+
+    await renderTM({
+      ...statefulUsers,
+      ...statefulExts,
+    });
+
+    expect(screen.getByText('Alice')).toBeTruthy();
+
+    const removeBtn = screen.getByTitle('Remove');
+    fireEvent.click(removeBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByText('Alice')).toBeNull();
     });
   });
 

@@ -789,15 +789,12 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   extensions = {
     list: async (options?: { target?: string; limit?: number }): Promise<Extension[]> => {
       const params = new URLSearchParams();
+      params.set('limit', String(options?.limit ?? 100));
       if (options?.target) {
         params.set('target', options.target);
       }
-      if (options?.limit) {
-        params.set('limit', String(options.limit));
-      }
 
-      const queryString = params.toString();
-      const path = queryString ? `/v1/extensions?${queryString}` : '/v1/extensions';
+      const path = `/v1/extensions?${params.toString()}`;
 
       const response = await this.fetchApi(path);
       if (!response.ok) {
@@ -1166,11 +1163,10 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     },
     list: async (options?: { limit?: number; expand?: string[] }): Promise<OnboardingUser[]> => {
       const params = new URLSearchParams();
-      if (options?.limit) params.set('limit', String(options.limit));
+      params.set('limit', String(options?.limit ?? 100));
       for (const e of options?.expand ?? []) params.append('expand[]', e);
 
-      const queryString = params.toString();
-      const path = queryString ? `/v1/users?${queryString}` : '/v1/users';
+      const path = `/v1/users?${params.toString()}`;
 
       const response = await this.fetchApi(path);
       if (!response.ok) {
