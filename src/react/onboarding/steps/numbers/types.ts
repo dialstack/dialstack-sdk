@@ -20,8 +20,6 @@ export interface NumState {
   phoneNumbers: PhoneNumberItem[];
   orderSearchType: SearchType;
   orderSearchValue: string;
-  orderSearchCity: string;
-  orderSearchState: string;
   orderQuantity: number;
   orderIsSearching: boolean;
   orderAvailableNumbers: AvailablePhoneNumber[];
@@ -90,8 +88,6 @@ export type NumAction =
   | { type: 'load_numbers_error'; error: string }
   | { type: 'order_set_search_type'; searchType: SearchType }
   | { type: 'order_set_search_value'; value: string }
-  | { type: 'order_set_search_city'; city: string }
-  | { type: 'order_set_search_state'; state: string }
   | { type: 'order_set_quantity'; quantity: number }
   | { type: 'order_search_start' }
   | { type: 'order_search_success'; results: AvailablePhoneNumber[] }
@@ -189,8 +185,6 @@ export const INITIAL_STATE: NumState = {
   phoneNumbers: [],
   orderSearchType: 'area_code',
   orderSearchValue: '',
-  orderSearchCity: '',
-  orderSearchState: '',
   orderQuantity: 5,
   orderIsSearching: false,
   orderAvailableNumbers: [],
@@ -268,15 +262,9 @@ export function numReducer(state: NumState, action: NumAction): NumState {
         ...state,
         orderSearchType: action.searchType,
         orderSearchValue: '',
-        orderSearchCity: '',
-        orderSearchState: '',
       };
     case 'order_set_search_value':
       return { ...state, orderSearchValue: action.value };
-    case 'order_set_search_city':
-      return { ...state, orderSearchCity: action.city };
-    case 'order_set_search_state':
-      return { ...state, orderSearchState: action.state };
     case 'order_set_quantity':
       return { ...state, orderQuantity: action.quantity };
     case 'order_search_start':
@@ -328,8 +316,6 @@ export function numReducer(state: NumState, action: NumAction): NumState {
         ...state,
         orderSearchType: 'area_code',
         orderSearchValue: '',
-        orderSearchCity: '',
-        orderSearchState: '',
         orderQuantity: 5,
         orderIsSearching: false,
         orderIsPlacing: false,

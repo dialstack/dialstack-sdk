@@ -459,8 +459,6 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     search: async (options: SearchAvailableNumbersOptions): Promise<AvailablePhoneNumber[]> => {
       const params = new URLSearchParams();
       if (options.areaCode) params.set('area_code', options.areaCode);
-      if (options.city) params.set('city', options.city);
-      if (options.state) params.set('state', options.state);
       if (options.zip) params.set('zip', options.zip);
       if (options.quantity) params.set('quantity', String(options.quantity));
 

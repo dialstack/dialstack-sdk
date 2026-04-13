@@ -55,7 +55,7 @@ export interface PhoneNumberOrderingProps {
   classes?: PhoneNumberOrderingClasses;
 
   /**
-   * Which search modes to show. Defaults to ['area_code', 'city_state'].
+   * Which search modes to show. Defaults to ['area_code', 'zip'].
    */
   searchTypes?: SearchType[];
 

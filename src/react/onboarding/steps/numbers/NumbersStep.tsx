@@ -235,10 +235,7 @@ export const NumbersStep: React.FC = () => {
       try {
         const opts: SearchAvailableNumbersOptions = { quantity: s.orderQuantity };
         if (s.orderSearchType === 'area_code') opts.areaCode = s.orderSearchValue;
-        else if (s.orderSearchType === 'city_state') {
-          opts.city = s.orderSearchCity;
-          opts.state = s.orderSearchState;
-        } else opts.zip = s.orderSearchValue;
+        else opts.zip = s.orderSearchValue;
         const results = await dialstack.availablePhoneNumbers.search(opts);
         dispatch({ type: 'order_search_success', results });
       } catch (err) {

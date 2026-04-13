@@ -5,12 +5,10 @@
 import type { BaseComponentClasses } from './appearance';
 import type { BaseComponentElement } from './components';
 
-export type SearchType = 'area_code' | 'city_state' | 'zip';
+export type SearchType = 'area_code' | 'zip';
 
 export interface SearchAvailableNumbersOptions {
   areaCode?: string;
-  city?: string;
-  state?: string;
   zip?: string;
   quantity?: number;
 }

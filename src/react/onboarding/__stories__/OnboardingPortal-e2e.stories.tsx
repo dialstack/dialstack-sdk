@@ -862,9 +862,9 @@ export const FullOrderFlow: Story = {
         { timeout: DATA_TIMEOUT }
       );
 
-      // Verify search type tabs are present
+      // Verify search type tabs are present (Area Code + ZIP)
       const tabs = canvasElement.querySelectorAll('.num-search-type-tab');
-      expect(tabs.length).toBe(3);
+      expect(tabs.length).toBe(2);
     });
 
     await step('Enter area code "212" and search', async () => {
@@ -895,8 +895,8 @@ export const FullOrderFlow: Story = {
         expect(canvas.getByText(/212.*555.*1001/)).toBeInTheDocument();
       });
 
-      // Verify city/state columns (may appear multiple times)
-      expect(canvas.getAllByText('New York').length).toBeGreaterThan(0);
+      // Verify state column is present
+      expect(canvas.getAllByText('NY').length).toBeGreaterThan(0);
     });
 
     await step('Select numbers via checkboxes', async () => {

@@ -2,7 +2,6 @@ import React from 'react';
 import type { NumState, Dispatcher, TFn } from '../types';
 import type { DIDItem } from '../../../../../types';
 import { formatPhone } from '../helpers';
-import { US_STATES } from '../../../../../constants/us-states';
 
 export function OrderSearchContent({
   state,
@@ -21,7 +20,6 @@ export function OrderSearchContent({
   };
   const searchTypeLabels: Record<string, string> = {
     area_code: t('accountOnboarding.numbers.order.searchByAreaCode'),
-    city_state: t('accountOnboarding.numbers.order.searchByCityState'),
     zip: t('accountOnboarding.numbers.order.searchByZip'),
   };
   return (
@@ -30,7 +28,7 @@ export function OrderSearchContent({
       <p className="section-subtitle">{t('accountOnboarding.numbers.order.searchSubtitle')}</p>
       <div style={{ textAlign: 'center' }}>
         <div className="num-search-type-tabs">
-          {(['area_code', 'city_state', 'zip'] as const).map((type) => (
+          {(['area_code', 'zip'] as const).map((type) => (
             <button
               key={type}
               className={`num-search-type-tab${state.orderSearchType === type ? ' active' : ''}`}
@@ -56,39 +54,6 @@ export function OrderSearchContent({
               onChange={(e) => dispatch({ type: 'order_set_search_value', value: e.target.value })}
             />
           </div>
-        )}
-        {state.orderSearchType === 'city_state' && (
-          <>
-            <div className="form-group">
-              <label className="form-label">{t('accountOnboarding.numbers.order.cityLabel')}</label>
-              <input
-                className="form-input"
-                type="text"
-                value={state.orderSearchCity}
-                placeholder={t('accountOnboarding.numbers.order.cityPlaceholder')}
-                onChange={(e) => dispatch({ type: 'order_set_search_city', city: e.target.value })}
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">
-                {t('accountOnboarding.numbers.order.stateLabel')}
-              </label>
-              <select
-                className="form-select"
-                value={state.orderSearchState}
-                onChange={(e) =>
-                  dispatch({ type: 'order_set_search_state', state: e.target.value })
-                }
-              >
-                <option value="">{t('accountOnboarding.numbers.order.statePlaceholder')}</option>
-                {US_STATES.map(([code, name]) => (
-                  <option key={code} value={code}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </>
         )}
         {state.orderSearchType === 'zip' && (
           <div className="form-group">
@@ -180,7 +145,6 @@ export function OrderResultsContent({
                 />
               </th>
               <th>{t('accountOnboarding.numbers.overview.phoneNumber')}</th>
-              <th>{t('accountOnboarding.numbers.order.city')}</th>
               <th>{t('accountOnboarding.numbers.order.state')}</th>
             </tr>
           </thead>
@@ -197,7 +161,6 @@ export function OrderResultsContent({
                   />
                 </td>
                 <td>{formatPhone(num.phone_number)}</td>
-                <td>{num.city}</td>
                 <td>{num.state}</td>
               </tr>
             ))}
@@ -260,7 +223,6 @@ export function OrderConfirmContent({
           <thead>
             <tr>
               <th>{t('accountOnboarding.numbers.overview.phoneNumber')}</th>
-              <th>{t('accountOnboarding.numbers.order.city')}</th>
               <th>{t('accountOnboarding.numbers.order.state')}</th>
             </tr>
           </thead>
@@ -270,7 +232,6 @@ export function OrderConfirmContent({
               return (
                 <tr key={num}>
                   <td>{formatPhone(num)}</td>
-                  <td>{match?.city ?? ''}</td>
                   <td>{match?.state ?? ''}</td>
                 </tr>
               );
