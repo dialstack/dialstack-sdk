@@ -229,6 +229,25 @@ export const dialPlanStyles = `
 }
 
 /* ============================================================================
+   External Dial Node
+   ============================================================================ */
+
+.ds-dial-plan-node--external-dial {
+  background: linear-gradient(135deg, #fff1f2 0%, #fecdd3 100%);
+  border-color: var(--ds-color-rose, #f43f5e);
+}
+
+.ds-dial-plan-node--external-dial .ds-dial-plan-node__icon {
+  color: var(--ds-color-rose, #f43f5e);
+}
+
+.ds-dial-plan-node--external-dial.ds-dial-plan-node--selected {
+  border-color: var(--ds-color-rose, #f43f5e);
+  outline-color: var(--ds-color-rose, #f43f5e);
+  box-shadow: 0 0 16px 2px rgba(244, 63, 94, 0.4), 0 4px 12px rgba(244, 63, 94, 0.2);
+}
+
+/* ============================================================================
    Voice App Node (AI gradient)
    ============================================================================ */
 
@@ -425,17 +444,17 @@ export const dialPlanStyles = `
 }
 
 .ds-dial-plan-config-panel__delete {
-  font-size: var(--ds-font-size-xs, 12px);
   color: var(--ds-color-danger, #ef4444);
   background: none;
-  border: 1px solid var(--ds-color-danger, #ef4444);
-  border-radius: var(--ds-border-radius, 8px);
-  padding: 2px 8px;
+  border: none;
+  padding: 2px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
 }
 
 .ds-dial-plan-config-panel__delete:hover {
-  background: rgba(239, 68, 68, 0.08);
+  color: #dc2626;
 }
 
 .ds-dial-plan-config-panel__close {
@@ -518,6 +537,42 @@ export const dialPlanStyles = `
 .ds-dial-plan-config-field__input:focus {
   border-color: var(--ds-color-primary, #3b82f6);
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.ds-dial-plan-config-field__input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ds-dial-plan-config-field__input-wrapper .ds-dial-plan-config-field__input {
+  padding-right: 28px;
+}
+
+.ds-dial-plan-config-field__clear {
+  position: absolute;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ds-color-text-secondary, #64748b);
+  cursor: pointer;
+}
+
+.ds-dial-plan-config-field__clear:hover {
+  background: var(--ds-color-border, #e2e8f0);
+  color: var(--ds-color-text, #1e293b);
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-config-field__clear:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
 }
 
 /* ============================================================================
@@ -707,11 +762,16 @@ export const dialPlanStyles = `
   background: linear-gradient(135deg, #451a03 0%, #78350f 100%);
 }
 
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-node--external-dial {
+  background: linear-gradient(135deg, #4c0519 0%, #881337 100%);
+}
+
 :is(.dark, [data-theme="dark"]) .ds-dial-plan-node--voice-app {
   background:
     linear-gradient(135deg, #252262 0%, #3b1d7e 40%, #0c3a5e 100%) padding-box,
     linear-gradient(135deg, #38bdf8 0%, #818cf8 35%, #a855f7 60%, #ec4899 100%) border-box;
 }
+
 
 :is(.dark, [data-theme="dark"]) .ds-dial-plan-handle {
   border-color: #1e1e32;
@@ -874,6 +934,11 @@ export const dialPlanStyles = `
   border-color: var(--ds-color-warning, #f59e0b);
 }
 
+.ds-dial-plan-node-library__item--external_dial {
+  background: linear-gradient(135deg, #fff1f2 0%, #fecdd3 100%);
+  border-color: var(--ds-color-rose, #f43f5e);
+}
+
 .ds-dial-plan-node-library__item--voice_app,
 .ds-dial-plan-node-library__item--voice_app:hover {
   border: 2px solid transparent;
@@ -881,6 +946,7 @@ export const dialPlanStyles = `
     linear-gradient(135deg, #c7d2fe 0%, #ddd6fe 40%, #bae6fd 100%) padding-box,
     linear-gradient(135deg, #38bdf8 0%, #818cf8 35%, #a855f7 60%, #ec4899 100%) border-box;
 }
+
 
 .ds-dial-plan-node-library__item-icon {
   display: flex;
@@ -903,9 +969,14 @@ export const dialPlanStyles = `
   color: var(--ds-color-warning, #f59e0b);
 }
 
+.ds-dial-plan-node-library__item--external_dial .ds-dial-plan-node-library__item-icon {
+  color: var(--ds-color-rose, #f43f5e);
+}
+
 .ds-dial-plan-node-library__item--voice_app .ds-dial-plan-node-library__item-icon {
   color: #4f46e5;
 }
+
 
 .ds-dial-plan-node-library__item-label {
   font-size: var(--ds-font-size-xs, 12px);
@@ -941,11 +1012,16 @@ export const dialPlanStyles = `
   background: linear-gradient(135deg, #451a03 0%, #78350f 100%);
 }
 
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-node-library__item--external_dial {
+  background: linear-gradient(135deg, #4c0519 0%, #881337 100%);
+}
+
 :is(.dark, [data-theme="dark"]) .ds-dial-plan-node-library__item--voice_app {
   background:
     linear-gradient(135deg, #252262 0%, #3b1d7e 40%, #0c3a5e 100%) padding-box,
     linear-gradient(135deg, #38bdf8 0%, #818cf8 35%, #a855f7 60%, #ec4899 100%) border-box;
 }
+
 
 :is(.dark, [data-theme="dark"]) .ds-dial-plan-node-library__item-label {
   color: #e2e8f0;

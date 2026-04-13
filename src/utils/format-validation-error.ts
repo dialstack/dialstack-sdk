@@ -1,13 +1,15 @@
 /** Map API validation error fields to human-readable messages. */
 const validationMessages: Record<string, string> = {
   schedule_id: 'A schedule must be selected in the Schedule node',
-  target_id: 'A target must be selected in the Dial node',
+  target_id: 'A target must be selected in the Internal Extension node',
+  phone_number: 'Enter a valid US phone number in the External Number node',
 };
 
 const nodeTypeLabels: Record<string, string> = {
   schedule: 'Schedule',
-  internal_dial: 'Dial',
+  internal_dial: 'Internal Extension',
   ring_all_users: 'Ring All',
+  external_dial: 'External Number',
 };
 
 /**

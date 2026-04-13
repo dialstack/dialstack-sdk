@@ -45,7 +45,7 @@ import { DIAL_PLAN_EDGE_TYPE } from './dial-plan/registry';
 import { SmartEdge } from './dial-plan/SmartEdge';
 import { StartNode } from './dial-plan/StartNode';
 import { NodeLibrary } from './dial-plan/NodeLibrary';
-import { NodeConfigPanel } from './dial-plan/NodeConfigPanel';
+import { NodeConfigPanel, trashIcon } from './dial-plan/NodeConfigPanel';
 import { EditorToolbar } from './dial-plan/EditorToolbar';
 import { dialPlanStyles } from './dial-plan/styles';
 import { ShadowContainer } from './onboarding/ShadowRoot';
@@ -151,8 +151,9 @@ const defaultDialPlanLocale: DialPlanLocale = {
   nodeTypes: {
     start: 'Start',
     schedule: 'Schedule',
-    internalDial: 'Dial',
+    internalDial: 'Internal Extension',
     voicemail: 'Voicemail',
+    externalDial: 'External Number',
     ringAllUsers: 'Ring All Users',
     voiceApp: 'Voice App',
   },
@@ -164,9 +165,10 @@ const defaultDialPlanLocale: DialPlanLocale = {
   },
   nodeDescriptions: {
     schedule: 'Route calls by schedule',
-    internalDial: 'Dial a user or group',
+    internalDial: 'Ring a user, group, or plan',
     voicemail: 'Send to voicemail',
     ringAllUsers: 'Ring all users',
+    externalDial: 'Ring an external phone number',
     voiceApp: 'Route to a voice application',
   },
   targetTypes: {
@@ -644,7 +646,7 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
         sourceHandle: connection.sourceHandle ?? undefined,
         targetHandle: connection.targetHandle ?? undefined,
         type: DIAL_PLAN_EDGE_TYPE,
-        markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: '#94a3b8' },
+        markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12, color: '#94a3b8' },
       };
       setEdges((prev) => {
         const filtered = prev.filter(
@@ -681,7 +683,7 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
           sourceHandle: newConnection.sourceHandle ?? undefined,
           targetHandle: newConnection.targetHandle ?? undefined,
           type: DIAL_PLAN_EDGE_TYPE,
-          markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: '#94a3b8' },
+          markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12, color: '#94a3b8' },
         };
         const next = [...filtered, reconnected];
         updateDirty(nodesRef.current, next);
@@ -976,7 +978,7 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
       defaultEdgeOptions={{
         type: DIAL_PLAN_EDGE_TYPE,
         animated: false,
-        markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: '#94a3b8' },
+        markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12, color: '#94a3b8' },
       }}
       proOptions={{ hideAttribution: true }}
     >
@@ -1056,8 +1058,9 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
                   type="button"
                   className="ds-dial-plan-config-panel__delete"
                   onClick={() => handleDeleteEdge(selectedEdge.id)}
+                  title={locale.panel.delete_}
                 >
-                  {locale.panel.delete_}
+                  {trashIcon}
                 </button>
                 <button
                   type="button"

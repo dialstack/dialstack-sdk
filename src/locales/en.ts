@@ -752,8 +752,9 @@ export const en = {
     nodeTypes: {
       start: 'Start',
       schedule: 'Schedule',
-      internalDial: 'Dial',
+      internalDial: 'Internal Extension',
       voicemail: 'Voicemail',
+      externalDial: 'External Number',
       voiceApp: 'Voice App',
     },
     exits: {

@@ -6,6 +6,7 @@
 
 import type { Node, Edge } from '@xyflow/react';
 import dagre from 'dagre';
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import type { DialPlan, DialPlanNode, StartNodeData } from '../types/dial-plan';
 import { DIAL_PLAN_EDGE_TYPE, type NodeTypeRegistry } from '../react/dial-plan/registry';
 import { defaultRegistry } from '../react/dial-plan/default-registry';
@@ -45,7 +46,11 @@ export function getNodeLabel(node: DialPlanNode): string {
     case 'schedule':
       return 'Schedule';
     case 'internal_dial':
-      return 'Dial';
+      return 'Internal Extension';
+    case 'ring_all_users':
+      return 'Ring All';
+    case 'external_dial':
+      return 'External Number';
     default:
       return 'Node';
   }
@@ -253,6 +258,26 @@ export function validateDialPlanNodes(nodes: Node[]): ValidationError[] {
             nodeId: node.id,
             field: 'timeout',
             message: 'Timeout must be 1–300 seconds',
+          });
+        break;
+      }
+      case 'external_dial': {
+        const phoneNum = config.phone_number as string | undefined;
+        if (phoneNum) {
+          const parsed = parsePhoneNumberFromString(phoneNum);
+          if (!parsed?.isValid())
+            errors.push({
+              nodeId: node.id,
+              field: 'phone_number',
+              message: 'Enter a valid phone number in E.164 format',
+            });
+        }
+        const extTimeout = config.timeout as number | undefined;
+        if (extTimeout !== undefined && (extTimeout < 1 || extTimeout > 120))
+          errors.push({
+            nodeId: node.id,
+            field: 'timeout',
+            message: 'Timeout must be 1–120 seconds',
           });
         break;
       }

@@ -192,7 +192,7 @@ export const AutoLayoutButton: Story = {
     await step('Add a Dial node from the library', async () => {
       const library = canvasElement.querySelector('.ds-dial-plan-node-library')!;
       const libraryScope = within(library as HTMLElement);
-      await userEvent.click(libraryScope.getByText('Dial'));
+      await userEvent.click(libraryScope.getByText('Internal Extension'));
     });
 
     await step('Click the Auto Layout button without crash', async () => {
@@ -226,7 +226,7 @@ export const DeleteNodeFromConfigPanel: Story = {
     await step('Click Delete button in config panel', async () => {
       const configPanel = canvasElement.querySelector('.ds-dial-plan-config-panel')!;
       const panelScope = within(configPanel as HTMLElement);
-      const deleteBtn = panelScope.getByText('Delete');
+      const deleteBtn = panelScope.getByTitle('Delete');
       await userEvent.click(deleteBtn);
     });
 
@@ -243,6 +243,52 @@ export const DeleteNodeFromConfigPanel: Story = {
           n.textContent?.includes('Schedule')
         );
         expect(hasSchedule).toBe(false);
+      });
+    });
+  },
+};
+
+export const ExternalDialPhoneNumberSave: Story = {
+  args: { mode: 'edit' },
+  play: async ({ canvasElement, step }) => {
+    const canvas = within(canvasElement);
+
+    await step('Add an External Number node from the library', async () => {
+      await waitFor(() => {
+        expect(canvasElement.querySelector('.ds-dial-plan-node-library')).toBeInTheDocument();
+      });
+      const library = canvasElement.querySelector('.ds-dial-plan-node-library')!;
+      const libraryScope = within(library as HTMLElement);
+      await userEvent.click(libraryScope.getByText('External Number'));
+    });
+
+    await step('Config panel opens with phone number input', async () => {
+      await waitFor(() => {
+        const panel = canvasElement.querySelector('.ds-dial-plan-config-panel');
+        expect(panel).toBeInTheDocument();
+        expect(within(panel as HTMLElement).getByRole('textbox')).toBeInTheDocument();
+      });
+    });
+
+    await step('Type a valid E.164 phone number', async () => {
+      const panel = canvasElement.querySelector('.ds-dial-plan-config-panel')!;
+      const phoneInput = within(panel as HTMLElement).getByRole('textbox');
+      await userEvent.clear(phoneInput);
+      await userEvent.type(phoneInput, '+14155551234');
+    });
+
+    await step('Save button enables while input is still focused', async () => {
+      await waitFor(() => {
+        const saveBtn = canvas.getByText('Save');
+        expect(saveBtn).not.toBeDisabled();
+      });
+    });
+
+    await step('Phone number appears on the node', async () => {
+      await waitFor(() => {
+        const externalNode = canvasElement.querySelector('.ds-dial-plan-node--external-dial');
+        expect(externalNode).toBeInTheDocument();
+        expect(externalNode!.textContent).toContain('(415) 555-1234');
       });
     });
   },

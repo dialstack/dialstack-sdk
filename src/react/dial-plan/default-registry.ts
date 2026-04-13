@@ -6,17 +6,21 @@ import { ScheduleNode } from './ScheduleNode';
 import { InternalDialNode } from './InternalDialNode';
 import { RingAllUsersNode } from './RingAllUsersNode';
 import { VoicemailNode } from './VoicemailNode';
+import { ExternalDialNode } from './ExternalDialNode';
 import { VoiceAppNode } from './VoiceAppNode';
 import { ScheduleConfigPanel } from './config-panels/ScheduleConfigPanel';
 import { InternalDialConfigPanel } from './config-panels/InternalDialConfigPanel';
 import { RingAllUsersConfigPanel } from './config-panels/RingAllUsersConfigPanel';
 import { VoicemailConfigPanel } from './config-panels/VoicemailConfigPanel';
+import { ExternalDialConfigPanel } from './config-panels/ExternalDialConfigPanel';
+import { formatPhoneForDisplay } from './format-phone';
 import { VoiceAppConfigPanel } from './config-panels/VoiceAppConfigPanel';
 import type {
   DialPlanNode,
   ScheduleNode as ScheduleNodeType,
   InternalDialNode as InternalDialNodeType,
   RingAllUsersNode as RingAllUsersNodeType,
+  ExternalDialNode as ExternalDialNodeType,
 } from '../../types/dial-plan';
 
 const clockIcon = React.createElement(
@@ -68,6 +72,25 @@ const usersIcon = React.createElement(
   React.createElement('circle', { cx: '9', cy: '7', r: '4' }),
   React.createElement('path', { d: 'M23 21v-2a4 4 0 0 0-3-3.87' }),
   React.createElement('path', { d: 'M16 3.13a4 4 0 0 1 0 7.75' })
+);
+
+const phoneOutgoingIcon = React.createElement(
+  'svg',
+  {
+    width: '16',
+    height: '16',
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: '2',
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+  },
+  React.createElement('polyline', { points: '23 7 23 1 17 1' }),
+  React.createElement('line', { x1: '16', y1: '8', x2: '23', y2: '1' }),
+  React.createElement('path', {
+    d: 'M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z',
+  })
 );
 
 const voicemailIcon = React.createElement(
@@ -135,9 +158,30 @@ defaultRegistry.register({
 });
 
 defaultRegistry.register({
+  type: 'ring_all_users',
+  flowType: 'ringAllUsers',
+  label: 'Ring All',
+  description: 'Ring all account users',
+  color: '#f59e0b',
+  exits: [{ id: 'next', label: 'No Answer', configKey: 'next' }],
+  component: RingAllUsersNode as unknown as ComponentType<NodeProps>,
+  configPanel: RingAllUsersConfigPanel,
+  defaultConfig: { timeout: 24 },
+  toFlowNode: (node: DialPlanNode) => {
+    const n = node as RingAllUsersNodeType;
+    return {
+      label: 'Ring All',
+      timeout: n.config.timeout,
+      originalNode: n,
+    };
+  },
+  icon: usersIcon,
+});
+
+defaultRegistry.register({
   type: 'internal_dial',
   flowType: 'internalDial',
-  label: 'Dial',
+  label: 'Internal Extension',
   description: 'Ring a user, group, or plan',
   color: '#22c55e',
   exits: [{ id: 'next', label: 'No Answer', configKey: 'next' }],
@@ -147,7 +191,7 @@ defaultRegistry.register({
   toFlowNode: (node: DialPlanNode) => {
     const n = node as InternalDialNodeType;
     return {
-      label: 'Dial',
+      label: 'Internal Extension',
       targetId: n.config.target_id,
       timeout: n.config.timeout,
       originalNode: n,
@@ -174,24 +218,25 @@ defaultRegistry.register({
 });
 
 defaultRegistry.register({
-  type: 'ring_all_users',
-  flowType: 'ringAllUsers',
-  label: 'Ring All',
-  description: 'Ring all account users',
-  color: '#f59e0b',
+  type: 'external_dial',
+  flowType: 'externalDial',
+  label: 'External Number',
+  description: 'Ring an external phone number',
+  color: '#14b8a6',
   exits: [{ id: 'next', label: 'No Answer', configKey: 'next' }],
-  component: RingAllUsersNode as unknown as ComponentType<NodeProps>,
-  configPanel: RingAllUsersConfigPanel,
-  defaultConfig: { timeout: 24 },
+  component: ExternalDialNode as unknown as ComponentType<NodeProps>,
+  configPanel: ExternalDialConfigPanel,
+  defaultConfig: { phone_number: '', timeout: 60 },
   toFlowNode: (node: DialPlanNode) => {
-    const n = node as RingAllUsersNodeType;
+    const n = node as ExternalDialNodeType;
     return {
-      label: 'Ring All',
+      label: 'External Number',
+      phoneNumber: formatPhoneForDisplay(n.config.phone_number),
       timeout: n.config.timeout,
       originalNode: n,
     };
   },
-  icon: usersIcon,
+  icon: phoneOutgoingIcon,
 });
 
 defaultRegistry.register({

@@ -21,14 +21,14 @@ describe('formatValidationError', () => {
 
   it('formats missing target_id with known message', () => {
     expect(formatValidationError('/nodes/1/config/target_id: minLength: got 0, want 1')).toBe(
-      'A target must be selected in the Dial node'
+      'A target must be selected in the Internal Extension node'
     );
   });
 
   it('formats unknown config field with node type from payload', () => {
     const nodes = [{ type: 'internal_dial' }];
     expect(formatValidationError('/nodes/0/config/timeout: minimum: got -1, want 0', nodes)).toBe(
-      'Invalid timeout in the Dial node'
+      'Invalid timeout in the Internal Extension node'
     );
   });
 

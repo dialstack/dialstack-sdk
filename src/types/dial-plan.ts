@@ -36,6 +36,19 @@ export interface InternalDialNodeConfig {
 }
 
 /**
+ * Configuration for an external dial node that dials an external PSTN number.
+ * Has optional timeout handling with next node routing.
+ */
+export interface ExternalDialNodeConfig {
+  /** E.164 formatted phone number to dial (e.g., +14155551234) */
+  phone_number: string;
+  /** Timeout in seconds before routing to next node (1-120) */
+  timeout: number;
+  /** Node ID to route to on timeout/no answer */
+  next?: string;
+}
+
+/**
  * Configuration for a ring-all-users node that rings every user in the account.
  */
 export interface RingAllUsersNodeConfig {
@@ -50,7 +63,7 @@ export interface RingAllUsersNodeConfig {
 // ============================================================================
 
 /** Supported dial plan node types (as sent by the API) */
-export type DialPlanNodeType = 'schedule' | 'internal_dial' | 'ring_all_users';
+export type DialPlanNodeType = 'schedule' | 'internal_dial' | 'ring_all_users' | 'external_dial';
 
 /**
  * Base interface for all dial plan nodes.
@@ -87,9 +100,17 @@ export interface RingAllUsersNode extends DialPlanNodeBase {
 }
 
 /**
+ * An external dial node in the dial plan.
+ */
+export interface ExternalDialNode extends DialPlanNodeBase {
+  type: 'external_dial';
+  config: ExternalDialNodeConfig;
+}
+
+/**
  * Union type for all dial plan node types.
  */
-export type DialPlanNode = ScheduleNode | InternalDialNode | RingAllUsersNode;
+export type DialPlanNode = ScheduleNode | InternalDialNode | RingAllUsersNode | ExternalDialNode;
 
 // ============================================================================
 // Dial Plan Types
@@ -124,6 +145,7 @@ export interface DialPlanLocale {
     schedule: string;
     internalDial: string;
     voicemail: string;
+    externalDial: string;
     ringAllUsers: string;
     voiceApp: string;
   };
@@ -138,6 +160,7 @@ export interface DialPlanLocale {
     internalDial: string;
     voicemail: string;
     ringAllUsers: string;
+    externalDial: string;
     voiceApp: string;
   };
   targetTypes: {
@@ -205,6 +228,7 @@ export type GraphNodeType =
   | 'internalDial'
   | 'ringAllUsers'
   | 'voicemail'
+  | 'externalDial'
   | 'voiceApp';
 
 /**
@@ -250,6 +274,17 @@ export interface RingAllUsersNodeData extends Record<string, unknown> {
 }
 
 /**
+ * Data payload for an External Dial node in the graph.
+ */
+export interface ExternalDialNodeData extends Record<string, unknown> {
+  label: string;
+  phoneNumber: string;
+  timeout: number;
+  originalNode: ExternalDialNode;
+  locale?: DialPlanLocale;
+}
+
+/**
  * Data payload for a Voice App node in the graph.
  */
 export interface VoiceAppNodeData extends Record<string, unknown> {
@@ -267,6 +302,7 @@ export type GraphNodeData =
   | ScheduleNodeData
   | InternalDialNodeData
   | RingAllUsersNodeData
+  | ExternalDialNodeData
   | VoiceAppNodeData;
 
 /** Edge labels for schedule exits */
