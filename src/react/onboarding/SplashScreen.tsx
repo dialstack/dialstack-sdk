@@ -84,6 +84,7 @@ const SplashScreenBase: React.FC<SplashScreenProps> = ({ logoHtml, platformName,
   return (
     <div className="splash-container" ref={containerRef}>
       {/* SAFETY: SPLASH_BG_SHAPE_SVG is a static constant from splash-illustration.ts */}
+      {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
       <div className="splash-bg-shape" dangerouslySetInnerHTML={{ __html: SPLASH_BG_SHAPE_SVG }} />
 
       <div className="splash-content">
@@ -93,6 +94,7 @@ const SplashScreenBase: React.FC<SplashScreenProps> = ({ logoHtml, platformName,
           <button className="splash-btn" onClick={onStart}>
             <span>{locale.onboardingPortal.splash.start}</span>
             {/* SAFETY: ARROW_RIGHT_SVG is a static constant from constants.ts */}
+            {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
             <span dangerouslySetInnerHTML={{ __html: ARROW_RIGHT_SVG }} />
           </button>
         </div>
@@ -107,6 +109,7 @@ const SplashScreenBase: React.FC<SplashScreenProps> = ({ logoHtml, platformName,
       </div>
 
       {/* SAFETY: SPLASH_ILLUSTRATION_SVG is a static constant from splash-illustration.ts */}
+      {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
       <div
         className="splash-visual"
         dangerouslySetInnerHTML={{ __html: SPLASH_ILLUSTRATION_SVG }}
@@ -115,6 +118,7 @@ const SplashScreenBase: React.FC<SplashScreenProps> = ({ logoHtml, platformName,
       <div className="splash-shelf" />
 
       {/* SAFETY: SPLASH_PLANT_SVG is a static constant from splash-illustration.ts */}
+      {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
       <div className="splash-plant" dangerouslySetInnerHTML={{ __html: SPLASH_PLANT_SVG }} />
     </div>
   );

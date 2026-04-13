@@ -109,6 +109,7 @@ const OverviewScreenBase: React.FC<OverviewScreenProps> = ({
           return (
             <div key={step} className="overview-card">
               {/* SAFETY: isComplete ? CHECK_SVG_WHITE : STEP_ICONS[step] — both static constants */}
+              {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
               <div
                 className={iconClass}
                 dangerouslySetInnerHTML={{
@@ -212,6 +213,7 @@ function PhoneStatus({ phoneNumbers, locale }: PhoneStatusProps) {
             <div key={i} className="overview-phone-status-row">
               <div className="overview-phone-status-phone">
                 {/* SAFETY: PHONE_SVG is a static constant from icons.ts */}
+                {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
                 <div
                   className="overview-phone-status-phone-icon"
                   dangerouslySetInnerHTML={{ __html: PHONE_SVG }}

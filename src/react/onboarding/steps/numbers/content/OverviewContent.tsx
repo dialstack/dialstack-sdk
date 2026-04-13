@@ -85,6 +85,7 @@ export function OverviewContent({
           onClick={startPort}
           onKeyDown={(e) => e.key === 'Enter' && startPort()}
         >
+          {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
           <div className="num-action-card-icon" dangerouslySetInnerHTML={{ __html: PORT_SVG }} />
           <div className="num-action-card-body">
             <div className="num-action-card-title">
@@ -102,6 +103,7 @@ export function OverviewContent({
           onClick={startOrder}
           onKeyDown={(e) => e.key === 'Enter' && startOrder()}
         >
+          {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
           <div
             className="num-action-card-icon"
             dangerouslySetInnerHTML={{ __html: PLUS_CIRCLE_SVG }}

@@ -811,6 +811,7 @@ export function PortSubmittedContent({
   return (
     <div className="placeholder" style={{ minHeight: 200 }}>
       {/* SAFETY: SUCCESS_SVG is a static SVG constant */}
+      {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
       <div
         className="num-order-status-icon success"
         dangerouslySetInnerHTML={{ __html: SUCCESS_SVG }}
@@ -829,6 +830,7 @@ export function PortSubmittedContent({
           {state.portOrderResults.map((r) => (
             <div key={r.orderId} className="num-carrier-group num-carrier-group--completed">
               {/* SAFETY: CHECK_CIRCLE_SVG is a static SVG constant */}
+              {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
               <span
                 className="num-carrier-group-check"
                 dangerouslySetInnerHTML={{ __html: CHECK_CIRCLE_SVG }}

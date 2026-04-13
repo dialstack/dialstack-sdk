@@ -184,6 +184,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
           ? responseObj.account_id
           : undefined;
 
+    // nosemgrep: javascript.node.crypto.timeable-secret-comparison -- typeof/truthy check, not a secret comparison
     if (!clientSecret || typeof clientSecret !== 'string') {
       throw new Error('DialStack: clientSecret must be a valid string');
     }

@@ -53,6 +53,7 @@ export async function loadDialstackAndInitialize(
     throw new Error('DialStack: fetchClientSecret is required');
   }
 
+  // nosemgrep: javascript.node.crypto.timeable-secret-comparison -- typeof check, not a secret comparison
   if (typeof initParams.fetchClientSecret !== 'function') {
     throw new Error('DialStack: fetchClientSecret must be a function');
   }

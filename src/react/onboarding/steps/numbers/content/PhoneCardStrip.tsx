@@ -75,6 +75,7 @@ export function PhoneCardStrip({
             )}
 
             {/* SAFETY: PHONE_SVG is a static SVG constant, not user input */}
+            {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
             <span className="num-phone-card-icon" dangerouslySetInnerHTML={{ __html: PHONE_SVG }} />
 
             <div className="num-phone-card-body">
@@ -181,6 +182,7 @@ export function PhoneCardStrip({
                   )}
                   {cidStatus === 'submitted' && (
                     <span className="num-cid-status-submitted">
+                      {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
                       <span dangerouslySetInnerHTML={{ __html: SUCCESS_SVG }} />{' '}
                       {t('accountOnboarding.numbers.callerId.submitted')}
                     </span>

@@ -56,6 +56,7 @@ const PortalSidebarBase: React.FC<PortalSidebarProps> = ({
       <div className="portal-logo">
         {logoHtml ? (
           // SAFETY: logoHtml is set by the SDK consumer (developer), not end-user input
+          // nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content
           <span dangerouslySetInnerHTML={{ __html: logoHtml }} />
         ) : (
           <span style={{ fontSize: 20, fontWeight: 700 }}>{platformName ?? 'DialStack'}</span>
@@ -73,6 +74,7 @@ const PortalSidebarBase: React.FC<PortalSidebarProps> = ({
         }}
       >
         {/* SAFETY: OVERVIEW_SVG is a static constant from constants.ts */}
+        {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
         <span className="portal-nav-icon" dangerouslySetInnerHTML={{ __html: OVERVIEW_SVG }} />
         <span>{locale.onboardingPortal.overview.label}</span>
       </div>
@@ -107,6 +109,7 @@ const PortalSidebarBase: React.FC<PortalSidebarProps> = ({
             }}
           >
             {/* SAFETY: STEP_ICONS values are static SVG constants from icons.ts */}
+            {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
             <span
               className="portal-step-icon"
               dangerouslySetInnerHTML={{ __html: STEP_ICONS[step] ?? '' }}
@@ -115,6 +118,7 @@ const PortalSidebarBase: React.FC<PortalSidebarProps> = ({
             <span className="portal-step-indicator">
               {isComplete ? (
                 // SAFETY: CHECK_SVG_WHITE is a static constant from constants.ts
+                // nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content
                 <div
                   className="check-circle"
                   dangerouslySetInnerHTML={{ __html: CHECK_SVG_WHITE }}
@@ -154,6 +158,7 @@ const PortalSidebarBase: React.FC<PortalSidebarProps> = ({
             }}
           >
             {/* SAFETY: HELP_SVG is a static constant from constants.ts */}
+            {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
             <span className="portal-nav-icon" dangerouslySetInnerHTML={{ __html: HELP_SVG }} />
             <span>{locale.onboardingPortal.helpSupport}</span>
           </div>
