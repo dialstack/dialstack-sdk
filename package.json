@@ -78,8 +78,8 @@
     "test:e2e:all": "npm run test:e2e && npm run test:e2e:firefox && npm run test:e2e:webkit"
   },
   "peerDependencies": {
-    "react": ">=16.8.0",
-    "react-dom": ">=16.8.0"
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
   },
   "peerDependenciesMeta": {
     "react": {
