@@ -20,6 +20,7 @@ import { NumbersStep } from './steps/numbers/NumbersStep';
 import { HardwareStep } from './steps/hardware/HardwareStep';
 import { useOnboardingBootstrap } from './useOnboardingBootstrap';
 import { mergePhoneNumbers } from './merge-phone-numbers';
+import { useAppearance } from '../useAppearance';
 import { defaultLocale } from '../../locales';
 import type {
   OnboardingCollectionOptions,
@@ -208,7 +209,7 @@ const PortalInner: React.FC<PortalInnerProps> = (props) => {
     setViewMode('wizard');
   }, [activeSteps, progressStore]);
 
-  const instanceAppearance = dialstack.getAppearance();
+  const instanceAppearance = useAppearance(dialstack);
   const isDark = (props.theme ?? instanceAppearance?.theme ?? 'light') === 'dark';
   const colorPrimary =
     props.appearance?.variables?.colorPrimary ?? instanceAppearance?.variables?.colorPrimary;

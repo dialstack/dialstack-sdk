@@ -410,6 +410,17 @@ export interface DialStackInstance {
 
   /** Create a new embedded component */
   create<T extends ComponentTagName>(tagName: T): ComponentElement[T];
+  /**
+   * Register an arbitrary host element to receive `dialstack-appearance-update`
+   * events when {@link DialStackInstance.update} is called. Used internally by
+   * React-only SDK components (no underlying custom element) so they
+   * participate in the same notification path as web components.
+   *
+   * @internal
+   */
+  addAppearanceTarget(element: HTMLElement): void;
+  /** @internal Inverse of {@link DialStackInstance.addAppearanceTarget}. */
+  removeAppearanceTarget(element: HTMLElement): void;
   /** Update appearance for all components */
   update(updateOptions: UpdateOptions): void;
   /** Log out and clean up the session */

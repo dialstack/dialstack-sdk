@@ -193,6 +193,8 @@ export function createMockInstance(
       }
       return el as ComponentElement[T];
     },
+    addAppearanceTarget: (_element: HTMLElement) => {},
+    removeAppearanceTarget: (_element: HTMLElement) => {},
     update: (_updateOptions: UpdateOptions) => {},
     logout: async () => {},
 

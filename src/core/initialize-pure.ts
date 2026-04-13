@@ -72,6 +72,12 @@ export async function loadDialstackAndInitialize(
     create: (tagName) => {
       return instance.create(tagName);
     },
+    addAppearanceTarget: (element) => {
+      instance.addAppearanceTarget(element);
+    },
+    removeAppearanceTarget: (element) => {
+      instance.removeAppearanceTarget(element);
+    },
     update: (updateOptions) => {
       instance.update(updateOptions);
     },

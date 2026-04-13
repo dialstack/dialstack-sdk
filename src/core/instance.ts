@@ -1395,6 +1395,29 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   }
 
   /**
+   * Register an arbitrary host element to receive appearance-update events.
+   * Used by React-only SDK components (e.g. DialPlan, OnboardingPortal) that
+   * aren't backed by a custom element created via `create()`.
+   *
+   * Note: the element joins the same `this.components` set that custom
+   * elements use, so it will also receive `dialstack-logout` events and be
+   * cleared on logout (see `logout()`). Detached targets created by
+   * `useAppearance` ignore logout, so this is harmless today — but anything
+   * dispatched to `this.components` in the future will reach these targets
+   * too.
+   */
+  addAppearanceTarget(element: HTMLElement): void {
+    this.components.add(element);
+  }
+
+  /**
+   * Unregister a host element previously passed to addAppearanceTarget().
+   */
+  removeAppearanceTarget(element: HTMLElement): void {
+    this.components.delete(element);
+  }
+
+  /**
    * Update appearance for all components
    */
   update(updateOptions: UpdateOptions): void {

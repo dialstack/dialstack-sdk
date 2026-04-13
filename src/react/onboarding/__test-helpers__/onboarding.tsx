@@ -170,6 +170,8 @@ function deepMerge(
 export function createMockInstance(overrides?: MockInstanceOverrides): DialStackInstance {
   const base = {
     create: jest.fn(),
+    addAppearanceTarget: jest.fn(),
+    removeAppearanceTarget: jest.fn(),
     update: jest.fn(),
     logout: jest.fn().mockResolvedValue(undefined),
     fetchApi: jest.fn(),
