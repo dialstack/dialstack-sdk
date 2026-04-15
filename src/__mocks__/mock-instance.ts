@@ -237,11 +237,13 @@ export function createMockInstance(
     },
 
     voicemails: {
-      retrieveTranscript: async (_userId: string, _voicemailId: string) => ({
+      retrieveTranscript: async (_voicemailId: string) => ({
         voicemail_id: 'mock',
         status: 'completed' as const,
         text: 'Hello, this is a test voicemail. Please call me back when you get a chance. Thanks!',
       }),
+      markAsRead: async (_voicemailId: string) => {},
+      delete: async (_voicemailId: string) => {},
     },
 
     on: <K extends keyof CallEventMap>(

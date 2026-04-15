@@ -168,7 +168,11 @@ export interface CallsResource {
 
 export interface VoicemailsResource {
   /** Retrieve the transcript for a voicemail */
-  retrieveTranscript(userId: string, voicemailId: string): Promise<VoicemailTranscript>;
+  retrieveTranscript(voicemailId: string): Promise<VoicemailTranscript>;
+  /** Mark a voicemail as read */
+  markAsRead(voicemailId: string): Promise<void>;
+  /** Delete a voicemail */
+  delete(voicemailId: string): Promise<void>;
 }
 
 export interface PhoneNumbersResource {

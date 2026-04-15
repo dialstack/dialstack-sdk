@@ -236,10 +236,8 @@ export class VoicemailsComponent extends BaseComponent {
     this.render();
 
     try {
-      const params = new URLSearchParams({ limit: '20' });
-      const data = await this.fetchComponentData<VoicemailsResponse>(
-        `/v1/users/${this.userId}/voicemails?${params}`
-      );
+      const params = new URLSearchParams({ limit: '20', owner: this.userId });
+      const data = await this.fetchComponentData<VoicemailsResponse>(`/v1/voicemails?${params}`);
       this.voicemails = data.data || [];
       this.nextPageUrl = data.next_page_url;
 
@@ -347,10 +345,7 @@ export class VoicemailsComponent extends BaseComponent {
     this.updateTranscriptUI();
 
     try {
-      const transcript = await this.instance.voicemails.retrieveTranscript(
-        this.userId,
-        voicemailId
-      );
+      const transcript = await this.instance.voicemails.retrieveTranscript(voicemailId);
       this.transcriptCache.set(voicemailId, { status: transcript.status, text: transcript.text });
     } catch {
       this.transcriptCache.set(voicemailId, { status: 'failed', text: null });
@@ -651,9 +646,7 @@ export class VoicemailsComponent extends BaseComponent {
     if (!this.instance || !this.userId) return;
 
     try {
-      await this.instance.fetchApi(`/v1/users/${this.userId}/voicemails/${voicemailId}`, {
-        method: 'DELETE',
-      });
+      await this.instance.voicemails.delete(voicemailId);
 
       // Fire callback
       this._onVoicemailDelete?.({ voicemailId });
@@ -706,10 +699,7 @@ export class VoicemailsComponent extends BaseComponent {
     }
 
     try {
-      await this.instance.fetchApi(`/v1/users/${this.userId}/voicemails/${voicemailId}`, {
-        method: 'PUT',
-        body: JSON.stringify({ is_read: true }),
-      });
+      await this.instance.voicemails.markAsRead(voicemailId);
     } catch (err) {
       console.error('Failed to mark voicemail as read:', err);
     }
@@ -1404,7 +1394,8 @@ export class VoicemailsComponent extends BaseComponent {
       .map((vm) => {
         const isExpanded = this.expandedId === vm.id;
         const isUnread = !vm.is_read;
-        const callerName = vm.from_name || 'Unknown';
+        const callerName = this.escapeHtml(vm.from_name || 'Unknown');
+        const phoneFormatted = this.escapeHtml(this.formatPhoneNumber(vm.from_number));
 
         // Use custom row renderer if provided
         const customRow = this.customRowRenderer ? this.customRowRenderer(vm) : null;
@@ -1423,7 +1414,7 @@ export class VoicemailsComponent extends BaseComponent {
                role="listitem"
                tabindex="0"
                aria-expanded="${isExpanded}"
-               aria-label="${callerName}, ${this.formatPhoneNumber(vm.from_number)}, ${this.formatDateShort(vm.created_at)}">
+               aria-label="${callerName}, ${phoneFormatted}, ${this.formatDateShort(vm.created_at)}">
             <div class="voicemail-row" part="voicemail-row">
               ${
                 customRow !== null
@@ -1432,8 +1423,8 @@ export class VoicemailsComponent extends BaseComponent {
                 <span class="unread-dot ${isUnread ? '' : 'hidden'}" part="unread-indicator" aria-hidden="true"></span>
                 <div class="row-content" part="row-content">
                   <span class="caller-name ${isUnread ? 'unread' : ''}" part="caller-name">${callerName}</span>
-                  <span class="phone-number-collapsed" part="phone-number">${this.formatPhoneNumber(vm.from_number)}</span>
-                  ${vm.summary ? `<span class="summary-preview" part="summary-preview">${vm.summary}</span>` : ''}
+                  <span class="phone-number-collapsed" part="phone-number">${phoneFormatted}</span>
+                  ${vm.summary ? `<span class="summary-preview" part="summary-preview">${this.escapeHtml(vm.summary)}</span>` : ''}
                   ${this.displayOptions.showTimestamp ? `<span class="timestamp" part="timestamp">${this.formatDateShort(vm.created_at)}</span>` : ''}
                   ${this.displayOptions.showDuration ? `<span class="duration" part="duration">${this.formatTime(vm.duration_seconds)}</span>` : ''}
                 </div>
@@ -1474,7 +1465,8 @@ export class VoicemailsComponent extends BaseComponent {
    * Render expanded voicemail detail
    */
   private renderExpandedDetail(vm: Voicemail): string {
-    const callerName = vm.from_name || 'Unknown';
+    const callerName = this.escapeHtml(vm.from_name || 'Unknown');
+    const phoneFormatted = this.escapeHtml(this.formatPhoneNumber(vm.from_number));
     const isCurrentlyPlaying =
       this.isPlaying && this.audioElement?.getAttribute('data-id') === vm.id;
     const progressPercent = this.duration > 0 ? (this.currentTime / this.duration) * 100 : 0;
@@ -1490,7 +1482,7 @@ export class VoicemailsComponent extends BaseComponent {
         <div class="detail-caller" part="detail-caller">${callerName}</div>
 
         <!-- Row 2: Phone number -->
-        <div class="detail-phone" part="detail-phone">${this.formatPhoneNumber(vm.from_number)}</div>
+        <div class="detail-phone" part="detail-phone">${phoneFormatted}</div>
 
         <!-- Row 3: Timestamp -->
         ${this.displayOptions.showTimestamp ? `<div class="detail-date" part="detail-date">${this.formatDateLong(vm.created_at)}</div>` : ''}
@@ -1530,7 +1522,7 @@ export class VoicemailsComponent extends BaseComponent {
                 ? `
             <button class="action-btn call" part="callback-button"
                     data-action="call"
-                    data-number="${vm.from_number}"
+                    data-number="${this.escapeHtml(vm.from_number)}"
                     aria-label="${this.t('common.call')}">
               ${this.getIcon('phone')}
               ${this.t('common.call')}
@@ -1567,7 +1559,7 @@ export class VoicemailsComponent extends BaseComponent {
               ${this.getIcon('sparkle')}
               ${this.t('voicemails.summary')}
             </div>
-            <div class="summary-text" part="summary-text">${vm.summary}</div>
+            <div class="summary-text" part="summary-text">${this.escapeHtml(vm.summary)}</div>
           </div>
           `
               : ''

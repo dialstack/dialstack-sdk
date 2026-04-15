@@ -379,18 +379,33 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   };
 
   voicemails = {
-    retrieveTranscript: async (
-      userId: string,
-      voicemailId: string
-    ): Promise<VoicemailTranscript> => {
-      const response = await this.fetchApi(
-        `/v1/users/${userId}/voicemails/${voicemailId}/transcript`
-      );
+    retrieveTranscript: async (voicemailId: string): Promise<VoicemailTranscript> => {
+      const response = await this.fetchApi(`/v1/voicemails/${voicemailId}/transcript`);
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Failed to get voicemail transcript: ${response.status} ${errorText}`);
       }
       return response.json();
+    },
+    markAsRead: async (voicemailId: string): Promise<void> => {
+      const response = await this.fetchApi(`/v1/voicemails/${voicemailId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_read: true }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to mark voicemail as read: ${response.status} ${errorText}`);
+      }
+    },
+    delete: async (voicemailId: string): Promise<void> => {
+      const response = await this.fetchApi(`/v1/voicemails/${voicemailId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to delete voicemail: ${response.status} ${errorText}`);
+      }
     },
   };
 

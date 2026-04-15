@@ -80,10 +80,10 @@ export const MOCK_CALLS: PaginatedResponse<CallLog> = {
   previous_page_url: null,
 };
 
-// Voicemails — returned by fetchApi('/v1/users/{userId}/voicemails?...')
+// Voicemails — returned by fetchApi('/v1/voicemails?...')
 export const MOCK_VOICEMAILS: PaginatedResponse<Voicemail> = {
   object: 'list',
-  url: '/v1/users/mock/voicemails',
+  url: '/v1/voicemails',
   data: [
     {
       id: 'vm_01abc',
