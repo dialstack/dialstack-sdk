@@ -110,8 +110,6 @@ export interface DeviceLine {
   line_number: number;
   /** TypeID of the associated endpoint, if any */
   endpoint_id?: string;
-  /** Display name for this line */
-  display_name?: string;
   /** ISO 8601 timestamp */
   created_at: string;
   /** ISO 8601 timestamp */
