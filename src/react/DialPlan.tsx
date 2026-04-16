@@ -813,7 +813,7 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
       const payload = transformGraphToDialPlan(currentNodes, currentEdges, defaultRegistry);
       const saved = dialPlanId
         ? await dialstack.dialPlans.update(dialPlanId, payload)
-        : await dialstack.dialPlans.create(payload);
+        : await dialstack.dialPlans.create({ name: locale.status.newDialPlan, ...payload });
       initialGraphRef.current = { nodes: [...currentNodes], edges: [...currentEdges] };
       setIsDirty(false);
       callbacksRef.current.onDirtyChange?.(false);

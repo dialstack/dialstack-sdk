@@ -285,12 +285,9 @@ export interface ScheduleListParams {
 }
 
 // Dial Plan types
-export interface DialPlanNode {
-  id: string;
-  type: 'schedule' | 'internal_dial';
-  position?: { x: number; y: number };
-  config: ScheduleNodeConfig | InternalDialNodeConfig;
-}
+// NOTE: These mirror sdk/src/types/dial-plan.ts but are declared inline because
+// the server rollup bundle scopes rootDir to src/server/ — importing from
+// ../types/ escapes rootDir and breaks declaration emit.
 
 export interface ScheduleNodeConfig {
   schedule_id: string;
@@ -303,6 +300,44 @@ export interface InternalDialNodeConfig {
   timeout?: number;
   next?: string;
 }
+
+export interface RingAllUsersNodeConfig {
+  timeout: number;
+  next?: string;
+}
+
+export interface ExternalDialNodeConfig {
+  phone_number: string;
+  timeout: number;
+  next?: string;
+}
+
+interface DialPlanNodeBase {
+  id: string;
+  position?: { x: number; y: number };
+}
+
+export interface ScheduleNode extends DialPlanNodeBase {
+  type: 'schedule';
+  config: ScheduleNodeConfig;
+}
+
+export interface InternalDialNode extends DialPlanNodeBase {
+  type: 'internal_dial';
+  config: InternalDialNodeConfig;
+}
+
+export interface RingAllUsersNode extends DialPlanNodeBase {
+  type: 'ring_all_users';
+  config: RingAllUsersNodeConfig;
+}
+
+export interface ExternalDialNode extends DialPlanNodeBase {
+  type: 'external_dial';
+  config: ExternalDialNodeConfig;
+}
+
+export type DialPlanNode = ScheduleNode | InternalDialNode | RingAllUsersNode | ExternalDialNode;
 
 export interface DialPlan {
   id: string;

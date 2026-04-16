@@ -44,7 +44,11 @@ export type {
   DialPlanNodeType,
   ScheduleNode,
   InternalDialNode,
+  RingAllUsersNode,
+  ExternalDialNode,
   ScheduleNodeConfig,
   InternalDialNodeConfig,
+  RingAllUsersNodeConfig,
+  ExternalDialNodeConfig,
   VoiceAppNodeData,
 } from './types/dial-plan';
