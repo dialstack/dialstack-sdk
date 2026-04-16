@@ -1405,13 +1405,7 @@ describe('NumbersStep', () => {
       await advanceToPrimaryDID(instance);
       await advanceToCallerId();
       await advanceToDirectoryListing();
-      // Uncheck all directory listing toggles so no DLDA submission is needed
-      const dlToggles = document.querySelectorAll<HTMLInputElement>(
-        '.num-dl-toggle input[type="checkbox"]'
-      );
-      dlToggles.forEach((toggle) => {
-        if (toggle.checked) fireEvent.click(toggle);
-      });
+      // No DID is selected by default, so clicking Next skips directory listing
       fireEvent.click(screen.getByRole('button', { name: /Next/i }));
     }
 

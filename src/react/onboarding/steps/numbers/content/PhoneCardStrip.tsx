@@ -4,6 +4,8 @@ import type { NumState, Dispatcher, TFn, CardMode } from '../types';
 import { formatPhone, getStatusBadgeClass } from '../helpers';
 import { PHONE_SVG, SUCCESS_SVG } from '../../../icons';
 
+const NOWRAP_STYLE: React.CSSProperties = { whiteSpace: 'nowrap' };
+
 // ── Persistent phone card strip ──
 // Stays mounted across overview / primary-did / caller-id sub-steps so cards
 // morph smoothly instead of flashing.
@@ -18,15 +20,21 @@ export function PhoneCardStrip({
   t: TFn;
   dispatch: Dispatcher;
 }) {
-  // Use activeDIDs for primary-did and caller-id modes, phoneNumbers for overview
-  // Exclude temporary numbers from caller-id — they don't need caller ID configuration
+  // Use activeDIDs for primary-did and caller-id modes, phoneNumbers for overview.
+  // Directory-listing uses pre-computed dlEligibleDIDs (excludes temporary numbers).
+  // Caller-id also excludes temporary numbers.
   const items =
     mode === 'overview'
       ? state.phoneNumbers
-      : mode === 'caller-id'
-        ? state.activeDIDs.filter((d) => d.number_class !== 'temporary')
-        : state.activeDIDs;
+      : mode === 'directory-listing'
+        ? state.dlEligibleDIDs
+        : mode === 'caller-id'
+          ? state.activeDIDs.filter((d) => d.number_class !== 'temporary')
+          : state.activeDIDs;
   if (items.length === 0) return null;
+
+  // directory-listing uses radio + label pattern like primary-did
+  const useRadio = mode === 'primary-did' || mode === 'directory-listing';
 
   return (
     <div className={`num-phone-list num-phone-list--${mode}`}>
@@ -34,7 +42,9 @@ export function PhoneCardStrip({
         const did = item as DIDItem;
         const phoneItem = item as PhoneNumberItem;
         const formatted = formatPhone(item.phone_number);
-        const isSelected = mode === 'primary-did' && state.selectedPrimaryDIDId === did.id;
+        const isSelected =
+          (mode === 'primary-did' && state.selectedPrimaryDIDId === did.id) ||
+          (mode === 'directory-listing' && state.dlSelectedDIDId === did.id);
         const isAutoMatched =
           mode === 'primary-did' &&
           state.primaryDIDAutoMatched &&
@@ -45,16 +55,17 @@ export function PhoneCardStrip({
           'num-phone-card',
           mode === 'overview' &&
             `num-phone-card--${phoneItem.status?.replace('_', '-') ?? 'active'}`,
-          mode === 'primary-did' && 'num-phone-card--active num-phone-card--check',
+          (mode === 'primary-did' || mode === 'directory-listing') &&
+            'num-phone-card--active num-phone-card--check',
           isSelected && 'num-phone-card--selected',
           mode === 'caller-id' && 'num-phone-card--cid',
-          mode === 'directory-listing' && 'num-phone-card--cid',
+          mode === 'directory-listing' && isSelected && 'num-phone-card--cid',
         ]
           .filter(Boolean)
           .join(' ');
 
-        // Use <label> for primary-did (radio accessibility), <div> otherwise
-        const Tag = mode === 'primary-did' ? 'label' : 'div';
+        // Use <label> for radio modes (accessibility), <div> otherwise
+        const Tag = useRadio ? 'label' : 'div';
 
         const inputVal = state.callerIdInputs[did.id] ?? '';
         const cidStatus = state.callerIdStatuses[did.id] ?? 'idle';
@@ -74,12 +85,29 @@ export function PhoneCardStrip({
               />
             )}
 
+            {/* Hidden radio for directory-listing mode */}
+            {mode === 'directory-listing' && (
+              <input
+                type="radio"
+                name="dl-did"
+                value={did.id}
+                checked={isSelected}
+                onChange={() => dispatch({ type: 'dl_select_did', didId: did.id })}
+                style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
+              />
+            )}
+
             {/* SAFETY: PHONE_SVG is a static SVG constant, not user input */}
             {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
             <span className="num-phone-card-icon" dangerouslySetInnerHTML={{ __html: PHONE_SVG }} />
 
             <div className="num-phone-card-body">
-              <div className="num-phone-card-number">{formatted}</div>
+              <div
+                className="num-phone-card-number"
+                style={mode === 'directory-listing' ? NOWRAP_STYLE : undefined}
+              >
+                {formatted}
+              </div>
 
               {/* Overview: meta text */}
               {mode === 'overview' && phoneItem.number_class === 'temporary' && (
@@ -120,25 +148,9 @@ export function PhoneCardStrip({
                   {t(`accountOnboarding.numbers.status.${phoneItem.status}`)}
                 </span>
               )}
-              {/* Primary DID: check dot */}
-              {mode === 'primary-did' && <span className="num-phone-check-dot" />}
-              {/* Directory listing: toggle switch */}
-              {mode === 'directory-listing' && (
-                <label className="num-dl-toggle">
-                  <input
-                    type="checkbox"
-                    checked={(state.dlListingTypes[did.id] ?? 'listed') !== 'non_registered'}
-                    onChange={(e) =>
-                      dispatch({
-                        type: 'dl_set_listing_type',
-                        didId: did.id,
-                        listingType: e.target.checked ? 'listed' : 'non_registered',
-                      })
-                    }
-                  />
-                  <span className="num-dl-toggle-track" />
-                  <span className="num-dl-toggle-thumb" />
-                </label>
+              {/* Primary DID / Directory listing: check dot */}
+              {(mode === 'primary-did' || mode === 'directory-listing') && (
+                <span className="num-phone-check-dot" />
               )}
             </div>
 
@@ -194,36 +206,68 @@ export function PhoneCardStrip({
               </div>
             )}
 
-            {/* Directory listing: business name input (shown when toggle is on) */}
-            {mode === 'directory-listing' &&
-              (state.dlListingTypes[did.id] ?? 'listed') !== 'non_registered' && (
-                <div className="num-phone-card-cid-section">
-                  <div className="num-cid-input-wrapper">
-                    <label className="form-label">
-                      {t('accountOnboarding.numbers.directoryListing.businessName')}
-                    </label>
-                    <input
-                      type="text"
-                      className="form-input num-cid-input"
-                      value={state.dlBusinessNames[did.id] ?? ''}
-                      maxLength={200}
-                      placeholder={t(
-                        'accountOnboarding.numbers.directoryListing.businessNamePlaceholder'
-                      )}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/[^\x20-\x7E]/g, '');
-                        dispatch({ type: 'dl_set_business_name', didId: did.id, name: val });
-                      }}
-                    />
-                    <p className="form-help">
-                      {t('accountOnboarding.numbers.directoryListing.businessNameHelp')}
-                    </p>
-                  </div>
+            {/* Directory listing: business name input (shown only for the selected DID) */}
+            {mode === 'directory-listing' && isSelected && (
+              <div className="num-phone-card-cid-section">
+                <div className="num-cid-input-wrapper">
+                  <label className="form-label">
+                    {t('accountOnboarding.numbers.directoryListing.businessName')}
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input num-cid-input"
+                    value={state.dlBusinessName}
+                    maxLength={200}
+                    placeholder={t(
+                      'accountOnboarding.numbers.directoryListing.businessNamePlaceholder'
+                    )}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^\x20-\x7E]/g, '');
+                      dispatch({ type: 'dl_set_business_name', name: val });
+                    }}
+                  />
+                  <p className="form-help">
+                    {t('accountOnboarding.numbers.directoryListing.businessNameHelp')}
+                  </p>
                 </div>
-              )}
+              </div>
+            )}
           </Tag>
         );
       })}
+
+      {/* Directory listing: "None — skip" option */}
+      {mode === 'directory-listing' && (
+        <label
+          className={[
+            'num-phone-card num-phone-card--active num-phone-card--check',
+            state.dlSelectedDIDId === null && 'num-phone-card--selected',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+        >
+          <input
+            type="radio"
+            name="dl-did"
+            value=""
+            checked={state.dlSelectedDIDId === null}
+            onChange={() => dispatch({ type: 'dl_select_did', didId: null })}
+            style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
+          />
+          <span className="num-phone-card-icon" style={{ opacity: 0.4 }}>
+            {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
+            <span dangerouslySetInnerHTML={{ __html: PHONE_SVG }} />
+          </span>
+          <div className="num-phone-card-body">
+            <div className="num-phone-card-number">
+              {t('accountOnboarding.numbers.directoryListing.noneOption')}
+            </div>
+          </div>
+          <div className="num-phone-card-end">
+            <span className="num-phone-check-dot" />
+          </div>
+        </label>
+      )}
     </div>
   );
 }

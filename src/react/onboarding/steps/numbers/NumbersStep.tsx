@@ -29,7 +29,7 @@ import numbersStyles from '../../styles/numbers-styles.css';
 
 import type { NumState, CardMode } from './types';
 import { numReducer, INITIAL_STATE, E911_POLL_MAX } from './types';
-import { formatPhone, getSidebarActiveKey, validateCallerIdName } from './helpers';
+import { getSidebarActiveKey, validateCallerIdName } from './helpers';
 import { PhoneCardStrip } from './content/PhoneCardStrip';
 import { OverviewContent } from './content/OverviewContent';
 import { PrimaryDIDContent } from './content/PrimaryDIDContent';
@@ -702,15 +702,11 @@ export const NumbersStep: React.FC = () => {
     [dialstack, contextLocations, contextAccount, startE911Polling, handleProvisionResult]
   );
 
-  // Initialize per-DID directory listing state from current DID data, then navigate to the substep.
+  // Initialize single-DID directory listing state, then navigate to the substep.
+  // Only one DID per account can have a listing. Temporary numbers are excluded.
   const initDirectoryListingState = useCallback(
     (s: NumState) => {
-      const listingTypes: Record<
-        string,
-        'listed' | 'non_listed' | 'non_published' | 'non_registered'
-      > = {};
-      const businessNames: Record<string, string> = {};
-      const locationIds: Record<string, string> = {};
+      const eligible = s.activeDIDs.filter((d) => d.number_class !== 'temporary');
 
       // Find best default location
       const defaultLoc =
@@ -718,15 +714,24 @@ export const NumbersStep: React.FC = () => {
           (loc) => loc.primary_did_id && loc.primary_did_id === s.selectedPrimaryDIDId
         ) ?? contextLocations[0];
 
-      for (const did of s.activeDIDs) {
-        // Default to 'listed' for onboarding (opt-out model)
-        const currentType = did.directory_listing_type;
-        listingTypes[did.id] =
-          currentType && currentType !== 'non_registered' ? currentType : 'listed';
-        businessNames[did.id] = did.directory_listing_name ?? contextAccount?.name ?? '';
-        locationIds[did.id] = did.directory_listing_location_id ?? defaultLoc?.id ?? '';
-      }
-      dispatch({ type: 'dl_init', listingTypes, businessNames, locationIds });
+      // Check if any DID already has an active listing
+      const existingListed = eligible.find(
+        (d) => d.directory_listing_type && d.directory_listing_type !== 'non_registered'
+      );
+
+      // Pre-select only if a DID already has an active listing; otherwise default
+      // to none so the user must explicitly opt in.
+      const selectedDIDId = existingListed?.id ?? null;
+      const businessName = existingListed?.directory_listing_name ?? contextAccount?.name ?? '';
+      const locationId = existingListed?.directory_listing_location_id ?? defaultLoc?.id ?? '';
+
+      dispatch({
+        type: 'dl_init',
+        eligibleDIDs: eligible,
+        selectedDIDId,
+        businessName,
+        locationId,
+      });
       dispatch({ type: 'set_substep', subStep: 'directory-listing' });
     },
     [contextLocations, contextAccount]
@@ -807,44 +812,34 @@ export const NumbersStep: React.FC = () => {
     [t, dialstack, navigateToNext, submitCallerIdSingle, initDirectoryListingState]
   );
 
-  // "Next" from directory listing — submit DL update for each DID, then navigate to complete
+  // "Next" from directory listing — submit DL update for the selected DID, then navigate to complete
   const handleDirectoryListingNext = useCallback(
     async (s: NumState) => {
-      // Find DIDs that need updates (not non_registered)
-      const toUpdate = s.activeDIDs.filter(
-        (did) => (s.dlListingTypes[did.id] ?? 'listed') !== 'non_registered'
-      );
-
-      // Validate all
-      for (const did of toUpdate) {
-        const name = (s.dlBusinessNames[did.id] ?? '').trim();
-        if (!name) {
-          dispatch({
-            type: 'dl_submit_error',
-            error: `Business name is required for ${formatPhone(did.phone_number)}`,
-          });
-          return;
-        }
+      // No DID selected — skip directory listing
+      if (!s.dlSelectedDIDId) {
+        await navigateToNext(s);
+        return;
       }
 
-      if (toUpdate.length === 0) {
-        await navigateToNext(s);
+      // Validate business name
+      const name = s.dlBusinessName.trim();
+      if (!name) {
+        dispatch({
+          type: 'dl_submit_error',
+          error: t('accountOnboarding.numbers.directoryListing.validation.nameRequired'),
+        });
         return;
       }
 
       dispatch({ type: 'dl_submit_start' });
       try {
-        await Promise.all(
-          toUpdate.map((did) =>
-            dialstack.phoneNumbers.update(did.id, {
-              directory_listing_name: (s.dlBusinessNames[did.id] ?? '').trim(),
-              directory_listing_type: s.dlListingTypes[did.id] ?? 'listed',
-              ...(s.dlLocationIds[did.id] && {
-                directory_listing_location_id: s.dlLocationIds[did.id],
-              }),
-            })
-          )
-        );
+        await dialstack.phoneNumbers.update(s.dlSelectedDIDId, {
+          directory_listing_name: name,
+          directory_listing_type: 'listed',
+          ...(s.dlLocationId && {
+            directory_listing_location_id: s.dlLocationId,
+          }),
+        });
         dispatch({ type: 'dl_submit_success' });
         await navigateToNext(stateRef.current);
       } catch (err) {
@@ -852,7 +847,7 @@ export const NumbersStep: React.FC = () => {
         dispatch({ type: 'dl_submit_error', error: msg });
       }
     },
-    [dialstack, navigateToNext]
+    [t, dialstack, navigateToNext]
   );
 
   // "Next" from overview

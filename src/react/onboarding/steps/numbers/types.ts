@@ -73,9 +73,10 @@ export interface NumState {
   e911FlowState: 'idle' | 'running' | 'polling' | 'simple' | 'complex' | 'failed';
   e911ProvisionedLocation: OnboardingLocation | null;
   e911PollCount: number;
-  dlListingTypes: Record<string, 'listed' | 'non_listed' | 'non_published' | 'non_registered'>;
-  dlBusinessNames: Record<string, string>;
-  dlLocationIds: Record<string, string>;
+  dlEligibleDIDs: DIDItem[];
+  dlSelectedDIDId: string | null;
+  dlBusinessName: string;
+  dlLocationId: string;
   dlIsSubmitting: boolean;
   dlError: string | null;
 }
@@ -150,17 +151,14 @@ export type NumAction =
     }
   | {
       type: 'dl_init';
-      listingTypes: Record<string, 'listed' | 'non_listed' | 'non_published' | 'non_registered'>;
-      businessNames: Record<string, string>;
-      locationIds: Record<string, string>;
+      eligibleDIDs: DIDItem[];
+      selectedDIDId: string | null;
+      businessName: string;
+      locationId: string;
     }
-  | {
-      type: 'dl_set_listing_type';
-      didId: string;
-      listingType: 'listed' | 'non_listed' | 'non_published' | 'non_registered';
-    }
-  | { type: 'dl_set_business_name'; didId: string; name: string }
-  | { type: 'dl_set_location_id'; didId: string; locationId: string }
+  | { type: 'dl_select_did'; didId: string | null }
+  | { type: 'dl_set_business_name'; name: string }
+  | { type: 'dl_set_location_id'; locationId: string }
   | { type: 'dl_submit_start' }
   | { type: 'dl_submit_success' }
   | { type: 'dl_submit_error'; error: string };
@@ -238,9 +236,10 @@ export const INITIAL_STATE: NumState = {
   e911FlowState: 'idle',
   e911ProvisionedLocation: null,
   e911PollCount: 0,
-  dlListingTypes: {},
-  dlBusinessNames: {},
-  dlLocationIds: {},
+  dlEligibleDIDs: [],
+  dlSelectedDIDId: null,
+  dlBusinessName: '',
+  dlLocationId: '',
   dlIsSubmitting: false,
   dlError: null,
 };
@@ -547,27 +546,28 @@ export function numReducer(state: NumState, action: NumAction): NumState {
     case 'dl_init':
       return {
         ...state,
-        dlListingTypes: action.listingTypes,
-        dlBusinessNames: action.businessNames,
-        dlLocationIds: action.locationIds,
+        dlEligibleDIDs: action.eligibleDIDs,
+        dlSelectedDIDId: action.selectedDIDId,
+        dlBusinessName: action.businessName,
+        dlLocationId: action.locationId,
         dlError: null,
       };
-    case 'dl_set_listing_type':
+    case 'dl_select_did':
       return {
         ...state,
-        dlListingTypes: { ...state.dlListingTypes, [action.didId]: action.listingType },
+        dlSelectedDIDId: action.didId,
         dlError: null,
       };
     case 'dl_set_business_name':
       return {
         ...state,
-        dlBusinessNames: { ...state.dlBusinessNames, [action.didId]: action.name },
+        dlBusinessName: action.name,
         dlError: null,
       };
     case 'dl_set_location_id':
       return {
         ...state,
-        dlLocationIds: { ...state.dlLocationIds, [action.didId]: action.locationId },
+        dlLocationId: action.locationId,
         dlError: null,
       };
     case 'dl_submit_start':

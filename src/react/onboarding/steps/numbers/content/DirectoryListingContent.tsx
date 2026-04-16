@@ -2,7 +2,7 @@ import React from 'react';
 import type { NumState, TFn } from '../types';
 
 export function DirectoryListingContent({ state, t }: { state: NumState; t: TFn }) {
-  if (state.activeDIDs.length === 0)
+  if (state.dlEligibleDIDs.length === 0)
     return (
       <div className="inline-alert info">
         {t('accountOnboarding.numbers.directoryListing.noDIDs')}
@@ -13,6 +13,9 @@ export function DirectoryListingContent({ state, t }: { state: NumState; t: TFn 
       <h3 className="section-heading">{t('accountOnboarding.numbers.directoryListing.title')}</h3>
       <p className="section-description">
         {t('accountOnboarding.numbers.directoryListing.subtitle')}
+      </p>
+      <p className="section-description" style={{ marginTop: '4px' }}>
+        {t('accountOnboarding.numbers.directoryListing.selectPrompt')}
       </p>
 
       {state.dlError && (

@@ -370,27 +370,16 @@ export const en = {
         title: 'Directory Listing',
         subtitle:
           'A directory listing feeds your business information into online directories and data aggregators, helping customers find you. It also reduces the chance of your outbound calls being flagged as spam by call-screening apps.',
-        noDIDs: 'No active phone numbers to configure.',
-        listingTypeLabel: 'Listing Type',
-        listingTypeHelp:
-          'Controls whether your number appears in online directories and how it is verified by call-screening apps.',
-        listed: 'Listed',
-        listedDesc:
-          'Published in online directories and available via 411. Best for businesses that want to be easily found.',
-        nonListed: 'Non-Listed',
-        nonListedDesc:
-          'Registered in the directory database for caller verification, but not published in directories. Available via 411.',
-        nonPublished: 'Non-Published',
-        nonPublishedDesc:
-          'Registered for caller verification only. Not published or available via 411.',
-        nonRegistered: 'Non-Registered',
-        nonRegisteredDesc: 'Not registered in any directory database.',
+        selectPrompt: 'Select which number should be listed:',
+        noneOption: 'None \u2014 skip directory listing',
+        noDIDs: 'No eligible phone numbers to configure.',
         businessName: 'Business Name',
         businessNamePlaceholder: 'Enter business name for listing',
         businessNameHelp:
           'The name shown in directory listings and used for caller verification. Max 200 characters.',
-        location: 'Location',
-        selectLocation: 'Select a location...',
+        validation: {
+          nameRequired: 'Business name is required for the directory listing.',
+        },
       },
       overview: {
         heading: 'Your Numbers',
