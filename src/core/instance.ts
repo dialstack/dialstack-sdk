@@ -1605,6 +1605,9 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
           to_number: rawData.to_number,
           timestamp: new Date(rawData.timestamp),
         };
+        if (rawData.user_id) {
+          event.user_id = rawData.user_id;
+        }
         this.emit('call.incoming', event);
       } catch (error) {
         console.error('DialStack: Failed to parse call.incoming event:', error);

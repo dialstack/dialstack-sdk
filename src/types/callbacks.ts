@@ -65,6 +65,12 @@ export interface IncomingCallEvent {
   from_name: string | null;
   /** Called phone number (DID) */
   to_number: string;
+  /**
+   * User the call is routed to. Set only when the DID targets a single user
+   * directly; omitted for ring groups, voice apps, dial plans, and other
+   * shared destinations where no single user is known at ring time.
+   */
+  user_id?: string;
   /** When the call started ringing */
   timestamp: Date;
 }
