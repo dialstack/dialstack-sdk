@@ -127,6 +127,7 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ accountEmail, onBack, 
 
   // Keep next-extension suggestion in sync with context extensions after mutations.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resync suggestion after external context mutation
     setNewUserExtension(getNextExtensionNumber(contextExtensions));
   }, [contextExtensions]);
 

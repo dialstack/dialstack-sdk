@@ -76,7 +76,9 @@ export const NumbersStep: React.FC = () => {
   const e911PollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const createdDialPlanIdRef = useRef<string | undefined>(undefined);
   const stateRef = useRef(state);
-  stateRef.current = state;
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   // Back from first sub-step goes to previous step (if any).
   const numbersIdx = activeSteps.indexOf('numbers');
@@ -165,6 +167,7 @@ export const NumbersStep: React.FC = () => {
   }, [loadNumbers]);
 
   // Order polling
+  const startOrderPollRef = useRef<((orderId: string, pollCount: number) => void) | null>(null);
   const startOrderPoll = useCallback(
     (orderId: string, pollCount: number) => {
       const gen = ++orderPollGenRef.current;
@@ -176,7 +179,9 @@ export const NumbersStep: React.FC = () => {
           if (orderPollGenRef.current !== gen) return;
           const newCount = pollCount + 1;
           dispatch({ type: 'order_poll_update', order, pollCount: newCount });
-          if (order.status === 'pending' && newCount < 5) startOrderPoll(orderId, newCount);
+          if (order.status === 'pending' && newCount < 5) {
+            startOrderPollRef.current?.(orderId, newCount);
+          }
         } catch (err) {
           if (process.env.NODE_ENV !== 'production')
             console.warn('[NumbersStep] order poll error', err);
@@ -185,6 +190,9 @@ export const NumbersStep: React.FC = () => {
     },
     [dialstack]
   );
+  useEffect(() => {
+    startOrderPollRef.current = startOrderPoll;
+  }, [startOrderPoll]);
 
   // Load active DIDs
   const loadActiveDIDs = useCallback(

@@ -62,6 +62,7 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
     if (hydrated) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- one-time hydration from async context data on mount */
     if (account) {
       const phoneRaw = account.phone ?? '';
       const phoneParsed = phoneRaw ? parsePhoneNumberFromString(phoneRaw, 'US') : null;
@@ -87,6 +88,7 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
       }
     }
     setHydrated(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
