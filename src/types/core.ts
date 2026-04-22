@@ -160,7 +160,7 @@ export interface CallsTranscriptsResource {
 export interface CallsResource {
   /** Initiate an outbound call */
   create(params: { userId: string; dialString: string }): Promise<void>;
-  /** Retrieve a call log (CDR) by ID */
+  /** Retrieve a call log by ID (opaque `call_` identifier; may aggregate multiple CDR legs) */
   retrieve(callId: string): Promise<CallLog>;
   /** Call transcript sub-resource */
   transcripts: CallsTranscriptsResource;

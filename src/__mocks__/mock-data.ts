@@ -23,7 +23,7 @@ export const MOCK_CALLS: PaginatedResponse<CallLog> = {
   url: '/v1/calls',
   data: [
     {
-      id: 'cdr_01abc',
+      id: 'call_01abc',
       direction: 'inbound',
       from_number: '+15551234567',
       to_number: '+15559876543',
@@ -34,7 +34,7 @@ export const MOCK_CALLS: PaginatedResponse<CallLog> = {
       ended_at: '2026-02-24T14:32:10Z',
     },
     {
-      id: 'cdr_02def',
+      id: 'call_02def',
       direction: 'outbound',
       from_number: '+15559876543',
       to_number: '+15551112222',
@@ -45,7 +45,7 @@ export const MOCK_CALLS: PaginatedResponse<CallLog> = {
       ended_at: '2026-02-24T13:00:48Z',
     },
     {
-      id: 'cdr_03ghi',
+      id: 'call_03ghi',
       direction: 'inbound',
       from_number: '+15553334444',
       to_number: '+15559876543',
@@ -55,7 +55,7 @@ export const MOCK_CALLS: PaginatedResponse<CallLog> = {
       ended_at: '2026-02-24T10:15:30Z',
     },
     {
-      id: 'cdr_04jkl',
+      id: 'call_04jkl',
       direction: 'inbound',
       from_number: '+15557778888',
       to_number: '+15559876543',
@@ -65,7 +65,7 @@ export const MOCK_CALLS: PaginatedResponse<CallLog> = {
       ended_at: '2026-02-23T16:45:18Z',
     },
     {
-      id: 'cdr_05mno',
+      id: 'call_05mno',
       direction: 'outbound',
       from_number: '+15559876543',
       to_number: '+15552223333',
