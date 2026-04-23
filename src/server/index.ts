@@ -428,6 +428,73 @@ export interface RingGroupAddMemberParams {
   phone_number?: string;
 }
 
+// Queue types
+export interface Queue {
+  id: string;
+  name: string;
+  strategy: string;
+  timeout_seconds: number;
+  timeout_action: string | null;
+  timeout_target: string | null;
+  max_queue_length: number;
+  join_empty: string;
+  leave_when_empty: string;
+  /** Populated only when the request includes `expand[]=members`. */
+  members?: ListResponse<QueueMember>;
+  /** Populated only when the request includes `expand[]=extensions`. */
+  extensions?: ListResponse<Extension>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QueueMember {
+  id: string;
+  queue_id: string;
+  user_id: string;
+  penalty: number;
+  position: number;
+  created_at: string;
+}
+
+export interface QueueCreateParams {
+  name: string;
+  strategy?: string;
+  timeout_seconds?: number;
+  timeout_action?: string | null;
+  timeout_target?: string | null;
+  max_queue_length?: number;
+  join_empty?: string;
+  leave_when_empty?: string;
+}
+
+export interface QueueUpdateParams {
+  name?: string;
+  strategy?: string;
+  timeout_seconds?: number;
+  timeout_action?: string | null;
+  timeout_target?: string | null;
+  max_queue_length?: number;
+  join_empty?: string;
+  leave_when_empty?: string;
+}
+
+export interface QueueListParams {
+  limit?: number;
+  page?: string;
+}
+
+export interface QueueAddMemberParams {
+  user_id: string;
+  penalty?: number;
+  position?: number;
+}
+
+export interface QueueListMembersParams {
+  limit?: number;
+  starting_after?: string;
+  ending_before?: string;
+}
+
 // Call Control types
 export interface AttachAction {
   type: 'attach';
@@ -1207,6 +1274,96 @@ export class DialStack {
       return this._request(
         'DELETE',
         `/v1/ring_groups/${ringGroupId}/members/${memberId}`,
+        undefined,
+        options
+      );
+    },
+  };
+
+  queues = {
+    create: (
+      params: QueueCreateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<Queue> => {
+      return this._request('POST', '/v1/queues', params, options);
+    },
+
+    retrieve: (
+      queueId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<Queue> => {
+      return this._request('GET', `/v1/queues/${queueId}`, undefined, options);
+    },
+
+    update: (
+      queueId: string,
+      params: QueueUpdateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<Queue> => {
+      return this._request('POST', `/v1/queues/${queueId}`, params, options);
+    },
+
+    del: (
+      queueId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request('DELETE', `/v1/queues/${queueId}`, undefined, options);
+    },
+
+    list: (
+      params: QueueListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
+    ): PaginatedList<Queue> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
+
+      const query = queryParams.toString();
+      const path = `/v1/queues${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<Queue>> => {
+        return this._request('GET', url, undefined, options);
+      };
+
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+
+    listMembers: (
+      queueId: string,
+      params: QueueListMembersParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
+    ): PaginatedList<QueueMember> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.starting_after) queryParams.set('starting_after', params.starting_after);
+      if (params?.ending_before) queryParams.set('ending_before', params.ending_before);
+
+      const query = queryParams.toString();
+      const path = `/v1/queues/${queueId}/members${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<QueueMember>> => {
+        return this._request('GET', url, undefined, options);
+      };
+
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+
+    addMember: (
+      queueId: string,
+      params: QueueAddMemberParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<QueueMember> => {
+      return this._request('POST', `/v1/queues/${queueId}/members`, params, options);
+    },
+
+    removeMember: (
+      queueId: string,
+      memberId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request(
+        'DELETE',
+        `/v1/queues/${queueId}/members/${memberId}`,
         undefined,
         options
       );

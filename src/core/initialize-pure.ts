@@ -113,6 +113,7 @@ export async function loadDialstackAndInitialize(
     dialPlans: instance.dialPlans,
     schedules: instance.schedules,
     ringGroups: instance.ringGroups,
+    queues: instance.queues,
     voiceApps: instance.voiceApps,
     sharedVoicemailBoxes: instance.sharedVoicemailBoxes,
     extensions: instance.extensions,

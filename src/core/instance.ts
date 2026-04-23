@@ -760,6 +760,28 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     },
   };
 
+  queues = {
+    list: async (options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]> => {
+      const params = new URLSearchParams();
+      if (options?.limit) params.set('limit', String(options.limit));
+      for (const e of options?.expand ?? []) params.append('expand[]', e);
+      const queryString = params.toString();
+      const path = queryString ? `/v1/queues?${queryString}` : '/v1/queues';
+      const response = await this.fetchApi(path);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to list queues: ${response.status} ${errorText}`);
+      }
+      const data = await response.json();
+      return (data.data ?? []).map((r: Record<string, unknown>) => ({
+        id: r.id as string,
+        name: r.name as string,
+        extension_number: (r.extensions as { data?: Array<{ number?: string }> })?.data?.[0]
+          ?.number,
+      }));
+    },
+  };
+
   voiceApps = {
     list: async (options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]> => {
       const params = new URLSearchParams();

@@ -252,6 +252,11 @@ export interface RingGroupsResource {
   list(options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]>;
 }
 
+export interface QueuesResource {
+  /** List call queues */
+  list(options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]>;
+}
+
 export interface VoiceAppsResource {
   /** List voice apps */
   list(options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]>;
@@ -462,6 +467,7 @@ export interface DialStackInstance {
   dialPlans: DialPlansResource;
   schedules: SchedulesResource;
   ringGroups: RingGroupsResource;
+  queues: QueuesResource;
   voiceApps: VoiceAppsResource;
   sharedVoicemailBoxes: SharedVoicemailBoxesResource;
   extensions: ExtensionsResource;

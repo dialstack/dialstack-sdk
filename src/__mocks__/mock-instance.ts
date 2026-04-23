@@ -460,6 +460,10 @@ export function createMockInstance(
       list: async () => [],
     },
 
+    queues: {
+      list: async () => [],
+    },
+
     voiceApps: {
       list: async () => [],
     },
