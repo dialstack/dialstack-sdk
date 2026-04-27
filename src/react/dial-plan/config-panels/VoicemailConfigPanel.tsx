@@ -1,7 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import type { ConfigPanelProps, ResourceType } from '../registry-types';
+import React from 'react';
+import type { ConfigPanelProps } from '../registry-types';
 import { OpenResourceLink } from './OpenResourceLink';
-import { ResourceCombobox, type ResourceGroup } from './ResourceCombobox';
+import { ResourceCombobox } from './ResourceCombobox';
+import { ConfigField } from './fields/ConfigField';
+import { useResourceGroups } from './hooks/useResourceGroups';
 
 export function VoicemailConfigPanel({
   config,
@@ -11,47 +13,20 @@ export function VoicemailConfigPanel({
   onOpenResource,
   locale,
 }: ConfigPanelProps) {
-  const [groups, setGroups] = useState<ResourceGroup[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchResources = useCallback(
-    () =>
-      Promise.all([listResources('user'), listResources('shared_voicemail')])
-        .then(([users, sharedVoicemails]) => {
-          setGroups([
-            { label: locale?.resourceGroups.users ?? 'Users', type: 'user', items: users },
-            {
-              label: locale?.resourceGroups.sharedVoicemails ?? 'Shared Voicemails',
-              type: 'shared_voicemail',
-              items: sharedVoicemails,
-            },
-          ]);
-        })
-        .catch(() => {})
-        .finally(() => setLoading(false)),
-    [listResources, locale]
+  const { groups, loading, handleCreateResource } = useResourceGroups(
+    [
+      { type: 'user', labelKey: 'users', fallback: 'Users' },
+      { type: 'shared_voicemail', labelKey: 'sharedVoicemails', fallback: 'Shared Voicemails' },
+    ],
+    listResources,
+    onCreateResource,
+    locale
   );
-
-  useEffect(() => {
-    fetchResources();
-  }, [fetchResources]);
 
   const targetId = (config.target_id as string) ?? '';
 
-  async function handleCreateResource(type: ResourceType) {
-    if (!onCreateResource) return undefined;
-    const created = await onCreateResource(type);
-    if (created) {
-      await fetchResources();
-    }
-    return created;
-  }
-
   return (
-    <div className="ds-dial-plan-config-field">
-      <label className="ds-dial-plan-config-field__label">
-        {locale?.configLabels.target ?? 'Target'}
-      </label>
+    <ConfigField label={locale?.configLabels.target ?? 'Target'}>
       <ResourceCombobox
         groups={groups}
         value={targetId}
@@ -72,6 +47,6 @@ export function VoicemailConfigPanel({
           label={locale?.configLabels.openInNewTab ?? 'Open target details'}
         />
       )}
-    </div>
+    </ConfigField>
   );
 }

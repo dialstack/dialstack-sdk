@@ -58,12 +58,54 @@ export interface RingAllUsersNodeConfig {
   next?: string;
 }
 
+/**
+ * A single DTMF option in a menu node.
+ */
+export interface MenuOption {
+  /** DTMF digit: "0"-"9", "*", or "#" */
+  digit: string;
+  /** Node ID to route to when this digit is pressed */
+  next_node?: string;
+}
+
+/**
+ * Configuration for a menu (IVR) node that plays a prompt and routes by keypress.
+ */
+export interface MenuNodeConfig {
+  /** Audio clip ID for the menu prompt */
+  prompt_clip_id: string;
+  /** Seconds to wait for input (1-30) */
+  timeout: number;
+  /** DTMF digit options */
+  options: MenuOption[];
+  /** Node ID to route to on timeout (nil = replay prompt) */
+  timeout_next_node?: string;
+  /** Node ID to route to on invalid input (nil = replay prompt) */
+  invalid_next_node?: string;
+}
+
+/**
+ * Configuration for a sound clip node that plays an audio clip.
+ */
+export interface SoundClipNodeConfig {
+  /** Audio clip ID to play */
+  clip_id: string;
+  /** Node ID to route to after playback (nil = terminate) */
+  next?: string;
+}
+
 // ============================================================================
 // Dial Plan Node Types
 // ============================================================================
 
 /** Supported dial plan node types (as sent by the API) */
-export type DialPlanNodeType = 'schedule' | 'internal_dial' | 'ring_all_users' | 'external_dial';
+export type DialPlanNodeType =
+  | 'schedule'
+  | 'internal_dial'
+  | 'ring_all_users'
+  | 'external_dial'
+  | 'menu'
+  | 'sound_clip';
 
 /**
  * Base interface for all dial plan nodes.
@@ -108,9 +150,31 @@ export interface ExternalDialNode extends DialPlanNodeBase {
 }
 
 /**
+ * A menu (IVR) node in the dial plan.
+ */
+export interface MenuNode extends DialPlanNodeBase {
+  type: 'menu';
+  config: MenuNodeConfig;
+}
+
+/**
+ * A sound clip node in the dial plan.
+ */
+export interface SoundClipNode extends DialPlanNodeBase {
+  type: 'sound_clip';
+  config: SoundClipNodeConfig;
+}
+
+/**
  * Union type for all dial plan node types.
  */
-export type DialPlanNode = ScheduleNode | InternalDialNode | RingAllUsersNode | ExternalDialNode;
+export type DialPlanNode =
+  | ScheduleNode
+  | InternalDialNode
+  | RingAllUsersNode
+  | ExternalDialNode
+  | MenuNode
+  | SoundClipNode;
 
 // ============================================================================
 // Dial Plan Types
@@ -148,12 +212,16 @@ export interface DialPlanLocale {
     externalDial: string;
     ringAllUsers: string;
     voiceApp: string;
+    menu: string;
+    soundClip: string;
   };
   exits: {
     open: string;
     closed: string;
     next: string;
+    noAnswer: string;
     timeout: string;
+    invalid: string;
   };
   nodeDescriptions: {
     schedule: string;
@@ -162,6 +230,8 @@ export interface DialPlanLocale {
     ringAllUsers: string;
     externalDial: string;
     voiceApp: string;
+    menu: string;
+    soundClip: string;
   };
   targetTypes: {
     user: string;
@@ -177,6 +247,7 @@ export interface DialPlanLocale {
     voiceApps: string;
     sharedVoicemails: string;
     schedules: string;
+    audioClips: string;
   };
   configLabels: {
     timeout: string;
@@ -186,6 +257,11 @@ export interface DialPlanLocale {
     searchTargets: string;
     searchSchedules: string;
     openInNewTab: string;
+    promptClip: string;
+    audioClip: string;
+    digit: string;
+    addOption: string;
+    removeOption: string;
   };
   toolbar: {
     autoLayout: string;
@@ -229,7 +305,9 @@ export type GraphNodeType =
   | 'ringAllUsers'
   | 'voicemail'
   | 'externalDial'
-  | 'voiceApp';
+  | 'voiceApp'
+  | 'menu'
+  | 'soundClip';
 
 /**
  * Data payload for the Start node.
@@ -296,6 +374,30 @@ export interface VoiceAppNodeData extends Record<string, unknown> {
   locale?: DialPlanLocale;
 }
 
+/**
+ * Data payload for a Menu node in the graph.
+ */
+export interface MenuNodeData extends Record<string, unknown> {
+  label: string;
+  promptClipId: string;
+  promptClipName?: string;
+  timeout: number;
+  options: MenuOption[];
+  originalNode: MenuNode;
+  locale?: DialPlanLocale;
+}
+
+/**
+ * Data payload for a Sound Clip node in the graph.
+ */
+export interface SoundClipNodeData extends Record<string, unknown> {
+  label: string;
+  clipId: string;
+  clipName?: string;
+  originalNode: SoundClipNode;
+  locale?: DialPlanLocale;
+}
+
 /** Union type for all graph node data */
 export type GraphNodeData =
   | StartNodeData
@@ -303,7 +405,22 @@ export type GraphNodeData =
   | InternalDialNodeData
   | RingAllUsersNodeData
   | ExternalDialNodeData
-  | VoiceAppNodeData;
+  | VoiceAppNodeData
+  | MenuNodeData
+  | SoundClipNodeData;
+
+// ============================================================================
+// Component Types
+// ============================================================================
+
+/** Display mode for the DialPlan component */
+export type DialPlanMode = 'view' | 'edit' | 'preview';
+
+/** Imperative handle exposed via ref on the DialPlan component */
+export interface DialPlanHandle {
+  /** Trigger a save programmatically. Resolves when save succeeds, rejects on error. */
+  save: () => Promise<void>;
+}
 
 /** Edge labels for schedule exits */
 export type ScheduleExitType = 'open' | 'closed';

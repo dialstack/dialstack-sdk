@@ -2,6 +2,8 @@ import React, { useCallback, useState } from 'react';
 import { AsYouType, parsePhoneNumberFromString } from 'libphonenumber-js';
 import type { ConfigPanelProps } from '../registry-types';
 import { formatPhoneForDisplay } from '../format-phone';
+import { ConfigField } from './fields/ConfigField';
+import { TimeoutField } from './fields/TimeoutField';
 
 export function ExternalDialConfigPanel({ config, onConfigChange }: ConfigPanelProps) {
   const e164 = (config.phone_number as string) ?? '';
@@ -48,19 +50,13 @@ export function ExternalDialConfigPanel({ config, onConfigChange }: ConfigPanelP
 
   return (
     <>
-      <div className="ds-dial-plan-config-field">
-        <label className="ds-dial-plan-config-field__label">Timeout (seconds)</label>
-        <input
-          className="ds-dial-plan-config-field__input"
-          type="number"
-          min={1}
-          max={120}
-          value={timeout}
-          onChange={(e) => onConfigChange({ timeout: Number(e.target.value) })}
-        />
-      </div>
-      <div className="ds-dial-plan-config-field">
-        <label className="ds-dial-plan-config-field__label">Phone Number</label>
+      <TimeoutField
+        value={timeout}
+        min={1}
+        max={120}
+        onChange={(t) => onConfigChange({ timeout: t })}
+      />
+      <ConfigField label="Phone Number">
         <div className="ds-dial-plan-config-field__input-wrapper">
           <input
             className="ds-dial-plan-config-field__input"
@@ -88,7 +84,7 @@ export function ExternalDialConfigPanel({ config, onConfigChange }: ConfigPanelP
             </button>
           )}
         </div>
-      </div>
+      </ConfigField>
     </>
   );
 }

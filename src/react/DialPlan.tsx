@@ -28,7 +28,6 @@ import {
   type NodeChange,
   type EdgeChange,
   applyNodeChanges,
-  getOutgoers,
 } from '@xyflow/react';
 import xyflowStyles from '@xyflow/react/dist/style.css';
 
@@ -41,7 +40,8 @@ import {
   applyAutoLayout,
   type DialPlanGraphNode,
 } from '../utils/dial-plan-graph';
-import { defaultRegistry } from './dial-plan/default-registry';
+import { defaultRegistry, nodeDefinitions } from './dial-plan/default-registry';
+import { resolveTargetType } from './dial-plan/nodes/resolve-target';
 import { DIAL_PLAN_EDGE_TYPE } from './dial-plan/registry';
 import { SmartEdge } from './dial-plan/SmartEdge';
 import { StartNode } from './dial-plan/StartNode';
@@ -55,24 +55,16 @@ import type {
   DialPlan as DialPlanData,
   DialPlanNode,
   DialPlanLocale,
-  ScheduleNodeData,
-  InternalDialNodeData,
+  DialPlanMode,
+  DialPlanHandle,
 } from '../types/dial-plan';
-import type { ConfigPanelProps } from './dial-plan/registry-types';
+import { defaultDialPlanLocale } from '../locales/en';
+import type { ConfigPanelProps, ResourceMaps } from './dial-plan/registry-types';
 import { formatValidationError } from '../utils/format-validation-error';
 
 // ============================================================================
 // Types
 // ============================================================================
-
-/** Display mode for the DialPlan component */
-export type DialPlanMode = 'view' | 'edit' | 'preview';
-
-/** Imperative handle exposed via ref on the DialPlan component */
-export interface DialPlanHandle {
-  /** Trigger a save programmatically. Resolves when save succeeds, rejects on error. */
-  save: () => Promise<void>;
-}
 
 export interface DialPlanProps {
   /** The ID of the dial plan to fetch and display */
@@ -148,104 +140,9 @@ const edgeTypes = {
   [DIAL_PLAN_EDGE_TYPE]: SmartEdge,
 };
 
-const defaultDialPlanLocale: DialPlanLocale = {
-  nodeTypes: {
-    start: 'Start',
-    schedule: 'Schedule',
-    internalDial: 'Internal Extension',
-    voicemail: 'Voicemail',
-    externalDial: 'External Number',
-    ringAllUsers: 'Ring All Users',
-    voiceApp: 'Voice App',
-  },
-  exits: {
-    open: 'Open',
-    closed: 'Closed',
-    next: 'No Answer',
-    timeout: 'Timeout',
-  },
-  nodeDescriptions: {
-    schedule: 'Route calls by schedule',
-    internalDial: 'Ring a user, group, or plan',
-    voicemail: 'Send to voicemail',
-    ringAllUsers: 'Ring all users',
-    externalDial: 'Ring an external phone number',
-    voiceApp: 'Route to a voice application',
-  },
-  targetTypes: {
-    user: 'User',
-    ringGroup: 'Ring Group',
-    dialPlan: 'Dial Plan',
-    voiceApp: 'Voice App',
-    sharedVoicemail: 'Shared Voicemail',
-  },
-  resourceGroups: {
-    users: 'Users',
-    ringGroups: 'Ring Groups',
-    dialPlans: 'Dial Plans',
-    voiceApps: 'Voice Apps',
-    sharedVoicemails: 'Shared Voicemails',
-    schedules: 'Schedules',
-  },
-  configLabels: {
-    timeout: 'Timeout (seconds)',
-    target: 'Target',
-    schedule: 'Schedule',
-    search: 'Search...',
-    searchTargets: 'Search targets...',
-    searchSchedules: 'Search schedules...',
-    openInNewTab: 'Open target details',
-  },
-  toolbar: {
-    autoLayout: 'Auto Layout',
-    save: 'Save',
-  },
-  panel: {
-    delete_: 'Delete',
-    close: 'Close',
-    connection: 'Connection',
-    from: 'From',
-    exit: 'Exit',
-    to: 'To',
-  },
-  combobox: {
-    select: '— Select —',
-    search: 'Search...',
-    noResults: 'No results found',
-    loading: 'Loading...',
-    createNew: '+ Create new...',
-    extensionLabel: 'Ext.',
-    noName: '(No name)',
-  },
-  status: {
-    loading: 'Loading dial plan...',
-    loadError: 'Failed to load dial plan',
-    notFound: 'No dial plan found',
-    saveError: 'Failed to save dial plan',
-    newDialPlan: 'New Dial Plan',
-  },
-};
-
 // ============================================================================
 // Resource resolution helpers
 // ============================================================================
-
-interface Schedule {
-  id: string;
-  name: string;
-}
-
-interface User {
-  id: string;
-  name?: string;
-  email?: string;
-  extension_number?: string;
-}
-
-interface ResourceMaps {
-  schedules: Map<string, Schedule>;
-  users: Map<string, User>;
-}
 
 async function fetchResourceMaps(
   data: DialPlanData,
@@ -253,12 +150,25 @@ async function fetchResourceMaps(
 ): Promise<ResourceMaps> {
   const scheduleIds = new Set<string>();
   const targetIds = new Set<string>();
+  const clipIds = new Set<string>();
+
+  // Let each node type declare what resources it needs
   for (const node of data.nodes) {
-    if (node.type === 'schedule') scheduleIds.add(node.config.schedule_id);
-    else if (node.type === 'internal_dial') targetIds.add(node.config.target_id);
+    const reg = defaultRegistry.resolveType(node);
+    const def = reg ? nodeDefinitions.find((d) => d.type === (reg.apiType ?? reg.type)) : null;
+    def?.collectResourceIds?.(node.config as unknown as Record<string, unknown>, {
+      addSchedule: (id) => scheduleIds.add(id),
+      addTarget: (id) => targetIds.add(id),
+      addAudioClip: (id) => clipIds.add(id),
+    });
   }
 
-  const [schedules, ...targetResults] = await Promise.all([
+  const clipListPromise =
+    clipIds.size > 0
+      ? dialstack.audioClips.list().catch(() => [] as Array<{ id: string; name: string }>)
+      : Promise.resolve([] as Array<{ id: string; name: string }>);
+
+  const [schedules, clipList, ...targetResults] = await Promise.all([
     Promise.all(
       Array.from(scheduleIds).map(async (id) => {
         try {
@@ -268,6 +178,7 @@ async function fetchResourceMaps(
         }
       })
     ),
+    clipListPromise,
     ...Array.from(targetIds).map(async (id) => {
       const resolved = await dialstack.resolveRoutingTarget(id);
       if (!resolved) return null;
@@ -275,25 +186,21 @@ async function fetchResourceMaps(
         id: resolved.id,
         name: resolved.name || resolved.id,
         extension_number: resolved.extension_number ?? undefined,
-      } as User;
+      };
     }),
   ]);
 
-  const scheduleMap = new Map<string, Schedule>();
-  const userMap = new Map<string, User>();
+  const scheduleMap = new Map<string, { id: string; name: string }>();
+  const userMap = new Map<
+    string,
+    { id: string; name?: string; email?: string; extension_number?: string }
+  >();
+  const clipMap = new Map<string, { id: string; name: string }>();
   for (const s of schedules) if (s) scheduleMap.set(s.id, s);
   for (const t of targetResults) if (t) userMap.set(t.id, t);
+  for (const c of clipList) clipMap.set(c.id, c);
 
-  return { schedules: scheduleMap, users: userMap };
-}
-
-function resolveTargetType(targetId: string, locale: DialPlanLocale): string {
-  if (targetId.startsWith('user_')) return locale.targetTypes.user;
-  if (targetId.startsWith('rg_')) return locale.targetTypes.ringGroup;
-  if (targetId.startsWith('dp_')) return locale.targetTypes.dialPlan;
-  if (targetId.startsWith('va_')) return locale.targetTypes.voiceApp;
-  if (targetId.startsWith('svm_')) return locale.targetTypes.sharedVoicemail;
-  return locale.nodeTypes.internalDial;
+  return { schedules: scheduleMap, users: userMap, audioClips: clipMap };
 }
 
 function enrichNodesWithResources(
@@ -302,28 +209,12 @@ function enrichNodesWithResources(
   locale: DialPlanLocale
 ): DialPlanGraphNode[] {
   return graphNodes.map((node) => {
-    if (node.type === 'start') {
-      return { ...node, data: { ...node.data, locale } };
-    } else if (node.type === 'schedule') {
-      const data = node.data as ScheduleNodeData;
-      const schedule = maps.schedules.get(data.scheduleId);
-      return { ...node, data: { ...data, scheduleName: schedule?.name, locale } };
-    } else if (
-      node.type === 'internalDial' ||
-      node.type === 'voicemail' ||
-      node.type === 'voiceApp'
-    ) {
-      const data = node.data as InternalDialNodeData;
-      const user = maps.users.get(data.targetId);
-      const baseName = user?.name || user?.email;
-      const targetName =
-        baseName && user?.extension_number
-          ? `${baseName} (${locale.combobox.extensionLabel}\u00a0${user.extension_number})`
-          : baseName;
-      const targetType = resolveTargetType(data.targetId, locale);
-      return { ...node, data: { ...data, targetName, targetType, locale } };
+    const reg = defaultRegistry.getByFlowType(node.type ?? '');
+    const def = reg ? nodeDefinitions.find((d) => d.type === (reg.apiType ?? reg.type)) : null;
+    if (def?.enrichNode) {
+      return { ...node, data: def.enrichNode(node.data, maps, locale) };
     }
-    return node;
+    return { ...node, data: { ...node.data, locale } };
   });
 }
 
@@ -694,29 +585,17 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
     [setEdges, updateDirty]
   );
 
-  // ---- Edit mode: cycle prevention ----
+  // ---- Edit mode: connection validation ----
+  // Cycles through multiple nodes are allowed. Direct self-loops require
+  // the source node's registration to opt in via `allowSelfLoop`.
   const isValidConnection = useCallback(
-    (connection: Edge | Connection) => {
-      // Prevent self-connections
-      if (connection.source === connection.target) return false;
-
-      // Prevent cycles: walk outgoers from target to see if we reach source
-      const target = nodes.find((n) => n.id === connection.target);
-      if (!target) return false;
-
-      const visited = new Set<string>();
-      const stack = [target];
-      while (stack.length > 0) {
-        const current = stack.pop()!;
-        if (current.id === connection.source) return false;
-        if (visited.has(current.id)) continue;
-        visited.add(current.id);
-        const outgoers = getOutgoers(current, nodes, edges);
-        stack.push(...outgoers);
-      }
-      return true;
+    (conn: { source: string | null; target: string | null }) => {
+      if (!conn.source || !conn.target || conn.source !== conn.target) return true;
+      const node = nodesRef.current.find((n) => n.id === conn.source);
+      const reg = defaultRegistry.getByFlowType((node?.type as string) ?? '');
+      return reg?.allowSelfLoop === true;
     },
-    [nodes, edges]
+    [nodesRef]
   );
 
   // ---- Edit mode: config panel ----
@@ -751,14 +630,21 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
         updateDirty(next, edgesRef.current);
         return next;
       });
+      // Let the node definition handle config change side-effects
+      const nodeType = nodesRef.current.find((n) => n.id === nodeId)?.type ?? '';
+      const reg = defaultRegistry.getByFlowType(nodeType);
+      const def = reg ? nodeDefinitions.find((d) => d.type === (reg.apiType ?? reg.type)) : null;
+      def?.onConfigChange?.(nodeId, configUpdates, {
+        setEdges,
+        updateNodeInternals,
+        nodesRef,
+        updateDirty,
+      });
       if (configUpdates.target_id) {
-        // Wait for React to commit the DOM update before recalculating handle positions.
-        // queueMicrotask fires too early — before the browser paints the resized node —
-        // which leaves React Flow with stale handle coordinates and broken edges.
         requestAnimationFrame(() => updateNodeInternals(nodeId));
       }
     },
-    [setNodes, updateDirty, updateNodeInternals]
+    [setNodes, setEdges, updateDirty, updateNodeInternals]
   );
 
   // ---- Edit mode: auto layout ----
@@ -795,6 +681,8 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
             return await dialstack.voiceApps.list(expand);
           case 'shared_voicemail':
             return await dialstack.sharedVoicemailBoxes.list();
+          case 'audio_clip':
+            return await dialstack.audioClips.list();
           default:
             return [];
         }
@@ -802,7 +690,7 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
         return [];
       }
     },
-    [dialstack, dialPlanId, dialPlanMeta]
+    [dialstack, dialPlanId, dialPlanMeta, locale]
   );
 
   // ---- Edit mode: save ----
@@ -821,26 +709,18 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       // Parse API error path (e.g. "/nodes/3/config/schedule_id: ...") to select the node
-      const nodeMatch = error.message.match(/^\/nodes\/(\d+)\//);
-      if (nodeMatch?.[1]) {
-        const payload = transformGraphToDialPlan(
-          nodesRef.current,
-          edgesRef.current,
-          defaultRegistry
-        );
-        const nodeIndex = parseInt(nodeMatch[1], 10);
-        const node = payload.nodes[nodeIndex];
-        if (node) setSelectedNodeId(node.id);
+      const errorPayload = error.message.includes('/nodes/')
+        ? transformGraphToDialPlan(nodesRef.current, edgesRef.current, defaultRegistry)
+        : null;
+      if (errorPayload) {
+        const nodeMatch = error.message.match(/^\/nodes\/(\d+)\//);
+        if (nodeMatch?.[1]) {
+          const node = errorPayload.nodes[parseInt(nodeMatch[1], 10)];
+          if (node) setSelectedNodeId(node.id);
+        }
       }
       callbacksRef.current.onError?.(
-        error.message.includes('/nodes/')
-          ? new Error(
-              formatValidationError(
-                error.message,
-                transformGraphToDialPlan(nodesRef.current, edgesRef.current, defaultRegistry).nodes
-              )
-            )
-          : error
+        errorPayload ? new Error(formatValidationError(error.message, errorPayload.nodes)) : error
       );
       throw err;
     }
@@ -1032,6 +912,7 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
               listResources={listResources}
               onCreateResource={onCreateResource}
               onOpenResource={onOpenResource}
+              locale={locale}
             />
           )}
           {selectedEdge && (
@@ -1105,8 +986,21 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
                   <div className="ds-dial-plan-config-field">
                     <span className="ds-dial-plan-config-field__label">{locale.panel.exit}</span>
                     <span className="ds-dial-plan-edge-panel__value">
-                      {selectedEdge.sourceHandle.charAt(0).toUpperCase() +
-                        selectedEdge.sourceHandle.slice(1)}
+                      {(() => {
+                        const handle = selectedEdge.sourceHandle;
+                        const srcNode = nodes.find((n) => n.id === selectedEdge.source);
+                        const srcReg = srcNode
+                          ? defaultRegistry.getByFlowType(srcNode.type ?? '')
+                          : null;
+                        const def = srcReg
+                          ? nodeDefinitions.find((d) => d.type === (srcReg.apiType ?? srcReg.type))
+                          : null;
+                        return (
+                          def?.resolveExitLabel?.(handle) ??
+                          srcReg?.exits.find((e) => e.id === handle)?.label ??
+                          handle
+                        );
+                      })()}
                     </span>
                   </div>
                 )}

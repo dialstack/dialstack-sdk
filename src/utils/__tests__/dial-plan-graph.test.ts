@@ -8,7 +8,6 @@ import {
   applyAutoLayout,
   getNodeLabel,
   getEdgeLabel,
-  validateDialPlanNodes,
 } from '../dial-plan-graph';
 import type { DialPlan } from '../../types/dial-plan';
 import { defaultRegistry } from '../../react/dial-plan/default-registry';
@@ -320,66 +319,6 @@ describe('dial-plan-graph', () => {
       // Should not create edge to nonexistent node
       const badEdge = edges.find((e) => e.target === 'nonexistent');
       expect(badEdge).toBeUndefined();
-    });
-  });
-
-  describe('validateDialPlanNodes', () => {
-    function makeNode(id: string, type: string, config: Record<string, unknown>) {
-      return {
-        id,
-        type: 'custom',
-        position: { x: 0, y: 0 },
-        data: { originalNode: { type, config } },
-      };
-    }
-
-    it('returns no errors for a valid external_dial node with E.164 number', () => {
-      const nodes = [
-        makeNode('n1', 'external_dial', { phone_number: '+14155551234', timeout: 60 }),
-      ];
-      const errors = validateDialPlanNodes(nodes);
-      expect(errors).toHaveLength(0);
-    });
-
-    it('returns error for invalid phone number', () => {
-      const nodes = [makeNode('n1', 'external_dial', { phone_number: '555', timeout: 60 })];
-      const errors = validateDialPlanNodes(nodes);
-      const phoneError = errors.find((e) => e.field === 'phone_number');
-      expect(phoneError).toBeDefined();
-      expect(phoneError?.message).toContain('E.164');
-    });
-
-    it('accepts empty phone number (draft mode)', () => {
-      const nodes = [makeNode('n1', 'external_dial', { phone_number: '', timeout: 60 })];
-      const errors = validateDialPlanNodes(nodes);
-      const phoneError = errors.find((e) => e.field === 'phone_number');
-      expect(phoneError).toBeUndefined();
-    });
-
-    it('returns error for timeout out of range', () => {
-      const nodes = [
-        makeNode('n1', 'external_dial', { phone_number: '+14155551234', timeout: 200 }),
-      ];
-      const errors = validateDialPlanNodes(nodes);
-      const timeoutError = errors.find((e) => e.field === 'timeout');
-      expect(timeoutError).toBeDefined();
-    });
-
-    it('validates non-US E.164 numbers', () => {
-      const nodes = [
-        makeNode('n1', 'external_dial', { phone_number: '+442071234567', timeout: 30 }),
-      ];
-      const errors = validateDialPlanNodes(nodes);
-      expect(errors).toHaveLength(0);
-    });
-
-    it('rejects national format without country code', () => {
-      const nodes = [
-        makeNode('n1', 'external_dial', { phone_number: '(415) 555-1234', timeout: 30 }),
-      ];
-      const errors = validateDialPlanNodes(nodes);
-      const phoneError = errors.find((e) => e.field === 'phone_number');
-      expect(phoneError).toBeDefined();
     });
   });
 });

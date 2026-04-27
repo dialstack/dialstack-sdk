@@ -267,6 +267,11 @@ export interface SharedVoicemailBoxesResource {
   list(options?: { limit?: number }): Promise<NamedResource[]>;
 }
 
+export interface AudioClipsResource {
+  /** List audio clips */
+  list(options?: { limit?: number }): Promise<NamedResource[]>;
+}
+
 export interface ExtensionsResource {
   /** List extensions */
   list(options?: { target?: string; limit?: number }): Promise<Extension[]>;
@@ -464,6 +469,7 @@ export interface DialStackInstance {
   availablePhoneNumbers: AvailablePhoneNumbersResource;
   phoneNumberOrders: PhoneNumberOrdersResource;
   portOrders: PortOrdersResource;
+  audioClips: AudioClipsResource;
   dialPlans: DialPlansResource;
   schedules: SchedulesResource;
   ringGroups: RingGroupsResource;

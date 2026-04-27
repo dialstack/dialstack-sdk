@@ -45,6 +45,11 @@ export class NodeTypeRegistry {
     const reg = this.resolveType(node);
     if (!reg) return [];
 
+    // Use custom edge creation if the registration provides one (e.g., menu dynamic exits)
+    if (reg.createEdgesForNode) {
+      return reg.createEdgesForNode(node, nodeMap);
+    }
+
     const edges: Edge[] = [];
     for (const exit of reg.exits) {
       const targetId = (node.config as unknown as Record<string, unknown>)[exit.configKey] as

@@ -659,6 +659,18 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     },
   };
 
+  audioClips = {
+    list: async (): Promise<NamedResource[]> => {
+      const response = await this.fetchApi('/v1/audio_clips');
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to list audio clips: ${response.status} ${errorText}`);
+      }
+      const data = await response.json();
+      return (data.data ?? []).map((r: NamedResource) => ({ id: r.id, name: r.name }));
+    },
+  };
+
   dialPlans = {
     retrieve: async (dialPlanId: string): Promise<DialPlanData> => {
       const response = await this.fetchApi(`/v1/dialplans/${dialPlanId}`);

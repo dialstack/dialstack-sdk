@@ -1,6 +1,8 @@
 /**
  * English locale strings for DialStack SDK components
  */
+import type { DialPlanLocale } from '../types/dial-plan';
+
 export const en = {
   common: {
     loading: 'Loading...',
@@ -732,12 +734,125 @@ export const en = {
       voicemail: 'Voicemail',
       externalDial: 'External Number',
       voiceApp: 'Voice App',
+      menu: 'IVR Menu',
+      soundClip: 'Sound Clip',
+    },
+    nodeDescriptions: {
+      menu: 'Play prompt and route by keypress',
+      soundClip: 'Play an audio clip',
     },
     exits: {
       open: 'Open',
       closed: 'Closed',
-      next: 'No Answer',
+      next: 'Next',
+      noAnswer: 'No Answer',
       timeout: 'Timeout',
+      invalid: 'Invalid',
     },
+    configLabels: {
+      promptClip: 'Prompt',
+      audioClip: 'Audio Clip',
+      digit: 'Digit',
+      addOption: 'Add Option',
+      removeOption: 'Remove',
+    },
+    resourceGroups: {
+      audioClips: 'Audio Clips',
+    },
+  },
+};
+
+/**
+ * Default DialPlanLocale — full locale object for the DialPlan component.
+ * Used as the default when no locale prop is provided.
+ */
+
+export const defaultDialPlanLocale: DialPlanLocale = {
+  nodeTypes: {
+    start: 'Start',
+    schedule: 'Schedule',
+    internalDial: 'Internal Extension',
+    voicemail: 'Voicemail',
+    externalDial: 'External Number',
+    ringAllUsers: 'Ring All Users',
+    voiceApp: 'Voice App',
+    menu: 'IVR Menu',
+    soundClip: 'Sound Clip',
+  },
+  exits: {
+    open: 'Open',
+    closed: 'Closed',
+    next: 'Next',
+    noAnswer: 'No Answer',
+    timeout: 'Timeout',
+    invalid: 'Invalid',
+  },
+  nodeDescriptions: {
+    schedule: 'Route calls by schedule',
+    internalDial: 'Ring a user, group, or plan',
+    voicemail: 'Send to voicemail',
+    ringAllUsers: 'Ring all users',
+    externalDial: 'Ring an external phone number',
+    voiceApp: 'Route to a voice application',
+    menu: 'Play prompt and route by keypress',
+    soundClip: 'Play an audio clip',
+  },
+  targetTypes: {
+    user: 'User',
+    ringGroup: 'Ring Group',
+    dialPlan: 'Dial Plan',
+    voiceApp: 'Voice App',
+    sharedVoicemail: 'Shared Voicemail',
+  },
+  resourceGroups: {
+    users: 'Users',
+    ringGroups: 'Ring Groups',
+    dialPlans: 'Dial Plans',
+    voiceApps: 'Voice Apps',
+    sharedVoicemails: 'Shared Voicemails',
+    schedules: 'Schedules',
+    audioClips: 'Audio Clips',
+  },
+  configLabels: {
+    timeout: 'Timeout (seconds)',
+    target: 'Target',
+    schedule: 'Schedule',
+    search: 'Search...',
+    searchTargets: 'Search targets...',
+    searchSchedules: 'Search schedules...',
+    openInNewTab: 'Open target details',
+    promptClip: 'Prompt',
+    audioClip: 'Audio Clip',
+    digit: 'Digit',
+    addOption: 'Add Option',
+    removeOption: 'Remove',
+  },
+  toolbar: {
+    autoLayout: 'Auto Layout',
+    save: 'Save',
+  },
+  panel: {
+    delete_: 'Delete',
+    close: 'Close',
+    connection: 'Connection',
+    from: 'From',
+    exit: 'Exit',
+    to: 'To',
+  },
+  combobox: {
+    select: '— Select —',
+    search: 'Search...',
+    noResults: 'No results found',
+    loading: 'Loading...',
+    createNew: '+ Create new...',
+    extensionLabel: 'Ext.',
+    noName: '(No name)',
+  },
+  status: {
+    loading: 'Loading dial plan...',
+    loadError: 'Failed to load dial plan',
+    notFound: 'No dial plan found',
+    saveError: 'Failed to save dial plan',
+    newDialPlan: 'New Dial Plan',
   },
 };

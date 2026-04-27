@@ -6,7 +6,6 @@
 
 import type { Node, Edge } from '@xyflow/react';
 import dagre from 'dagre';
-import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import type { DialPlan, DialPlanNode, StartNodeData } from '../types/dial-plan';
 import { DIAL_PLAN_EDGE_TYPE, type NodeTypeRegistry } from '../react/dial-plan/registry';
 import { defaultRegistry } from '../react/dial-plan/default-registry';
@@ -51,6 +50,10 @@ export function getNodeLabel(node: DialPlanNode): string {
       return 'Ring All';
     case 'external_dial':
       return 'External Number';
+    case 'menu':
+      return 'IVR Menu';
+    case 'sound_clip':
+      return 'Sound Clip';
     default:
       return 'Node';
   }
@@ -201,90 +204,18 @@ export function transformGraphToDialPlan(
       }
     }
 
+    // Let registrations with dynamic exits override config serialization
+    const finalConfig = reg.serializeConfig ? reg.serializeConfig(node, edges, config) : config;
+
     dialPlanNodes.push({
       id: node.id,
       type: reg.apiType ?? originalNode.type,
       position: node.position,
-      config,
+      config: finalConfig,
     });
   }
 
   return { entry_node: entryNode, nodes: dialPlanNodes };
-}
-
-// ============================================================================
-// Validation
-// ============================================================================
-
-export interface ValidationError {
-  nodeId: string;
-  field: string;
-  message: string;
-}
-
-/** Validate dial plan nodes before saving. Returns errors for nodes with missing or invalid config. */
-export function validateDialPlanNodes(nodes: Node[]): ValidationError[] {
-  const errors: ValidationError[] = [];
-
-  for (const node of nodes) {
-    if (node.id === START_NODE_ID) continue;
-    const original = (node.data as Record<string, unknown>)?.originalNode as
-      | { type: string; config: Record<string, unknown> }
-      | undefined;
-    if (!original) continue;
-    const config = original.config;
-
-    switch (original.type) {
-      case 'schedule':
-        if (!config.schedule_id)
-          errors.push({ nodeId: node.id, field: 'schedule_id', message: 'Schedule is required' });
-        break;
-      case 'internal_dial': {
-        if (!config.target_id)
-          errors.push({ nodeId: node.id, field: 'target_id', message: 'Target is required' });
-        const dialTimeout = config.timeout as number | undefined;
-        if (dialTimeout !== undefined && (dialTimeout < 0 || dialTimeout > 300))
-          errors.push({
-            nodeId: node.id,
-            field: 'timeout',
-            message: 'Timeout must be 0–300 seconds',
-          });
-        break;
-      }
-      case 'ring_all_users': {
-        const timeout = config.timeout as number | undefined;
-        if (timeout === undefined || timeout < 1 || timeout > 300)
-          errors.push({
-            nodeId: node.id,
-            field: 'timeout',
-            message: 'Timeout must be 1–300 seconds',
-          });
-        break;
-      }
-      case 'external_dial': {
-        const phoneNum = config.phone_number as string | undefined;
-        if (phoneNum) {
-          const parsed = parsePhoneNumberFromString(phoneNum);
-          if (!parsed?.isValid())
-            errors.push({
-              nodeId: node.id,
-              field: 'phone_number',
-              message: 'Enter a valid phone number in E.164 format',
-            });
-        }
-        const extTimeout = config.timeout as number | undefined;
-        if (extTimeout !== undefined && (extTimeout < 1 || extTimeout > 120))
-          errors.push({
-            nodeId: node.id,
-            field: 'timeout',
-            message: 'Timeout must be 1–120 seconds',
-          });
-        break;
-      }
-    }
-  }
-
-  return errors;
 }
 
 // ============================================================================
@@ -298,6 +229,11 @@ function nodeDimensions(node: DialPlanGraphNode): { width: number; height: numbe
   // Fallback to estimates for initial layout (before first render)
   if (node.type === 'start') return { width: START_NODE_SIZE, height: START_NODE_SIZE };
   if (node.type === 'schedule') return { width: NODE_WIDTH, height: SCHEDULE_NODE_HEIGHT };
+  if (node.type === 'menu') {
+    const options = (node.data as Record<string, unknown>).options as unknown[] | undefined;
+    const exitCount = (options?.length ?? 1) + 2; // digits + timeout + invalid
+    return { width: NODE_WIDTH, height: 60 + exitCount * 28 };
+  }
   return { width: NODE_WIDTH, height: NODE_HEIGHT };
 }
 

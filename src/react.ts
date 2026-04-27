@@ -29,7 +29,7 @@ export type { DialstackComponentsProviderProps } from './react/DialstackComponen
 export type { CallLogsProps } from './react/CallLogs';
 export type { VoicemailsProps } from './react/Voicemails';
 export type { CallHistoryProps } from './react/CallHistory';
-export type { DialPlanProps, DialPlanMode, DialPlanHandle } from './react/DialPlan';
+export type { DialPlanProps } from './react/DialPlan';
 export type { ResourceType } from './react/dial-plan/registry-types';
 export type { PhoneNumberOrderingProps } from './react/PhoneNumberOrdering';
 export type { PhoneNumbersProps } from './react/PhoneNumbers';
@@ -51,4 +51,6 @@ export type {
   RingAllUsersNodeConfig,
   ExternalDialNodeConfig,
   VoiceAppNodeData,
+  DialPlanMode,
+  DialPlanHandle,
 } from './types/dial-plan';

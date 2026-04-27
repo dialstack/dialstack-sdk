@@ -1,7 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React from 'react';
 import type { ConfigPanelProps } from '../registry-types';
 import { OpenResourceLink } from './OpenResourceLink';
-import { ResourceCombobox, type ResourceGroup } from './ResourceCombobox';
+import { ResourceCombobox } from './ResourceCombobox';
+import { ConfigField } from './fields/ConfigField';
+import { TimeoutField } from './fields/TimeoutField';
+import { useResourceGroups } from './hooks/useResourceGroups';
 
 export function VoiceAppConfigPanel({
   config,
@@ -11,64 +14,32 @@ export function VoiceAppConfigPanel({
   onOpenResource,
   locale,
 }: ConfigPanelProps) {
-  const [groups, setGroups] = useState<ResourceGroup[]>([]);
-
-  const fetchResources = useCallback(
-    () =>
-      listResources('voice_app')
-        .then((voiceApps) => {
-          setGroups([
-            {
-              label: locale?.resourceGroups.voiceApps ?? 'Voice Apps',
-              type: 'voice_app',
-              items: voiceApps,
-            },
-          ]);
-        })
-        .catch(() => {}),
-    [listResources, locale]
+  const { groups, handleCreateResource } = useResourceGroups(
+    [{ type: 'voice_app', labelKey: 'voiceApps', fallback: 'Voice Apps' }],
+    listResources,
+    onCreateResource,
+    locale
   );
-
-  useEffect(() => {
-    fetchResources();
-  }, [fetchResources]);
 
   const targetId = (config.target_id as string) ?? '';
   const timeout = (config.timeout as number) ?? 30;
 
   return (
     <>
-      <div className="ds-dial-plan-config-field">
-        <label className="ds-dial-plan-config-field__label">
-          {locale?.configLabels.timeout ?? 'Timeout (seconds)'}
-        </label>
-        <input
-          className="ds-dial-plan-config-field__input"
-          type="number"
-          min={0}
-          max={300}
-          value={timeout}
-          onChange={(e) => onConfigChange({ timeout: Number(e.target.value) })}
-        />
-      </div>
-      <div className="ds-dial-plan-config-field">
-        <label className="ds-dial-plan-config-field__label">
-          {locale?.configLabels.target ?? 'Target'}
-        </label>
+      <TimeoutField
+        value={timeout}
+        min={0}
+        max={300}
+        onChange={(t) => onConfigChange({ timeout: t })}
+        locale={locale}
+      />
+      <ConfigField label={locale?.configLabels.target ?? 'Target'}>
         <ResourceCombobox
           groups={groups}
           value={targetId}
           placeholder={locale?.configLabels.searchTargets ?? 'Search targets\u2026'}
           onSelect={(id, name) => onConfigChange({ target_id: id }, { targetName: name })}
-          onCreateResource={
-            onCreateResource
-              ? async (type) => {
-                  const created = await onCreateResource(type);
-                  if (created) await fetchResources();
-                  return created;
-                }
-              : undefined
-          }
+          onCreateResource={handleCreateResource}
           selectLabel={locale?.combobox.select}
           noResultsLabel={locale?.combobox.noResults}
           loadingLabel={locale?.combobox.loading}
@@ -82,7 +53,7 @@ export function VoiceAppConfigPanel({
             label={locale?.configLabels.openInNewTab ?? 'Open target details'}
           />
         )}
-      </div>
+      </ConfigField>
     </>
   );
 }

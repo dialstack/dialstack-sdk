@@ -1,7 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import type { ConfigPanelProps, ResourceType } from '../registry-types';
+import React from 'react';
+import type { ConfigPanelProps } from '../registry-types';
 import { OpenResourceLink } from './OpenResourceLink';
-import { ResourceCombobox, type ResourceGroup } from './ResourceCombobox';
+import { ResourceCombobox } from './ResourceCombobox';
+import { ConfigField } from './fields/ConfigField';
+import { TimeoutField } from './fields/TimeoutField';
+import { useResourceGroups } from './hooks/useResourceGroups';
 
 export function InternalDialConfigPanel({
   config,
@@ -11,81 +14,36 @@ export function InternalDialConfigPanel({
   onOpenResource,
   locale,
 }: ConfigPanelProps) {
-  const [groups, setGroups] = useState<ResourceGroup[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchResources = useCallback(
-    () =>
-      Promise.all([listResources('user'), listResources('ring_group'), listResources('dial_plan')])
-        .then(([users, ringGroups, dialPlans]) => {
-          setGroups([
-            { label: locale?.resourceGroups.users ?? 'Users', type: 'user', items: users },
-            {
-              label: locale?.resourceGroups.ringGroups ?? 'Ring Groups',
-              type: 'ring_group',
-              items: ringGroups,
-            },
-            {
-              label: locale?.resourceGroups.dialPlans ?? 'Dial Plans',
-              type: 'dial_plan',
-              items: dialPlans,
-            },
-          ]);
-        })
-        .catch(() => {})
-        .finally(() => setLoading(false)),
-    [listResources, locale]
+  const { groups, loading, handleCreateResource } = useResourceGroups(
+    [
+      { type: 'user', labelKey: 'users', fallback: 'Users' },
+      { type: 'ring_group', labelKey: 'ringGroups', fallback: 'Ring Groups' },
+      { type: 'dial_plan', labelKey: 'dialPlans', fallback: 'Dial Plans' },
+    ],
+    listResources,
+    onCreateResource,
+    locale
   );
-
-  useEffect(() => {
-    fetchResources();
-  }, [fetchResources]);
 
   const targetId = (config.target_id as string) ?? '';
   const timeout = (config.timeout as number) ?? 30;
 
-  function handleChange(updates: Record<string, unknown>, display?: Record<string, unknown>) {
-    onConfigChange({ target_id: targetId, timeout, ...updates }, display);
-  }
-
-  function handleTargetChange(newTargetId: string, targetName: string) {
-    handleChange({ target_id: newTargetId }, { targetName });
-  }
-
-  async function handleCreateResource(type: ResourceType) {
-    if (!onCreateResource) return undefined;
-    const created = await onCreateResource(type);
-    if (created) {
-      await fetchResources();
-    }
-    return created;
-  }
-
   return (
     <>
-      <div className="ds-dial-plan-config-field">
-        <label className="ds-dial-plan-config-field__label">
-          {locale?.configLabels.timeout ?? 'Timeout (seconds)'}
-        </label>
-        <input
-          className="ds-dial-plan-config-field__input"
-          type="number"
-          min={0}
-          max={300}
-          value={timeout}
-          onChange={(e) => handleChange({ timeout: Number(e.target.value) })}
-        />
-      </div>
-      <div className="ds-dial-plan-config-field">
-        <label className="ds-dial-plan-config-field__label">
-          {locale?.configLabels.target ?? 'Target'}
-        </label>
+      <TimeoutField
+        value={timeout}
+        min={0}
+        max={300}
+        onChange={(t) => onConfigChange({ timeout: t })}
+        locale={locale}
+      />
+      <ConfigField label={locale?.configLabels.target ?? 'Target'}>
         <ResourceCombobox
           groups={groups}
           value={targetId}
           loading={loading}
           placeholder={locale?.configLabels.searchTargets ?? 'Search targets…'}
-          onSelect={handleTargetChange}
+          onSelect={(id, name) => onConfigChange({ target_id: id }, { targetName: name })}
           onCreateResource={handleCreateResource}
           selectLabel={locale?.combobox.select}
           noResultsLabel={locale?.combobox.noResults}
@@ -100,7 +58,7 @@ export function InternalDialConfigPanel({
             label={locale?.configLabels.openInNewTab ?? 'Open target details'}
           />
         )}
-      </div>
+      </ConfigField>
     </>
   );
 }
