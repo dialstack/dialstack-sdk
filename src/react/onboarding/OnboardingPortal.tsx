@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
 import { create as createConfetti } from 'canvas-confetti';
-import { STATIC_TOKENS, LIGHT_COLORS, DARK_COLORS } from './design-tokens';
+import { computePortalCssVars } from './design-tokens';
 import { ShadowContainer } from './ShadowRoot';
 import { OnboardingProvider } from './OnboardingContext';
 import { useOnboarding } from './OnboardingContext';
@@ -216,64 +216,11 @@ const PortalInner: React.FC<PortalInnerProps> = (props) => {
   const colorPrimaryHover =
     props.appearance?.variables?.colorPrimaryHover ??
     instanceAppearance?.variables?.colorPrimaryHover;
-  const sidebarBg = colorPrimary ?? '#1c1247';
-  const sidebarActive = colorPrimary ? `color-mix(in srgb, ${colorPrimary}, white 20%)` : '#4c3c8e';
-  const splashBg = colorPrimary ? `color-mix(in srgb, ${colorPrimary}, black 15%)` : '#2d2065';
-  const splashShape = colorPrimary ? `color-mix(in srgb, ${colorPrimary}, white 30%)` : '#8A7ACE';
-  const splashShelf = colorPrimary ? `color-mix(in srgb, ${colorPrimary}, white 70%)` : '#d1c6ff';
 
-  const themeColors: Record<string, string> = isDark
-    ? { ...LIGHT_COLORS, ...DARK_COLORS }
-    : { ...LIGHT_COLORS };
-
-  const effectivePrimary = colorPrimary ?? LIGHT_COLORS['--ds-color-primary'];
-  const effectivePrimaryHover =
-    colorPrimaryHover ??
-    (colorPrimary
-      ? `color-mix(in srgb, ${colorPrimary}, black 10%)`
-      : LIGHT_COLORS['--ds-color-primary-hover']);
-
-  const portalStyle = useMemo(() => {
-    // Build portal source vars for OnboardingLayout's DEFAULT_VARS
-    const portalColorVars = Object.fromEntries(
-      Object.entries(themeColors).map(([k, v]) => [
-        k.replace('--ds-color-', '--ds-portal-color-'),
-        v,
-      ])
-    );
-
-    return {
-      // Portal-specific vars
-      '--ds-portal-sidebar-bg': sidebarBg,
-      '--ds-portal-sidebar-active': sidebarActive,
-      '--ds-portal-splash-bg': splashBg,
-      '--ds-portal-splash-shape': splashShape,
-      '--ds-portal-splash-shelf': splashShelf,
-      // Portal color source — read by OnboardingLayout DEFAULT_VARS so wizard
-      // content inherits the same primary color as the portal chrome.
-      '--ds-portal-color-primary': effectivePrimary,
-      '--ds-portal-color-primary-hover': effectivePrimaryHover,
-      ...portalColorVars,
-      // DS token defaults (mirrors base-component.ts generateCssVariables) —
-      // theme-aware values for Splash/Overview/Sidebar (non .ds-onboarding-root descendants).
-      ...themeColors,
-      '--ds-color-primary': effectivePrimary,
-      '--ds-color-primary-hover': effectivePrimaryHover,
-      ...STATIC_TOKENS,
-      '--ds-focus-ring': `0 0 0 2px ${effectivePrimary}`,
-      ...props.style,
-    } as React.CSSProperties;
-  }, [
-    sidebarBg,
-    sidebarActive,
-    splashBg,
-    splashShape,
-    splashShelf,
-    effectivePrimary,
-    effectivePrimaryHover,
-    themeColors,
-    props.style,
-  ]);
+  const portalStyle = useMemo(
+    () => computePortalCssVars({ colorPrimary, colorPrimaryHover, isDark, baseStyle: props.style }),
+    [colorPrimary, colorPrimaryHover, isDark, props.style]
+  );
 
   return (
     <ShadowContainer stylesheets={PORTAL_STYLESHEETS} style={{ height: '100vh', width: '100%' }}>

@@ -5,6 +5,8 @@
  * for Shadow DOM). Defined once here to prevent drift.
  */
 
+import type React from 'react';
+
 /** Static (non-theme-sensitive) design tokens. */
 export const STATIC_TOKENS = {
   '--ds-font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
@@ -60,6 +62,66 @@ export const DARK_COLORS = {
   '--ds-color-border': 'rgba(255,255,255,0.1)',
   '--ds-color-border-subtle': 'rgba(255,255,255,0.05)',
 } as const;
+
+export interface PortalCssVarsOptions {
+  colorPrimary?: string;
+  colorPrimaryHover?: string;
+  isDark?: boolean;
+  baseStyle?: React.CSSProperties;
+}
+
+/**
+ * Compute the inline-style CSS-variable block applied to the portal root.
+ *
+ * Returns DS token vars (`--ds-color-*`) plus their `--ds-portal-*` mirrors —
+ * the latter are the source-of-truth that OnboardingLayout's Shadow DOM reads
+ * via `generateLayoutCssVars()`. The white-label primary must reach BOTH sets,
+ * otherwise wizard content (which lives inside the layout shadow root) and the
+ * FinalCompleteScreen button (which reads `--ds-portal-color-primary` directly)
+ * fall back to the default DialStack purple.
+ */
+export function computePortalCssVars(opts: PortalCssVarsOptions): React.CSSProperties {
+  const { colorPrimary, colorPrimaryHover, isDark = false, baseStyle } = opts;
+
+  const effectivePrimary = colorPrimary ?? LIGHT_COLORS['--ds-color-primary'];
+  const effectivePrimaryHover =
+    colorPrimaryHover ??
+    (colorPrimary
+      ? `color-mix(in srgb, ${colorPrimary}, black 10%)`
+      : LIGHT_COLORS['--ds-color-primary-hover']);
+
+  const sidebarBg = colorPrimary ?? '#1c1247';
+  const sidebarActive = colorPrimary ? `color-mix(in srgb, ${colorPrimary}, white 20%)` : '#4c3c8e';
+  const splashBg = colorPrimary ? `color-mix(in srgb, ${colorPrimary}, black 15%)` : '#2d2065';
+  const splashShape = colorPrimary ? `color-mix(in srgb, ${colorPrimary}, white 30%)` : '#8A7ACE';
+  const splashShelf = colorPrimary ? `color-mix(in srgb, ${colorPrimary}, white 70%)` : '#d1c6ff';
+
+  // Bake the white-label primary into the theme map so every derived
+  // var (including `--ds-portal-color-primary*`) reflects the override.
+  const themeColors: Record<string, string> = {
+    ...LIGHT_COLORS,
+    ...(isDark ? DARK_COLORS : {}),
+    '--ds-color-primary': effectivePrimary,
+    '--ds-color-primary-hover': effectivePrimaryHover,
+  };
+
+  const portalColorVars = Object.fromEntries(
+    Object.entries(themeColors).map(([k, v]) => [k.replace('--ds-color-', '--ds-portal-color-'), v])
+  );
+
+  return {
+    '--ds-portal-sidebar-bg': sidebarBg,
+    '--ds-portal-sidebar-active': sidebarActive,
+    '--ds-portal-splash-bg': splashBg,
+    '--ds-portal-splash-shape': splashShape,
+    '--ds-portal-splash-shelf': splashShelf,
+    ...portalColorVars,
+    ...themeColors,
+    ...STATIC_TOKENS,
+    '--ds-focus-ring': `0 0 0 2px ${effectivePrimary}`,
+    ...baseStyle,
+  } as React.CSSProperties;
+}
 
 /**
  * Generate a CSS variable block for OnboardingLayout's Shadow DOM.
