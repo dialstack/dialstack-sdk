@@ -55,7 +55,7 @@ export const WithCallbacks: Story = {
 };
 
 /**
- * DAG validation: try dragging an edge from "No Answer" on the Dial node
+ * DAG validation: try dragging an edge from "Timeout" on the Dial node
  * back to the Schedule node — it should be blocked (cycle prevention).
  * Valid forward connections are allowed.
  */

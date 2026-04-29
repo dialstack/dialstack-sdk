@@ -69,7 +69,7 @@ export function getEdgeLabel(exitType: string): string {
     case 'closed':
       return 'Closed';
     case 'next':
-      return 'No Answer';
+      return 'Next';
     case 'timeout':
       return 'Timeout';
     default:

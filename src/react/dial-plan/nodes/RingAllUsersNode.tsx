@@ -16,7 +16,7 @@ export const config: NodeDefinition = {
   label: 'Ring All',
   description: 'Ring all account users',
   color: '#f59e0b',
-  exits: [{ id: 'next', label: 'No Answer', configKey: 'next', localeExitKey: 'noAnswer' }],
+  exits: [{ id: 'next', label: 'Timeout', configKey: 'next', localeExitKey: 'timeout' }],
   configPanel: RingAllUsersConfigPanel,
   defaultConfig: { timeout: 24 },
   icon: UsersIcon,

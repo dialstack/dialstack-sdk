@@ -23,7 +23,7 @@ export const config: NodeDefinition = {
   label: 'Voice App',
   description: 'Route to a voice application',
   color: '#6366f1',
-  exits: [{ id: 'next', label: 'No Answer', configKey: 'next', localeExitKey: 'noAnswer' }],
+  exits: [{ id: 'next', label: 'Timeout', configKey: 'next', localeExitKey: 'timeout' }],
   configPanel: VoiceAppConfigPanel,
   defaultConfig: { target_id: '', timeout: 30 },
   icon: BotIcon,

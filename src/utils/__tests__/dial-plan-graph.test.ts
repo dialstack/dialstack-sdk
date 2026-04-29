@@ -232,7 +232,7 @@ describe('dial-plan-graph', () => {
     });
 
     it('should return correct labels for internal dial exits', () => {
-      expect(getEdgeLabel('next')).toBe('No Answer');
+      expect(getEdgeLabel('next')).toBe('Next');
       expect(getEdgeLabel('timeout')).toBe('Timeout');
     });
 

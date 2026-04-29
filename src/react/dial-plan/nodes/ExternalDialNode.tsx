@@ -17,7 +17,7 @@ export const config: NodeDefinition = {
   label: 'External Number',
   description: 'Ring an external phone number',
   color: '#f43f5e',
-  exits: [{ id: 'next', label: 'No Answer', configKey: 'next', localeExitKey: 'noAnswer' }],
+  exits: [{ id: 'next', label: 'Timeout', configKey: 'next', localeExitKey: 'timeout' }],
   configPanel: ExternalDialConfigPanel,
   defaultConfig: { phone_number: '', timeout: 60 },
   icon: PhoneOutgoingIcon,

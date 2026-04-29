@@ -22,7 +22,7 @@ export const config: NodeDefinition = {
   label: 'Internal Extension',
   description: 'Ring a user, group, or plan',
   color: '#22c55e',
-  exits: [{ id: 'next', label: 'No Answer', configKey: 'next', localeExitKey: 'noAnswer' }],
+  exits: [{ id: 'next', label: 'Timeout', configKey: 'next', localeExitKey: 'timeout' }],
   configPanel: InternalDialConfigPanel,
   defaultConfig: { target_id: '', timeout: 30 },
   icon: PhoneIcon,

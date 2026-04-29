@@ -31,7 +31,7 @@ export interface InternalDialNodeConfig {
   target_id: string;
   /** Timeout in seconds before routing to next node */
   timeout?: number;
-  /** Node ID to route to on timeout/no answer */
+  /** Node ID to route to on timeout or busy */
   next?: string;
 }
 
@@ -44,7 +44,7 @@ export interface ExternalDialNodeConfig {
   phone_number: string;
   /** Timeout in seconds before routing to next node (1-120) */
   timeout: number;
-  /** Node ID to route to on timeout/no answer */
+  /** Node ID to route to on timeout or busy */
   next?: string;
 }
 
@@ -54,7 +54,7 @@ export interface ExternalDialNodeConfig {
 export interface RingAllUsersNodeConfig {
   /** Timeout in seconds before routing to next node */
   timeout: number;
-  /** Node ID to route to on timeout/no answer */
+  /** Node ID to route to on timeout or busy */
   next?: string;
 }
 
@@ -219,7 +219,6 @@ export interface DialPlanLocale {
     open: string;
     closed: string;
     next: string;
-    noAnswer: string;
     timeout: string;
     invalid: string;
   };
