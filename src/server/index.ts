@@ -495,6 +495,27 @@ export interface QueueListMembersParams {
   ending_before?: string;
 }
 
+export type QueueAgentStatus = 'available' | 'paused' | 'logged_out';
+
+/**
+ * Discriminated by `status`: `reason` is only allowed when pausing. The
+ * server returns 400 for `{status: 'available' | 'logged_out', reason: ...}`.
+ */
+export type QueueAgentUpdateParams =
+  | { status: 'paused'; reason?: string }
+  | { status: 'available'; reason?: never }
+  | { status: 'logged_out'; reason?: never };
+
+export interface QueueAgent {
+  user_id: string;
+  status: QueueAgentStatus;
+  paused_at?: string | null;
+  pause_reason?: string | null;
+  logged_in_at?: string | null;
+  in_call_since?: string | null;
+  updated_at: string;
+}
+
 // Call Control types
 export interface AttachAction {
   type: 'attach';
@@ -997,6 +1018,30 @@ export class DialStack {
       };
 
       return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+
+    /**
+     * Retrieve the queue-agent singleton for a user. Throws on 404 when no
+     * queue-agent state has ever been written for the user.
+     */
+    retrieveQueueAgent: (
+      userId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<QueueAgent> => {
+      return this._request('GET', `/v1/users/${userId}/queue-agent`, undefined, options);
+    },
+
+    /**
+     * Update the queue-agent singleton for a user. Idempotent — re-sending
+     * the current status is a no-op. `reason` is only meaningful when
+     * `status === "paused"`.
+     */
+    updateQueueAgent: (
+      userId: string,
+      params: QueueAgentUpdateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<QueueAgent> => {
+      return this._request('POST', `/v1/users/${userId}/queue-agent`, params, options);
     },
   };
 
