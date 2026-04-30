@@ -2,7 +2,7 @@ import React from 'react';
 import type {
   DialPlanLocale,
   DialPlanNode,
-  InternalDialNode as InternalDialNodeType,
+  VoiceAppNode as VoiceAppNodeType,
 } from '../../../types/dial-plan';
 import type {
   NodeDefinition,
@@ -13,11 +13,10 @@ import type {
 import { NodeHeader, StaticExits } from '../DialPlanNode';
 import { VoiceAppConfigPanel } from '../config-panels/VoiceAppConfigPanel';
 import { BotIcon } from '../icons';
-import { resolveTargetName, resolveTargetType } from './resolve-target';
+import { resolveTargetName } from './resolve-target';
 
 export const config: NodeDefinition = {
   type: 'voice_app',
-  apiType: 'internal_dial',
   flowType: 'voiceApp',
   localeKey: 'voiceApp',
   label: 'Voice App',
@@ -25,15 +24,14 @@ export const config: NodeDefinition = {
   color: '#6366f1',
   exits: [{ id: 'next', label: 'Timeout', configKey: 'next', localeExitKey: 'timeout' }],
   configPanel: VoiceAppConfigPanel,
-  defaultConfig: { target_id: '', timeout: 30 },
+  defaultConfig: { voice_app_id: '', mode: 'control' },
   icon: BotIcon,
   renderNode: (data: Record<string, unknown>, reg: NodeTypeRegistration) => (
     <>
       <NodeHeader
         icon={reg.icon}
         label={data.label as string}
-        timeout={data.timeout as number | undefined}
-        subtitle={data.targetName as string | undefined}
+        subtitle={data.voiceAppName as string | undefined}
       />
       <div className="ds-dial-plan-node__exits">
         <StaticExits exits={reg.exits} locale={data.locale as DialPlanLocale | undefined} />
@@ -41,21 +39,41 @@ export const config: NodeDefinition = {
     </>
   ),
   toFlowNode: (node: DialPlanNode) => {
-    const n = node as InternalDialNodeType;
+    const n = node as VoiceAppNodeType;
     return {
       label: 'Voice App',
-      targetId: n.config.target_id,
-      timeout: n.config.timeout,
+      voiceAppId: n.config.voice_app_id,
       originalNode: n,
     };
   },
+  // Legacy plans store voice apps as `internal_dial` with a `va_` `target_id`.
+  // The default-registry alias routes those nodes here; this rewrites them
+  // into the native voice_app shape so save round-trips as voice_app — an
+  // implicit migration on first edit while the SQL migration handles bulk.
+  // TODO(DIA-941): remove this hook once legacy usage drains.
+  normalizeFromAlias: (node: DialPlanNode): DialPlanNode => {
+    const config = node.config as unknown as Record<string, unknown>;
+    const targetId = (config.target_id as string | undefined) ?? '';
+    const next = config.next as string | undefined;
+    return {
+      ...node,
+      type: 'voice_app',
+      config: {
+        voice_app_id: targetId,
+        mode: 'control',
+        ...(next !== undefined ? { next } : {}),
+      },
+    } as unknown as DialPlanNode;
+  },
   collectResourceIds: (config: Record<string, unknown>, collector: ResourceCollector) => {
-    if (config.target_id) collector.addTarget(config.target_id as string);
+    if (config.voice_app_id) collector.addTarget(config.voice_app_id as string);
   },
   enrichNode: (data: Record<string, unknown>, maps: ResourceMaps, locale: DialPlanLocale) => {
-    const targetId = data.targetId as string;
-    const targetName = resolveTargetName(targetId, maps, locale);
-    const targetType = resolveTargetType(targetId, locale);
-    return { ...data, targetName, targetType, locale };
+    const voiceAppId = data.voiceAppId as string;
+    // ResourceMaps.users holds every routing target resolved via
+    // dialstack.resolveRoutingTarget — including va_ voice apps. resolveTargetName
+    // appends the extension suffix when one is set, matching InternalDialNode.
+    const voiceAppName = voiceAppId ? resolveTargetName(voiceAppId, maps, locale) : undefined;
+    return { ...data, voiceAppName, locale };
   },
 };

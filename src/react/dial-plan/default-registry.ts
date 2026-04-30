@@ -33,7 +33,9 @@ for (const def of nodeDefinitions) {
   defaultRegistry.register({ ...def, component: nodeComponent });
 }
 
-// internal_dial resolves voicemail and voice_app aliases at load time
+// internal_dial resolves voicemail and (deprecated) voice_app aliases at load
+// time. After DIA-730, voice apps have their own node type; va_ aliasing is
+// kept for backward compatibility while legacy plans still exist.
 const internalDialReg = defaultRegistry.get('internal_dial');
 if (internalDialReg) {
   internalDialReg.resolveAlias = (node: DialPlanNode) => {
@@ -42,6 +44,7 @@ if (internalDialReg) {
     if (targetId?.startsWith('svm_') || (config.timeout === 0 && !config.next)) {
       return defaultRegistry.get('voicemail');
     }
+    // TODO(DIA-941): remove va_ aliasing once legacy usage drains.
     if (targetId?.startsWith('va_')) {
       return defaultRegistry.get('voice_app');
     }

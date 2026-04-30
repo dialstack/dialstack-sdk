@@ -54,6 +54,15 @@ export interface NodeTypeRegistration {
   toFlowNode: (node: DialPlanNode) => Record<string, unknown>;
   /** When loading, inspect an API node to decide if a different registration should render it. */
   resolveAlias?: (node: DialPlanNode) => NodeTypeRegistration | undefined;
+  /**
+   * When this registration is reached via `resolveAlias` (legacy shape promoted
+   * to the new shape), rewrite the API node so the editor reads/writes the new
+   * shape. Saving the plan then round-trips as the new node type — implicit
+   * migration on edit.
+   *
+   * TODO(DIA-941): remove this hook once legacy usage drains.
+   */
+  normalizeFromAlias?: (node: DialPlanNode) => DialPlanNode;
   /** Override default edge creation for nodes with dynamic exits (e.g., menu per-digit options). */
   createEdgesForNode?: (node: DialPlanNode, nodeMap: Map<string, DialPlanNode>) => Edge[];
   /** Override default config serialization when saving (e.g., rebuild options array from edges). */

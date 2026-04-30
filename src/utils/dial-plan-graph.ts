@@ -54,6 +54,8 @@ export function getNodeLabel(node: DialPlanNode): string {
       return 'IVR Menu';
     case 'sound_clip':
       return 'Sound Clip';
+    case 'voice_app':
+      return 'Voice App';
     default:
       return 'Node';
   }
@@ -121,8 +123,14 @@ export function transformDialPlanToGraph(
     const reg = registry.resolveType(node);
     const position = node.position ?? { x: 0, y: 0 };
 
+    // If alias resolved to a different registration (legacy shape), let the
+    // target reg rewrite the node into its native shape so the editor reads
+    // and writes the new shape. Saves implicitly migrate the node.
+    const effectiveNode =
+      reg && reg.type !== node.type && reg.normalizeFromAlias ? reg.normalizeFromAlias(node) : node;
+
     if (reg) {
-      const data = reg.toFlowNode(node);
+      const data = reg.toFlowNode(effectiveNode);
       const flowNode: DialPlanGraphNode = {
         id: node.id,
         type: reg.flowType,
@@ -141,7 +149,7 @@ export function transformDialPlanToGraph(
     }
 
     // Create edges using registry
-    const nodeEdges = registry.createEdgesForNode(node, nodeMap);
+    const nodeEdges = registry.createEdgesForNode(effectiveNode, nodeMap);
     edges.push(...nodeEdges);
   }
 

@@ -3,7 +3,6 @@ import type { ConfigPanelProps } from '../registry-types';
 import { OpenResourceLink } from './OpenResourceLink';
 import { ResourceCombobox } from './ResourceCombobox';
 import { ConfigField } from './fields/ConfigField';
-import { TimeoutField } from './fields/TimeoutField';
 import { useResourceGroups } from './hooks/useResourceGroups';
 
 export function VoiceAppConfigPanel({
@@ -21,39 +20,29 @@ export function VoiceAppConfigPanel({
     locale
   );
 
-  const targetId = (config.target_id as string) ?? '';
-  const timeout = (config.timeout as number) ?? 30;
+  const voiceAppId = (config.voice_app_id as string) ?? '';
 
   return (
-    <>
-      <TimeoutField
-        value={timeout}
-        min={0}
-        max={300}
-        onChange={(t) => onConfigChange({ timeout: t })}
-        locale={locale}
+    <ConfigField label={locale?.configLabels.target ?? 'Target'}>
+      <ResourceCombobox
+        groups={groups}
+        value={voiceAppId}
+        placeholder={locale?.configLabels.searchTargets ?? 'Search targets\u2026'}
+        onSelect={(id, name) => onConfigChange({ voice_app_id: id }, { voiceAppName: name })}
+        onCreateResource={handleCreateResource}
+        selectLabel={locale?.combobox.select}
+        noResultsLabel={locale?.combobox.noResults}
+        loadingLabel={locale?.combobox.loading}
+        createNewPrefix={locale?.combobox.createNew}
+        extensionLabel={locale?.combobox.extensionLabel}
       />
-      <ConfigField label={locale?.configLabels.target ?? 'Target'}>
-        <ResourceCombobox
-          groups={groups}
-          value={targetId}
-          placeholder={locale?.configLabels.searchTargets ?? 'Search targets\u2026'}
-          onSelect={(id, name) => onConfigChange({ target_id: id }, { targetName: name })}
-          onCreateResource={handleCreateResource}
-          selectLabel={locale?.combobox.select}
-          noResultsLabel={locale?.combobox.noResults}
-          loadingLabel={locale?.combobox.loading}
-          createNewPrefix={locale?.combobox.createNew}
-          extensionLabel={locale?.combobox.extensionLabel}
+      {voiceAppId && onOpenResource && (
+        <OpenResourceLink
+          resourceId={voiceAppId}
+          onOpenResource={onOpenResource}
+          label={locale?.configLabels.openInNewTab ?? 'Open target details'}
         />
-        {targetId && onOpenResource && (
-          <OpenResourceLink
-            resourceId={targetId}
-            onOpenResource={onOpenResource}
-            label={locale?.configLabels.openInNewTab ?? 'Open target details'}
-          />
-        )}
-      </ConfigField>
-    </>
+      )}
+    </ConfigField>
   );
 }

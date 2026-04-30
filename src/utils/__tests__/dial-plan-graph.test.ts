@@ -211,6 +211,111 @@ describe('dial-plan-graph', () => {
       // closed should still be set
       expect(config['closed']).toBe('voicemail');
     });
+
+    // DIA-730: voice_app is its own first-class node type. Round-trip preserves
+    // the new shape (voice_app_id, no timeout, no target_id collapse).
+    it('round-trips voice_app nodes without collapsing to internal_dial', () => {
+      const plan: DialPlan = {
+        id: 'dp_va',
+        name: 'VA Plan',
+        entry_node: 'ai',
+        created_at: '2026-04-27T00:00:00Z',
+        updated_at: '2026-04-27T00:00:00Z',
+        nodes: [
+          {
+            id: 'ai',
+            type: 'voice_app',
+            config: { voice_app_id: 'va_01k' },
+          },
+        ],
+      };
+
+      const { nodes, edges } = transformDialPlanToGraph(plan, defaultRegistry);
+      const flowNode = nodes.find((n) => n.id === 'ai');
+      expect(flowNode?.type).toBe('voiceApp');
+
+      const result = transformGraphToDialPlan(nodes, edges, defaultRegistry);
+      const ai = result.nodes.find((n) => n.id === 'ai');
+      expect(ai?.type).toBe('voice_app');
+      const config = ai?.config as Record<string, unknown>;
+      expect(config['voice_app_id']).toBe('va_01k');
+      expect(config['target_id']).toBeUndefined();
+      expect(config['timeout']).toBeUndefined();
+    });
+
+    // DIA-730: legacy plans store voice apps as `internal_dial` with a `va_`
+    // `target_id`. Loading promotes them to `voice_app`; saving writes the new
+    // shape — implicit migration on first edit.
+    it('promotes legacy internal_dial+va_ to voice_app on load and save', () => {
+      const plan: DialPlan = {
+        id: 'dp_legacy_va',
+        name: 'Legacy VA Plan',
+        entry_node: 'ai',
+        created_at: '2026-04-27T00:00:00Z',
+        updated_at: '2026-04-27T00:00:00Z',
+        nodes: [
+          {
+            id: 'ai',
+            type: 'internal_dial',
+            config: { target_id: 'va_01k', timeout: 30, next: 'fallback' },
+          },
+          {
+            id: 'fallback',
+            type: 'internal_dial',
+            config: { target_id: 'user_01h', timeout: 30 },
+          },
+        ],
+      };
+
+      const { nodes, edges } = transformDialPlanToGraph(plan, defaultRegistry);
+      const flowNode = nodes.find((n) => n.id === 'ai');
+      expect(flowNode?.type).toBe('voiceApp');
+      const nextEdge = edges.find((e) => e.source === 'ai' && e.sourceHandle === 'next');
+      expect(nextEdge?.target).toBe('fallback');
+
+      const result = transformGraphToDialPlan(nodes, edges, defaultRegistry);
+      const ai = result.nodes.find((n) => n.id === 'ai');
+      expect(ai?.type).toBe('voice_app');
+      const config = ai?.config as Record<string, unknown>;
+      expect(config['voice_app_id']).toBe('va_01k');
+      expect(config['mode']).toBe('control');
+      expect(config['next']).toBe('fallback');
+      expect(config['target_id']).toBeUndefined();
+      expect(config['timeout']).toBeUndefined();
+    });
+
+    // DIA-730: voice_app's "No Answer" exit must round-trip via the `next` edge.
+    it('round-trips voice_app next exit through edges', () => {
+      const plan: DialPlan = {
+        id: 'dp_va_next',
+        name: 'VA Plan',
+        entry_node: 'ai',
+        created_at: '2026-04-27T00:00:00Z',
+        updated_at: '2026-04-27T00:00:00Z',
+        nodes: [
+          {
+            id: 'ai',
+            type: 'voice_app',
+            config: { voice_app_id: 'va_01k', next: 'fallback' },
+          },
+          {
+            id: 'fallback',
+            type: 'internal_dial',
+            config: { target_id: 'user_01h', timeout: 30 },
+          },
+        ],
+      };
+
+      const { nodes, edges } = transformDialPlanToGraph(plan, defaultRegistry);
+      const nextEdge = edges.find((e) => e.source === 'ai' && e.sourceHandle === 'next');
+      expect(nextEdge).toBeDefined();
+      expect(nextEdge?.target).toBe('fallback');
+
+      const result = transformGraphToDialPlan(nodes, edges, defaultRegistry);
+      const ai = result.nodes.find((n) => n.id === 'ai');
+      const config = ai?.config as Record<string, unknown>;
+      expect(config['next']).toBe('fallback');
+    });
   });
 
   describe('getNodeLabel', () => {

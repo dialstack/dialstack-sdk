@@ -94,6 +94,19 @@ export interface SoundClipNodeConfig {
   next?: string;
 }
 
+/**
+ * Configuration for a voice_app node that hands the call off to a webhook-driven
+ * voice application. Voice apps do not ring; the dispatch is immediate.
+ */
+export interface VoiceAppNodeConfig {
+  /** ID of the voice app to invoke (va_ prefix) */
+  voice_app_id: string;
+  /** Dispatch mode. Only "control" ships today; "notify" is reserved. */
+  mode?: 'control';
+  /** Node ID to route to if dispatch is skipped (empty voice_app_id) */
+  next?: string;
+}
+
 // ============================================================================
 // Dial Plan Node Types
 // ============================================================================
@@ -105,7 +118,8 @@ export type DialPlanNodeType =
   | 'ring_all_users'
   | 'external_dial'
   | 'menu'
-  | 'sound_clip';
+  | 'sound_clip'
+  | 'voice_app';
 
 /**
  * Base interface for all dial plan nodes.
@@ -166,6 +180,14 @@ export interface SoundClipNode extends DialPlanNodeBase {
 }
 
 /**
+ * A voice_app node in the dial plan.
+ */
+export interface VoiceAppNode extends DialPlanNodeBase {
+  type: 'voice_app';
+  config: VoiceAppNodeConfig;
+}
+
+/**
  * Union type for all dial plan node types.
  */
 export type DialPlanNode =
@@ -174,7 +196,8 @@ export type DialPlanNode =
   | RingAllUsersNode
   | ExternalDialNode
   | MenuNode
-  | SoundClipNode;
+  | SoundClipNode
+  | VoiceAppNode;
 
 // ============================================================================
 // Dial Plan Types
@@ -366,10 +389,9 @@ export interface ExternalDialNodeData extends Record<string, unknown> {
  */
 export interface VoiceAppNodeData extends Record<string, unknown> {
   label: string;
-  targetId: string;
-  targetName?: string;
-  timeout?: number;
-  originalNode: InternalDialNode;
+  voiceAppId: string;
+  voiceAppName?: string;
+  originalNode: VoiceAppNode;
   locale?: DialPlanLocale;
 }
 
