@@ -36,6 +36,7 @@ import type {
   PortEligibilityResult,
 } from './number-porting';
 import type { PaginatedResponse, DIDItem, UpdatePhoneNumberRequest } from './phone-numbers';
+import type { AIAgent, UpdateAIAgentRequest } from './ai-agent';
 import type {
   DECTBase,
   DECTHandset,
@@ -262,6 +263,17 @@ export interface VoiceAppsResource {
   list(options?: { limit?: number; expand?: string[] }): Promise<NamedResource[]>;
 }
 
+export interface AIAgentsResource {
+  /** Retrieve an AI agent by ID. */
+  retrieve(aiAgentId: string): Promise<AIAgent>;
+  /**
+   * Update an AI agent. Fields omitted from `data` are preserved server-side;
+   * passing `faq_responses` replaces the full list. `scheduling` is not
+   * exposed and stays under host-app control.
+   */
+  update(aiAgentId: string, data: UpdateAIAgentRequest): Promise<AIAgent>;
+}
+
 export interface SharedVoicemailBoxesResource {
   /** List shared voicemail boxes */
   list(options?: { limit?: number }): Promise<NamedResource[]>;
@@ -475,6 +487,7 @@ export interface DialStackInstance {
   ringGroups: RingGroupsResource;
   queues: QueuesResource;
   voiceApps: VoiceAppsResource;
+  aiAgents: AIAgentsResource;
   sharedVoicemailBoxes: SharedVoicemailBoxesResource;
   extensions: ExtensionsResource;
   deskphones: DeskphonesResource;

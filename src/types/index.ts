@@ -109,6 +109,9 @@ export type {
   PhoneNumbersElement,
 } from './phone-numbers';
 
+// AI agent types
+export type { AIAgent, FAQItem, SchedulingConfig, UpdateAIAgentRequest } from './ai-agent';
+
 // Account onboarding types
 export type {
   AccountOnboardingStep,

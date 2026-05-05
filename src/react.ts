@@ -23,6 +23,7 @@ export { CallHistory } from './react/CallHistory';
 export { DialPlan } from './react/DialPlan';
 export { PhoneNumberOrdering } from './react/PhoneNumberOrdering';
 export { PhoneNumbers } from './react/PhoneNumbers';
+export { AIAgent } from './react/AIAgent';
 
 // React prop types
 export type { DialstackComponentsProviderProps } from './react/DialstackComponentsProvider';
@@ -33,6 +34,12 @@ export type { DialPlanProps } from './react/DialPlan';
 export type { ResourceType } from './react/dial-plan/registry-types';
 export type { PhoneNumberOrderingProps } from './react/PhoneNumberOrdering';
 export type { PhoneNumbersProps } from './react/PhoneNumbers';
+export type { AIAgentProps } from './react/AIAgent';
+
+// AI agent resource types — re-exported here so consumers using only the
+// React entry point can type onSaved/onError handlers without reaching into
+// the main entry.
+export type { AIAgent as AIAgentData, FAQItem, UpdateAIAgentRequest } from './types/ai-agent';
 
 // Onboarding components are in their own entry point: '@dialstack/sdk/react/onboarding'
 // Import OnboardingPortal from there.

@@ -52,6 +52,11 @@ export type {
   PhoneNumberStatus,
   PhoneNumberItem,
   PhoneNumbersClasses,
+  // AI agent types
+  AIAgent,
+  FAQItem,
+  SchedulingConfig,
+  UpdateAIAgentRequest,
   // Account onboarding types
   AccountOnboardingStep,
   OnboardingCollectionOptions,

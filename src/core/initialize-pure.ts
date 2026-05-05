@@ -116,6 +116,7 @@ export async function loadDialstackAndInitialize(
     ringGroups: instance.ringGroups,
     queues: instance.queues,
     voiceApps: instance.voiceApps,
+    aiAgents: instance.aiAgents,
     sharedVoicemailBoxes: instance.sharedVoicemailBoxes,
     extensions: instance.extensions,
     deskphones: instance.deskphones,
@@ -157,4 +158,5 @@ export function registerComponents(): void {
   import('../components/voicemails');
   import('../components/phone-number-ordering');
   import('../components/phone-numbers');
+  import('../components/ai-agent');
 }

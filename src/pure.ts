@@ -48,6 +48,11 @@ export type {
   // Custom render types
   VoicemailRowRenderer,
   CallLogRowRenderer,
+  // AI agent types
+  AIAgent,
+  FAQItem,
+  SchedulingConfig,
+  UpdateAIAgentRequest,
 } from './types';
 
 // Default icons (can be used to customize or extend)

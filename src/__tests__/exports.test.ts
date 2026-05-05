@@ -38,6 +38,7 @@ describe('SDK Main Entry Exports', () => {
     expect(sdkAny['DialPlan']).toBeUndefined();
     expect(sdkAny['PhoneNumberOrdering']).toBeUndefined();
     expect(sdkAny['PhoneNumbers']).toBeUndefined();
+    expect(sdkAny['AIAgent']).toBeUndefined();
     expect(sdkAny['AccountOnboarding']).toBeUndefined();
     expect(sdkAny['OnboardingPortal']).toBeUndefined();
   });
@@ -76,6 +77,10 @@ describe('SDK React Entry Exports', () => {
     expect(ReactSDK.Voicemails).toBeDefined();
   });
 
+  it('exports AIAgent component', () => {
+    expect(ReactSDK.AIAgent).toBeDefined();
+  });
+
   describe('Naming conventions', () => {
     const reactComponentExports = [
       'DialstackComponentsProvider',
@@ -85,6 +90,7 @@ describe('SDK React Entry Exports', () => {
       'DialPlan',
       'PhoneNumberOrdering',
       'PhoneNumbers',
+      'AIAgent',
     ];
 
     const hookExports = [

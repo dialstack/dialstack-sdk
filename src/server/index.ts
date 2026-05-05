@@ -199,6 +199,7 @@ export interface AccountSessionCreateParams {
     phone_numbers?: ComponentConfig;
     account_onboarding?: ComponentConfig;
     dial_plan?: ComponentConfig;
+    ai_agent?: ComponentConfig;
     [key: string]: ComponentConfig | undefined;
   };
 }
@@ -216,6 +217,58 @@ export interface Transcript {
   call_id: string;
   status: TranscriptStatus;
   text: string | null;
+}
+
+// AI Agent types
+//
+// Mirrors the API resource at /v1/ai-agents/:id. Kept inline (rather than
+// imported from sdk/src/types/ai-agent.ts) because the server rollup bundle
+// scopes rootDir to src/server/ — see the dial-plan inline-types comment.
+export interface FAQItem {
+  question: string;
+  answer: string;
+}
+
+export interface SchedulingConfig {
+  webhook_url?: string;
+}
+
+export interface AIAgent {
+  id: string;
+  name: string;
+  voice_app_id: string;
+  persona_name?: string | null;
+  greeting_name?: string | null;
+  instructions?: string | null;
+  faq_responses: FAQItem[];
+  scheduling?: SchedulingConfig | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AIAgentCreateParams {
+  name: string;
+  extension_number?: string;
+  persona_name?: string | null;
+  greeting_name?: string | null;
+  instructions?: string | null;
+  faq_responses?: FAQItem[];
+  scheduling?: SchedulingConfig | null;
+}
+
+export interface AIAgentUpdateParams {
+  name?: string;
+  persona_name?: string | null;
+  greeting_name?: string | null;
+  instructions?: string | null;
+  faq_responses?: FAQItem[];
+  scheduling?: SchedulingConfig | null;
+}
+
+export interface AIAgentListParams {
+  limit?: number;
+  starting_after?: string;
+  ending_before?: string;
 }
 
 // Voice App types
@@ -1131,6 +1184,56 @@ export class DialStack {
       const path = `/v1/voice-apps${query ? `?${query}` : ''}`;
 
       const fetchPage = (url: string): Promise<ListResponse<VoiceApp>> => {
+        return this._request('GET', url, undefined, options);
+      };
+
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+  };
+
+  aiAgents = {
+    create: (
+      params: AIAgentCreateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<AIAgent> => {
+      return this._request('POST', '/v1/ai-agents', params, options);
+    },
+
+    retrieve: (
+      aiAgentId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<AIAgent> => {
+      return this._request('GET', `/v1/ai-agents/${aiAgentId}`, undefined, options);
+    },
+
+    update: (
+      aiAgentId: string,
+      params: AIAgentUpdateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<AIAgent> => {
+      return this._request('POST', `/v1/ai-agents/${aiAgentId}`, params, options);
+    },
+
+    del: (
+      aiAgentId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request('DELETE', `/v1/ai-agents/${aiAgentId}`, undefined, options);
+    },
+
+    list: (
+      params: AIAgentListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
+    ): PaginatedList<AIAgent> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.starting_after) queryParams.set('starting_after', params.starting_after);
+      if (params?.ending_before) queryParams.set('ending_before', params.ending_before);
+
+      const query = queryParams.toString();
+      const path = `/v1/ai-agents${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<AIAgent>> => {
         return this._request('GET', url, undefined, options);
       };
 

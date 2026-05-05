@@ -63,6 +63,7 @@ import type {
   NamedResource,
 } from '../types';
 import type { DialPlan as DialPlanData } from '../types/dial-plan';
+import type { AIAgent, UpdateAIAgentRequest } from '../types/ai-agent';
 
 /**
  * Error thrown by SDK API calls, carrying the HTTP status code.
@@ -813,6 +814,35 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         extension_number: (r.extensions as { data?: Array<{ number?: string }> })?.data?.[0]
           ?.number,
       }));
+    },
+  };
+
+  aiAgents = {
+    retrieve: async (aiAgentId: string): Promise<AIAgent> => {
+      const response = await this.fetchApi(`/v1/ai-agents/${aiAgentId}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new ApiError(
+          `Failed to get AI agent: ${response.status} ${errorText}`,
+          response.status
+        );
+      }
+      return response.json();
+    },
+    update: async (aiAgentId: string, data: UpdateAIAgentRequest): Promise<AIAgent> => {
+      const response = await this.fetchApi(`/v1/ai-agents/${aiAgentId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new ApiError(
+          `Failed to update AI agent: ${response.status} ${errorText}`,
+          response.status
+        );
+      }
+      return response.json();
     },
   };
 

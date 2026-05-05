@@ -383,6 +383,22 @@ export interface CallHistoryElement extends Omit<BaseComponentElement, 'setClass
 }
 
 /**
+ * Fields the AIAgent editor knows how to render. Hosts can hide individual
+ * fields with `setHideFields` / `hideFields` prop — Spineline hides `name`
+ * because there's exactly one managed agent per practice and the back-office
+ * label is invisible to callers.
+ */
+export type AIAgentField = 'name' | 'persona_name' | 'greeting_name' | 'instructions' | 'faq';
+
+/**
+ * AIAgent component element interface
+ */
+export interface AIAgentElement extends Omit<BaseComponentElement, 'setClasses'> {
+  setAgentId: (agentId: string) => void;
+  setHideFields: (fields: AIAgentField[]) => void;
+}
+
+/**
  * Component tag names for embedded components
  */
 export type ComponentTagName =
@@ -390,7 +406,8 @@ export type ComponentTagName =
   | 'voicemails'
   | 'call-history'
   | 'phone-number-ordering'
-  | 'phone-numbers';
+  | 'phone-numbers'
+  | 'ai-agent';
 
 /**
  * Web Component element types mapped by tag name
@@ -401,4 +418,5 @@ export interface ComponentElement {
   'call-history': CallHistoryElement;
   'phone-number-ordering': PhoneNumberOrderingElement;
   'phone-numbers': PhoneNumbersElement;
+  'ai-agent': AIAgentElement;
 }

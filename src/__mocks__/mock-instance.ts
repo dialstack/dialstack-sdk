@@ -468,6 +468,42 @@ export function createMockInstance(
       list: async () => [],
     },
 
+    aiAgents: {
+      retrieve: async (_aiAgentId: string) => {
+        await delay();
+        return {
+          id: 'aia_01abc',
+          name: 'VoiceAI Agent',
+          voice_app_id: 'va_01abc',
+          persona_name: 'Receptionist',
+          greeting_name: 'Sample Practice',
+          instructions:
+            'You are the AI receptionist for the sample practice. Help callers reach the right person, look up appointments, and book new visits. Never share patient information until verified. For medical questions, take a message.',
+          faq_responses: [
+            { question: 'What are your hours?', answer: 'Monday to Friday, 9am to 5pm.' },
+          ],
+          scheduling: null,
+          created_at: '2025-01-01T00:00:00Z',
+          updated_at: '2025-01-01T00:00:00Z',
+        };
+      },
+      update: async (aiAgentId: string, data) => {
+        await delay();
+        return {
+          id: aiAgentId,
+          name: data.name ?? 'VoiceAI Agent',
+          voice_app_id: 'va_01abc',
+          persona_name: data.persona_name ?? null,
+          greeting_name: data.greeting_name ?? null,
+          instructions: data.instructions ?? null,
+          faq_responses: data.faq_responses ?? [],
+          scheduling: null,
+          created_at: '2025-01-01T00:00:00Z',
+          updated_at: new Date().toISOString(),
+        };
+      },
+    },
+
     sharedVoicemailBoxes: {
       list: async () => [],
     },
