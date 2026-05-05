@@ -35,6 +35,10 @@ export interface AccountOnboardingClasses extends BaseComponentClasses {
   stepComplete?: string;
 }
 
+export interface E911NotificationConfig {
+  emails?: string[];
+}
+
 export interface AccountConfig {
   region?: string;
   extension_length?: number;
@@ -48,6 +52,7 @@ export interface AccountConfig {
     hardware?: string[];
     default_dial_plan_id?: string;
   };
+  e911_notification?: E911NotificationConfig;
 }
 
 export interface Account {
@@ -118,6 +123,10 @@ export interface LocationAddressInput {
   country: string;
 }
 
+export interface LocationConfig {
+  e911_notification?: E911NotificationConfig;
+}
+
 export interface OnboardingLocation {
   id: string;
   name: string;
@@ -137,6 +146,7 @@ export interface OnboardingLocation {
   primary_did_id?: string | null;
   e911_status?: 'none' | 'pending' | 'binding' | 'provisioned' | 'failed';
   status: string;
+  config?: LocationConfig;
   created_at: string;
   updated_at: string;
 }
@@ -150,6 +160,7 @@ export interface UpdateLocationRequest {
   name?: string;
   address?: LocationAddressInput;
   primary_did_id?: string | null;
+  config?: LocationConfig;
 }
 
 /**
