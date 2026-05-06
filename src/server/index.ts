@@ -497,7 +497,20 @@ export interface RingGroupAddMemberParams {
 }
 
 // Queue types
-export type QueueStrategy = 'ringall';
+//
+// QueueStrategy is also exported from sdk/src/types/queue.ts for the
+// embedded-component side of the SDK. It is duplicated inline here
+// because rollup's `rootDir: 'sdk/src/server'` forbids imports
+// reaching outside the server bundle. Keep the two unions in lockstep
+// until the bundler config is widened (out of scope for DIA-895).
+export type QueueStrategy =
+  | 'ringall'
+  | 'linear'
+  | 'rrmemory'
+  | 'leastrecent'
+  | 'fewestcalls'
+  | 'random'
+  | 'wrandom';
 
 export type QueueTimeout =
   | { type: 'ring_user'; user: string }

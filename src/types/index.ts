@@ -228,3 +228,5 @@ export type {
   UpdateDECTHandsetRequest,
   CreateDECTExtensionRequest,
 } from './dect';
+
+export type { QueueStrategy } from './queue';
