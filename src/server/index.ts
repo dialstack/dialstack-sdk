@@ -482,13 +482,20 @@ export interface RingGroupAddMemberParams {
 }
 
 // Queue types
+export type QueueStrategy = 'ringall';
+
+export type QueueTimeout =
+  | { type: 'ring_user'; user: string }
+  | { type: 'voicemail'; voicemail: string };
+
 export interface Queue {
   id: string;
   name: string;
-  strategy: string;
+  strategy: QueueStrategy;
   timeout_seconds: number;
-  timeout_action: string | null;
-  timeout_target: string | null;
+  /** Per-agent cooldown after each call (0-600 seconds). 0 disables wrap-up. */
+  wrap_up_seconds: number;
+  timeout: QueueTimeout | null;
   max_queue_length: number;
   join_empty: string;
   leave_when_empty: string;
@@ -511,10 +518,10 @@ export interface QueueMember {
 
 export interface QueueCreateParams {
   name: string;
-  strategy?: string;
+  strategy?: QueueStrategy;
   timeout_seconds?: number;
-  timeout_action?: string | null;
-  timeout_target?: string | null;
+  wrap_up_seconds?: number;
+  timeout?: QueueTimeout | null;
   max_queue_length?: number;
   join_empty?: string;
   leave_when_empty?: string;
@@ -522,10 +529,10 @@ export interface QueueCreateParams {
 
 export interface QueueUpdateParams {
   name?: string;
-  strategy?: string;
+  strategy?: QueueStrategy;
   timeout_seconds?: number;
-  timeout_action?: string | null;
-  timeout_target?: string | null;
+  wrap_up_seconds?: number;
+  timeout?: QueueTimeout | null;
   max_queue_length?: number;
   join_empty?: string;
   leave_when_empty?: string;
