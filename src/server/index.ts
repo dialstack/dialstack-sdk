@@ -438,12 +438,22 @@ export interface ExtensionListParams {
 }
 
 // Ring Group types
+export type RingGroupTimeoutAction = 'ring_user' | 'voicemail' | 'queue';
+
 export interface RingGroup {
   id: string;
   name: string;
   timeout_seconds: number;
   ignore_forwarding: boolean;
   confirm_external: boolean;
+  /** Action when no member answers within `timeout_seconds`. */
+  timeout_action?: RingGroupTimeoutAction | null;
+  /**
+   * Target the timeout action routes to — a user (`user_…`), shared
+   * voicemail box (`svm_…`), or queue (`qu_…`) TypeID, paired with
+   * `timeout_action`.
+   */
+  timeout_target?: string | null;
   members: RingGroupMember[];
   created_at: string;
   updated_at: string;
@@ -462,6 +472,8 @@ export interface RingGroupCreateParams {
   timeout_seconds?: number;
   ignore_forwarding?: boolean;
   confirm_external?: boolean;
+  timeout_action?: RingGroupTimeoutAction;
+  timeout_target?: string;
 }
 
 export interface RingGroupUpdateParams {
@@ -469,6 +481,9 @@ export interface RingGroupUpdateParams {
   timeout_seconds?: number;
   ignore_forwarding?: boolean;
   confirm_external?: boolean;
+  /** Send `null` to clear the timeout configuration. */
+  timeout_action?: RingGroupTimeoutAction | null;
+  timeout_target?: string | null;
 }
 
 export interface RingGroupListParams {
