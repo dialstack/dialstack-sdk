@@ -25,6 +25,7 @@ export interface DIDItem {
   status: 'active' | 'inactive' | 'released';
   number_class?: 'account_owned' | 'temporary';
   expires_at?: string | null;
+  disconnected_at?: string | null;
   outbound_enabled: boolean;
   caller_id_name?: string | null;
   directory_listing_name?: string | null;
@@ -46,6 +47,8 @@ export type DirectoryListingType = 'listed' | 'non_listed' | 'non_published' | '
 export interface UpdatePhoneNumberRequest {
   outbound_enabled?: boolean;
   status?: 'active' | 'inactive';
+  /** Pass `null` to convert a temporary number to permanent. Extending the expiry is not supported. */
+  expires_at?: null;
   directory_listing_name?: string;
   directory_listing_type?: DirectoryListingType;
   directory_listing_location_id?: string;
@@ -76,6 +79,7 @@ export interface PhoneNumberItem {
   status: PhoneNumberStatus;
   number_class?: 'account_owned' | 'temporary';
   expires_at?: string | null;
+  disconnected_at?: string | null;
   outbound_enabled: boolean | null;
   caller_id_name?: string | null;
   routing_target?: string | null;

@@ -34,10 +34,12 @@ export function mergePhoneNumbers(
       status: did.status as PhoneNumberStatus,
       number_class: did.number_class,
       expires_at: did.expires_at,
+      disconnected_at: did.disconnected_at,
       outbound_enabled: did.outbound_enabled,
       caller_id_name: did.caller_id_name,
       routing_target: did.routing_target,
       source: 'did',
+      did_id: did.id,
       created_at: did.created_at,
       updated_at: did.updated_at,
     });
