@@ -62,6 +62,7 @@ export interface Account {
   phone?: string | null;
   primary_contact_name?: string | null;
   config: AccountConfig;
+  hold_music_clip_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -72,6 +73,7 @@ export interface UpdateAccountRequest {
   phone?: string;
   primary_contact_name?: string;
   config?: AccountConfig;
+  hold_music_clip_id?: string | null;
 }
 
 export interface OnboardingUser {
