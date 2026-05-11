@@ -792,8 +792,11 @@ export const en = {
       promptClip: 'Prompt',
       audioClip: 'Audio Clip',
       digit: 'Digit',
+      options: 'Options',
       addOption: 'Add Option',
       removeOption: 'Remove',
+      optionLabel: 'Label',
+      optionLabelPlaceholder: 'e.g. Sales',
     },
     resourceGroups: {
       audioClips: 'Audio Clips',
@@ -862,8 +865,11 @@ export const defaultDialPlanLocale: DialPlanLocale = {
     promptClip: 'Prompt',
     audioClip: 'Audio Clip',
     digit: 'Digit',
+    options: 'Options',
     addOption: 'Add Option',
     removeOption: 'Remove',
+    optionLabel: 'Label',
+    optionLabelPlaceholder: 'e.g. Sales',
   },
   toolbar: {
     autoLayout: 'Auto Layout',

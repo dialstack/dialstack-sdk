@@ -23,7 +23,7 @@ export function MenuConfigPanel({
 
   const promptClipId = (config.prompt_clip_id as string) ?? '';
   const timeout = (config.timeout as number) ?? 5;
-  const options = (config.options as Array<{ digit: string }>) ?? [{ digit: '1' }];
+  const options = (config.options as Array<{ digit: string; label?: string }>) ?? [{ digit: '1' }];
 
   const usedDigits = new Set(options.map((o) => o.digit));
 
@@ -38,7 +38,19 @@ export function MenuConfigPanel({
   }
 
   function handleDigitChange(index: number, digit: string) {
-    onConfigChange({ options: options.map((o, i) => (i === index ? { digit } : o)) });
+    onConfigChange({ options: options.map((o, i) => (i === index ? { ...o, digit } : o)) });
+  }
+
+  function handleLabelChange(index: number, label: string) {
+    onConfigChange({
+      options: options.map((o, i) => {
+        if (i !== index) return o;
+        const next = { ...o };
+        if (label) next.label = label;
+        else delete next.label;
+        return next;
+      }),
+    });
   }
 
   return (
@@ -65,7 +77,7 @@ export function MenuConfigPanel({
         locale={locale}
       />
       <ConfigField
-        label={locale?.configLabels.digit ?? 'Options'}
+        label={locale?.configLabels.options ?? 'Options'}
         action={
           <button
             type="button"
@@ -79,23 +91,43 @@ export function MenuConfigPanel({
       >
         <div className="ds-dial-plan-menu-options">
           {options.map((opt, i) => (
-            <div key={i} className="ds-dial-plan-menu-options__row">
-              <select
-                className="ds-dial-plan-config-field__input ds-dial-plan-menu-options__digit"
-                value={opt.digit}
-                onChange={(e) => handleDigitChange(i, e.target.value)}
-              >
-                {ALL_DIGITS.filter((d) => d === opt.digit || !usedDigits.has(d)).map((d) => (
-                  <option key={d} value={d}>
-                    {d === '*' ? '✱ (star)' : d === '#' ? '# (hash)' : d}
-                  </option>
-                ))}
-              </select>
+            <div key={i} className="ds-dial-plan-menu-options__card">
+              <div className="ds-dial-plan-menu-options__field ds-dial-plan-menu-options__field--label">
+                <span className="ds-dial-plan-menu-options__field-label">
+                  {locale?.configLabels.optionLabel ?? 'Label'}{' '}
+                  <span className="ds-dial-plan-menu-options__field-hint">(optional)</span>
+                </span>
+                <input
+                  type="text"
+                  className="ds-dial-plan-config-field__input"
+                  value={opt.label ?? ''}
+                  maxLength={20}
+                  placeholder={locale?.configLabels.optionLabelPlaceholder ?? 'e.g. Sales'}
+                  onChange={(e) => handleLabelChange(i, e.target.value)}
+                />
+              </div>
+              <div className="ds-dial-plan-menu-options__field ds-dial-plan-menu-options__field--digit">
+                <span className="ds-dial-plan-menu-options__field-label">
+                  {locale?.configLabels.digit ?? 'Digit'}
+                </span>
+                <select
+                  className="ds-dial-plan-config-field__input"
+                  value={opt.digit}
+                  onChange={(e) => handleDigitChange(i, e.target.value)}
+                >
+                  {ALL_DIGITS.filter((d) => d === opt.digit || !usedDigits.has(d)).map((d) => (
+                    <option key={d} value={d}>
+                      {d === '*' ? '✱' : d}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <button
                 type="button"
                 className="ds-dial-plan-menu-options__remove"
                 onClick={() => handleRemoveOption(i)}
                 title={locale?.configLabels.removeOption ?? 'Remove'}
+                aria-label={locale?.configLabels.removeOption ?? 'Remove'}
               >
                 <svg
                   width="14"

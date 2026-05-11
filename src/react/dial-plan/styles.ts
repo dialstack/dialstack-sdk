@@ -305,14 +305,40 @@ export const dialPlanStyles = `
   gap: 6px;
 }
 
-.ds-dial-plan-menu-options__row {
+.ds-dial-plan-menu-options__card {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 6px;
 }
 
-.ds-dial-plan-menu-options__digit {
+.ds-dial-plan-menu-options__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ds-dial-plan-menu-options__field--digit {
+  flex: 0 0 64px;
+}
+
+.ds-dial-plan-menu-options__field--label {
   flex: 1;
+}
+
+.ds-dial-plan-menu-options__field-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ds-color-text-muted, #94a3b8);
+}
+
+.ds-dial-plan-menu-options__field-hint {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.8;
 }
 
 .ds-dial-plan-menu-options__remove {

@@ -66,6 +66,8 @@ export interface MenuOption {
   digit: string;
   /** Node ID to route to when this digit is pressed */
   next_node?: string;
+  /** Optional display label shown next to the digit on the node (max 20 chars) */
+  label?: string;
 }
 
 /**
@@ -282,8 +284,11 @@ export interface DialPlanLocale {
     promptClip: string;
     audioClip: string;
     digit: string;
+    options: string;
     addOption: string;
     removeOption: string;
+    optionLabel: string;
+    optionLabelPlaceholder: string;
   };
   toolbar: {
     autoLayout: string;

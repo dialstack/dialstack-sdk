@@ -48,13 +48,11 @@ export const config: NodeDefinition = {
           subtitle={data.promptClipName as string | undefined}
         />
         <div className="ds-dial-plan-node__exits">
-          {options.map((opt) => (
-            <ExitRow
-              key={opt.digit}
-              id={digitToHandleId(opt.digit)}
-              label={opt.digit === '*' ? '✱' : opt.digit === '#' ? '#' : opt.digit}
-            />
-          ))}
+          {options.map((opt) => {
+            const digit = opt.digit === '*' ? '✱' : opt.digit;
+            const label = opt.label ? `${opt.label} — ${digit}` : digit;
+            return <ExitRow key={opt.digit} id={digitToHandleId(opt.digit)} label={label} />;
+          })}
           <StaticExits exits={reg.exits} locale={locale} />
         </div>
       </>
@@ -167,11 +165,14 @@ export const config: NodeDefinition = {
     requestAnimationFrame(() => ctx.updateNodeInternals(nodeId));
   },
   serializeConfig: (node, edges, baseConfig) => {
-    const options = (baseConfig.options as Array<{ digit: string }>) ?? [];
+    const options = (baseConfig.options as Array<{ digit: string; label?: string }>) ?? [];
     const rebuilt = options.map((opt) => {
       const handleId = digitToHandleId(opt.digit);
       const edge = edges.find((e) => e.source === node.id && e.sourceHandle === handleId);
-      return edge ? { digit: opt.digit, next_node: edge.target } : { digit: opt.digit };
+      const base: { digit: string; label?: string; next_node?: string } = { digit: opt.digit };
+      if (opt.label) base.label = opt.label;
+      if (edge) base.next_node = edge.target;
+      return base;
     });
     return { ...baseConfig, options: rebuilt };
   },
