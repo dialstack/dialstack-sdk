@@ -672,6 +672,8 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
             }));
           case 'ring_group':
             return await dialstack.ringGroups.list(expand);
+          case 'queue':
+            return await dialstack.queues.list({ expand: expand.expand });
           case 'dial_plan': {
             const all = await dialstack.dialPlans.list(expand);
             const currentId = dialPlanMeta?.id ?? dialPlanId;

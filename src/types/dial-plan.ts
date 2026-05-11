@@ -261,6 +261,7 @@ export interface DialPlanLocale {
     user: string;
     ringGroup: string;
     dialPlan: string;
+    queue: string;
     voiceApp: string;
     sharedVoicemail: string;
   };
@@ -268,6 +269,7 @@ export interface DialPlanLocale {
     users: string;
     ringGroups: string;
     dialPlans: string;
+    queues: string;
     voiceApps: string;
     sharedVoicemails: string;
     schedules: string;

@@ -17,6 +17,7 @@ export type ResourceType =
   | 'user'
   | 'ring_group'
   | 'dial_plan'
+  | 'queue'
   | 'voice_app'
   | 'shared_voicemail'
   | 'audio_clip';

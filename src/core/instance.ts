@@ -89,6 +89,7 @@ export type RoutingTargetType =
   | 'dial_plan'
   | 'voice_app'
   | 'ring_group'
+  | 'queue'
   | 'shared_voicemail';
 
 /** Canonical mapping from TypeID prefix to API path and routing target type. */
@@ -97,6 +98,7 @@ export const ROUTING_TARGET_TYPES: Record<string, { path: string; type: RoutingT
   dp: { path: '/v1/dialplans', type: 'dial_plan' },
   va: { path: '/v1/voice-apps', type: 'voice_app' },
   rg: { path: '/v1/ring_groups', type: 'ring_group' },
+  qu: { path: '/v1/queues', type: 'queue' },
   svm: { path: '/v1/shared_voicemail_boxes', type: 'shared_voicemail' },
 } as const;
 

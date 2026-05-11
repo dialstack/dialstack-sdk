@@ -5,6 +5,7 @@ export function resolveTargetType(targetId: string, locale: DialPlanLocale): str
   if (targetId.startsWith('user_')) return locale.targetTypes.user;
   if (targetId.startsWith('rg_')) return locale.targetTypes.ringGroup;
   if (targetId.startsWith('dp_')) return locale.targetTypes.dialPlan;
+  if (targetId.startsWith('qu_')) return locale.targetTypes.queue;
   if (targetId.startsWith('va_')) return locale.targetTypes.voiceApp;
   if (targetId.startsWith('svm_')) return locale.targetTypes.sharedVoicemail;
   return locale.nodeTypes.internalDial;

@@ -18,6 +18,7 @@ export function InternalDialConfigPanel({
     [
       { type: 'user', labelKey: 'users', fallback: 'Users' },
       { type: 'ring_group', labelKey: 'ringGroups', fallback: 'Ring Groups' },
+      { type: 'queue', labelKey: 'queues', fallback: 'Queues' },
       { type: 'dial_plan', labelKey: 'dialPlans', fallback: 'Dial Plans' },
     ],
     listResources,

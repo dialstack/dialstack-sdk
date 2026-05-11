@@ -465,7 +465,7 @@ export interface DialStackInstance {
   resolveRoutingTarget(target: string): Promise<{
     id: string;
     name: string | null;
-    type: 'user' | 'dial_plan' | 'voice_app' | 'ring_group' | 'shared_voicemail';
+    type: 'user' | 'dial_plan' | 'voice_app' | 'ring_group' | 'queue' | 'shared_voicemail';
     extension_number?: string | null;
   } | null>;
   /** Get current appearance options */
