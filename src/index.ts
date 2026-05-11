@@ -6,6 +6,7 @@
 
 // Core exports
 export { loadDialstackAndInitialize } from './core/initialize';
+export { ApiError } from './core/instance';
 export type {
   DialStackInitParams,
   DialStackInstance,
@@ -21,6 +22,9 @@ export type {
   VoicemailsCallbacks,
   CallLog,
   QualityMetricLeg,
+  Transcript,
+  TranscriptStatus,
+  VoicemailTranscript,
   FormattingOptions,
   PaginationOptions,
   // Real-time call events

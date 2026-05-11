@@ -372,7 +372,10 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         const response = await this.fetchApi(`/v1/calls/${callId}/transcript`);
         if (!response.ok) {
           const errorText = await response.text();
-          throw new Error(`Failed to get transcript: ${response.status} ${errorText}`);
+          throw new ApiError(
+            `Failed to get transcript: ${response.status} ${errorText}`,
+            response.status
+          );
         }
         return response.json();
       },
