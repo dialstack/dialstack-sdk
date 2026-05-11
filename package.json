@@ -78,8 +78,8 @@
     "test:e2e:all": "npm run test:e2e && npm run test:e2e:firefox && npm run test:e2e:webkit"
   },
   "peerDependencies": {
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5"
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -144,6 +144,6 @@
   },
   "dependencies": {
     "cmdk": "^1.1.1",
-    "libphonenumber-js": "^1.12.41"
+    "libphonenumber-js": "^1.13.1"
   }
 }
