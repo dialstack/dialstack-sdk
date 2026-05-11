@@ -1,24 +1,32 @@
 /**
  * Portal sidebar — dark left nav with progress rings and step navigation.
  *
- * SAFETY NOTE: dangerouslySetInnerHTML is used only for:
- * - Static SVG string constants from our own constants.ts / icons.ts (STEP_ICONS,
- *   OVERVIEW_SVG, HELP_SVG, CHECK_SVG_WHITE) — never user input.
- * - logoHtml set by the SDK consumer (developer), not end-user input.
- * This mirrors the same pattern in the vanilla JS sidebar-renderer.ts.
+ * Static icons are rendered as React components (./portal-icons). The only
+ * HTML-injection site is ConsumerLogo below, which mounts logoHtml supplied by
+ * the SDK consumer (the integrating developer) — never end-user input.
  */
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useOnboarding } from './OnboardingContext';
 import { useOnboardingProgress } from './useOnboardingProgress';
-import {
-  STEP_ICONS,
-  OVERVIEW_SVG,
-  HELP_SVG,
-  CHECK_SVG_WHITE,
-  CIRCUMFERENCE,
-} from './portal-constants';
+import { CIRCUMFERENCE } from './portal-constants';
+import { CheckIconWhite, HelpIcon, OverviewIcon, STEP_ICON_COMPONENTS } from './portal-icons';
 import type { StepName } from './progress-store';
+
+// Mounts SDK-consumer-supplied logo markup. logoHtml comes from the integrating
+// developer (e.g. admin's buildLogoHtml — platform name is HTML-escaped, logo
+// URL is URI-encoded), never from an end user. Uses Range.createContextualFragment
+// rather than innerHTML so script tags are inert per the HTML spec.
+const ConsumerLogo: React.FC<{ html: string }> = ({ html }) => {
+  const ref = useRef<HTMLSpanElement | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const frag = document.createRange().createContextualFragment(html);
+    el.replaceChildren(frag);
+  }, [html]);
+  return <span ref={ref} />;
+};
 
 export interface PortalSidebarProps {
   viewMode: 'splash' | 'overview' | 'wizard';
@@ -55,9 +63,7 @@ const PortalSidebarBase: React.FC<PortalSidebarProps> = ({
       {/* Logo — logoHtml is set by SDK consumer (developer), not end-user */}
       <div className="portal-logo">
         {logoHtml ? (
-          // SAFETY: logoHtml is set by the SDK consumer (developer), not end-user input
-          // nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content
-          <span dangerouslySetInnerHTML={{ __html: logoHtml }} />
+          <ConsumerLogo html={logoHtml} />
         ) : (
           <span style={{ fontSize: 20, fontWeight: 700 }}>{platformName ?? 'DialStack'}</span>
         )}
@@ -73,9 +79,9 @@ const PortalSidebarBase: React.FC<PortalSidebarProps> = ({
           if (e.key === 'Enter' || e.key === ' ') onOverview();
         }}
       >
-        {/* SAFETY: OVERVIEW_SVG is a static constant from constants.ts */}
-        {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
-        <span className="portal-nav-icon" dangerouslySetInnerHTML={{ __html: OVERVIEW_SVG }} />
+        <span className="portal-nav-icon">
+          <OverviewIcon />
+        </span>
         <span>{locale.onboardingPortal.overview.label}</span>
       </div>
 
@@ -108,21 +114,18 @@ const PortalSidebarBase: React.FC<PortalSidebarProps> = ({
               if (e.key === 'Enter' || e.key === ' ') onSelectStep(step);
             }}
           >
-            {/* SAFETY: STEP_ICONS values are static SVG constants from icons.ts */}
-            {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
-            <span
-              className="portal-step-icon"
-              dangerouslySetInnerHTML={{ __html: STEP_ICONS[step] ?? '' }}
-            />
+            <span className="portal-step-icon">
+              {(() => {
+                const Icon = STEP_ICON_COMPONENTS[step];
+                return Icon ? <Icon /> : null;
+              })()}
+            </span>
             <span className="portal-step-name">{stepLabel}</span>
             <span className="portal-step-indicator">
               {isComplete ? (
-                // SAFETY: CHECK_SVG_WHITE is a static constant from constants.ts
-                // nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content
-                <div
-                  className="check-circle"
-                  dangerouslySetInnerHTML={{ __html: CHECK_SVG_WHITE }}
-                />
+                <div className="check-circle">
+                  <CheckIconWhite />
+                </div>
               ) : (
                 <ProgressRing pct={progressStore.getStepProgressPercent(step as StepName)} />
               )}
@@ -157,9 +160,9 @@ const PortalSidebarBase: React.FC<PortalSidebarProps> = ({
               if (e.key === 'Enter' || e.key === ' ') onHelpSupport();
             }}
           >
-            {/* SAFETY: HELP_SVG is a static constant from constants.ts */}
-            {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
-            <span className="portal-nav-icon" dangerouslySetInnerHTML={{ __html: HELP_SVG }} />
+            <span className="portal-nav-icon">
+              <HelpIcon />
+            </span>
             <span>{locale.onboardingPortal.helpSupport}</span>
           </div>
         )}
