@@ -52,8 +52,8 @@ export function getNodeLabel(node: DialPlanNode): string {
       return 'External Number';
     case 'menu':
       return 'IVR Menu';
-    case 'sound_clip':
-      return 'Sound Clip';
+    case 'audio_clip':
+      return 'Audio Clip';
     case 'voice_app':
       return 'Voice App';
     default:

@@ -8,10 +8,21 @@ export const DIAL_PLAN_EDGE_TYPE = 'smoothstep' as const;
 export class NodeTypeRegistry {
   private byType = new Map<string, NodeTypeRegistration>();
   private byFlowType = new Map<string, NodeTypeRegistration>();
+  /** Maps legacy wire types (e.g. `sound_clip`) to their canonical replacement. */
+  private legacyTypeAliases = new Map<string, string>();
 
   register(registration: NodeTypeRegistration): void {
     this.byType.set(registration.type, registration);
     this.byFlowType.set(registration.flowType, registration);
+  }
+
+  /**
+   * Map a legacy wire type to its canonical registration. Lookups for the
+   * legacy type land on the canonical reg, and the canonical reg's
+   * `normalizeFromAlias` rewrites the node into the new shape on first edit.
+   */
+  registerAlias(legacyType: string, canonicalType: string): void {
+    this.legacyTypeAliases.set(legacyType, canonicalType);
   }
 
   get(type: string): NodeTypeRegistration | undefined {
@@ -20,7 +31,11 @@ export class NodeTypeRegistry {
 
   /** Resolve which registration should render an API node, checking aliases. */
   resolveType(node: DialPlanNode): NodeTypeRegistration | undefined {
-    const exact = this.byType.get(node.type);
+    let exact = this.byType.get(node.type);
+    if (!exact) {
+      const canonicalType = this.legacyTypeAliases.get(node.type);
+      if (canonicalType) exact = this.byType.get(canonicalType);
+    }
     if (!exact?.resolveAlias) return exact;
     return exact.resolveAlias(node) ?? exact;
   }

@@ -85,9 +85,9 @@ export interface MenuNodeConfig {
 }
 
 /**
- * Configuration for a sound clip node that plays an audio clip.
+ * Configuration for an audio clip node that plays an audio clip.
  */
-export interface SoundClipNodeConfig {
+export interface AudioClipNodeConfig {
   /** Audio clip ID to play */
   clip_id: string;
   /** Node ID to route to after playback (nil = terminate) */
@@ -118,7 +118,7 @@ export type DialPlanNodeType =
   | 'ring_all_users'
   | 'external_dial'
   | 'menu'
-  | 'sound_clip'
+  | 'audio_clip'
   | 'voice_app';
 
 /**
@@ -172,11 +172,11 @@ export interface MenuNode extends DialPlanNodeBase {
 }
 
 /**
- * A sound clip node in the dial plan.
+ * An audio clip node in the dial plan.
  */
-export interface SoundClipNode extends DialPlanNodeBase {
-  type: 'sound_clip';
-  config: SoundClipNodeConfig;
+export interface AudioClipNode extends DialPlanNodeBase {
+  type: 'audio_clip';
+  config: AudioClipNodeConfig;
 }
 
 /**
@@ -196,7 +196,7 @@ export type DialPlanNode =
   | RingAllUsersNode
   | ExternalDialNode
   | MenuNode
-  | SoundClipNode
+  | AudioClipNode
   | VoiceAppNode;
 
 // ============================================================================
@@ -236,7 +236,7 @@ export interface DialPlanLocale {
     ringAllUsers: string;
     voiceApp: string;
     menu: string;
-    soundClip: string;
+    audioClip: string;
   };
   exits: {
     open: string;
@@ -253,7 +253,7 @@ export interface DialPlanLocale {
     externalDial: string;
     voiceApp: string;
     menu: string;
-    soundClip: string;
+    audioClip: string;
   };
   targetTypes: {
     user: string;
@@ -329,7 +329,7 @@ export type GraphNodeType =
   | 'externalDial'
   | 'voiceApp'
   | 'menu'
-  | 'soundClip';
+  | 'audioClip';
 
 /**
  * Data payload for the Start node.
@@ -409,13 +409,13 @@ export interface MenuNodeData extends Record<string, unknown> {
 }
 
 /**
- * Data payload for a Sound Clip node in the graph.
+ * Data payload for an Audio Clip node in the graph.
  */
-export interface SoundClipNodeData extends Record<string, unknown> {
+export interface AudioClipNodeData extends Record<string, unknown> {
   label: string;
   clipId: string;
   clipName?: string;
-  originalNode: SoundClipNode;
+  originalNode: AudioClipNode;
   locale?: DialPlanLocale;
 }
 
@@ -428,7 +428,7 @@ export type GraphNodeData =
   | ExternalDialNodeData
   | VoiceAppNodeData
   | MenuNodeData
-  | SoundClipNodeData;
+  | AudioClipNodeData;
 
 // ============================================================================
 // Component Types

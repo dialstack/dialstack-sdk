@@ -2,7 +2,7 @@ import React from 'react';
 import type {
   DialPlanLocale,
   DialPlanNode,
-  SoundClipNode as SoundClipNodeType,
+  AudioClipNode as AudioClipNodeType,
 } from '../../../types/dial-plan';
 import type {
   NodeDefinition,
@@ -11,18 +11,18 @@ import type {
   ResourceMaps,
 } from '../registry-types';
 import { NodeHeader, StaticExits } from '../DialPlanNode';
-import { SoundClipConfigPanel } from '../config-panels/SoundClipConfigPanel';
+import { AudioClipConfigPanel } from '../config-panels/AudioClipConfigPanel';
 import { VolumeIcon } from '../icons';
 
 export const config: NodeDefinition = {
-  type: 'sound_clip',
-  flowType: 'soundClip',
-  localeKey: 'soundClip',
-  label: 'Sound Clip',
+  type: 'audio_clip',
+  flowType: 'audioClip',
+  localeKey: 'audioClip',
+  label: 'Audio Clip',
   description: 'Play an audio clip',
   color: '#14b8a6',
   exits: [{ id: 'next', label: 'Next', configKey: 'next', localeExitKey: 'next' }],
-  configPanel: SoundClipConfigPanel,
+  configPanel: AudioClipConfigPanel,
   defaultConfig: { clip_id: '' },
   icon: VolumeIcon,
   renderNode: (data: Record<string, unknown>, reg: NodeTypeRegistration) => (
@@ -38,8 +38,18 @@ export const config: NodeDefinition = {
     </>
   ),
   toFlowNode: (node: DialPlanNode) => {
-    const n = node as SoundClipNodeType;
-    return { label: 'Sound Clip', clipId: n.config.clip_id, originalNode: n };
+    const n = node as AudioClipNodeType;
+    return { label: 'Audio Clip', clipId: n.config.clip_id, originalNode: n };
+  },
+  // Legacy plans store this node as `sound_clip` (pre-DIA-1029). The default
+  // registry alias routes those nodes here; this rewrites them into the
+  // current shape so save round-trips as `audio_clip` — an implicit migration
+  // on first edit while the SQL migration handles bulk.
+  normalizeFromAlias: (node: DialPlanNode): DialPlanNode => {
+    return {
+      ...node,
+      type: 'audio_clip',
+    } as DialPlanNode;
   },
   collectResourceIds: (config: Record<string, unknown>, collector: ResourceCollector) => {
     if (config.clip_id) collector.addAudioClip(config.clip_id as string);

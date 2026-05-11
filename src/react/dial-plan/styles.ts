@@ -273,12 +273,12 @@ export const dialPlanStyles = `
   box-shadow: 0 0 16px 2px rgba(236, 72, 153, 0.4), 0 4px 12px rgba(236, 72, 153, 0.2);
 }
 
-.ds-dial-plan-node--sound-clip {
+.ds-dial-plan-node--audio-clip {
   background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
   border-color: #14b8a6;
 }
-.ds-dial-plan-node--sound-clip .ds-dial-plan-node__icon { color: #14b8a6; }
-.ds-dial-plan-node--sound-clip.ds-dial-plan-node--selected {
+.ds-dial-plan-node--audio-clip .ds-dial-plan-node__icon { color: #14b8a6; }
+.ds-dial-plan-node--audio-clip.ds-dial-plan-node--selected {
   border-color: #14b8a6;
   outline-color: #14b8a6;
   box-shadow: 0 0 16px 2px rgba(20, 184, 166, 0.4), 0 4px 12px rgba(20, 184, 166, 0.2);
@@ -829,7 +829,7 @@ export const dialPlanStyles = `
 :is(.dark, [data-theme="dark"]) .ds-dial-plan-node--menu {
   background: linear-gradient(135deg, #500724 0%, #831843 100%);
 }
-:is(.dark, [data-theme="dark"]) .ds-dial-plan-node--sound-clip {
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-node--audio-clip {
   background: linear-gradient(135deg, #042f2e 0%, #115e59 100%);
 }
 
@@ -986,7 +986,7 @@ export const dialPlanStyles = `
   background: linear-gradient(135deg, #c7d2fe 0%, #ddd6fe 40%, #bae6fd 100%) padding-box, linear-gradient(135deg, #38bdf8 0%, #818cf8 35%, #a855f7 60%, #ec4899 100%) border-box;
 }
 .ds-dial-plan-node-library__item--menu { background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%); border-color: #ec4899; }
-.ds-dial-plan-node-library__item--sound_clip { background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border-color: #14b8a6; }
+.ds-dial-plan-node-library__item--audio_clip { background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border-color: #14b8a6; }
 
 .ds-dial-plan-node-library__item-icon {
   display: flex;
@@ -1000,7 +1000,7 @@ export const dialPlanStyles = `
 .ds-dial-plan-node-library__item--external_dial .ds-dial-plan-node-library__item-icon { color: var(--ds-color-rose, #f43f5e); }
 .ds-dial-plan-node-library__item--voice_app .ds-dial-plan-node-library__item-icon { color: #4f46e5; }
 .ds-dial-plan-node-library__item--menu .ds-dial-plan-node-library__item-icon { color: #ec4899; }
-.ds-dial-plan-node-library__item--sound_clip .ds-dial-plan-node-library__item-icon { color: #14b8a6; }
+.ds-dial-plan-node-library__item--audio_clip .ds-dial-plan-node-library__item-icon { color: #14b8a6; }
 
 .ds-dial-plan-node-library__item-label {
   font-size: var(--ds-font-size-xs, 12px);
@@ -1026,7 +1026,7 @@ export const dialPlanStyles = `
 :is(.dark, [data-theme="dark"]) .ds-dial-plan-node-library__item--external_dial { background: linear-gradient(135deg, #4c0519 0%, #881337 100%); }
 :is(.dark, [data-theme="dark"]) .ds-dial-plan-node-library__item--voice_app { background: linear-gradient(135deg, #252262 0%, #3b1d7e 40%, #0c3a5e 100%) padding-box, linear-gradient(135deg, #38bdf8 0%, #818cf8 35%, #a855f7 60%, #ec4899 100%) border-box; }
 :is(.dark, [data-theme="dark"]) .ds-dial-plan-node-library__item--menu { background: linear-gradient(135deg, #500724 0%, #831843 100%); }
-:is(.dark, [data-theme="dark"]) .ds-dial-plan-node-library__item--sound_clip { background: linear-gradient(135deg, #042f2e 0%, #115e59 100%); }
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-node-library__item--audio_clip { background: linear-gradient(135deg, #042f2e 0%, #115e59 100%); }
 
 :is(.dark, [data-theme="dark"]) .ds-dial-plan-node-library__item-label {
   color: #e2e8f0;

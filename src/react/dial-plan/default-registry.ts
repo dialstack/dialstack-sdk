@@ -12,7 +12,7 @@ import { config as externalDial } from './nodes/ExternalDialNode';
 import { config as voiceApp } from './nodes/VoiceAppNode';
 import { config as voicemail } from './nodes/VoicemailNode';
 import { config as menu } from './nodes/MenuNode';
-import { config as soundClip } from './nodes/SoundClipNode';
+import { config as audioClip } from './nodes/AudioClipNode';
 
 export const defaultRegistry = new NodeTypeRegistry();
 
@@ -26,7 +26,7 @@ export const nodeDefinitions: NodeDefinition[] = [
   voiceApp,
   voicemail,
   menu,
-  soundClip,
+  audioClip,
 ];
 
 for (const def of nodeDefinitions) {
@@ -51,3 +51,10 @@ if (internalDialReg) {
     return undefined;
   };
 }
+
+// DIA-1029 renamed `sound_clip` to `audio_clip`. The SQL migration rewrites
+// persisted rows; this alias keeps the editor functional for any legacy
+// payload the API still emits during the rollout window. AudioClipNode's
+// `normalizeFromAlias` rewrites the type field on first edit, so saves
+// round-trip as `audio_clip`. Drop once usage drains.
+defaultRegistry.registerAlias('sound_clip', 'audio_clip');

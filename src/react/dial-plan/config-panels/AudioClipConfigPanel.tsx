@@ -4,7 +4,7 @@ import { ResourceCombobox } from './ResourceCombobox';
 import { ConfigField } from './fields/ConfigField';
 import { useResourceGroups } from './hooks/useResourceGroups';
 
-export function SoundClipConfigPanel({
+export function AudioClipConfigPanel({
   config,
   onConfigChange,
   listResources,

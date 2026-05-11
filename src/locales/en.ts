@@ -775,11 +775,11 @@ export const en = {
       externalDial: 'External Number',
       voiceApp: 'Voice App',
       menu: 'IVR Menu',
-      soundClip: 'Sound Clip',
+      audioClip: 'Audio Clip',
     },
     nodeDescriptions: {
       menu: 'Play prompt and route by keypress',
-      soundClip: 'Play an audio clip',
+      audioClip: 'Play an audio clip',
     },
     exits: {
       open: 'Open',
@@ -816,7 +816,7 @@ export const defaultDialPlanLocale: DialPlanLocale = {
     ringAllUsers: 'Ring All Users',
     voiceApp: 'Voice App',
     menu: 'IVR Menu',
-    soundClip: 'Sound Clip',
+    audioClip: 'Audio Clip',
   },
   exits: {
     open: 'Open',
@@ -833,7 +833,7 @@ export const defaultDialPlanLocale: DialPlanLocale = {
     externalDial: 'Ring an external phone number',
     voiceApp: 'Route to a voice application',
     menu: 'Play prompt and route by keypress',
-    soundClip: 'Play an audio clip',
+    audioClip: 'Play an audio clip',
   },
   targetTypes: {
     user: 'User',
