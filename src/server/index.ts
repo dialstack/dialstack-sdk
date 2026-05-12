@@ -518,6 +518,27 @@ export type QueueTimeout =
   | { type: 'ring_user'; user: string }
   | { type: 'voicemail'; voicemail: string };
 
+/**
+ * Press-1 callback configuration on a Queue. The Queue's `callback` field is
+ * `null` when callbacks are disabled. Setting a non-null value enables the
+ * feature; clearing it disables.
+ */
+export interface QueueCallbackConfig {
+  /** Seconds after queue entry before offering a press-1 callback (0-3600). */
+  offer_after_seconds: number;
+  /**
+   * Queue-specific callback outbound caller ID DID. When null, callbacks use
+   * the captured inbound DID, then the account default outbound DID.
+   */
+  outbound_did_id: string | null;
+}
+
+/** Request shape for setting the queue callback config. */
+export interface QueueCallbackConfigInput {
+  offer_after_seconds?: number;
+  outbound_did_id?: string | null;
+}
+
 export interface Queue {
   id: string;
   name: string;
@@ -525,6 +546,8 @@ export interface Queue {
   timeout_seconds: number;
   /** Per-agent cooldown after each call (0-600 seconds). 0 disables wrap-up. */
   wrap_up_seconds: number;
+  /** Press-1 callback config; null when callbacks are disabled. */
+  callback: QueueCallbackConfig | null;
   timeout: QueueTimeout | null;
   max_queue_length: number;
   join_empty: string;
@@ -551,6 +574,8 @@ export interface QueueCreateParams {
   strategy?: QueueStrategy;
   timeout_seconds?: number;
   wrap_up_seconds?: number;
+  /** Provide an object to enable callbacks; omit or set null to disable. */
+  callback?: QueueCallbackConfigInput | null;
   timeout?: QueueTimeout | null;
   max_queue_length?: number;
   join_empty?: string;
@@ -562,6 +587,8 @@ export interface QueueUpdateParams {
   strategy?: QueueStrategy;
   timeout_seconds?: number;
   wrap_up_seconds?: number;
+  /** Send null to disable callbacks; send an object to set/replace the config. */
+  callback?: QueueCallbackConfigInput | null;
   timeout?: QueueTimeout | null;
   max_queue_length?: number;
   join_empty?: string;
