@@ -539,6 +539,21 @@ export interface QueueCallbackConfigInput {
   outbound_did_id?: string | null;
 }
 
+/**
+ * Periodic position-announcement configuration on a Queue. The Queue's
+ * `announcements` field is `null` when announcements are disabled. Setting a
+ * non-null value enables the feature; clearing it disables.
+ */
+export interface QueueAnnouncementsConfig {
+  /** Cadence for "you are caller number N" announcements in seconds (10-600). */
+  frequency_seconds: number;
+}
+
+/** Request shape for setting the queue announcements config. */
+export interface QueueAnnouncementsConfigInput {
+  frequency_seconds?: number;
+}
+
 export interface Queue {
   id: string;
   name: string;
@@ -546,6 +561,8 @@ export interface Queue {
   timeout_seconds: number;
   /** Per-agent cooldown after each call (0-600 seconds). 0 disables wrap-up. */
   wrap_up_seconds: number;
+  /** Position-announcement config; null when announcements are disabled. */
+  announcements: QueueAnnouncementsConfig | null;
   /** Press-1 callback config; null when callbacks are disabled. */
   callback: QueueCallbackConfig | null;
   timeout: QueueTimeout | null;
@@ -574,6 +591,8 @@ export interface QueueCreateParams {
   strategy?: QueueStrategy;
   timeout_seconds?: number;
   wrap_up_seconds?: number;
+  /** Provide an object to enable announcements; omit or set null to disable. */
+  announcements?: QueueAnnouncementsConfigInput | null;
   /** Provide an object to enable callbacks; omit or set null to disable. */
   callback?: QueueCallbackConfigInput | null;
   timeout?: QueueTimeout | null;
@@ -587,6 +606,8 @@ export interface QueueUpdateParams {
   strategy?: QueueStrategy;
   timeout_seconds?: number;
   wrap_up_seconds?: number;
+  /** Send null to disable announcements; send an object to set/replace the config. */
+  announcements?: QueueAnnouncementsConfigInput | null;
   /** Send null to disable callbacks; send an object to set/replace the config. */
   callback?: QueueCallbackConfigInput | null;
   timeout?: QueueTimeout | null;
