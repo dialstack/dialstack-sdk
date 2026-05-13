@@ -28,6 +28,7 @@ describe('users.queueAgent', () => {
         ok: true,
         status: 200,
         json: async () => mockResponse,
+        text: async () => JSON.stringify(mockResponse),
         headers: new Headers(),
       });
 
@@ -61,6 +62,13 @@ describe('users.queueAgent', () => {
           pause_reason: null,
           paused_at: null,
         }),
+        text: async () =>
+          JSON.stringify({
+            ...mockResponse,
+            status: 'available',
+            pause_reason: null,
+            paused_at: null,
+          }),
         headers: new Headers(),
       });
 
@@ -79,6 +87,12 @@ describe('users.queueAgent', () => {
           status: 'logged_out',
           updated_at: '2026-04-27T12:00:00Z',
         }),
+        text: async () =>
+          JSON.stringify({
+            user_id: 'user_abc',
+            status: 'logged_out',
+            updated_at: '2026-04-27T12:00:00Z',
+          }),
         headers: new Headers(),
       });
 
@@ -109,6 +123,15 @@ describe('users.queueAgent', () => {
           logged_in_at: '2026-04-27T11:00:00Z',
           updated_at: '2026-04-27T12:00:00Z',
         }),
+        text: async () =>
+          JSON.stringify({
+            user_id: 'user_abc',
+            status: 'paused',
+            paused_at: '2026-04-27T12:00:00Z',
+            pause_reason: 'break',
+            logged_in_at: '2026-04-27T11:00:00Z',
+            updated_at: '2026-04-27T12:00:00Z',
+          }),
         headers: new Headers(),
       });
 

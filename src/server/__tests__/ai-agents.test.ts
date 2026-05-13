@@ -31,6 +31,7 @@ describe('AI Agents', () => {
         ok: true,
         status: 200,
         json: async () => mockAgent,
+        text: async () => JSON.stringify(mockAgent),
         headers: new Headers(),
       });
 
@@ -53,6 +54,7 @@ describe('AI Agents', () => {
         ok: true,
         status: 200,
         json: async () => ({ ...mockAgent, instructions: 'Updated' }),
+        text: async () => JSON.stringify({ ...mockAgent, instructions: 'Updated' }),
         headers: new Headers(),
       });
 
@@ -85,6 +87,14 @@ describe('AI Agents', () => {
           previous_page_url: null,
           data: [mockAgent],
         }),
+        text: async () =>
+          JSON.stringify({
+            object: 'list',
+            url: '/v1/ai-agents',
+            next_page_url: null,
+            previous_page_url: null,
+            data: [mockAgent],
+          }),
         headers: new Headers(),
       });
 

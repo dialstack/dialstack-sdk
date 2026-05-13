@@ -1,0 +1,47 @@
+{
+  "name": "dialstack-voice-ai-agent",
+  "version": "0.1.0",
+  "description": "Minimal Node/TypeScript example that connects a DialStack call to either ElevenLabs Conversational AI or Google Gemini Live.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "voice-ai-agent": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node --enable-source-maps dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint 'src/**/*.ts'",
+    "format": "prettier --write 'src/**/*.ts'"
+  },
+  "dependencies": {
+    "@dialstack/sdk": "^0.2.2-alpha.13",
+    "@google/genai": "^2.2.0",
+    "alawmulaw": "^6.0.0",
+    "dotenv": "^17.0.0",
+    "express": "^5.0.0",
+    "pino": "^10.0.0",
+    "pino-pretty": "^13.0.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "@types/ws": "^8.5.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.6.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    ".env.example"
+  ]
+}

@@ -1050,12 +1050,17 @@ export class DialStack {
       throw error;
     }
 
-    // Handle 204 No Content
+    // Handle empty bodies (204 No Content, or 200 with no body — the latter
+    // is returned by endpoints like POST /v1/calls/{id} that have no useful
+    // response payload).
     if (response.status === 204) {
       return undefined as T;
     }
-
-    return (await response.json()) as T;
+    const text = await response.text();
+    if (text.trim().length === 0) {
+      return undefined as T;
+    }
+    return JSON.parse(text) as T;
   }
 
   private getRetryDelay(attempt: number): number {

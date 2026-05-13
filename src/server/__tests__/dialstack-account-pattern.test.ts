@@ -26,6 +26,7 @@ describe('dialstackAccount Pattern', () => {
     ok: true,
     status: 200,
     json: async () => data,
+    text: async () => JSON.stringify(data),
     headers: new Headers(),
   });
 
@@ -233,6 +234,7 @@ describe('RequestOptions and Events', () => {
       ok: true,
       status: 200,
       json: async () => ({ id: 'user_123' }),
+      text: async () => JSON.stringify({ id: 'user_123' }),
       headers: new Headers(),
     });
 
@@ -254,6 +256,7 @@ describe('RequestOptions and Events', () => {
       ok: true,
       status: 200,
       json: async () => ({ id: 'user_123' }),
+      text: async () => JSON.stringify({ id: 'user_123' }),
       headers: new Headers({ 'x-request-id': 'req_abc' }),
     });
 

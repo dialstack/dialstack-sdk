@@ -28,6 +28,7 @@ describe('Ring Groups', () => {
         ok: true,
         status: 200,
         json: async () => mockResponse,
+        text: async () => JSON.stringify(mockResponse),
         headers: new Headers({ 'x-request-id': 'req_123' }),
       });
 
@@ -59,6 +60,7 @@ describe('Ring Groups', () => {
         ok: true,
         status: 200,
         json: async () => mockResponse,
+        text: async () => JSON.stringify(mockResponse),
         headers: new Headers(),
       });
 
@@ -87,6 +89,7 @@ describe('Ring Groups', () => {
         ok: true,
         status: 200,
         json: async () => mockResponse,
+        text: async () => JSON.stringify(mockResponse),
         headers: new Headers(),
       });
 
@@ -106,6 +109,7 @@ describe('Ring Groups', () => {
         ok: true,
         status: 200,
         json: async () => ({ id: 'rg_123', timeout_seconds: 45 }),
+        text: async () => JSON.stringify({ id: 'rg_123', timeout_seconds: 45 }),
         headers: new Headers(),
       });
 
@@ -147,6 +151,14 @@ describe('Ring Groups', () => {
           next_page_url: null,
           previous_page_url: null,
         }),
+        text: async () =>
+          JSON.stringify({
+            object: 'list',
+            url: '/v1/ring_groups',
+            data: [],
+            next_page_url: null,
+            previous_page_url: null,
+          }),
         headers: new Headers(),
       });
 
@@ -169,6 +181,14 @@ describe('Ring Groups', () => {
           next_page_url: null,
           previous_page_url: null,
         }),
+        text: async () =>
+          JSON.stringify({
+            object: 'list',
+            url: '/v1/ring_groups',
+            data: [],
+            next_page_url: null,
+            previous_page_url: null,
+          }),
         headers: new Headers(),
       });
 
@@ -193,6 +213,14 @@ describe('Ring Groups', () => {
           phone_number: null,
           created_at: '2024-01-01T00:00:00Z',
         }),
+        text: async () =>
+          JSON.stringify({
+            id: 'rgm_123',
+            ring_group_id: 'rg_123',
+            extension: 'user_456',
+            phone_number: null,
+            created_at: '2024-01-01T00:00:00Z',
+          }),
         headers: new Headers(),
       });
 
@@ -220,6 +248,14 @@ describe('Ring Groups', () => {
           phone_number: '+14155551234',
           created_at: '2024-01-01T00:00:00Z',
         }),
+        text: async () =>
+          JSON.stringify({
+            id: 'rgm_124',
+            ring_group_id: 'rg_123',
+            extension: null,
+            phone_number: '+14155551234',
+            created_at: '2024-01-01T00:00:00Z',
+          }),
         headers: new Headers(),
       });
 
