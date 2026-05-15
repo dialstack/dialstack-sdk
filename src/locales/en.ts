@@ -776,10 +776,12 @@ export const en = {
       voiceApp: 'Voice App',
       menu: 'IVR Menu',
       audioClip: 'Audio Clip',
+      hangUp: 'Hang Up',
     },
     nodeDescriptions: {
       menu: 'Play prompt and route by keypress',
       audioClip: 'Play an audio clip',
+      hangUp: 'End the call',
     },
     exits: {
       open: 'Open',
@@ -820,6 +822,7 @@ export const defaultDialPlanLocale: DialPlanLocale = {
     voiceApp: 'Voice App',
     menu: 'IVR Menu',
     audioClip: 'Audio Clip',
+    hangUp: 'Hang Up',
   },
   exits: {
     open: 'Open',
@@ -837,6 +840,7 @@ export const defaultDialPlanLocale: DialPlanLocale = {
     voiceApp: 'Route to a voice application',
     menu: 'Play prompt and route by keypress',
     audioClip: 'Play an audio clip',
+    hangUp: 'End the call',
   },
   targetTypes: {
     user: 'User',

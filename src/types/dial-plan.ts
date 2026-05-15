@@ -109,6 +109,12 @@ export interface VoiceAppNodeConfig {
   next?: string;
 }
 
+/**
+ * Configuration for a hang_up node. Terminates the call with normal clearing.
+ * Zero-config; the empty object `{}` is the canonical wire form.
+ */
+export type HangUpNodeConfig = Record<string, never>;
+
 // ============================================================================
 // Dial Plan Node Types
 // ============================================================================
@@ -121,7 +127,8 @@ export type DialPlanNodeType =
   | 'external_dial'
   | 'menu'
   | 'audio_clip'
-  | 'voice_app';
+  | 'voice_app'
+  | 'hang_up';
 
 /**
  * Base interface for all dial plan nodes.
@@ -190,6 +197,14 @@ export interface VoiceAppNode extends DialPlanNodeBase {
 }
 
 /**
+ * A hang_up node in the dial plan. Terminates the call with normal clearing.
+ */
+export interface HangUpNode extends DialPlanNodeBase {
+  type: 'hang_up';
+  config: HangUpNodeConfig;
+}
+
+/**
  * Union type for all dial plan node types.
  */
 export type DialPlanNode =
@@ -199,7 +214,8 @@ export type DialPlanNode =
   | ExternalDialNode
   | MenuNode
   | AudioClipNode
-  | VoiceAppNode;
+  | VoiceAppNode
+  | HangUpNode;
 
 // ============================================================================
 // Dial Plan Types
@@ -239,6 +255,7 @@ export interface DialPlanLocale {
     voiceApp: string;
     menu: string;
     audioClip: string;
+    hangUp: string;
   };
   exits: {
     open: string;
@@ -256,6 +273,7 @@ export interface DialPlanLocale {
     voiceApp: string;
     menu: string;
     audioClip: string;
+    hangUp: string;
   };
   targetTypes: {
     user: string;
@@ -336,7 +354,8 @@ export type GraphNodeType =
   | 'externalDial'
   | 'voiceApp'
   | 'menu'
-  | 'audioClip';
+  | 'audioClip'
+  | 'hangUp';
 
 /**
  * Data payload for the Start node.
@@ -426,6 +445,15 @@ export interface AudioClipNodeData extends Record<string, unknown> {
   locale?: DialPlanLocale;
 }
 
+/**
+ * Data payload for a Hang Up node in the graph.
+ */
+export interface HangUpNodeData extends Record<string, unknown> {
+  label: string;
+  originalNode: HangUpNode;
+  locale?: DialPlanLocale;
+}
+
 /** Union type for all graph node data */
 export type GraphNodeData =
   | StartNodeData
@@ -435,7 +463,8 @@ export type GraphNodeData =
   | ExternalDialNodeData
   | VoiceAppNodeData
   | MenuNodeData
-  | AudioClipNodeData;
+  | AudioClipNodeData
+  | HangUpNodeData;
 
 // ============================================================================
 // Component Types

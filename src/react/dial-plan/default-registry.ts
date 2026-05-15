@@ -13,6 +13,7 @@ import { config as voiceApp } from './nodes/VoiceAppNode';
 import { config as voicemail } from './nodes/VoicemailNode';
 import { config as menu } from './nodes/MenuNode';
 import { config as audioClip } from './nodes/AudioClipNode';
+import { config as hangUp } from './nodes/HangUpNode';
 
 export const defaultRegistry = new NodeTypeRegistry();
 
@@ -27,6 +28,7 @@ export const nodeDefinitions: NodeDefinition[] = [
   voicemail,
   menu,
   audioClip,
+  hangUp,
 ];
 
 for (const def of nodeDefinitions) {
