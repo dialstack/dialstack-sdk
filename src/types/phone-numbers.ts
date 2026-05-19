@@ -27,6 +27,8 @@ export interface DIDItem {
   expires_at?: string | null;
   disconnected_at?: string | null;
   outbound_enabled: boolean;
+  fax_enabled: boolean;
+  config?: DIDConfig;
   caller_id_name?: string | null;
   directory_listing_name?: string | null;
   directory_listing_type?: DirectoryListingType;
@@ -34,6 +36,17 @@ export interface DIDItem {
   routing_target?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * DID-level configuration blob (fax notification recipients today, more
+ * sub-keys later). Mirrors lib/models/did.go DIDConfig.
+ */
+export interface DIDConfig {
+  fax_notifications?: {
+    recipients?: string[];
+    attach_pdf?: boolean;
+  };
 }
 
 /**
@@ -54,6 +67,9 @@ export interface UpdatePhoneNumberRequest {
   directory_listing_location_id?: string;
   caller_id_name?: string;
   caller_id_visibility?: 'PUBLIC' | 'PRIVATE';
+  fax_enabled?: boolean;
+  /** Pass `null` to clear the per-DID config blob. */
+  config?: DIDConfig | null;
 }
 
 /**

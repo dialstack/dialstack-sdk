@@ -36,6 +36,7 @@ import type {
   PortEligibilityResult,
 } from './number-porting';
 import type { PaginatedResponse, DIDItem, UpdatePhoneNumberRequest } from './phone-numbers';
+import type { FaxItem, CreateFaxRequest, ListFaxesOptions } from './fax';
 import type { AIAgent, UpdateAIAgentRequest } from './ai-agent';
 import type {
   DECTBase,
@@ -174,6 +175,17 @@ export interface VoicemailsResource {
   markAsRead(voicemailId: string): Promise<void>;
   /** Delete a voicemail */
   delete(voicemailId: string): Promise<void>;
+}
+
+export interface FaxesResource {
+  /** List faxes for the account */
+  list(options?: ListFaxesOptions): Promise<PaginatedResponse<FaxItem>>;
+  /** Submit an outbound fax against a previously uploaded /v1/files entry */
+  create(data: CreateFaxRequest): Promise<FaxItem>;
+  /** Retrieve a fax by ID */
+  retrieve(faxId: string): Promise<FaxItem>;
+  /** Soft-delete a fax (the referenced file keeps its own lifecycle) */
+  del(faxId: string): Promise<void>;
 }
 
 export interface PhoneNumbersResource {
@@ -477,6 +489,7 @@ export interface DialStackInstance {
 
   calls: CallsResource;
   voicemails: VoicemailsResource;
+  faxes: FaxesResource;
   phoneNumbers: PhoneNumbersResource;
   availablePhoneNumbers: AvailablePhoneNumbersResource;
   phoneNumberOrders: PhoneNumberOrdersResource;

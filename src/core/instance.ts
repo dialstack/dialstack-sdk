@@ -25,6 +25,9 @@ import type {
   PaginatedResponse,
   DIDItem,
   UpdatePhoneNumberRequest,
+  FaxItem,
+  CreateFaxRequest,
+  ListFaxesOptions,
   DeviceLine,
   Device,
   ProvisionedDevice,
@@ -674,6 +677,60 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       }
       const data = await response.json();
       return (data.data ?? []).map((r: NamedResource) => ({ id: r.id, name: r.name }));
+    },
+  };
+
+  faxes = {
+    list: async (options?: ListFaxesOptions): Promise<PaginatedResponse<FaxItem>> => {
+      const params = new URLSearchParams();
+      if (options?.limit) params.set('limit', String(options.limit));
+      if (options?.direction) params.set('direction', options.direction);
+      if (options?.status) params.set('status', options.status);
+      if (options?.did_id) params.set('did_id', options.did_id);
+      const queryString = params.toString();
+      const path = queryString ? `/v1/faxes?${queryString}` : '/v1/faxes';
+      const response = await this.fetchApi(path);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new ApiError(
+          `Failed to list faxes: ${response.status} ${errorText}`,
+          response.status
+        );
+      }
+      return response.json();
+    },
+    create: async (data: CreateFaxRequest): Promise<FaxItem> => {
+      const response = await this.fetchApi('/v1/faxes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new ApiError(
+          `Failed to create fax: ${response.status} ${errorText}`,
+          response.status
+        );
+      }
+      return response.json();
+    },
+    retrieve: async (faxId: string): Promise<FaxItem> => {
+      const response = await this.fetchApi(`/v1/faxes/${faxId}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new ApiError(`Failed to get fax: ${response.status} ${errorText}`, response.status);
+      }
+      return response.json();
+    },
+    del: async (faxId: string): Promise<void> => {
+      const response = await this.fetchApi(`/v1/faxes/${faxId}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new ApiError(
+          `Failed to delete fax: ${response.status} ${errorText}`,
+          response.status
+        );
+      }
     },
   };
 

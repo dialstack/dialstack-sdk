@@ -106,6 +106,7 @@ export async function loadDialstackAndInitialize(
     // Resource namespaces — delegate directly to the instance properties
     calls: instance.calls,
     voicemails: instance.voicemails,
+    faxes: instance.faxes,
     phoneNumbers: instance.phoneNumbers,
     availablePhoneNumbers: instance.availablePhoneNumbers,
     phoneNumberOrders: instance.phoneNumberOrders,

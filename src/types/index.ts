@@ -101,6 +101,7 @@ export type {
 export type {
   PaginatedResponse,
   DIDItem,
+  DIDConfig,
   DirectoryListingType,
   UpdatePhoneNumberRequest,
   PhoneNumberStatus,
@@ -108,6 +109,15 @@ export type {
   PhoneNumbersClasses,
   PhoneNumbersElement,
 } from './phone-numbers';
+
+export type {
+  FaxItem,
+  FaxDirection,
+  FaxStatus,
+  FaxTransport,
+  CreateFaxRequest,
+  ListFaxesOptions,
+} from './fax';
 
 // AI agent types
 export type { AIAgent, FAQItem, SchedulingConfig, UpdateAIAgentRequest } from './ai-agent';
