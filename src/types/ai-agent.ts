@@ -12,7 +12,7 @@ export interface FAQItem {
   answer: string;
 }
 
-/** Webhook config for tool-calls. Server-managed; not edited by the SDK. */
+/** Webhook config for tool-calls. Privileged host surfaces may edit this in host mode. */
 export interface SchedulingConfig {
   webhook_url?: string;
 }
@@ -27,6 +27,7 @@ export interface AIAgent {
   instructions?: string | null;
   faq_responses: FAQItem[];
   scheduling?: SchedulingConfig | null;
+  extension_number?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -36,8 +37,9 @@ export interface AIAgent {
  *
  * The API treats `faq_responses` as authoritative-replace: omitting it
  * preserves the stored value, sending it (even as `[]`) overwrites all
- * items. `scheduling` is intentionally not exposed here — host apps
- * configure it server-to-server.
+ * items. `scheduling` is intentionally not exposed on the SDK-owned update
+ * request. Privileged host surfaces can receive scheduling through
+ * `AIAgentHostSubmitPayload` and decide whether to forward it server-side.
  */
 export interface UpdateAIAgentRequest {
   name?: string;
@@ -45,4 +47,35 @@ export interface UpdateAIAgentRequest {
   greeting_name?: string | null;
   instructions?: string | null;
   faq_responses?: FAQItem[];
+}
+
+export interface AIAgentFormValues {
+  name?: string;
+  extension_number?: string | null;
+  persona_name?: string | null;
+  greeting_name?: string | null;
+  instructions?: string | null;
+  faq_responses?: FAQItem[];
+  scheduling?: SchedulingConfig | null;
+}
+
+export interface AIAgentHostSubmitPayload {
+  name: string;
+  extension_number?: string;
+  persona_name?: string;
+  greeting_name?: string;
+  instructions?: string;
+  faq_responses: FAQItem[];
+  scheduling?: SchedulingConfig;
+}
+
+export interface AIAgentHostCreateResult {
+  agentId: string;
+  voiceAppId?: string;
+  name?: string;
+}
+
+export interface AIAgentExtensionAvailabilityResult {
+  available: boolean;
+  message?: string;
 }

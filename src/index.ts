@@ -58,6 +58,10 @@ export type {
   PhoneNumbersClasses,
   // AI agent types
   AIAgent,
+  AIAgentExtensionAvailabilityResult,
+  AIAgentFormValues,
+  AIAgentHostCreateResult,
+  AIAgentHostSubmitPayload,
   FAQItem,
   SchedulingConfig,
   UpdateAIAgentRequest,

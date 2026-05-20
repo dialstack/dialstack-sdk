@@ -280,8 +280,9 @@ export interface AIAgentsResource {
   retrieve(aiAgentId: string): Promise<AIAgent>;
   /**
    * Update an AI agent. Fields omitted from `data` are preserved server-side;
-   * passing `faq_responses` replaces the full list. `scheduling` is not
-   * exposed and stays under host-app control.
+   * passing `faq_responses` replaces the full list. Privileged host surfaces
+   * handle scheduling through `AIAgentHostSubmitPayload`, not this SDK-owned
+   * update request.
    */
   update(aiAgentId: string, data: UpdateAIAgentRequest): Promise<AIAgent>;
 }

@@ -15,6 +15,12 @@ import type { PhoneNumberOrderingElement } from './phone-number-ordering';
 import type { PhoneNumbersElement } from './phone-numbers';
 import type { LoaderStart, LoadError } from './callbacks';
 import type { DialStackInstanceImpl } from './core';
+import type {
+  AIAgentExtensionAvailabilityResult,
+  AIAgentFormValues,
+  AIAgentHostCreateResult,
+  AIAgentHostSubmitPayload,
+} from './ai-agent';
 
 // ============================================================================
 // Display Options
@@ -388,14 +394,44 @@ export interface CallHistoryElement extends Omit<BaseComponentElement, 'setClass
  * because there's exactly one managed agent per practice and the back-office
  * label is invisible to callers.
  */
-export type AIAgentField = 'name' | 'persona_name' | 'greeting_name' | 'instructions' | 'faq';
+export type AIAgentField =
+  | 'name'
+  | 'extension_number'
+  | 'persona_name'
+  | 'greeting_name'
+  | 'instructions'
+  | 'faq'
+  | 'scheduling_webhook'
+  | 'secret';
 
 /**
  * AIAgent component element interface
  */
 export interface AIAgentElement extends Omit<BaseComponentElement, 'setClasses'> {
   setAgentId: (agentId: string) => void;
+  setMode: (mode: 'edit' | 'create') => void;
+  setSubmitMode: (mode: 'sdk' | 'host') => void;
   setHideFields: (fields: AIAgentField[]) => void;
+  setInitialValues: (values: AIAgentFormValues) => void;
+  setSecret: (secret: string | null) => void;
+  setOnCreateRequested: (
+    handler:
+      | ((
+          payload: AIAgentHostSubmitPayload
+        ) => AIAgentHostCreateResult | Promise<AIAgentHostCreateResult>)
+      | undefined
+  ) => void;
+  setOnSaveRequested: (
+    handler: ((payload: AIAgentHostSubmitPayload) => void | Promise<void>) | undefined
+  ) => void;
+  setOnCheckExtensionAvailability: (
+    handler:
+      | ((
+          extensionNumber: string
+        ) => AIAgentExtensionAvailabilityResult | Promise<AIAgentExtensionAvailabilityResult>)
+      | undefined
+  ) => void;
+  setOnRotateSecretRequested: (handler: (() => void | Promise<void>) | undefined) => void;
 }
 
 /**

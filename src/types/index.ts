@@ -120,7 +120,16 @@ export type {
 } from './fax';
 
 // AI agent types
-export type { AIAgent, FAQItem, SchedulingConfig, UpdateAIAgentRequest } from './ai-agent';
+export type {
+  AIAgent,
+  AIAgentExtensionAvailabilityResult,
+  AIAgentFormValues,
+  AIAgentHostCreateResult,
+  AIAgentHostSubmitPayload,
+  FAQItem,
+  SchedulingConfig,
+  UpdateAIAgentRequest,
+} from './ai-agent';
 
 // Account onboarding types
 export type {

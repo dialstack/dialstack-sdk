@@ -50,6 +50,10 @@ export type {
   CallLogRowRenderer,
   // AI agent types
   AIAgent,
+  AIAgentExtensionAvailabilityResult,
+  AIAgentFormValues,
+  AIAgentHostCreateResult,
+  AIAgentHostSubmitPayload,
   FAQItem,
   SchedulingConfig,
   UpdateAIAgentRequest,

@@ -24,6 +24,10 @@ export const en = {
     loadFailed: 'Failed to load AI agent: {message}',
     fields: {
       name: 'Name',
+      namePlaceholder: 'Front Desk Agent',
+      extensionNumber: 'Extension',
+      extensionNumberPlaceholder: '700',
+      extensionChecking: 'Checking extension...',
       personaName: 'Persona name',
       personaNamePlaceholder: 'e.g. Receptionist',
       personaNameHint: 'How the agent introduces itself on calls.',
@@ -33,6 +37,8 @@ export const en = {
       greetingNameHintGeneric:
         'Used in the call greeting (e.g. "Thanks for calling [your business]").',
       instructions: 'Instructions',
+      instructionsPlaceholder:
+        'Provide additional instructions for how the AI agent should behave during calls...',
       instructionsHint: 'Plain-English guidance for the agent: tone, what to do, what to escalate.',
       faq: 'FAQ',
       faqEmpty: 'No FAQ entries yet. Add one to teach the agent a recurring question.',
@@ -44,6 +50,17 @@ export const en = {
       faqRemove: 'Remove',
       faqRemoveLabel: 'Remove FAQ entry {index}',
       faqAdd: 'Add FAQ entry',
+      scheduling: 'Scheduling',
+      schedulingHint:
+        'Connect your AI agent to an external scheduling system. Clear the URL to disable scheduling.',
+      webhookUrl: 'Webhook URL',
+      webhookUrlHint:
+        'Base URL for scheduling webhooks. DialStack appends tool-call paths automatically.',
+      webhookUrlPlaceholder: 'https://example.com/api/dialstack/webhooks',
+      secret: 'Webhook secret',
+      secretHint: 'Used to verify tool-call webhooks sent from this AI agent to your integration.',
+      copySecret: 'Copy webhook secret',
+      rotateSecret: 'Rotate secret',
     },
     save: 'Save',
     saving: 'Saving…',
@@ -57,6 +74,12 @@ export const en = {
       faqMaxItems: 'FAQ supports up to {max} entries.',
       faqIncompleteEntry: 'Every FAQ entry needs both a question and an answer.',
       faqFieldMaxLength: 'FAQ fields must be {max} characters or fewer.',
+      extensionNumeric: 'Extension must contain only digits.',
+      extensionUnavailable: 'Extension number is already in use.',
+      schedulingUrlMaxLength: 'Webhook URL must be {max} characters or fewer.',
+      schedulingUrlHttpsRequired: 'Webhook URL must start with https://.',
+      hostCreateRequired: 'This form is waiting for the host app to create the AI agent.',
+      hostSaveRequired: 'This form is waiting for the host app to save the AI agent.',
     },
   },
   voicemails: {
