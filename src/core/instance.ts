@@ -35,6 +35,9 @@ import type {
   UpdateDeskphoneRequest,
   CreateDeskphoneLineRequest,
   UpdateDeskphoneLineRequest,
+  CreateDeviceRequest,
+  CreateDeviceResponse,
+  UpdateDeviceRequest,
   DeviceListOptions,
   ProvisioningEvent,
   ProvisioningEventListOptions,
@@ -62,6 +65,7 @@ import type {
   UpdateLocationRequest,
   OnboardingEndpoint,
   CreateEndpointRequest,
+  UpdateEndpointRequest,
   E911ValidationResult,
   NamedResource,
 } from '../types';
@@ -1073,6 +1077,17 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   };
 
   devices = {
+    create: async (request: CreateDeviceRequest): Promise<CreateDeviceResponse> => {
+      const response = await this.fetchApi('/v1/devices', {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create device: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
     retrieve: async (id: string): Promise<Device> => {
       const response = await this.fetchApi(`/v1/devices/${id}`);
       if (!response.ok) {
@@ -1101,6 +1116,17 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
 
       const data = await response.json();
       return data.data ?? [];
+    },
+    update: async (id: string, request: UpdateDeviceRequest): Promise<Device> => {
+      const response = await this.fetchApi(`/v1/devices/${id}`, {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to update device: ${response.status} ${errorText}`);
+      }
+      return response.json();
     },
   };
 
@@ -1350,6 +1376,21 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
 
         const data = await response.json();
         return data.data ?? [];
+      },
+      update: async (
+        userId: string,
+        endpointId: string,
+        request: UpdateEndpointRequest
+      ): Promise<OnboardingEndpoint> => {
+        const response = await this.fetchApi(`/v1/users/${userId}/endpoints/${endpointId}`, {
+          method: 'POST',
+          body: JSON.stringify(request),
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to update endpoint: ${response.status} ${errorText}`);
+        }
+        return response.json();
       },
     },
   };

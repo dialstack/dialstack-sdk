@@ -13,6 +13,9 @@ import type {
 import type {
   CreateDeskphoneRequest,
   UpdateDeskphoneRequest,
+  CreateDeviceRequest,
+  CreateDeviceResponse,
+  UpdateDeviceRequest,
   DeviceListOptions,
   ProvisioningEventListOptions,
   Device,
@@ -36,7 +39,11 @@ import type {
 } from '../types/account-onboarding';
 import type { Extension } from '../types/dial-plan';
 import type { CreateDeskphoneLineRequest, DeviceLine } from '../types/device';
-import type { OnboardingEndpoint, CreateEndpointRequest } from '../types/account-onboarding';
+import type {
+  OnboardingEndpoint,
+  CreateEndpointRequest,
+  UpdateEndpointRequest,
+} from '../types/account-onboarding';
 import {
   MOCK_CALLS,
   MOCK_VOICEMAILS,
@@ -581,10 +588,37 @@ export function createMockInstance(
     },
 
     devices: {
+      create: async (_request: CreateDeviceRequest): Promise<CreateDeviceResponse> => {
+        throw new Error('Not implemented in mock');
+      },
       retrieve: async (_id: string) => {
         throw new Error('Not implemented in mock');
       },
       list: async (_options?: DeviceListOptions) => [...mockDevices],
+      update: async (id: string, request: UpdateDeviceRequest) => {
+        const idx = mockDevices.findIndex((d) => d.id === id);
+        if (idx !== -1) {
+          const updated = {
+            ...mockDevices[idx],
+            ...request,
+            updated_at: new Date().toISOString(),
+          } as Device;
+          mockDevices[idx] = updated;
+          return updated;
+        }
+        return {
+          id,
+          type: 'deskphone' as const,
+          mac_address: '00:00:00:00:00:00',
+          vendor: 'snom',
+          model: 'mock',
+          status: 'pending-sync' as const,
+          lines: [],
+          ...request,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as Device;
+      },
     },
 
     dectBases: {
@@ -760,6 +794,27 @@ export function createMockInstance(
         },
         list: async (userId: string): Promise<OnboardingEndpoint[]> =>
           mockEndpoints.get(userId) ?? [],
+        update: async (
+          userId: string,
+          endpointId: string,
+          request: UpdateEndpointRequest
+        ): Promise<OnboardingEndpoint> => {
+          await delay();
+          const existing = mockEndpoints.get(userId) ?? [];
+          const idx = existing.findIndex((e) => e.id === endpointId);
+          if (idx === -1) {
+            throw new Error(`endpoint not found: ${endpointId}`);
+          }
+          const updated: OnboardingEndpoint = {
+            ...existing[idx],
+            ...(request.name !== undefined ? { name: request.name } : {}),
+            updated_at: new Date().toISOString(),
+          };
+          const next = [...existing];
+          next[idx] = updated;
+          mockEndpoints.set(userId, next);
+          return updated;
+        },
       },
     },
 

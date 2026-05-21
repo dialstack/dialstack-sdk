@@ -25,6 +25,9 @@ import type {
   UpdateDeskphoneRequest,
   CreateDeskphoneLineRequest,
   UpdateDeskphoneLineRequest,
+  CreateDeviceRequest,
+  CreateDeviceResponse,
+  UpdateDeviceRequest,
   DeviceListOptions,
   ProvisioningEvent,
   ProvisioningEventListOptions,
@@ -61,6 +64,7 @@ import type {
   UpdateLocationRequest,
   OnboardingEndpoint,
   CreateEndpointRequest,
+  UpdateEndpointRequest,
   E911ValidationResult,
 } from './account-onboarding';
 
@@ -338,10 +342,18 @@ export interface DeskphonesResource {
 }
 
 export interface DevicesResource {
+  /**
+   * Create a device (deskphone, DECT base, or DECT handset). Returns the
+   * minimal `{id, type}` payload from `POST /v1/devices`; call
+   * `retrieve(id)` afterward if you need the full device.
+   */
+  create(request: CreateDeviceRequest): Promise<CreateDeviceResponse>;
   /** Retrieve a device by ID */
   retrieve(id: string): Promise<Device>;
   /** List all devices */
   list(options?: DeviceListOptions): Promise<Device[]>;
+  /** Update a device */
+  update(id: string, request: UpdateDeviceRequest): Promise<Device>;
 }
 
 export interface DECTHandsetsResource {
@@ -399,6 +411,12 @@ export interface UserEndpointsResource {
   create(userId: string, request?: CreateEndpointRequest): Promise<OnboardingEndpoint>;
   /** List endpoints for a user */
   list(userId: string): Promise<OnboardingEndpoint[]>;
+  /** Update an endpoint */
+  update(
+    userId: string,
+    endpointId: string,
+    request: UpdateEndpointRequest
+  ): Promise<OnboardingEndpoint>;
 }
 
 export interface UsersResource {

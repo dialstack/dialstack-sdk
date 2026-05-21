@@ -38,6 +38,8 @@ export interface DECTBase {
   vendor: string;
   /** Device model (e.g., "M500", "M700", "M900") */
   model?: string;
+  /** Human-friendly label for the base. `null` when unassigned. */
+  name?: string | null;
   /** Current provisioning status */
   status: DeviceStatus;
   /** Role in multicell deployment */
@@ -52,6 +54,9 @@ export interface DECTBase {
   current_ip_address?: string;
   /** ISO 8601 timestamp of last successful config fetch */
   last_provisioned_at?: string;
+  /** Physical E911 location for this base. All handsets paired with this base
+   *  share this location. `null` when unassigned. */
+  location_id?: string | null;
   /** Associated handsets (when eager-loaded) */
   handsets?: DECTHandset[];
   /** ISO 8601 timestamp */
@@ -80,8 +85,9 @@ export type HandsetStatus = 'unpaired' | 'pending-sync' | 'registered' | 'provis
 export interface DECTHandset {
   /** TypeID with `decth_` prefix */
   id: string;
-  /** TypeID of the parent base station */
-  base_id: string;
+  /** Parent base station. `null` when the handset is stocked but not yet
+   *  paired with a base — set this field to a base ID to pair it. */
+  base_id: string | null;
   /** International Portable Equipment Identity (20-char unique identifier) */
   ipei: string;
   /** Current handset status */
@@ -137,6 +143,10 @@ export interface DECTExtension {
 
 /**
  * Request payload for creating a new DECT base station.
+ *
+ * Note: location_id is not on this legacy request type. To set or clear a
+ * base's E911 location, use the unified `/v1/devices` endpoint, which
+ * supports tri-state `location_id` (omit / `loc_…` / `null`).
  */
 export interface CreateDECTBaseRequest {
   /** Hardware MAC address (e.g., "00:04:13:aa:bb:cc") */
@@ -151,6 +161,8 @@ export interface CreateDECTBaseRequest {
 
 /**
  * Request payload for updating a DECT base station.
+ *
+ * See CreateDECTBaseRequest for the rationale on the missing location_id.
  */
 export interface UpdateDECTBaseRequest {
   /** Device model */

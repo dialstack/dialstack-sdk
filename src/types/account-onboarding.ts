@@ -182,6 +182,10 @@ export interface CreateEndpointRequest {
   name?: string;
 }
 
+export interface UpdateEndpointRequest {
+  name?: string;
+}
+
 export interface E911ValidationResult {
   adjusted: boolean;
   address?: {

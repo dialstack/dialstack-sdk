@@ -38,6 +38,20 @@ export interface Device {
   vendor: string;
   /** Device model (e.g., "D785", "M700") */
   model?: string;
+  /**
+   * Human-friendly label for the device. Set by admins on deskphones,
+   * DECT bases, and DECT handsets; `null` when unassigned. (Handset
+   * responses also expose this value as `display_name` for backwards
+   * compatibility with the legacy DECT API.)
+   */
+  name?: string | null;
+  /**
+   * Physical E911 location for this device. Set on deskphones and DECT
+   * bases; `null` when unassigned. DECT handsets have no `location_id` of
+   * their own — they inherit from the paired base and the handset
+   * response carries `null` here.
+   */
+  location_id?: string | null;
   /** Current provisioning status */
   status: DeviceStatus;
   /** Device-specific settings overrides */
@@ -134,6 +148,10 @@ export interface ProvisionedDevice {
   vendor: string;
   /** Device model (e.g., "D785", "T48S") */
   model?: string;
+  /** Human-friendly label for the deskphone. `null` when unassigned. */
+  name?: string | null;
+  /** Physical E911 location. `null` when unassigned. */
+  location_id?: string | null;
   /** Current provisioning status */
   status: DeviceStatus;
   /** TypeID of the provisioning profile, if using profile-based config */
@@ -180,6 +198,71 @@ export interface UpdateDeskphoneRequest {
   status?: DeviceStatus;
   /** Device-specific settings overrides */
   overrides?: DeviceSettings;
+}
+
+/**
+ * Minimal response returned by `POST /v1/devices`. Carries only the
+ * server-assigned ID and the discriminator; call
+ * `dialstack.devices.retrieve(id)` to fetch the full device.
+ */
+export interface CreateDeviceResponse {
+  /** TypeID with `dev_`, `dectb_`, or `decth_` prefix */
+  id: string;
+  /** The kind of device that was created. */
+  type: DeviceType;
+}
+
+/**
+ * Request payload for `POST /v1/devices`. The `type` field selects which
+ * device kind to create; type-specific fields are required as noted.
+ */
+export interface CreateDeviceRequest {
+  /** Device kind to create. */
+  type: DeviceType;
+  /** Hardware MAC address. Required for `deskphone` and `dect_base`. */
+  mac_address?: string;
+  /** Device model (optional, can be auto-detected for deskphones). */
+  model?: string;
+  /** Human-friendly label. */
+  name?: string;
+  /** Device-specific settings overrides. */
+  overrides?: DeviceSettings;
+  /** Multicell role. `dect_base` only. */
+  multicell_role?: MulticellRole;
+  /** Parent DECT base. `dect_handset` only; omit to stock as unpaired. */
+  base_id?: string;
+  /** Handset IPEI. Required for `dect_handset`. */
+  ipei?: string;
+  /**
+   * Physical E911 location. Set on `deskphone` or `dect_base`; handsets
+   * inherit from their paired base.
+   */
+  location_id?: string;
+}
+
+/**
+ * Request payload for `POST /v1/devices/{id}`. Tri-state fields (`name`,
+ * `location_id`, `base_id`) accept three values: omit to leave unchanged,
+ * a string to set, or explicit JSON `null` to clear.
+ */
+export interface UpdateDeviceRequest {
+  /** Device model. */
+  model?: string;
+  /** Device status. */
+  status?: DeviceStatus;
+  /** Device-specific settings overrides. */
+  overrides?: DeviceSettings;
+  /** Handset IPEI. `dect_handset` only. */
+  ipei?: string;
+  /** Tri-state human-friendly label. */
+  name?: string | null;
+  /** Tri-state dispatch location. `deskphone` and `dect_base` only. */
+  location_id?: string | null;
+  /**
+   * Tri-state parent base. `dect_handset` only — repair to a different
+   * base (string) or unpair (`null`).
+   */
+  base_id?: string | null;
 }
 
 // ============================================================================

@@ -71,6 +71,7 @@ export type {
   AccountOnboardingClasses,
   OnboardingPortalClasses,
   OnboardingUser,
+  UpdateEndpointRequest,
   // Custom render types
   VoicemailRowRenderer,
   CallLogRowRenderer,
@@ -100,6 +101,9 @@ export type {
   UpdateDeskphoneRequest,
   CreateDeskphoneLineRequest,
   UpdateDeskphoneLineRequest,
+  CreateDeviceRequest,
+  CreateDeviceResponse,
+  UpdateDeviceRequest,
   DeviceListOptions,
   ProvisioningEvent,
   ProvisioningEventListOptions,

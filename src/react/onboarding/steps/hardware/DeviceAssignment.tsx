@@ -172,6 +172,7 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
+  const [dectBases, setDectBases] = useState<DECTBase[]>([]);
   const [dectHandsets, setDectHandsets] = useState<Map<string, DECTHandset[]>>(new Map());
   const [userEndpointMap, setUserEndpointMap] = useState<Map<string, OnboardingEndpoint[]>>(
     new Map()
@@ -267,6 +268,7 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
         );
 
         setDevices(devices);
+        setDectBases(dectBases);
         setDectHandsets(handsetMap);
         setUserEndpointMap(endpointMap);
         setDeviceAssignments(assignments);
@@ -394,6 +396,31 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
         }
       }
 
+      // Backfill location_id on assigned devices that don't have one yet, so
+      // outbound PSTN works as soon as onboarding completes. Devices that
+      // already carry a location keep it; we never override.
+      const defaultLocationId = contextLocations[0]?.id;
+      if (defaultLocationId) {
+        const basesUpdated = new Set<string>();
+        for (const deviceId of deviceAssignments.keys()) {
+          const device = allDevices.find((d) => d.id === deviceId);
+          if (!device) continue;
+          if (device.type === 'deskphone') {
+            const dev = devices.find((d) => d.id === deviceId);
+            if (dev && !dev.location_id) {
+              await dialstack.devices.update(dev.id, { location_id: defaultLocationId });
+            }
+          } else if (device.type === 'dect-handset' && device.baseId) {
+            if (basesUpdated.has(device.baseId)) continue;
+            const base = dectBases.find((b) => b.id === device.baseId);
+            if (base && !base.location_id) {
+              await dialstack.devices.update(base.id, { location_id: defaultLocationId });
+              basesUpdated.add(base.id);
+            }
+          }
+        }
+      }
+
       setIsSubmitting(false);
       onDone();
     } catch (err) {
@@ -405,9 +432,11 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
     initialDeviceRecords,
     deviceAssignments,
     devices,
+    dectBases,
     dectHandsets,
     userEndpointMap,
     allDevices,
+    contextLocations,
     dialstack,
     onDone,
   ]);
