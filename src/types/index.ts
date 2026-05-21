@@ -195,9 +195,6 @@ export type {
 
 // Provisioning configuration types
 export type {
-  // Line key types
-  LineKeyType,
-  LineKey,
   // Audio types
   JitterBufferMode,
   JitterBuffer,

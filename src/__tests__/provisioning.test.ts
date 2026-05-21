@@ -5,8 +5,6 @@
  */
 
 import type {
-  LineKeyType,
-  LineKey,
   JitterBufferMode,
   JitterBuffer,
   AudioSettings,
@@ -22,28 +20,6 @@ import type {
 } from '../types/provisioning';
 
 describe('Provisioning Types', () => {
-  describe('LineKeyType', () => {
-    it('accepts all valid line key types', () => {
-      const types: LineKeyType[] = [
-        'blf',
-        'speed_dial',
-        'dtmf',
-        'line',
-        'voicemail',
-        'url',
-        'multicast',
-        'conference',
-        'transfer',
-        'forward',
-        'park',
-        'intercom',
-        'dnd',
-        'record_toggle',
-      ];
-      expect(types).toHaveLength(14);
-    });
-  });
-
   describe('DeviceSettings', () => {
     it('allows empty object (inherit all from parent)', () => {
       const settings: DeviceSettings = {};
@@ -108,11 +84,6 @@ describe('Provisioning Types', () => {
             autoAnswerEnabled: false,
             srtpEnabled: true,
           },
-          lineKeys: [
-            { position: 1, type: 'line', label: 'Line 1' },
-            { position: 2, type: 'blf', label: 'Boss', value: '1001' },
-            { position: 3, type: 'speed_dial', label: 'Support', value: '+18005551234' },
-          ],
         },
         vendorOverrides: {
           user_phone_wallpaper: 'corporate.png',
@@ -120,7 +91,7 @@ describe('Provisioning Types', () => {
       };
 
       expect(settings.abstractions?.audio?.jitterBuffer?.mode).toBe('adaptive');
-      expect(settings.abstractions?.lineKeys).toHaveLength(3);
+      expect(settings.vendorOverrides?.user_phone_wallpaper).toBe('corporate.png');
     });
   });
 
@@ -136,13 +107,6 @@ describe('Provisioning Types', () => {
   });
 
   describe('Type compile checks', () => {
-    it('LineKeyType accepts valid values', () => {
-      const blfKey: LineKeyType = 'blf';
-      const speedDial: LineKeyType = 'speed_dial';
-      expect(blfKey).toBe('blf');
-      expect(speedDial).toBe('speed_dial');
-    });
-
     it('JitterBufferMode accepts valid values', () => {
       const adaptive: JitterBufferMode = 'adaptive';
       const fixed: JitterBufferMode = 'fixed';
@@ -247,20 +211,6 @@ describe('Provisioning Types', () => {
       expect(full.dndEnabled).toBe(true);
     });
 
-    it('LineKey interface works with all optional fields', () => {
-      const empty: LineKey = {};
-      const partial: LineKey = { position: 1, type: 'blf' };
-      const full: LineKey = {
-        position: 1,
-        type: 'speed_dial',
-        label: 'Support',
-        value: '+18005551234',
-      };
-      expect(empty).toEqual({});
-      expect(partial.type).toBe('blf');
-      expect(full.label).toBe('Support');
-    });
-
     it('AbstractSettings interface works with all optional fields', () => {
       const empty: AbstractSettings = {};
       const partial: AbstractSettings = {
@@ -272,11 +222,10 @@ describe('Provisioning Types', () => {
         regional: { timezone: 'UTC' },
         network: { vlanId: 100 },
         features: { dndEnabled: true },
-        lineKeys: [{ position: 1, type: 'line' }],
       };
       expect(empty).toEqual({});
       expect(partial.regional?.timezone).toBe('UTC');
-      expect(full.lineKeys).toHaveLength(1);
+      expect(full.features?.dndEnabled).toBe(true);
     });
   });
 });

@@ -8,7 +8,6 @@
  * Merge semantics:
  * - All fields are optional - omitting a field means "inherit from parent layer"
  * - Non-nil fields override the parent value
- * - Arrays (lineKeys) replace entirely (no merge)
  * - Maps (vendorOverrides) deep-merge keys
  *
  * @example
@@ -33,44 +32,6 @@
  * };
  * ```
  */
-
-// ============================================================================
-// Line Key Types
-// ============================================================================
-
-/**
- * Types of programmable line keys on desk phones.
- *
- * - `blf`: Busy Lamp Field - monitors extension status
- * - `speed_dial`: One-touch dialing to a number
- * - `dtmf`: Sends DTMF tones when pressed
- * - `line`: SIP line registration
- * - `voicemail`: Direct voicemail access
- * - `url`: Opens a URL or triggers HTTP action
- * - `multicast`: Multicast paging
- * - `conference`: Conference bridge access
- * - `transfer`: Call transfer function
- * - `forward`: Call forwarding function
- * - `park`: Call parking function
- * - `intercom`: Intercom/auto-answer call
- * - `dnd`: Do Not Disturb toggle
- * - `record_toggle`: Call recording toggle
- */
-export type LineKeyType =
-  | 'blf'
-  | 'speed_dial'
-  | 'dtmf'
-  | 'line'
-  | 'voicemail'
-  | 'url'
-  | 'multicast'
-  | 'conference'
-  | 'transfer'
-  | 'forward'
-  | 'park'
-  | 'intercom'
-  | 'dnd'
-  | 'record_toggle';
 
 // ============================================================================
 // Settings Types
@@ -245,29 +206,6 @@ export interface FeatureSettings {
 }
 
 /**
- * Programmable line key configuration.
- */
-export interface LineKey {
-  /**
-   * Key position (1-based index).
-   */
-  position?: number;
-  /**
-   * Type of line key function.
-   */
-  type?: LineKeyType;
-  /**
-   * Display label for the key.
-   */
-  label?: string;
-  /**
-   * Value associated with the key (extension, URL, DTMF sequence, etc.).
-   * Interpretation depends on the key type.
-   */
-  value?: string;
-}
-
-/**
  * Vendor-agnostic device settings.
  * These settings are translated to vendor-specific configuration by the provisioning system.
  */
@@ -292,11 +230,6 @@ export interface AbstractSettings {
    * Feature availability settings.
    */
   features?: FeatureSettings;
-  /**
-   * Programmable line keys configuration.
-   * When specified, replaces the entire line keys array from parent.
-   */
-  lineKeys?: LineKey[];
 }
 
 // ============================================================================
