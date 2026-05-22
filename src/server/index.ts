@@ -212,6 +212,39 @@ export interface AccountSessionCreateResponse {
   expires_at: string;
 }
 
+/**
+ * Parameters for dialstack.userSessions.create().
+ *
+ * `user` is the DialStack user TypeID (user_…) that the resulting token
+ * should authenticate as. The user must already be provisioned under an
+ * account belonging to the calling platform.
+ *
+ * `ttl_seconds` is the requested token lifetime. Defaults server-side to
+ * 3600 (1 hour). Values above 86400 (24 hours) are rejected.
+ */
+export interface UserSessionCreateParams {
+  user: string;
+  ttl_seconds?: number;
+}
+
+/**
+ * Response from dialstack.userSessions.create().
+ *
+ * `user` and `account` echo the identifiers the token was minted for, so
+ * callers can log/track them without decoding the JWT body. Matches the
+ * shape of dialstack.accountSessions.create() which returns `account_id`.
+ *
+ * `client_secret` is the signed JWT to hand to the client. Use it as the
+ * Bearer token when connecting to the WebRTC signalling WebSocket and
+ * when calling /v1/me/* REST endpoints.
+ */
+export interface UserSessionCreateResponse {
+  user: string;
+  account: string;
+  client_secret: string;
+  expires_at: string;
+}
+
 // Transcript types
 export type TranscriptStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
@@ -1215,6 +1248,15 @@ export class DialStack {
       options?: RequestOptions
     ): Promise<AccountSessionCreateResponse> => {
       return this._request('POST', '/v1/account_sessions', params, options);
+    },
+  };
+
+  userSessions = {
+    create: (
+      params: UserSessionCreateParams,
+      options?: RequestOptions
+    ): Promise<UserSessionCreateResponse> => {
+      return this._request('POST', '/v1/user_sessions', params, options);
     },
   };
 
