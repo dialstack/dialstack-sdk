@@ -25,8 +25,10 @@ export const en = {
     fields: {
       name: 'Name',
       namePlaceholder: 'Front Desk Agent',
+      nameHint: 'Internal label shown in lists and call logs. Not heard by callers.',
       extensionNumber: 'Extension',
       extensionNumberPlaceholder: '700',
+      extensionNumberHint: 'Dial this extension from any phone on the account to reach the agent.',
       extensionChecking: 'Checking extension...',
       personaName: 'Persona name',
       personaNamePlaceholder: 'e.g. Receptionist',

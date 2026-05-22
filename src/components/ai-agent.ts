@@ -879,7 +879,7 @@ export class AIAgentComponent extends BaseComponent {
 
     this.shadowRoot.innerHTML = this.renderShell(`
       <div class="ds-ai-agent">
-        ${this.hiddenFields.has('name') ? '' : this.renderTextField('name', f.name, form.name, MAX_NAME, this.saving)}
+        ${this.hiddenFields.has('name') ? '' : this.renderTextField('name', f.name, form.name, MAX_NAME, this.saving, f.namePlaceholder, escape(f.nameHint))}
         ${
           !showHostFields || this.hiddenFields.has('extension_number')
             ? ''
@@ -896,12 +896,12 @@ export class AIAgentComponent extends BaseComponent {
                 <div class="ds-field__hint">${escape(f.instructionsHint)}</div>
               </div>`
         }
-        ${this.hiddenFields.has('faq') ? '' : this.renderFaq(form.faq, canAddFaq)}
         ${
           !showHostFields || this.hiddenFields.has('scheduling_webhook')
             ? ''
             : this.renderSchedulingField(form)
         }
+        ${this.hiddenFields.has('faq') ? '' : this.renderFaq(form.faq, canAddFaq)}
         ${
           this.mode === 'create' || this.hiddenFields.has('secret') || !this.secret
             ? ''
@@ -948,11 +948,12 @@ export class AIAgentComponent extends BaseComponent {
       : this.extensionAvailabilityError
         ? `<div class="ds-field__error" role="alert">${escape(this.extensionAvailabilityError)}</div>`
         : '';
+    const hint = status || `<div class="ds-field__hint">${escape(f.extensionNumberHint)}</div>`;
     return `
       <div class="ds-field">
         <label class="ds-field__label" for="ds-aia-extensionNumber">${escape(f.extensionNumber)}</label>
         <input id="ds-aia-extensionNumber" class="ds-input" type="text" inputmode="numeric" data-field="extensionNumber" value="${escape(form.extensionNumber)}" maxlength="16" placeholder="${escape(f.extensionNumberPlaceholder)}" ${this.saving || this.extensionChecking ? 'disabled' : ''} />
-        ${status}
+        ${hint}
       </div>
     `;
   }
