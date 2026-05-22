@@ -285,6 +285,10 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
     onDirtyChange,
   };
   const initialGraphRef = useRef<{ nodes: Node[]; edges: Edge[] } | null>(null);
+  // Set by handleNodesChange when a drag finishes; the dirty re-check runs in
+  // an effect after the new state has committed, so the functional setNodes
+  // updater can stay pure.
+  const dirtyCheckPendingRef = useRef(false);
   // ---- Fetch dial plan + resolve resources (shared by view and edit modes) ----
   useEffect(() => {
     let cancelled = false;
@@ -367,6 +371,13 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
       serialize(nextNodes, nextEdges);
     setIsDirty(nextDirty);
   }, []);
+
+  // Run a deferred dirty re-check once the post-drag-end state has committed.
+  useEffect(() => {
+    if (!dirtyCheckPendingRef.current) return;
+    dirtyCheckPendingRef.current = false;
+    updateDirty(nodes, edges);
+  }, [nodes, edges, updateDirty]);
 
   // Wrap onEdgesChange to track dirty state on edge removals
   const onEdgesChange = useCallback(
@@ -460,19 +471,24 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
         (c) => c.type !== 'remove' && !(c.type === 'position' && 'id' in c && c.id === '__start__')
       );
       if (filtered.length === 0) return;
-      const updated = applyNodeChanges(filtered, nodesRef.current);
-      setNodes(updated);
-      // Check dirty when positions change (drag end)
       if (filtered.some((c) => c.type === 'position' && !c.dragging)) {
-        updateDirty(updated, edgesRef.current);
+        dirtyCheckPendingRef.current = true;
       }
+      // Functional updater composes with any in-flight setNodes calls (e.g.,
+      // the post-drop re-centering shift) so they don't get clobbered when
+      // React Flow's measurement dispatches arrive in the same frame.
+      setNodes((prev) => applyNodeChanges(filtered, prev));
     },
     [setNodes, setEdges, updateDirty, selectedNodeId]
   );
 
   // ---- Edit mode: add node ----
   const handleAddNode = useCallback(
-    (type: string, position?: { x: number; y: number }) => {
+    (
+      type: string,
+      position?: { x: number; y: number },
+      grabFraction?: { x: number; y: number }
+    ) => {
       const reg = defaultRegistry.get(type);
       if (!reg) return;
 
@@ -497,13 +513,34 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
       });
       setSelectedNodeId(id);
 
-      // After the config panel opens, center the viewport on the new node
-      requestAnimationFrame(() => {
-        reactFlowInstance.setCenter(pos.x, pos.y, {
-          zoom: reactFlowInstance.getZoom(),
-          duration: 200,
+      // After the node mounts and React Flow measures it, shift its position so
+      // the cursor lands at the same fractional spot on the canvas node where
+      // it was grabbed on the palette item (palette and canvas sizes differ).
+      if (grabFraction) {
+        const dropPos = pos;
+        requestAnimationFrame(() => {
+          const el = canvasRef.current?.querySelector(
+            `[data-id="${CSS.escape(id)}"]`
+          ) as HTMLElement | null;
+          if (!el) return;
+          const w = el.offsetWidth;
+          const h = el.offsetHeight;
+          if (!w || !h) return;
+          setNodes((prev) =>
+            prev.map((n) =>
+              n.id === id
+                ? {
+                    ...n,
+                    position: {
+                      x: dropPos.x - grabFraction.x * w,
+                      y: dropPos.y - grabFraction.y * h,
+                    },
+                  }
+                : n
+            )
+          );
         });
-      });
+      }
     },
     [reactFlowInstance, setNodes, updateDirty]
   );
@@ -514,11 +551,15 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
       event.preventDefault();
       const type = event.dataTransfer.getData('application/reactflow');
       if (!type) return;
-      const position = reactFlowInstance.screenToFlowPosition({
+      const [fxStr, fyStr] = event.dataTransfer
+        .getData('application/reactflow-grab-frac')
+        .split(',');
+      const grabFraction = { x: Number(fxStr), y: Number(fyStr) };
+      const dropFlow = reactFlowInstance.screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
       });
-      handleAddNode(type, position);
+      handleAddNode(type, dropFlow, grabFraction);
     },
     [reactFlowInstance, handleAddNode]
   );

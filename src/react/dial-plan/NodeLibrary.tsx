@@ -29,7 +29,14 @@ export function NodeLibrary({ registry, onAddNode, locale }: NodeLibraryProps): 
             draggable={true}
             onClick={() => onAddNode(reg.type)}
             onDragStart={(event) => {
+              // Capture grab as a fraction of the palette item so the cursor
+              // lands at the same relative spot on the canvas node, even when
+              // the node has different dimensions than the palette item.
+              const rect = event.currentTarget.getBoundingClientRect();
+              const fx = (event.clientX - rect.left) / rect.width;
+              const fy = (event.clientY - rect.top) / rect.height;
               event.dataTransfer.setData('application/reactflow', reg.type);
+              event.dataTransfer.setData('application/reactflow-grab-frac', `${fx},${fy}`);
               event.dataTransfer.effectAllowed = 'move';
             }}
             title={description}
