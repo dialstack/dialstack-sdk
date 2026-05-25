@@ -713,6 +713,60 @@ export interface WebhookEvent {
   to_number: string;
 }
 
+export type QueueCallLifecycleEventType =
+  | 'queue.call.queued'
+  | 'queue.call.dispatched'
+  | 'queue.call.answered'
+  | 'queue.call.abandoned'
+  | 'queue.call.timed_out'
+  | 'queue.call.completed';
+
+export interface QueueCallLifecycleEvent {
+  call_id: string;
+  queue_id: string;
+  queue_name: string;
+  from_number: string;
+  from_name: string | null;
+  to_number: string;
+  position_at_admit?: number;
+  wait_seconds?: number;
+}
+
+export interface QueueCallQueuedEvent extends QueueCallLifecycleEvent {
+  queued_at: string;
+}
+
+export interface QueueCallDispatchedEvent extends QueueCallLifecycleEvent {
+  wait_seconds: number;
+  agents_claimed: number;
+  targets_dispatched: number;
+  dispatched_at: string;
+}
+
+export interface QueueCallAnsweredEvent extends QueueCallLifecycleEvent {
+  wait_seconds: number;
+  agent_user_id: string;
+  agent_endpoint_id?: string;
+  answered_at: string;
+}
+
+export interface QueueCallAbandonedEvent extends QueueCallLifecycleEvent {
+  wait_seconds: number;
+  abandoned_at: string;
+}
+
+export interface QueueCallTimedOutEvent extends QueueCallLifecycleEvent {
+  wait_seconds: number;
+  timed_out_at: string;
+}
+
+export interface QueueCallCompletedEvent extends QueueCallLifecycleEvent {
+  wait_seconds: number;
+  agent_user_id: string;
+  agent_endpoint_id?: string;
+  completed_at: string;
+}
+
 // Customer Lookup Webhook types
 export interface CustomerLookupWebhook {
   account_id: string;
