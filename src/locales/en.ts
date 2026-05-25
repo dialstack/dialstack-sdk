@@ -116,8 +116,6 @@ export const en = {
       outbound: 'Outbound',
       internal: 'Internal',
     },
-    routedTo: 'Routed to:',
-    calledBy: 'Called by:',
     statuses: {
       completed: 'Completed',
       noAnswer: 'No Answer',

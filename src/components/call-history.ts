@@ -217,7 +217,7 @@ export class CallHistoryComponent extends BaseComponent {
   /**
    * Format duration in seconds to human readable (e.g., "1m 23s")
    */
-  private formatDuration(seconds: number | undefined): string {
+  private formatDuration(seconds: number | null | undefined): string {
     if (!seconds || seconds === 0) return '0s';
 
     const mins = Math.floor(seconds / 60);

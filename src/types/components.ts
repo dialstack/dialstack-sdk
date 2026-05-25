@@ -222,25 +222,24 @@ export interface QualityMetricLeg {
  */
 export interface CallLog {
   id: string;
-  user_id?: string;
-  endpoint_id?: string;
-  did_id?: string;
-  did_phone_number?: string;
+  user_id: string | null;
+  endpoint_id: string | null;
+  did_id: string | null;
   direction: 'inbound' | 'outbound' | 'internal';
   from_number: string;
-  from_label?: string | null;
+  from_label: string | null;
   to_number: string;
-  to_label?: string | null;
+  to_label: string | null;
   started_at: string;
-  answered_at?: string;
-  ended_at?: string;
-  duration_seconds?: number;
+  answered_at: string | null;
+  ended_at: string | null;
+  duration_seconds: number | null;
   status: 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
-  summary?: string | null;
-  recording_url?: string | null;
+  summary: string | null;
+  recording_url: string | null;
 
-  // Per-leg quality metrics
-  quality_metrics?: QualityMetricLeg[];
+  // Per-leg quality metrics. Empty array for unanswered calls.
+  quality_metrics: QualityMetricLeg[];
 }
 
 /**

@@ -316,39 +316,11 @@ export class CallLogsComponent extends BaseComponent {
     return this.formatPhoneNumber(number);
   }
 
-  /**
-   * Format the "From" cell content based on call direction.
-   * Outbound: DID (caller ID) on top, extension/user as secondary.
-   * Inbound/Internal: external caller or extension.
-   */
   private formatFromCell(call: CallLog): string {
-    if (call.direction === 'outbound' && call.did_phone_number) {
-      const did = this.formatPhoneNumber(call.did_phone_number);
-      const calledBy = this.formatCallParty(call.from_number, call.from_label);
-      return `${did}<br><span class="cell-secondary">${this.t('callLogs.calledBy')} ${calledBy}</span>`;
-    }
-    // Add spacer when the other cell (To) has a secondary line, to keep PSTN numbers aligned
-    if (call.direction === 'inbound' && call.did_phone_number) {
-      return `${this.formatCallParty(call.from_number, call.from_label)}<br><span class="cell-secondary">&nbsp;</span>`;
-    }
     return this.formatCallParty(call.from_number, call.from_label);
   }
 
-  /**
-   * Format the "To" cell content based on call direction.
-   * Inbound: DID (number dialed) on top, routing target as secondary.
-   * Outbound/Internal: external destination or extension.
-   */
   private formatToCell(call: CallLog): string {
-    if (call.direction === 'inbound' && call.did_phone_number) {
-      const did = this.formatPhoneNumber(call.did_phone_number);
-      const routedTo = this.formatCallParty(call.to_number, call.to_label);
-      return `${did}<br><span class="cell-secondary">${this.t('callLogs.routedTo')} ${routedTo}</span>`;
-    }
-    // Add spacer when the other cell (From) has a secondary line, to keep PSTN numbers aligned
-    if (call.direction === 'outbound' && call.did_phone_number) {
-      return `${this.formatCallParty(call.to_number, call.to_label)}<br><span class="cell-secondary">&nbsp;</span>`;
-    }
     return this.formatCallParty(call.to_number, call.to_label);
   }
 
