@@ -147,6 +147,7 @@ export interface OnboardingLocation {
   };
   primary_did_id?: string | null;
   e911_status?: 'none' | 'pending' | 'binding' | 'provisioned' | 'failed';
+  /** @deprecated The operational-status field was retired; always "active". */
   status: string;
   config?: LocationConfig;
   created_at: string;
