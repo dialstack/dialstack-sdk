@@ -118,7 +118,8 @@ export interface Account {
   id: string;
   email: string | null;
   config: AccountConfig;
-  hold_music_clip_id?: string | null;
+  hold_music_clip_id: string | null;
+  main_location_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -143,6 +144,7 @@ export interface AccountUpdateParams {
   email?: string;
   config?: AccountConfig;
   hold_music_clip_id?: string | null;
+  main_location_id?: string;
 }
 
 export interface AccountListParams {
