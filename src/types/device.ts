@@ -6,6 +6,7 @@
 
 import type { DeviceSettings } from './provisioning';
 import type { MulticellRole, DECTHandset } from './dect';
+import type { ButtonCompatibilitySummary } from './button';
 
 // ============================================================================
 // Device Type (unified API)
@@ -52,6 +53,8 @@ export interface Device {
    * response carries `null` here.
    */
   location_id?: string | null;
+  /** Reusable programmable-key template bound to this device. */
+  button_template_id?: string | null;
   /** Current provisioning status */
   status: DeviceStatus;
   /** Device-specific settings overrides */
@@ -80,6 +83,9 @@ export interface Device {
   firmware_version?: string;
   /** Associated handsets (when eager-loaded) */
   handsets?: DECTHandset[];
+
+  /** Programmable-key compatibility for the current effective button set. */
+  compatibility?: ButtonCompatibilitySummary;
 }
 
 /**
@@ -152,6 +158,8 @@ export interface ProvisionedDevice {
   name?: string | null;
   /** Physical E911 location. `null` when unassigned. */
   location_id?: string | null;
+  /** Reusable programmable-key template bound to this deskphone. */
+  button_template_id?: string | null;
   /** Current provisioning status */
   status: DeviceStatus;
   /** TypeID of the provisioning profile, if using profile-based config */
@@ -258,6 +266,8 @@ export interface UpdateDeviceRequest {
   name?: string | null;
   /** Tri-state dispatch location. `deskphone` and `dect_base` only. */
   location_id?: string | null;
+  /** Tri-state programmable-key template binding. */
+  button_template_id?: string | null;
   /**
    * Tri-state parent base. `dect_handset` only — repair to a different
    * base (string) or unpair (`null`).

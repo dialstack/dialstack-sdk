@@ -41,6 +41,15 @@ import type {
   DeviceListOptions,
   ProvisioningEvent,
   ProvisioningEventListOptions,
+  ButtonTemplate,
+  ButtonTemplateWithDetails,
+  TemplateButton,
+  DeviceButtonOverride,
+  MaterializedButton,
+  CreateButtonTemplateRequest,
+  UpdateButtonTemplateRequest,
+  CreateTemplateButtonRequest,
+  CreateDeviceButtonOverrideRequest,
   DECTBase,
   DECTHandset,
   DECTExtension,
@@ -1127,6 +1136,195 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         throw new Error(`Failed to update device: ${response.status} ${errorText}`);
       }
       return response.json();
+    },
+    listButtons: async (id: string): Promise<PaginatedResponse<MaterializedButton>> => {
+      const response = await this.fetchApi(`/v1/devices/${id}/buttons`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to list device buttons: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    listCompatibleButtonTemplates: async (
+      id: string,
+      options?: { limit?: number; starting_after?: string; ending_before?: string }
+    ): Promise<PaginatedResponse<ButtonTemplate>> => {
+      const params = new URLSearchParams();
+      if (options?.limit) params.set('limit', options.limit.toString());
+      if (options?.starting_after) params.set('starting_after', options.starting_after);
+      if (options?.ending_before) params.set('ending_before', options.ending_before);
+      const queryString = params.toString();
+      const path = queryString
+        ? `/v1/devices/${id}/compatible_button_templates?${queryString}`
+        : `/v1/devices/${id}/compatible_button_templates`;
+      const response = await this.fetchApi(path);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Failed to list compatible button templates: ${response.status} ${errorText}`
+        );
+      }
+      return response.json();
+    },
+    listButtonOverrides: async (
+      id: string,
+      options?: { limit?: number; starting_after?: string; ending_before?: string }
+    ): Promise<PaginatedResponse<DeviceButtonOverride>> => {
+      const params = new URLSearchParams();
+      if (options?.limit) params.set('limit', options.limit.toString());
+      if (options?.starting_after) params.set('starting_after', options.starting_after);
+      if (options?.ending_before) params.set('ending_before', options.ending_before);
+      const queryString = params.toString();
+      const path = queryString
+        ? `/v1/devices/${id}/button_overrides?${queryString}`
+        : `/v1/devices/${id}/button_overrides`;
+      const response = await this.fetchApi(path);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to list device button overrides: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    createButtonOverride: async (
+      id: string,
+      request: CreateDeviceButtonOverrideRequest
+    ): Promise<DeviceButtonOverride> => {
+      const response = await this.fetchApi(`/v1/devices/${id}/button_overrides`, {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create device button override: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    deleteButtonOverride: async (id: string, overrideId: string): Promise<void> => {
+      const response = await this.fetchApi(`/v1/devices/${id}/button_overrides/${overrideId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to delete device button override: ${response.status} ${errorText}`);
+      }
+    },
+  };
+
+  buttonTemplates = {
+    create: async (request: CreateButtonTemplateRequest): Promise<ButtonTemplate> => {
+      const response = await this.fetchApi('/v1/button_templates', {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create button template: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    retrieve: async (
+      templateId: string,
+      options?: { for_device?: string; expand?: Array<'buttons'> }
+    ): Promise<ButtonTemplateWithDetails> => {
+      const params = new URLSearchParams();
+      if (options?.for_device) params.set('for_device', options.for_device);
+      for (const e of options?.expand ?? []) params.append('expand[]', e);
+      const queryString = params.toString();
+      const path = queryString
+        ? `/v1/button_templates/${templateId}?${queryString}`
+        : `/v1/button_templates/${templateId}`;
+      const response = await this.fetchApi(path);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to get button template: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    list: async (options?: {
+      limit?: number;
+      starting_after?: string;
+      ending_before?: string;
+    }): Promise<PaginatedResponse<ButtonTemplate>> => {
+      const params = new URLSearchParams();
+      if (options?.limit) params.set('limit', options.limit.toString());
+      if (options?.starting_after) params.set('starting_after', options.starting_after);
+      if (options?.ending_before) params.set('ending_before', options.ending_before);
+      const queryString = params.toString();
+      const path = queryString ? `/v1/button_templates?${queryString}` : '/v1/button_templates';
+      const response = await this.fetchApi(path);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to list button templates: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    update: async (
+      templateId: string,
+      request: UpdateButtonTemplateRequest
+    ): Promise<ButtonTemplate> => {
+      const response = await this.fetchApi(`/v1/button_templates/${templateId}`, {
+        method: 'POST',
+        body: JSON.stringify(request),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to update button template: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    del: async (templateId: string): Promise<void> => {
+      const response = await this.fetchApi(`/v1/button_templates/${templateId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to delete button template: ${response.status} ${errorText}`);
+      }
+    },
+    buttons: {
+      list: async (
+        templateId: string,
+        options?: { limit?: number; starting_after?: string; ending_before?: string }
+      ): Promise<PaginatedResponse<TemplateButton>> => {
+        const params = new URLSearchParams();
+        if (options?.limit) params.set('limit', options.limit.toString());
+        if (options?.starting_after) params.set('starting_after', options.starting_after);
+        if (options?.ending_before) params.set('ending_before', options.ending_before);
+        const queryString = params.toString();
+        const path = queryString
+          ? `/v1/button_templates/${templateId}/buttons?${queryString}`
+          : `/v1/button_templates/${templateId}/buttons`;
+        const response = await this.fetchApi(path);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to list template buttons: ${response.status} ${errorText}`);
+        }
+        return response.json();
+      },
+      create: async (
+        templateId: string,
+        request: CreateTemplateButtonRequest
+      ): Promise<TemplateButton> => {
+        const response = await this.fetchApi(`/v1/button_templates/${templateId}/buttons`, {
+          method: 'POST',
+          body: JSON.stringify(request),
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to create template button: ${response.status} ${errorText}`);
+        }
+        return response.json();
+      },
+      del: async (templateId: string, buttonId: string): Promise<void> => {
+        const response = await this.fetchApi(
+          `/v1/button_templates/${templateId}/buttons/${buttonId}`,
+          { method: 'DELETE' }
+        );
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to delete template button: ${response.status} ${errorText}`);
+        }
+      },
     },
   };
 

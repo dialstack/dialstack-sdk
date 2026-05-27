@@ -21,6 +21,12 @@ import type {
   Device,
 } from '../types/device';
 import type {
+  CreateButtonTemplateRequest,
+  UpdateButtonTemplateRequest,
+  CreateTemplateButtonRequest,
+  CreateDeviceButtonOverrideRequest,
+} from '../types/button';
+import type {
   CreateDECTBaseRequest,
   UpdateDECTBaseRequest,
   CreateDECTHandsetRequest,
@@ -618,6 +624,64 @@ export function createMockInstance(
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         } as Device;
+      },
+      listButtons: async (id: string) => ({
+        object: 'list' as const,
+        url: `/v1/devices/${id}/buttons`,
+        next_page_url: null,
+        previous_page_url: null,
+        data: [],
+      }),
+      listCompatibleButtonTemplates: async (id: string) => ({
+        object: 'list' as const,
+        url: `/v1/devices/${id}/compatible_button_templates`,
+        next_page_url: null,
+        previous_page_url: null,
+        data: [],
+      }),
+      listButtonOverrides: async (id: string) => ({
+        object: 'list' as const,
+        url: `/v1/devices/${id}/button_overrides`,
+        next_page_url: null,
+        previous_page_url: null,
+        data: [],
+      }),
+      createButtonOverride: async (_id: string, _request: CreateDeviceButtonOverrideRequest) => {
+        throw new Error('Not implemented in mock');
+      },
+      deleteButtonOverride: async (_id: string, _overrideId: string): Promise<void> => {},
+    },
+
+    buttonTemplates: {
+      create: async (_request: CreateButtonTemplateRequest) => {
+        throw new Error('Not implemented in mock');
+      },
+      retrieve: async (_templateId: string) => {
+        throw new Error('Not implemented in mock');
+      },
+      list: async () => ({
+        object: 'list' as const,
+        url: '/v1/button_templates',
+        next_page_url: null,
+        previous_page_url: null,
+        data: [],
+      }),
+      update: async (_templateId: string, _request: UpdateButtonTemplateRequest) => {
+        throw new Error('Not implemented in mock');
+      },
+      del: async (_templateId: string): Promise<void> => {},
+      buttons: {
+        list: async (templateId: string) => ({
+          object: 'list' as const,
+          url: `/v1/button_templates/${templateId}/buttons`,
+          next_page_url: null,
+          previous_page_url: null,
+          data: [],
+        }),
+        create: async (_templateId: string, _request: CreateTemplateButtonRequest) => {
+          throw new Error('Not implemented in mock');
+        },
+        del: async (_templateId: string, _buttonId: string): Promise<void> => {},
       },
     },
 

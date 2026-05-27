@@ -57,6 +57,22 @@ export type {
   FAQItem,
   SchedulingConfig,
   UpdateAIAgentRequest,
+  // Programmable button types
+  ButtonType,
+  ButtonTarget,
+  ButtonParams,
+  ButtonCompatibilityReason,
+  ButtonCompatibilityVerdict,
+  ButtonCompatibilitySummary,
+  ButtonTemplate,
+  ButtonTemplateWithDetails,
+  TemplateButton,
+  DeviceButtonOverride,
+  MaterializedButton,
+  CreateButtonTemplateRequest,
+  UpdateButtonTemplateRequest,
+  CreateTemplateButtonRequest,
+  CreateDeviceButtonOverrideRequest,
 } from './types';
 
 // Default icons (can be used to customize or extend)

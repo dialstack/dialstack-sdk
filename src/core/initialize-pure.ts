@@ -122,6 +122,7 @@ export async function loadDialstackAndInitialize(
     extensions: instance.extensions,
     deskphones: instance.deskphones,
     devices: instance.devices,
+    buttonTemplates: instance.buttonTemplates,
     dectBases: instance.dectBases,
     account: instance.account,
     users: instance.users,

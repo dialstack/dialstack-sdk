@@ -33,6 +33,17 @@ import type {
   ProvisioningEventListOptions,
 } from './device';
 import type {
+  ButtonTemplate,
+  ButtonTemplateWithDetails,
+  TemplateButton,
+  DeviceButtonOverride,
+  MaterializedButton,
+  CreateButtonTemplateRequest,
+  UpdateButtonTemplateRequest,
+  CreateTemplateButtonRequest,
+  CreateDeviceButtonOverrideRequest,
+} from './button';
+import type {
   PortOrder,
   CreatePortOrderRequest,
   ApprovePortOrderRequest,
@@ -354,6 +365,59 @@ export interface DevicesResource {
   list(options?: DeviceListOptions): Promise<Device[]>;
   /** Update a device */
   update(id: string, request: UpdateDeviceRequest): Promise<Device>;
+  /** List effective programmable buttons for a device (compatibility is on the parent Device retrieve) */
+  listButtons(id: string): Promise<PaginatedResponse<MaterializedButton>>;
+  /** List button templates that render at least one supported button on this device */
+  listCompatibleButtonTemplates(
+    id: string,
+    options?: { limit?: number; starting_after?: string; ending_before?: string }
+  ): Promise<PaginatedResponse<ButtonTemplate>>;
+  /** List per-device button overrides */
+  listButtonOverrides(
+    id: string,
+    options?: { limit?: number; starting_after?: string; ending_before?: string }
+  ): Promise<PaginatedResponse<DeviceButtonOverride>>;
+  /** Create a per-device button override */
+  createButtonOverride(
+    id: string,
+    request: CreateDeviceButtonOverrideRequest
+  ): Promise<DeviceButtonOverride>;
+  /** Delete a per-device button override */
+  deleteButtonOverride(id: string, overrideId: string): Promise<void>;
+}
+
+export interface ButtonTemplateButtonsResource {
+  /** List buttons on a template */
+  list(
+    templateId: string,
+    options?: { limit?: number; starting_after?: string; ending_before?: string }
+  ): Promise<PaginatedResponse<TemplateButton>>;
+  /** Add a button to a template */
+  create(templateId: string, request: CreateTemplateButtonRequest): Promise<TemplateButton>;
+  /** Delete a button from a template */
+  del(templateId: string, buttonId: string): Promise<void>;
+}
+
+export interface ButtonTemplatesResource {
+  /** Create a button template */
+  create(request: CreateButtonTemplateRequest): Promise<ButtonTemplate>;
+  /** Retrieve a button template, optionally with per-device compatibility and embedded buttons */
+  retrieve(
+    templateId: string,
+    options?: { for_device?: string; expand?: Array<'buttons'> }
+  ): Promise<ButtonTemplateWithDetails>;
+  /** List button templates */
+  list(options?: {
+    limit?: number;
+    starting_after?: string;
+    ending_before?: string;
+  }): Promise<PaginatedResponse<ButtonTemplate>>;
+  /** Update a button template */
+  update(templateId: string, request: UpdateButtonTemplateRequest): Promise<ButtonTemplate>;
+  /** Delete a button template */
+  del(templateId: string): Promise<void>;
+  /** Template buttons sub-resource */
+  buttons: ButtonTemplateButtonsResource;
 }
 
 export interface DECTHandsetsResource {
@@ -524,6 +588,7 @@ export interface DialStackInstance {
   extensions: ExtensionsResource;
   deskphones: DeskphonesResource;
   devices: DevicesResource;
+  buttonTemplates: ButtonTemplatesResource;
   dectBases: DECTBasesResource;
   account: AccountResource;
   users: UsersResource;

@@ -235,6 +235,25 @@ export type {
 } from './device';
 export { isDeskphone, isDECTBase } from './device';
 
+// Programmable button types
+export type {
+  ButtonType,
+  ButtonTarget,
+  ButtonParams,
+  ButtonCompatibilityReason,
+  ButtonCompatibilityVerdict,
+  ButtonCompatibilitySummary,
+  ButtonTemplate,
+  ButtonTemplateWithDetails,
+  TemplateButton,
+  DeviceButtonOverride,
+  MaterializedButton,
+  CreateButtonTemplateRequest,
+  UpdateButtonTemplateRequest,
+  CreateTemplateButtonRequest,
+  CreateDeviceButtonOverrideRequest,
+} from './button';
+
 // DECT types
 export type {
   MulticellRole,
