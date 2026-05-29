@@ -809,6 +809,7 @@ export const en = {
     exits: {
       open: 'Open',
       closed: 'Closed',
+      holiday: 'Holiday',
       next: 'Next',
       timeout: 'Timeout',
       invalid: 'Invalid',
@@ -822,6 +823,9 @@ export const en = {
       removeOption: 'Remove',
       optionLabel: 'Label',
       optionLabelPlaceholder: 'e.g. Sales',
+      routeHolidaySeparately: 'Route holidays separately',
+      routeHolidaySeparatelyHint:
+        'When on, holidays route to a dedicated branch you wire below. Otherwise holidays follow the Closed exit.',
     },
     resourceGroups: {
       audioClips: 'Audio Clips',
@@ -850,6 +854,7 @@ export const defaultDialPlanLocale: DialPlanLocale = {
   exits: {
     open: 'Open',
     closed: 'Closed',
+    holiday: 'Holiday',
     next: 'Next',
     timeout: 'Timeout',
     invalid: 'Invalid',
@@ -899,6 +904,9 @@ export const defaultDialPlanLocale: DialPlanLocale = {
     removeOption: 'Remove',
     optionLabel: 'Label',
     optionLabelPlaceholder: 'e.g. Sales',
+    routeHolidaySeparately: 'Route holidays separately',
+    routeHolidaySeparatelyHint:
+      'When on, holidays route to a dedicated branch you wire below. Otherwise holidays follow the Closed exit.',
   },
   toolbar: {
     autoLayout: 'Auto Layout',

@@ -212,6 +212,66 @@ describe('dial-plan-graph', () => {
       expect(config['closed']).toBe('voicemail');
     });
 
+    // DIA-1193: holiday is a per-node opt-in exit. These cover the three states
+    // the editor can produce on save.
+    describe('schedule holiday exit', () => {
+      const holidayPlan: DialPlan = {
+        ...sampleDialPlan,
+        nodes: [
+          {
+            id: 'check_hours',
+            type: 'schedule',
+            config: {
+              schedule_id: 'sched_1',
+              open: 'reception',
+              closed: 'voicemail',
+              holiday: 'holiday_clip',
+            },
+          },
+          ...sampleDialPlan.nodes.slice(1),
+          { id: 'holiday_clip', type: 'audio_clip', config: { audio_clip_id: 'aud_1' } },
+        ],
+      };
+
+      it('round-trips a wired holiday exit', () => {
+        const { nodes, edges } = transformDialPlanToGraph(holidayPlan, defaultRegistry);
+        const result = transformGraphToDialPlan(nodes, edges, defaultRegistry);
+        const config = result.nodes.find((n) => n.id === 'check_hours')?.config as Record<
+          string,
+          unknown
+        >;
+        expect(config['holiday']).toBe('holiday_clip');
+      });
+
+      it('preserves opt-in as null when holiday is enabled but unwired', () => {
+        // Enabled (config.holiday present) but no holiday edge wired.
+        const { nodes, edges } = transformDialPlanToGraph(holidayPlan, defaultRegistry);
+        const filteredEdges = edges.filter(
+          (e) => !(e.source === 'check_hours' && e.sourceHandle === 'holiday')
+        );
+
+        const result = transformGraphToDialPlan(nodes, filteredEdges, defaultRegistry);
+        const config = result.nodes.find((n) => n.id === 'check_hours')?.config as Record<
+          string,
+          unknown
+        >;
+        // null (not undefined) so JSON.stringify keeps the key → toggle survives reload.
+        expect(config['holiday']).toBeNull();
+        expect('holiday' in config).toBe(true);
+      });
+
+      it('omits holiday entirely when the opt-in is off', () => {
+        // sampleDialPlan's schedule node has no holiday key (opt-in off).
+        const { nodes, edges } = transformDialPlanToGraph(sampleDialPlan, defaultRegistry);
+        const result = transformGraphToDialPlan(nodes, edges, defaultRegistry);
+        const config = result.nodes.find((n) => n.id === 'check_hours')?.config as Record<
+          string,
+          unknown
+        >;
+        expect(config['holiday']).toBeUndefined();
+      });
+    });
+
     // DIA-730: voice_app is its own first-class node type. Round-trip preserves
     // the new shape (voice_app_id, no timeout, no target_id collapse).
     it('round-trips voice_app nodes without collapsing to internal_dial', () => {

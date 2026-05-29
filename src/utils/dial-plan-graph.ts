@@ -70,6 +70,8 @@ export function getEdgeLabel(exitType: string): string {
       return 'Open';
     case 'closed':
       return 'Closed';
+    case 'holiday':
+      return 'Holiday';
     case 'next':
       return 'Next';
     case 'timeout':

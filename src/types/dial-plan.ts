@@ -11,15 +11,22 @@
 
 /**
  * Configuration for a schedule node that routes calls based on time schedules.
- * Has two possible exits: open (business hours) and closed (including holidays).
+ * Exits: open (business hours), closed, and optionally holiday. Holiday is
+ * per-node opt-in — when unset, holiday state folds into closed.
  */
 export interface ScheduleNodeConfig {
   /** Reference to the schedule definition */
   schedule_id: string;
   /** Node ID to route to when schedule is open */
   open?: string;
-  /** Node ID to route to when schedule is closed or on holiday */
+  /** Node ID to route to when schedule is closed */
   closed?: string;
+  /**
+   * Node ID to route to when schedule is on holiday. Optional: when omitted,
+   * holiday state folds into the closed exit. Set to route holidays to a
+   * dedicated branch (e.g., a "closed for holiday" announcement).
+   */
+  holiday?: string | null;
 }
 
 /**
@@ -271,6 +278,7 @@ export interface DialPlanLocale {
   exits: {
     open: string;
     closed: string;
+    holiday: string;
     next: string;
     timeout: string;
     invalid: string;
@@ -320,6 +328,8 @@ export interface DialPlanLocale {
     removeOption: string;
     optionLabel: string;
     optionLabelPlaceholder: string;
+    routeHolidaySeparately: string;
+    routeHolidaySeparatelyHint: string;
   };
   toolbar: {
     autoLayout: string;
@@ -383,6 +393,8 @@ export interface ScheduleNodeData extends Record<string, unknown> {
   label: string;
   scheduleId: string;
   scheduleName?: string;
+  /** Editor hint: render the holiday exit handle when true. */
+  holidayEnabled?: boolean;
   originalNode: ScheduleNode;
   locale?: DialPlanLocale;
 }
@@ -491,7 +503,7 @@ export interface DialPlanHandle {
 }
 
 /** Edge labels for schedule exits */
-export type ScheduleExitType = 'open' | 'closed';
+export type ScheduleExitType = 'open' | 'closed' | 'holiday';
 
 /** Edge labels for internal dial exits */
 export type InternalDialExitType = 'next' | 'timeout';
