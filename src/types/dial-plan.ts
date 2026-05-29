@@ -97,15 +97,26 @@ export interface AudioClipNodeConfig {
 }
 
 /**
- * Configuration for a voice_app node that hands the call off to a webhook-driven
- * voice application. Voice apps do not ring; the dispatch is immediate.
+ * Configuration for a voice_app node. Dispatches the call to a webhook-driven
+ * voice application; behavior depends on `mode`.
  */
 export interface VoiceAppNodeConfig {
   /** ID of the voice app to invoke (va_ prefix) */
   voice_app_id: string;
-  /** Dispatch mode. Only "control" ships today; "notify" is reserved. */
-  mode?: 'control';
-  /** Node ID to route to if dispatch is skipped (empty voice_app_id) */
+  /**
+   * Dispatch mode:
+   * - `control` (default): hands the call to the voice app. ARI answers and
+   *   plays hold; the customer drives the call via the Update Call API.
+   * - `notify`: fires a `call.notify` webhook for visibility (BYO Observer,
+   *   transcription, analytics) while the dial plan continues routing via
+   *   `next`. The call is never answered or held by this node.
+   */
+  mode?: 'control' | 'notify';
+  /**
+   * In `notify` mode, the always-taken continuation. In `control` mode, the
+   * fallback on dispatch failure or when the node is unconfigured. Omitting
+   * `next` terminates the call.
+   */
   next?: string;
 }
 
