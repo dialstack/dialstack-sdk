@@ -84,7 +84,12 @@ export function ResourceCombobox({
     if (!onCreateResource) return;
     const created = await onCreateResource(type);
     if (created) {
-      onSelect(created.id, created.name);
+      onSelect(
+        created.id,
+        created.extension_number
+          ? `${created.name} (${extensionLabel}\u00a0${created.extension_number})`
+          : created.name
+      );
       setOpen(false);
       setSearch('');
     }
