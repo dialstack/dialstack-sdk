@@ -62,6 +62,16 @@ describe('formatValidationError', () => {
     expect(formatValidationError('Something went wrong')).toBe('Something went wrong');
   });
 
+  it('formats voice_app notify-on-AI-agent rejection', () => {
+    expect(
+      formatValidationError(
+        'voice_app notify mode is not supported on AI agent voice apps: [va_01h455vb4pex5vsknk084sn02t]'
+      )
+    ).toBe(
+      'A Voice App used in Notify mode is backed by an AI agent. AI-agent voice apps must use Control mode.'
+    );
+  });
+
   it('handles unknown node type in payload gracefully', () => {
     const nodes = [{ type: 'custom_node' }];
     expect(formatValidationError('/nodes/0/config/value: required', nodes)).toBe(

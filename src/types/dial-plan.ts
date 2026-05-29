@@ -330,6 +330,15 @@ export interface DialPlanLocale {
     optionLabelPlaceholder: string;
     routeHolidaySeparately: string;
     routeHolidaySeparatelyHint: string;
+    mode: string;
+  };
+  voiceAppMode: {
+    control: string;
+    notify: string;
+    controlBadge: string;
+    notifyBadge: string;
+    controlHint: string;
+    notifyHint: string;
   };
   toolbar: {
     autoLayout: string;

@@ -50,7 +50,7 @@ import { NodeConfigPanel, trashIcon } from './dial-plan/NodeConfigPanel';
 import { EditorToolbar } from './dial-plan/EditorToolbar';
 import { dialPlanStyles } from './dial-plan/styles';
 import { ShadowContainer } from './onboarding/ShadowRoot';
-import type { ResourceType } from './dial-plan/registry-types';
+import type { ListResourcesOptions, ResourceType } from './dial-plan/registry-types';
 import type {
   DialPlan as DialPlanData,
   DialPlanNode,
@@ -93,9 +93,15 @@ export interface DialPlanProps {
   className?: string;
   /** Optional inline styles for the container */
   style?: React.CSSProperties;
-  /** Optional callback to create a new resource from a config panel select. Provided by the host app. */
+  /**
+   * Optional callback to create a new resource from a config panel select.
+   * Provided by the host app. `options` carries per-type hints (currently
+   * `notifyEligible` for voice apps) so the create dialog can skip choices
+   * incompatible with the current edit context.
+   */
   onCreateResource?: (
-    type: ResourceType
+    type: ResourceType,
+    options?: ListResourcesOptions
   ) => Promise<{ id: string; name: string; extension_number?: string } | undefined>;
   /** Optional callback to open a resource in a new tab. Provided by the host app. */
   onOpenResource?: (resourceId: string) => void;
@@ -699,7 +705,7 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
 
   // ---- Edit mode: resource listing for config panels ----
   const listResources: ConfigPanelProps['listResources'] = useCallback(
-    async (type) => {
+    async (type, options) => {
       try {
         const expand = { expand: ['extensions'] as string[] };
         switch (type) {
@@ -720,8 +726,21 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
             const currentId = dialPlanMeta?.id ?? dialPlanId;
             return all.filter((p) => p.id !== currentId);
           }
-          case 'voice_app':
-            return await dialstack.voiceApps.list(expand);
+          case 'voice_app': {
+            const all = await dialstack.voiceApps.list(expand);
+            if (!options?.notifyEligible) return all;
+            // Notify-mode picker: AI-agent voice apps can't be a notify target
+            // (backend rejects at save time). The voice apps list has no
+            // type/backing field, so cross-reference against /v1/ai-agents to
+            // identify which voice apps are owned by an AI agent.
+            try {
+              const agents = await dialstack.aiAgents.list({ limit: 100 });
+              const aiBacked = new Set(agents.map((a) => a.voice_app_id));
+              return all.filter((va) => !aiBacked.has(va.id));
+            } catch {
+              return all;
+            }
+          }
           case 'shared_voicemail':
             return await dialstack.sharedVoicemailBoxes.list();
           case 'audio_clip':
@@ -763,7 +782,7 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
         }
       }
       callbacksRef.current.onError?.(
-        errorPayload ? new Error(formatValidationError(error.message, errorPayload.nodes)) : error
+        new Error(formatValidationError(error.message, errorPayload?.nodes))
       );
       throw err;
     }

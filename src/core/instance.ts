@@ -893,6 +893,22 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   };
 
   aiAgents = {
+    list: async (options?: { limit?: number }): Promise<AIAgent[]> => {
+      const params = new URLSearchParams();
+      if (options?.limit) params.set('limit', String(options.limit));
+      const queryString = params.toString();
+      const path = queryString ? `/v1/ai-agents?${queryString}` : '/v1/ai-agents';
+      const response = await this.fetchApi(path);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new ApiError(
+          `Failed to list AI agents: ${response.status} ${errorText}`,
+          response.status
+        );
+      }
+      const data = await response.json();
+      return (data.data ?? []) as AIAgent[];
+    },
     retrieve: async (aiAgentId: string): Promise<AIAgent> => {
       const response = await this.fetchApi(`/v1/ai-agents/${aiAgentId}`);
       if (!response.ok) {

@@ -22,14 +22,25 @@ export type ResourceType =
   | 'shared_voicemail'
   | 'audio_clip';
 
+/**
+ * Per-type filter options for `listResources`. Currently only voice apps
+ * support `notifyEligible`; other resource types ignore the field.
+ */
+export interface ListResourcesOptions {
+  /** Voice apps only: exclude AI-agent-backed voice apps from the result. */
+  notifyEligible?: boolean;
+}
+
 export interface ConfigPanelProps {
   config: Record<string, unknown>;
   onConfigChange: (updates: Record<string, unknown>, display?: Record<string, unknown>) => void;
   listResources: (
-    type: ResourceType
+    type: ResourceType,
+    options?: ListResourcesOptions
   ) => Promise<Array<{ id: string; name: string; extension_number?: string }>>;
   onCreateResource?: (
-    type: ResourceType
+    type: ResourceType,
+    options?: ListResourcesOptions
   ) => Promise<{ id: string; name: string; extension_number?: string } | undefined>;
   onOpenResource?: (resourceId: string) => void;
   locale?: DialPlanLocale;

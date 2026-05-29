@@ -291,6 +291,8 @@ export interface VoiceAppsResource {
 }
 
 export interface AIAgentsResource {
+  /** List AI agents for the account. */
+  list(options?: { limit?: number }): Promise<AIAgent[]>;
   /** Retrieve an AI agent by ID. */
   retrieve(aiAgentId: string): Promise<AIAgent>;
   /**

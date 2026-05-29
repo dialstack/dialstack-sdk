@@ -674,6 +674,61 @@ export const dialPlanStyles = `
   color: #e2e8f0;
 }
 
+.ds-dial-plan-config-field__segmented {
+  display: flex;
+  border: 1px solid var(--ds-color-border, #e2e8f0);
+  border-radius: var(--ds-border-radius, 8px);
+  overflow: hidden;
+  background: var(--ds-color-background, #ffffff);
+}
+
+.ds-dial-plan-config-field__segmented-option {
+  flex: 1;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  color: var(--ds-color-text-secondary, #64748b);
+  font-size: var(--ds-font-size-sm, 14px);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.ds-dial-plan-config-field__segmented-option + .ds-dial-plan-config-field__segmented-option {
+  border-left: 1px solid var(--ds-color-border, #e2e8f0);
+}
+
+.ds-dial-plan-config-field__segmented-option--active {
+  background: var(--ds-color-primary, #3b82f6);
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.ds-dial-plan-config-field__hint {
+  margin: 4px 0 0;
+  font-size: var(--ds-font-size-xs, 11px);
+  line-height: 1.4;
+  color: var(--ds-color-text-secondary, #64748b);
+}
+
+.ds-dial-plan-node__badge {
+  display: block;
+  width: fit-content;
+  margin: 4px auto 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ds-color-muted, #eef2ff);
+  color: var(--ds-color-text-secondary, #64748b);
+  font-size: var(--ds-font-size-xs, 11px);
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  text-align: center;
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-node__badge {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+}
+
 /* ============================================================================
    Resource Combobox
    ============================================================================ */

@@ -907,6 +907,16 @@ export const defaultDialPlanLocale: DialPlanLocale = {
     routeHolidaySeparately: 'Route holidays separately',
     routeHolidaySeparatelyHint:
       'When on, holidays route to a dedicated branch you wire below. Otherwise holidays follow the Closed exit.',
+    mode: 'Mode',
+  },
+  voiceAppMode: {
+    control: 'Control',
+    notify: 'Notify',
+    controlBadge: 'Control mode',
+    notifyBadge: 'Notify mode',
+    controlHint: 'Hands the call off to the voice app, which takes over the conversation.',
+    notifyHint:
+      'Notifies the voice app of the call in the background. The dial plan keeps routing via Next without waiting.',
   },
   toolbar: {
     autoLayout: 'Auto Layout',

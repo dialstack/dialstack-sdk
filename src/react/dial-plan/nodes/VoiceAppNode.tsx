@@ -10,7 +10,7 @@ import type {
   ResourceCollector,
   ResourceMaps,
 } from '../registry-types';
-import { NodeHeader, StaticExits } from '../DialPlanNode';
+import { ExitRow, NodeHeader } from '../DialPlanNode';
 import { VoiceAppConfigPanel } from '../config-panels/VoiceAppConfigPanel';
 import { BotIcon } from '../icons';
 import { resolveTargetName } from './resolve-target';
@@ -26,23 +26,38 @@ export const config: NodeDefinition = {
   configPanel: VoiceAppConfigPanel,
   defaultConfig: { voice_app_id: '', mode: 'control' },
   icon: BotIcon,
-  renderNode: (data: Record<string, unknown>, reg: NodeTypeRegistration) => (
-    <>
-      <NodeHeader
-        icon={reg.icon}
-        label={data.label as string}
-        subtitle={data.voiceAppName as string | undefined}
-      />
-      <div className="ds-dial-plan-node__exits">
-        <StaticExits exits={reg.exits} locale={data.locale as DialPlanLocale | undefined} />
-      </div>
-    </>
-  ),
+  renderNode: (data: Record<string, unknown>, reg: NodeTypeRegistration) => {
+    const locale = data.locale as DialPlanLocale | undefined;
+    const isNotify = data.mode === 'notify';
+    const badgeText = isNotify
+      ? (locale?.voiceAppMode.notifyBadge ?? 'Notify mode')
+      : (locale?.voiceAppMode.controlBadge ?? 'Control mode');
+    // The `next` exit changes meaning by mode:
+    //   control → fallback when the voice app fails/unconfigured ("Timeout")
+    //   notify  → always-taken continuation after the webhook is fired ("Next")
+    const exitLabel = isNotify
+      ? (locale?.exits.next ?? 'Next')
+      : (locale?.exits.timeout ?? 'Timeout');
+    return (
+      <>
+        <NodeHeader
+          icon={reg.icon}
+          label={data.label as string}
+          subtitle={data.voiceAppName as string | undefined}
+        />
+        <span className="ds-dial-plan-node__badge">{badgeText}</span>
+        <div className="ds-dial-plan-node__exits">
+          <ExitRow id="next" label={exitLabel} />
+        </div>
+      </>
+    );
+  },
   toFlowNode: (node: DialPlanNode) => {
     const n = node as VoiceAppNodeType;
     return {
       label: 'Voice App',
       voiceAppId: n.config.voice_app_id,
+      mode: n.config.mode ?? 'control',
       originalNode: n,
     };
   },

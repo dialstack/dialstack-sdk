@@ -1,12 +1,17 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DialPlanLocale } from '../../../../types/dial-plan';
-import type { ConfigPanelProps, ResourceType } from '../../registry-types';
+import type { ConfigPanelProps, ListResourcesOptions, ResourceType } from '../../registry-types';
 import type { ResourceGroup } from '../ResourceCombobox';
 
 export interface ResourceGroupSpec {
   type: ResourceType;
   labelKey: keyof DialPlanLocale['resourceGroups'];
   fallback: string;
+  /**
+   * Per-type filter options passed to `listResources`. Refetches when these
+   * change — set by callers (e.g. VoiceAppConfigPanel) to react to mode toggles.
+   */
+  options?: ListResourcesOptions;
 }
 
 export interface UseResourceGroupsResult {
@@ -39,9 +44,14 @@ export function useResourceGroups(
   const [groups, setGroups] = useState<ResourceGroup[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // specs is constructed inline by callers (each render produces a new array
+  // reference). Serialize once per render so the effect re-runs only when the
+  // logical contents change — not on every render.
+  const specsKey = useMemo(() => JSON.stringify(specs), [specs]);
+
   const fetchAll = useCallback(
     () =>
-      Promise.all(specs.map((s) => listResources(s.type)))
+      Promise.all(specs.map((s) => listResources(s.type, s.options)))
         .then((results) => {
           setGroups(
             specs.map((s, i) => ({
@@ -53,10 +63,8 @@ export function useResourceGroups(
         })
         .catch(() => {})
         .finally(() => setLoading(false)),
-    // specs is constructed inline by callers; depend on listResources/locale
-    // instead. This matches the pre-refactor dependency pattern.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [listResources, locale]
+    [listResources, locale, specsKey]
   );
 
   useEffect(() => {
@@ -66,13 +74,17 @@ export function useResourceGroups(
   const wrappedCreate = useCallback(
     async (type: ResourceType) => {
       if (!onCreateResource) return undefined;
-      const created = await onCreateResource(type);
+      // Forward the spec's per-type filter options so the create dialog can
+      // skip incompatible choices (e.g. AI Agent when mode === notify).
+      const specOptions = specs.find((s) => s.type === type)?.options;
+      const created = await onCreateResource(type, specOptions);
       if (created) {
         await fetchAll();
       }
       return created;
     },
-    [onCreateResource, fetchAll]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [onCreateResource, fetchAll, specsKey]
   );
 
   return {
