@@ -8,7 +8,6 @@
  * Merge semantics:
  * - All fields are optional - omitting a field means "inherit from parent layer"
  * - Non-nil fields override the parent value
- * - Maps (vendorOverrides) deep-merge keys
  *
  * @example
  * ```typescript
@@ -167,10 +166,6 @@ export interface NetworkSettings {
    */
   qosDscpRtp?: number;
   /**
-   * NTP server hostname or IP address for time synchronization.
-   */
-  ntpServer?: string;
-  /**
    * Enable RTCP for quality metrics (MOS scores). Defaults to true.
    */
   rtcpEnabled?: boolean;
@@ -263,15 +258,12 @@ export interface AbstractSettings {
  *   },
  * };
  *
- * // Device-specific override with vendor customization
+ * // Device-specific override
  * const deviceSettings: DeviceSettings = {
  *   abstractions: {
  *     display: {
  *       backlightLevel: 'low', // This device is in a dark room
  *     },
- *   },
- *   vendorOverrides: {
- *     'user_phone_wallpaper': 'company_logo.png', // Snom-specific setting
  *   },
  * };
  * ```
@@ -281,22 +273,4 @@ export interface DeviceSettings {
    * Vendor-agnostic settings that are translated to device-specific configuration.
    */
   abstractions?: AbstractSettings;
-  /**
-   * Vendor-specific key/value overrides.
-   * Keys must be on the server's allowlist for the target vendor.
-   * These bypass the abstraction layer for advanced customization.
-   *
-   * Common prefixes by vendor:
-   * - Snom desk phones: `codec_*`, `user_*`, `network_*`, `rtp_*`
-   * - Snom DECT: `audio.*`, `call_settings.*`, `network.*`
-   *
-   * @example
-   * ```typescript
-   * vendorOverrides: {
-   *   'user_phone_wallpaper': 'company_logo.png',
-   *   'user_ringer1': 'Ringer4',
-   * }
-   * ```
-   */
-  vendorOverrides?: Record<string, string>;
 }

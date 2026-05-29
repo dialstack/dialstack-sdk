@@ -37,16 +37,6 @@ describe('Provisioning Types', () => {
       expect(settings.abstractions?.regional?.timezone).toBe('America/Los_Angeles');
     });
 
-    it('allows vendor overrides', () => {
-      const settings: DeviceSettings = {
-        vendorOverrides: {
-          user_phone_wallpaper: 'logo.png',
-          user_ringer1: 'Ringer4',
-        },
-      };
-      expect(Object.keys(settings.vendorOverrides ?? {})).toHaveLength(2);
-    });
-
     it('allows full configuration', () => {
       const settings: DeviceSettings = {
         abstractions: {
@@ -74,7 +64,6 @@ describe('Provisioning Types', () => {
             vlanId: 100,
             qosDscpSip: 26,
             qosDscpRtp: 46,
-            ntpServer: 'pool.ntp.org',
             rtcpEnabled: true,
           },
           features: {
@@ -85,13 +74,10 @@ describe('Provisioning Types', () => {
             srtpEnabled: true,
           },
         },
-        vendorOverrides: {
-          user_phone_wallpaper: 'corporate.png',
-        },
       };
 
       expect(settings.abstractions?.audio?.jitterBuffer?.mode).toBe('adaptive');
-      expect(settings.vendorOverrides?.user_phone_wallpaper).toBe('corporate.png');
+      expect(settings.abstractions?.network?.vlanId).toBe(100);
     });
   });
 
@@ -190,7 +176,6 @@ describe('Provisioning Types', () => {
         vlanId: 100,
         qosDscpSip: 26,
         qosDscpRtp: 46,
-        ntpServer: 'pool.ntp.org',
         rtcpEnabled: true,
       };
       expect(empty).toEqual({});
