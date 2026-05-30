@@ -1,0 +1,409 @@
+import { NotImplementedError, PhoneError } from './errors';
+import type { Transport } from './transport';
+import type {
+  CallDirection,
+  CallEndReason,
+  CallState,
+  HeldBy,
+  RejectReason,
+  ServerMessage,
+} from './types';
+
+type CallEventMap = {
+  trying: () => void;
+  ringing: () => void;
+  answered: () => void;
+  held: (by: HeldBy) => void;
+  resumed: () => void;
+  ended: (reason: CallEndReason) => void;
+};
+
+type Listener<K extends keyof CallEventMap> = CallEventMap[K];
+
+export interface CallInit {
+  id: string;
+  direction: CallDirection;
+  from: string;
+  fromName: string | null;
+  to: string;
+  initialState: CallState;
+  transport: Transport;
+  iceServers: RTCIceServer[];
+}
+
+export class Call {
+  // Mutable so phone.ts can swap the client-generated id for the
+  // server-assigned call_id when call.trying arrives.
+  id: string;
+  readonly direction: CallDirection;
+  readonly from: string;
+  readonly fromName: string | null;
+  readonly to: string;
+  state: CallState;
+  isMuted = false;
+  duration = 0;
+  readonly peerConnection: RTCPeerConnection;
+
+  get isHeld(): boolean {
+    return this.state === 'held';
+  }
+
+  private transport: Transport;
+  private localStream: MediaStream;
+  private remoteStream: MediaStream;
+  private dtmfSender: RTCDTMFSender | null = null;
+  private durationTimer: ReturnType<typeof setInterval> | null = null;
+  private answeredAt: number | null = null;
+  private listeners: { [K in keyof CallEventMap]?: Set<Listener<K>> } = {};
+  private endedSettled = false;
+  private pendingAnswerSdp: string | null = null;
+  private answerSent = false;
+  // Resolves once the mic tracks are attached to localStream. The Call
+  // acquires the mic itself (rather than the caller awaiting getUserMedia
+  // before construction) so phone.ts can register the Call synchronously on
+  // call.incoming — otherwise the sdp.offer/ICE that arrive while the mic
+  // permission prompt is open would hit getCall() → undefined and be dropped.
+  private readonly localMediaReady: Promise<void>;
+  // Remote ICE candidates that arrive before the remote description is set
+  // (e.g. an ice.candidate processed before prepareAnswerForOffer's
+  // setRemoteDescription resolves) — applied once the description is in place.
+  private pendingRemoteCandidates: RTCIceCandidateInit[] = [];
+  private remoteDescriptionSet = false;
+
+  constructor(init: CallInit) {
+    this.id = init.id;
+    this.direction = init.direction;
+    this.from = init.from;
+    this.fromName = init.fromName;
+    this.to = init.to;
+    this.state = init.initialState;
+    this.transport = init.transport;
+    this.localStream = new MediaStream();
+    this.remoteStream = new MediaStream();
+
+    this.peerConnection = new RTCPeerConnection({ iceServers: init.iceServers });
+    this.wirePeerConnection();
+    this.localMediaReady = this.acquireLocalMedia();
+  }
+
+  // whenLocalMediaReady lets the owner (phone.ts) surface a mic-permission
+  // failure for an inbound call without having awaited getUserMedia before the
+  // Call existed.
+  whenLocalMediaReady(): Promise<void> {
+    return this.localMediaReady;
+  }
+
+  private async acquireLocalMedia(): Promise<void> {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach((t) => this.localStream.addTrack(t));
+  }
+
+  on<K extends keyof CallEventMap>(event: K, handler: Listener<K>): void {
+    let set = this.listeners[event] as Set<Listener<K>> | undefined;
+    if (!set) {
+      set = new Set<Listener<K>>();
+      (this.listeners as Record<string, Set<Listener<K>>>)[event] = set;
+    }
+    set.add(handler);
+  }
+
+  off<K extends keyof CallEventMap>(event: K, handler?: Listener<K>): void {
+    if (!handler) {
+      delete this.listeners[event];
+      return;
+    }
+    (this.listeners[event] as Set<Listener<K>> | undefined)?.delete(handler);
+  }
+
+  answer(): void {
+    if (this.direction !== 'inbound') {
+      throw new PhoneError({
+        code: 'invalid_message',
+        message: 'Only inbound calls can be answered',
+        callId: this.id,
+      });
+    }
+    if (this.answerSent) return;
+    if (!this.pendingAnswerSdp) {
+      throw new PhoneError({
+        code: 'call_failed',
+        message: 'No remote SDP offer received yet',
+        callId: this.id,
+      });
+    }
+    this.transport.send({ type: 'call.answer', call_id: this.id });
+    this.transport.send({ type: 'sdp.answer', call_id: this.id, sdp: this.pendingAnswerSdp });
+    this.answerSent = true;
+  }
+
+  reject(reason: RejectReason = 'decline'): void {
+    this.transport.send({ type: 'call.reject', call_id: this.id, reason });
+  }
+
+  hangup(): void {
+    if (this.endedSettled) return;
+    this.transport.send({ type: 'call.hangup', call_id: this.id });
+  }
+
+  hold(): void {
+    this.transport.send({ type: 'call.hold', call_id: this.id });
+  }
+
+  resume(): void {
+    this.transport.send({ type: 'call.resume', call_id: this.id });
+  }
+
+  mute(): void {
+    this.transport.send({ type: 'call.mute', call_id: this.id });
+    this.localStream.getAudioTracks().forEach((t) => (t.enabled = false));
+    this.isMuted = true;
+  }
+
+  unmute(): void {
+    this.transport.send({ type: 'call.unmute', call_id: this.id });
+    this.localStream.getAudioTracks().forEach((t) => (t.enabled = true));
+    this.isMuted = false;
+  }
+
+  sendDtmf(digits: string, duration = 100, interToneGap = 70): void {
+    if (!this.dtmfSender) {
+      throw new PhoneError({
+        code: 'call_failed',
+        message: 'DTMF sender not available',
+        callId: this.id,
+      });
+    }
+    this.dtmfSender.insertDTMF(digits, duration, interToneGap);
+  }
+
+  transfer(_destination: string): void {
+    throw new NotImplementedError('Call.transfer', 'DIA-1282');
+  }
+
+  attendedTransfer(_destination: string): Promise<Call> {
+    throw new NotImplementedError('Call.attendedTransfer', 'DIA-1282');
+  }
+
+  completeTransfer(): void {
+    throw new NotImplementedError('Call.completeTransfer', 'DIA-1282');
+  }
+
+  get remoteMediaStream(): MediaStream {
+    return this.remoteStream;
+  }
+
+  async startOutbound(): Promise<RTCSessionDescriptionInit> {
+    await this.localMediaReady;
+    this.localStream.getTracks().forEach((t) => this.peerConnection.addTrack(t, this.localStream));
+    this.attachDtmfSender();
+    const offer = await this.peerConnection.createOffer();
+    await this.peerConnection.setLocalDescription(offer);
+    // Send a non-trickle (vanilla) offer: wait for ICE gathering to finish so
+    // the SDP carries a=candidate lines before handing it to the signalling
+    // layer. The service expects ICE candidates embedded in the offer SDP;
+    // candidates sent separately (trickle) are not negotiated into the session,
+    // so a candidate-less offer yields an answer with no ICE and media never
+    // connects.
+    await this.waitForIceGatheringComplete();
+    return this.localDescriptionOr(offer);
+  }
+
+  async prepareAnswerForOffer(sdp: string): Promise<void> {
+    // Set the remote description first (no mic needed) so any ICE candidates
+    // buffered while the mic prompt was open can be applied, then wait for the
+    // local mic before building the answer — the offer may have arrived while
+    // getUserMedia was still pending.
+    await this.peerConnection.setRemoteDescription({ type: 'offer', sdp });
+    this.remoteDescriptionSet = true;
+    await this.flushPendingRemoteCandidates();
+    await this.localMediaReady;
+    if (this.peerConnection.getSenders().length === 0) {
+      this.localStream
+        .getTracks()
+        .forEach((t) => this.peerConnection.addTrack(t, this.localStream));
+    }
+    this.attachDtmfSender();
+    const answer = await this.peerConnection.createAnswer();
+    await this.peerConnection.setLocalDescription(answer);
+    // Same non-trickle requirement as startOutbound: gather candidates into the
+    // answer SDP before sending it, otherwise the negotiated session has no ICE.
+    await this.waitForIceGatheringComplete();
+    this.pendingAnswerSdp = this.peerConnection.localDescription?.sdp ?? answer.sdp ?? null;
+  }
+
+  async acceptRemoteAnswer(sdp: string): Promise<void> {
+    await this.peerConnection.setRemoteDescription({ type: 'answer', sdp });
+    this.remoteDescriptionSet = true;
+    await this.flushPendingRemoteCandidates();
+  }
+
+  async addRemoteCandidate(
+    candidate: string,
+    sdpMid: string | null,
+    sdpMLineIndex: number | null
+  ): Promise<void> {
+    const init: RTCIceCandidateInit =
+      candidate == null
+        ? (null as unknown as RTCIceCandidateInit)
+        : { candidate, sdpMid: sdpMid ?? undefined, sdpMLineIndex: sdpMLineIndex ?? undefined };
+    // addIceCandidate throws if the remote description isn't set yet. The server
+    // sends sdp.offer/answer just before ICE, but those are processed
+    // asynchronously, so a candidate can land first — buffer until the
+    // description is in place (flushed by prepare/acceptRemote*).
+    if (!this.remoteDescriptionSet) {
+      this.pendingRemoteCandidates.push(init);
+      return;
+    }
+    await this.peerConnection.addIceCandidate(init);
+  }
+
+  private async flushPendingRemoteCandidates(): Promise<void> {
+    const pending = this.pendingRemoteCandidates;
+    this.pendingRemoteCandidates = [];
+    for (const init of pending) {
+      await this.peerConnection.addIceCandidate(init);
+    }
+  }
+
+  handleServerMessage(msg: ServerMessage): void {
+    switch (msg.type) {
+      case 'call.trying':
+        this.state = 'trying';
+        this.emit('trying');
+        return;
+      case 'call.ringing':
+        this.state = 'ringing';
+        this.emit('ringing');
+        return;
+      case 'call.answered':
+        this.state = 'active';
+        this.answeredAt = Date.now();
+        this.startDurationTimer();
+        this.emit('answered');
+        return;
+      case 'call.held':
+        this.state = 'held';
+        this.emit('held', msg.held_by);
+        return;
+      case 'call.resumed':
+        this.state = 'active';
+        this.emit('resumed');
+        return;
+      case 'call.ended':
+        this.settleEnded(msg.reason);
+        return;
+      default:
+        return;
+    }
+  }
+
+  dispose(): void {
+    this.stopDurationTimer();
+    this.releaseMedia();
+  }
+
+  private settleEnded(reason: CallEndReason): void {
+    if (this.endedSettled) return;
+    this.endedSettled = true;
+    this.state = 'ended';
+    this.stopDurationTimer();
+    this.releaseMedia();
+    this.emit('ended', reason);
+  }
+
+  // Stop the captured mic tracks and close the peer connection. Without
+  // stopping the local tracks, the browser's mic-active indicator stays
+  // lit after the call ends and the MediaStreamTrack handles leak until
+  // the page is unloaded.
+  private releaseMedia(): void {
+    try {
+      this.peerConnection.close();
+    } catch {
+      // Ignore: peer connection may already be closed.
+    }
+    this.localStream.getTracks().forEach((t) => {
+      try {
+        t.stop();
+      } catch {
+        // Ignore: track may already be stopped.
+      }
+    });
+  }
+
+  private wirePeerConnection(): void {
+    this.peerConnection.addEventListener('track', (evt) => {
+      evt.streams[0]?.getTracks().forEach((t) => {
+        if (!this.remoteStream.getTracks().includes(t)) this.remoteStream.addTrack(t);
+      });
+    });
+
+    this.peerConnection.addEventListener('icecandidate', (evt) => {
+      if (evt.candidate) {
+        this.transport.send({
+          type: 'ice.candidate',
+          call_id: this.id,
+          candidate: evt.candidate.candidate,
+          sdp_mid: evt.candidate.sdpMid ?? null,
+          sdp_m_line_index: evt.candidate.sdpMLineIndex ?? null,
+        });
+      } else {
+        this.transport.send({ type: 'ice.done', call_id: this.id });
+      }
+    });
+  }
+
+  // Resolve once ICE gathering reaches 'complete', or after a timeout so a
+  // slow/unreachable STUN/TURN server can't stall call setup — host candidates
+  // (gathered near-instantly) are enough for the SDP to be ICE-valid, and any
+  // server-reflexive candidates that arrive later are a bonus we don't block on.
+  private waitForIceGatheringComplete(timeoutMs = 2000): Promise<void> {
+    if (this.peerConnection.iceGatheringState === 'complete') return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        this.peerConnection.removeEventListener('icegatheringstatechange', onChange);
+        resolve();
+      };
+      const onChange = () => {
+        if (this.peerConnection.iceGatheringState === 'complete') finish();
+      };
+      const timer = setTimeout(finish, timeoutMs);
+      this.peerConnection.addEventListener('icegatheringstatechange', onChange);
+    });
+  }
+
+  // localDescription holds the gathered candidates after waitForIceGatheringComplete;
+  // fall back to the pre-gathering description if the browser hasn't populated it.
+  private localDescriptionOr(fallback: RTCSessionDescriptionInit): RTCSessionDescriptionInit {
+    const local = this.peerConnection.localDescription;
+    return local ? { type: local.type, sdp: local.sdp } : fallback;
+  }
+
+  private attachDtmfSender(): void {
+    const sender = this.peerConnection.getSenders().find((s) => s.track?.kind === 'audio');
+    this.dtmfSender = sender?.dtmf ?? null;
+  }
+
+  private startDurationTimer(): void {
+    this.stopDurationTimer();
+    this.durationTimer = setInterval(() => {
+      if (this.answeredAt) this.duration = Math.floor((Date.now() - this.answeredAt) / 1000);
+    }, 1000);
+  }
+
+  private stopDurationTimer(): void {
+    if (this.durationTimer) {
+      clearInterval(this.durationTimer);
+      this.durationTimer = null;
+    }
+  }
+
+  private emit<K extends keyof CallEventMap>(event: K, ...args: Parameters<CallEventMap[K]>): void {
+    this.listeners[event]?.forEach((h) => {
+      (h as (...a: unknown[]) => void)(...(args as unknown[]));
+    });
+  }
+}

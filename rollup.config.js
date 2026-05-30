@@ -152,6 +152,25 @@ export default [
     ],
     plugins: browserPlugins({ bundleNodeModulesCss: true }),
   },
+  // WebRTC client SDK (browser, no React)
+  {
+    input: 'src/webrtc/index.ts',
+    external: () => false,
+    output: [
+      {
+        file: 'dist/webrtc.cjs',
+        format: 'cjs',
+        sourcemap: true,
+        exports: 'named',
+      },
+      {
+        file: 'dist/webrtc.mjs',
+        format: 'esm',
+        sourcemap: true,
+      },
+    ],
+    plugins: browserPlugins(),
+  },
   // Server SDK (Node.js)
   {
     input: 'src/server/index.ts',

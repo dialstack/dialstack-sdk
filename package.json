@@ -51,6 +51,11 @@
       "import": "./dist/server/index.js",
       "require": "./dist/server/index.js",
       "types": "./dist/server/index.d.ts"
+    },
+    "./webrtc": {
+      "import": "./dist/webrtc.mjs",
+      "require": "./dist/webrtc.cjs",
+      "types": "./dist/webrtc/index.d.ts"
     }
   },
   "files": [
