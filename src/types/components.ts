@@ -241,6 +241,10 @@ export interface CallLog {
   ended_at: string | null;
   duration_seconds: number | null;
   status: 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
+  // Q.850 hangup cause code of the destination leg when the call could not be
+  // connected (e.g. 17 user busy, 21 call rejected). Set even if the
+  // originating side was answered (e.g. click-to-call). Null otherwise.
+  hangup_cause: number | null;
   summary: string | null;
   recording_url: string | null;
 
