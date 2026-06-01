@@ -21,7 +21,7 @@ npm run setup
 
 cd sdk/examples/softphone
 cp .env.example .env.local
-# Edit .env.local: paste a dev sk_live_ key and an existing user_*** id.
+# Edit .env.local: paste an sk_live_ key and an existing user_*** id.
 npm install
 npm run dev
 ```
@@ -33,7 +33,7 @@ E.164 number. The browser will prompt for microphone access on the first call.
 
 | Env var                  | Required | Purpose                                                                         |
 | ------------------------ | -------- | ------------------------------------------------------------------------------- |
-| `DIALSTACK_API_BASE_URL` | Yes      | `https://api.dev.dialstack.ai` for dev, `https://api.dialstack.ai` for prod.    |
+| `DIALSTACK_API_BASE_URL` | No       | API base URL. Defaults to `https://api.dialstack.ai`.                           |
 | `DIALSTACK_SECRET_KEY`   | Yes      | Platform secret key (`sk_live_…`). Used server-side only.                       |
 | `DIALSTACK_USER_ID`      | Yes      | The user ID this softphone signs in as. Must belong to your platform's account. |
 

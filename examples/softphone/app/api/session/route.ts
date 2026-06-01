@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 
 export async function POST() {
-  const apiBase = process.env.DIALSTACK_API_BASE_URL;
+  const apiBase = process.env.DIALSTACK_API_BASE_URL ?? 'https://api.dialstack.ai';
   const secretKey = process.env.DIALSTACK_SECRET_KEY;
   const userId = process.env.DIALSTACK_USER_ID;
 
-  if (!apiBase || !secretKey || !userId) {
+  if (!secretKey || !userId) {
     return NextResponse.json(
-      { error: 'Missing DIALSTACK_API_BASE_URL / DIALSTACK_SECRET_KEY / DIALSTACK_USER_ID' },
+      { error: 'Missing DIALSTACK_SECRET_KEY / DIALSTACK_USER_ID' },
       { status: 500 },
     );
   }
