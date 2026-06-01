@@ -141,7 +141,9 @@ export class CallLogsComponent extends BaseComponent {
     this.render();
 
     try {
-      // First, fetch with limit=100 to estimate total count
+      // First, fetch with limit=100 to estimate total count. This response is
+      // used only for the count, so it deliberately omits expand[]=did to avoid
+      // hydrating up to 100 DIDs server-side that we'd immediately discard.
       const estimateParams = new URLSearchParams({ limit: '100' });
       if (this.dateRange?.start) estimateParams.set('from', this.dateRange.start);
       if (this.dateRange?.end) estimateParams.set('to', this.dateRange.end);
@@ -164,6 +166,7 @@ export class CallLogsComponent extends BaseComponent {
 
       // Now fetch the actual first page with normal limit
       const params = new URLSearchParams({ limit: this.limit.toString() });
+      params.set('expand[]', 'did');
       if (this.dateRange?.start) params.set('from', this.dateRange.start);
       if (this.dateRange?.end) params.set('to', this.dateRange.end);
 
@@ -316,12 +319,64 @@ export class CallLogsComponent extends BaseComponent {
     return this.formatPhoneNumber(number);
   }
 
+  /**
+   * The DID's phone number, available only when the API returned the expanded
+   * `did` object (expand[]=did). Undefined when `did` is just the id string or null.
+   */
+  private didPhoneNumber(call: CallLog): string | undefined {
+    return call.did && typeof call.did === 'object' ? call.did.phone_number : undefined;
+  }
+
+  /**
+   * Render one party cell (From or To), showing the account's DID when the
+   * call's direction makes this cell the DID side.
+   *
+   * - When direction === didDirection and the DID is expanded, the DID is the
+   *   primary line and the party moves to a secondary line labelled by labelKey.
+   * - When direction === spacerDirection (the OTHER cell is the DID side), an
+   *   empty secondary line keeps PSTN numbers vertically aligned.
+   * - Otherwise (incl. internal calls, or no expanded DID), just the party.
+   */
+  private formatPartyCell(
+    call: CallLog,
+    number: string,
+    label: string | null,
+    didDirection: 'inbound' | 'outbound',
+    spacerDirection: 'inbound' | 'outbound',
+    labelKey: string
+  ): string {
+    const didPhoneNumber = this.didPhoneNumber(call);
+    if (didPhoneNumber && call.direction === didDirection) {
+      const did = this.formatPhoneNumber(didPhoneNumber);
+      const party = this.formatCallParty(number, label);
+      return `${did}<br><span class="cell-secondary">${this.t(labelKey)} ${party}</span>`;
+    }
+    if (didPhoneNumber && call.direction === spacerDirection) {
+      return `${this.formatCallParty(number, label)}<br><span class="cell-secondary">&nbsp;</span>`;
+    }
+    return this.formatCallParty(number, label);
+  }
+
   private formatFromCell(call: CallLog): string {
-    return this.formatCallParty(call.from_number, call.from_label);
+    return this.formatPartyCell(
+      call,
+      call.from_number,
+      call.from_label,
+      'outbound',
+      'inbound',
+      'callLogs.calledBy'
+    );
   }
 
   private formatToCell(call: CallLog): string {
-    return this.formatCallParty(call.to_number, call.to_label);
+    return this.formatPartyCell(
+      call,
+      call.to_number,
+      call.to_label,
+      'inbound',
+      'outbound',
+      'callLogs.routedTo'
+    );
   }
 
   /**

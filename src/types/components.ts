@@ -12,7 +12,7 @@ import type {
   CallHistoryClasses,
 } from './appearance';
 import type { PhoneNumberOrderingElement } from './phone-number-ordering';
-import type { PhoneNumbersElement } from './phone-numbers';
+import type { PhoneNumbersElement, DIDItem } from './phone-numbers';
 import type { LoaderStart, LoadError } from './callbacks';
 import type { DialStackInstanceImpl } from './core';
 import type {
@@ -224,7 +224,13 @@ export interface CallLog {
   id: string;
   user_id: string | null;
   endpoint_id: string | null;
+  /** @deprecated Use `did` (its id form). Retained for backwards compatibility. */
   did_id: string | null;
+  /**
+   * The phone number (DID) associated with the call. The DID's id by default,
+   * or the full DID object when `expand[]=did` is requested; null when none.
+   */
+  did: string | DIDItem | null;
   direction: 'inbound' | 'outbound' | 'internal';
   from_number: string;
   from_label: string | null;
