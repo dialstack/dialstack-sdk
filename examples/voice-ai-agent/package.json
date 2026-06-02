@@ -21,13 +21,13 @@
   },
   "dependencies": {
     "@dialstack/sdk": "^0.2.2-alpha.13",
-    "@google/genai": "^2.2.0",
+    "@google/genai": "^2.7.0",
     "alawmulaw": "^6.0.0",
     "dotenv": "^17.0.0",
     "express": "^5.0.0",
     "pino": "^10.0.0",
     "pino-pretty": "^13.0.0",
-    "ws": "^8.18.0"
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
