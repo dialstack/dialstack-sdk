@@ -225,8 +225,14 @@ export interface CreateDeviceResponse {
  * device kind to create; type-specific fields are required as noted.
  */
 export interface CreateDeviceRequest {
-  /** Device kind to create. */
-  type: DeviceType;
+  /**
+   * Device kind to create. Optional for MAC-addressable devices: omit it and
+   * the type is detected from `mac_address` via the vendor product catalog.
+   * The request is rejected with `400` if the MAC can't be classified, or if a
+   * supplied `type` contradicts a positive catalog match. `dect_handset` is
+   * IPEI-identified and must always be supplied.
+   */
+  type?: DeviceType;
   /** Hardware MAC address. Required for `deskphone` and `dect_base`. */
   mac_address?: string;
   /** Device model (optional, can be auto-detected for deskphones). */
