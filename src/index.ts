@@ -21,6 +21,7 @@ export type {
   CallLogsCallbacks,
   VoicemailsCallbacks,
   CallLog,
+  CallLogDID,
   QualityMetricLeg,
   Transcript,
   TranscriptStatus,

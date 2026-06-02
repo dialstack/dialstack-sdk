@@ -52,6 +52,7 @@ export type {
   CallLogRowRenderer,
   // Data models
   CallLog,
+  CallLogDID,
   QualityMetricLeg,
   TranscriptStatus,
   Transcript,

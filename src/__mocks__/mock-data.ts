@@ -31,11 +31,6 @@ export const MOCK_CALLS: PaginatedResponse<CallLog> = {
       did: {
         id: 'did_01abc',
         phone_number: '+15559876543',
-        status: 'active',
-        outbound_enabled: true,
-        fax_enabled: false,
-        created_at: '2025-01-01T00:00:00Z',
-        updated_at: '2025-01-01T00:00:00Z',
       },
       status: 'completed',
       duration_seconds: 125,
@@ -52,11 +47,6 @@ export const MOCK_CALLS: PaginatedResponse<CallLog> = {
       did: {
         id: 'did_01abc',
         phone_number: '+15559876543',
-        status: 'active',
-        outbound_enabled: true,
-        fax_enabled: false,
-        created_at: '2025-01-01T00:00:00Z',
-        updated_at: '2025-01-01T00:00:00Z',
       },
       status: 'completed',
       duration_seconds: 45,

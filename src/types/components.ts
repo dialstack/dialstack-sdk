@@ -12,7 +12,7 @@ import type {
   CallHistoryClasses,
 } from './appearance';
 import type { PhoneNumberOrderingElement } from './phone-number-ordering';
-import type { PhoneNumbersElement, DIDItem } from './phone-numbers';
+import type { PhoneNumbersElement } from './phone-numbers';
 import type { LoaderStart, LoadError } from './callbacks';
 import type { DialStackInstanceImpl } from './core';
 import type {
@@ -220,6 +220,15 @@ export interface QualityMetricLeg {
 /**
  * Call log data structure
  */
+/**
+ * Compact DID reference embedded in a call log when `expand[]=did` is
+ * requested — identity and the dialable number only.
+ */
+export interface CallLogDID {
+  id: string;
+  phone_number: string;
+}
+
 export interface CallLog {
   id: string;
   user_id: string | null;
@@ -228,9 +237,10 @@ export interface CallLog {
   did_id: string | null;
   /**
    * The phone number (DID) associated with the call. The DID's id by default,
-   * or the full DID object when `expand[]=did` is requested; null when none.
+   * or a compact DID object (id + phone_number) when `expand[]=did` is
+   * requested; null when none.
    */
-  did: string | DIDItem | null;
+  did: string | CallLogDID | null;
   direction: 'inbound' | 'outbound' | 'internal';
   from_number: string;
   from_label: string | null;
