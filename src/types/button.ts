@@ -6,7 +6,6 @@ export type ButtonType =
   | 'line'
   | 'blf_extension'
   | 'blf_park'
-  | 'blf_voicemail'
   | 'blf_voicemail_shared'
   | 'blf_queue_agent'
   | 'blf_queue_depth'
@@ -31,7 +30,7 @@ export type ButtonType =
  */
 export type ButtonTarget =
   | { line_index?: number } // line
-  | { user: 'self' | string } // blf_extension, blf_voicemail
+  | { user: 'self' | string } // blf_extension, voicemail (per-user)
   | { slot: number } // blf_park, park (when explicit)
   | { shared_voicemail_box: string } // blf_voicemail_shared
   | { queue: string; user: 'self' | string } // blf_queue_agent
@@ -41,7 +40,7 @@ export type ButtonTarget =
   | { url: string } // url
   | { address: string; port: number } // multicast
   | { mode: 'blind' | 'attended' } // transfer
-  | Record<string, never>; // voicemail, conference, dnd, record_toggle, park (auto), forward (default)
+  | Record<string, never>; // conference, dnd, record_toggle, park (auto), forward (default), voicemail (own mailbox)
 
 /**
  * Type-narrowed button params used by `CreateTemplateButton` / `CreateDeviceButtonOverride`.
@@ -52,13 +51,12 @@ export type ButtonParams =
   | { type: 'line'; target?: { line_index?: number } }
   | { type: 'blf_extension'; target: { user: 'self' | string } }
   | { type: 'blf_park'; target: { slot: number } }
-  | { type: 'blf_voicemail'; target: { user: 'self' | string } }
   | { type: 'blf_voicemail_shared'; target: { shared_voicemail_box: string } }
   | { type: 'blf_queue_agent'; target: { queue: string; user: 'self' | string } }
   | { type: 'blf_queue_depth'; target: { queue: string } }
   | { type: 'speed_dial'; target: { destination: string } }
   | { type: 'dtmf'; target: { digits: string } }
-  | { type: 'voicemail'; target?: Record<string, never> }
+  | { type: 'voicemail'; target?: { user?: 'self' | string } }
   | { type: 'url'; target: { url: string } }
   | { type: 'multicast'; target: { address: string; port: number } }
   | { type: 'conference'; target?: Record<string, never> }
