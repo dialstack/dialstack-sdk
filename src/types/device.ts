@@ -15,7 +15,7 @@ import type { ButtonCompatibilitySummary } from './button';
 /**
  * Discriminator for the unified `/v1/devices` endpoint.
  */
-export type DeviceType = 'deskphone' | 'dect_base';
+export type DeviceType = 'deskphone' | 'dect_base' | 'dect_handset';
 
 // ============================================================================
 // Device
@@ -63,6 +63,23 @@ export interface Device {
   current_ip_address?: string;
   /** ISO 8601 timestamp of last successful config fetch */
   last_provisioned_at?: string;
+  /**
+   * Whether the device is currently reachable (online). Live-derived from the
+   * device's assigned lines; distinct from `status`, which only reflects
+   * whether the device has fetched its config. Always present.
+   */
+  registration_status: RegistrationStatus;
+  /**
+   * ISO 8601 timestamp of when reachability was last confirmed; `null` when
+   * the device is not currently reachable.
+   */
+  last_registered_at: string | null;
+  /**
+   * ISO 8601 timestamp of the latest call attempt involving the device (any
+   * outcome), or `null` until its first call. Presence means the device has
+   * carried a call; recency indicates whether it is still in use.
+   */
+  last_call_at: string | null;
   /** ISO 8601 timestamp */
   created_at: string;
   /** ISO 8601 timestamp */
@@ -113,6 +130,14 @@ export function isDECTBase(device: Device): boolean {
  * - `provisioned`: Device has successfully fetched its configuration
  */
 export type DeviceStatus = 'pending-sync' | 'provisioned';
+
+/**
+ * Live reachability of a device, derived at read time from its assigned lines.
+ *
+ * - `registered`: the device is currently reachable (online)
+ * - `not_registered`: the device is not currently reachable, or has no lines
+ */
+export type RegistrationStatus = 'registered' | 'not_registered';
 
 // ============================================================================
 // Device Line

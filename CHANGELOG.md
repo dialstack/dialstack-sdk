@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Device readiness fields** on the `Device` type: `registration_status` (`'registered' | 'not_registered'`), `last_registered_at`, and `last_call_at`. These are always present and live-derived — `registration_status` reflects current reachability (distinct from the provisioning `status`), and `last_call_at` is the latest call attempt involving the device.
+
+### Changed
+
+- **`DeviceType` now includes `'dect_handset'`**: the unified `/v1/devices` endpoint already returns DECT handsets, but the SDK union previously omitted the variant. Consumers that exhaustively narrow on `DeviceType` should handle the `'dect_handset'` case.
+
 ### Breaking Changes
+
 - **Entity ID Format Migration**: All entity IDs now use TypeID format instead of UUIDs
   - Account IDs: `acct_` prefix (e.g., `acct_01h2xcejqtf2nbrexx3vqjhp41`)
   - User IDs: `user_` prefix (e.g., `user_01h2xcejqtf2nbrexx3vqjhp42`)
@@ -22,22 +31,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.1-alpha.1] - 2025-11-24
 
 ### Changed
+
 - **Session Creation Endpoint**: Updated from `/api/v1/accounts/{account_id}/sessions` to `/api/v1/account_sessions` for improved security
   - `account_id` now passed in request body instead of URL path
   - Endpoint now only accepts API keys (not session tokens)
   - Prevents session tokens from creating new session tokens
 
 ### Security
+
 - Session creation now requires API keys only (session tokens are rejected)
 - Only API keys can create sessions, preventing unauthorized session extension
 
 ### Migration
+
 No code changes required if using the SDK. Simply update to the latest version:
+
 ```bash
 npm install @dialstack/sdk@0.2.1-alpha.1
 ```
 
 ### Added
+
 - **Server SDK** - Node.js SDK for server-side API operations
   - `DialStack` class exported from `@dialstack/sdk/server`
   - `sessions.create()` method for creating account-scoped sessions
@@ -80,6 +94,7 @@ npm install @dialstack/sdk@0.2.1-alpha.1
   - Shadow DOM isolation for component encapsulation
 
 ### Changed
+
 - React Context Provider now accepts `dialstack` instance instead of `clientSecret`
 - Web Components now receive SDK instance via `setInstance()` method
 - Components auto-initialize when both connected to DOM and instance is set
@@ -93,12 +108,14 @@ npm install @dialstack/sdk@0.2.1-alpha.1
   - `DateRange` type exported for TypeScript consumers
 
 ### Deprecated
+
 - `initialize()` function (use `loadDialstackAndInitialize()` instead)
 - `getInstance()` function (use instance returned by `loadDialstackAndInitialize()` instead)
 
 ## [0.1.0] - 2025-11-14
 
 ### Added
+
 - Initial release of @dialstack/sdk
 - Core SDK initialization with `initialize()` and `getInstance()`
 - Web Components for CallLogs and Voicemails

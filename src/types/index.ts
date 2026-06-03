@@ -221,6 +221,7 @@ export type {
   DeviceType,
   Device,
   DeviceStatus,
+  RegistrationStatus,
   DeviceLine,
   ProvisionedDevice,
   CreateDeskphoneRequest,
