@@ -176,7 +176,12 @@ export default [
     input: 'src/server/index.ts',
     external: [],
     output: {
-      file: 'dist/server/index.js',
+      // `dir` + entryFileNames (rather than `file`) emits the same
+      // dist/server/index.js while letting declarationDir sit at `dist`
+      // (the typescript plugin requires declarationDir inside the output
+      // directory).
+      dir: 'dist',
+      entryFileNames: 'server/index.js',
       format: 'esm',
       sourcemap: true,
       exports: 'named',
@@ -192,8 +197,13 @@ export default [
         tsconfig: './tsconfig.json',
         sourceMap: true,
         declaration: true,
-        declarationDir: 'dist/server',
-        rootDir: 'src/server',
+        // rootDir is `src` (not `src/server`) so the bundle can import the
+        // shared auto-pagination helper from src/shared/. Declarations keep
+        // their source structure under dist: src/server/index.ts still emits
+        // to dist/server/index.d.ts — the package.json types entry point is
+        // unchanged; src/shared/*.d.ts lands alongside under dist/shared/.
+        declarationDir: 'dist',
+        rootDir: 'src',
       }),
     ],
   },

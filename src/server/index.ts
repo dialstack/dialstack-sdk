@@ -35,6 +35,10 @@ import {
   DialStackRateLimitError,
   type RawError,
 } from './errors';
+import {
+  createPaginatedList,
+  type PaginatedList as SharedPaginatedList,
+} from '../shared/pagination';
 
 // Re-export error classes for consumers
 export {
@@ -878,49 +882,11 @@ interface ListResponse<T> {
 // ============================================================================
 // Auto-Pagination Iterator
 // ============================================================================
+// Implementation lives in shared/pagination.ts so the WebRTC phone SDK's list
+// methods get the same auto-pagination surface. The public PaginatedList<T>
+// shape (single type parameter over the item) is preserved via this alias.
 
-export interface PaginatedList<T> extends Promise<ListResponse<T>> {
-  autoPagingEach(): AsyncIterableIterator<T>;
-  autoPagingToArray(options?: { limit?: number }): Promise<T[]>;
-}
-
-function createPaginatedList<T>(
-  firstPagePromise: Promise<ListResponse<T>>,
-  fetchNextPage: (url: string) => Promise<ListResponse<T>>
-): PaginatedList<T> {
-  const paginatedList = firstPagePromise as PaginatedList<T>;
-
-  paginatedList.autoPagingEach = async function* (): AsyncIterableIterator<T> {
-    let response = await firstPagePromise;
-
-    for (const item of response.data) {
-      yield item;
-    }
-
-    while (response.next_page_url) {
-      response = await fetchNextPage(response.next_page_url);
-      for (const item of response.data) {
-        yield item;
-      }
-    }
-  };
-
-  paginatedList.autoPagingToArray = async function (options?: { limit?: number }): Promise<T[]> {
-    const limit = options?.limit ?? 10000;
-    const results: T[] = [];
-
-    for await (const item of this.autoPagingEach()) {
-      results.push(item);
-      if (results.length >= limit) {
-        break;
-      }
-    }
-
-    return results;
-  };
-
-  return paginatedList;
-}
+export type PaginatedList<T> = SharedPaginatedList<ListResponse<T>>;
 
 // ============================================================================
 // DialStack Client

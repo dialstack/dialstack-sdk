@@ -12,6 +12,59 @@ export interface PhoneOptions {
   onTokenExpiring?: () => Promise<string>;
   autoReconnect?: boolean;
   iceServers?: RTCIceServer[];
+  /**
+   * The emergency-address resource id (emerg_…) this softphone uses for E911
+   * (DIA-644). Presented on the authenticate handshake so the server can bind
+   * it to the current network. When omitted, a previously persisted id (see
+   * `setEmergencyAddress`) is loaded from localStorage if available.
+   */
+  emergencyAddressId?: string;
+}
+
+/**
+ * Civic address submitted to register an emergency (E911) location. Validated
+ * against the carrier MSAG; an invalid address is rejected.
+ */
+export interface EmergencyAddressInput {
+  address_number?: string;
+  street: string;
+  unit?: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country?: string;
+}
+
+/** A registered emergency address resource. */
+export interface EmergencyAddress {
+  id: string;
+  address: EmergencyAddressDetails;
+  /** Network this address is bound to, or null when not yet registered. */
+  registered_ip: string | null;
+  created_at: string;
+}
+
+/** Normalized civic address fields returned on an EmergencyAddress. */
+export interface EmergencyAddressDetails {
+  address_number?: string;
+  street?: string;
+  unit?: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+  formatted_address?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+/** ListResponse envelope (the only place `object: "list"` appears). */
+export interface ListResponse<T> {
+  object: 'list';
+  url: string;
+  next_page_url: string | null;
+  previous_page_url: string | null;
+  data: T[];
 }
 
 export interface CallOptions {
@@ -41,7 +94,7 @@ export interface IceServersResponse {
 }
 
 export type ClientMessage =
-  | { type: 'authenticate'; token: string }
+  | { type: 'authenticate'; token: string; emergency_address_id?: string }
   | { type: 'call.create'; destination: string; sdp: string; client_call_id?: string }
   | { type: 'call.answer'; call_id: string }
   | { type: 'call.reject'; call_id: string; reason?: RejectReason }
@@ -63,6 +116,7 @@ export type ClientMessage =
 
 export type ServerMessage =
   | { type: 'authenticated'; user_id: string; account_id: string; reconnected?: boolean }
+  | { type: 'network.changed' }
   | { type: 'error'; code: string; message: string; call_id?: string | null; fatal?: boolean }
   | { type: 'call.trying'; call_id: string; client_call_id?: string | null }
   | { type: 'call.ringing'; call_id: string }

@@ -14,4 +14,9 @@ export type {
   SettablePresenceStatus,
   PresenceEntry,
   PresenceUpdate,
+  EmergencyAddress,
+  EmergencyAddressInput,
+  EmergencyAddressDetails,
+  ListResponse,
 } from './types';
+export type { PaginatedList, Page, PageItem } from '../shared/pagination';

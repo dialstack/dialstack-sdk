@@ -1,8 +1,12 @@
+import { createPaginatedList, type PaginatedList } from '../shared/pagination';
 import { Call } from './call';
 import { NotImplementedError, PhoneError } from './errors';
 import { Transport } from './transport';
 import type {
+  EmergencyAddress,
+  EmergencyAddressInput,
   IceServersResponse,
+  ListResponse,
   PhoneOptions,
   PresenceEntry,
   PresenceUpdate,
@@ -11,6 +15,15 @@ import type {
 } from './types';
 
 const DEFAULT_API_BASE_URL = 'https://api.dialstack.ai';
+
+// localStorage key prefix for the persisted emergency-address id (DIA-644).
+// Lets a softphone re-present the same address across reconnects/sessions so a
+// returning device re-binds without re-prompting the user. Namespaced by the
+// user id (the token's `sub` claim) so two users sharing a browser don't
+// inherit each other's saved address — the server would reject a foreign id
+// anyway (user-scoped), but presenting it would trigger a spurious
+// `network.changed` prompt.
+const EMERGENCY_ADDRESS_STORAGE_KEY_PREFIX = 'dialstack.webrtc.emergency_address_id.';
 
 type PhoneEventMap = {
   connected: () => void;
@@ -51,12 +64,20 @@ export class DialStackPhone {
     null;
   private hasConnectedOnce = false;
   private clientCallSeq = 0;
+  private emergencyAddressId: string | null;
+  // User id (token `sub` claim) used to namespace localStorage persistence.
+  // null when the token can't be decoded — persistence is then disabled and
+  // the app must supply PhoneOptions.emergencyAddressId itself.
+  private storageUserId: string | null;
 
   constructor(options: PhoneOptions) {
     this.token = options.token;
     this.apiBaseUrl = options.apiBaseUrl ?? DEFAULT_API_BASE_URL;
     this.autoReconnect = options.autoReconnect ?? true;
     this.iceServersOverride = options.iceServers ?? null;
+    this.storageUserId = userIdFromToken(options.token);
+    this.emergencyAddressId =
+      options.emergencyAddressId ?? loadStoredEmergencyAddressId(this.storageUserId);
     void options.onTokenExpiring; // Reserved for DIA-1267.
   }
 
@@ -88,7 +109,11 @@ export class DialStackPhone {
     this.transport = transport;
 
     transport.on('open', () => {
-      transport.send({ type: 'authenticate', token: this.token });
+      transport.send({
+        type: 'authenticate',
+        token: this.token,
+        ...(this.emergencyAddressId ? { emergency_address_id: this.emergencyAddressId } : {}),
+      });
     });
 
     transport.on('message', (msg) => this.handleMessage(msg));
@@ -207,17 +232,114 @@ export class DialStackPhone {
     throw new NotImplementedError('DialStackPhone.setPresence', 'DIA-1283');
   }
 
-  setEmergencyAddress(_address: unknown): Promise<unknown> {
-    throw new NotImplementedError('DialStackPhone.setEmergencyAddress', 'DIA-644');
+  /**
+   * Register and validate an emergency (E911) address (DIA-644). Creates the
+   * resource via the REST API (validated against the carrier MSAG), persists
+   * its id, and presents it on the next connect so the server binds it to the
+   * device's network. To bind a new address immediately (e.g. responding to a
+   * `network.changed` event), call this then `disconnect()` + `connect()`.
+   *
+   * Rejects with a `PhoneError` (code `invalid_message`) when the address
+   * can't be validated.
+   */
+  async setEmergencyAddress(address: EmergencyAddressInput): Promise<EmergencyAddress> {
+    const created = await this.apiRequest<EmergencyAddress>(
+      'POST',
+      '/v1/me/emergency-addresses',
+      address
+    );
+    this.emergencyAddressId = created.id;
+    persistEmergencyAddressId(this.storageUserId, created.id);
+    return created;
   }
 
-  getEmergencyAddress(): Promise<unknown> {
-    throw new NotImplementedError('DialStackPhone.getEmergencyAddress', 'DIA-644');
+  /** Fetch a saved emergency address (defaults to the one this phone uses). */
+  getEmergencyAddress(id?: string): Promise<EmergencyAddress> {
+    const target = id ?? this.emergencyAddressId;
+    if (!target) {
+      return Promise.reject(
+        new PhoneError({ code: 'invalid_message', message: 'No emergency address id' })
+      );
+    }
+    return this.apiRequest<EmergencyAddress>(
+      'GET',
+      `/v1/me/emergency-addresses/${encodeURIComponent(target)}`
+    );
+  }
+
+  /**
+   * List the user's saved emergency addresses (location profiles).
+   *
+   * Auto-paginating: `await` it for the first page envelope, or iterate the
+   * full collection with `autoPagingEach()` / `autoPagingToArray()` —
+   * subsequent pages are fetched lazily.
+   */
+  listEmergencyAddresses(): PaginatedList<ListResponse<EmergencyAddress>> {
+    const fetchPage = (url: string) => this.apiRequest<ListResponse<EmergencyAddress>>('GET', url);
+    return createPaginatedList(fetchPage('/v1/me/emergency-addresses'), fetchPage);
+  }
+
+  /** Delete a saved emergency address. Clears the local selection if it matched. */
+  async deleteEmergencyAddress(id: string): Promise<void> {
+    await this.apiRequest<void>('DELETE', `/v1/me/emergency-addresses/${encodeURIComponent(id)}`);
+    if (this.emergencyAddressId === id) {
+      this.emergencyAddressId = null;
+      persistEmergencyAddressId(this.storageUserId, null);
+    }
+  }
+
+  /**
+   * Clear an address's network binding (registered_ip) via the REST API. The
+   * next connect re-registers the current network. Useful after a move so the
+   * address re-binds where the device now is.
+   */
+  clearEmergencyAddressRegisteredIp(id: string): Promise<void> {
+    return this.apiRequest<void>(
+      'DELETE',
+      `/v1/me/emergency-addresses/${encodeURIComponent(id)}/registered_ip`
+    );
   }
 
   private nextClientCallId(): string {
     this.clientCallSeq += 1;
     return `c_${Date.now().toString(36)}_${this.clientCallSeq}`;
+  }
+
+  // apiRequest is the shared REST helper for the /v1/me/emergency-addresses
+  // surface (Bearer auth, JSON). A 422 (carrier MSAG validation failure)
+  // surfaces as invalid_message carrying the server detail; 204 returns void.
+  private async apiRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
+    let resp: Response;
+    try {
+      resp = await fetch(`${this.apiBaseUrl}${path}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
+    } catch (e) {
+      throw new PhoneError({
+        code: 'internal_error',
+        message: `request failed: ${(e as Error).message}`,
+      });
+    }
+    if (resp.status === 422) {
+      const detail = await resp.text().catch(() => '');
+      throw new PhoneError({
+        code: 'invalid_message',
+        message: `emergency address validation failed: ${detail || resp.statusText}`,
+      });
+    }
+    if (!resp.ok) {
+      throw new PhoneError({
+        code: 'internal_error',
+        message: `request failed: status ${resp.status}`,
+      });
+    }
+    if (resp.status === 204) return undefined as T;
+    return (await resp.json()) as T;
   }
 
   private async fetchIceServers(): Promise<RTCIceServer[]> {
@@ -247,6 +369,14 @@ export class DialStackPhone {
         if (this.hasConnectedOnce) this.emit('reconnected');
         else this.emit('connected');
         this.hasConnectedOnce = true;
+        return;
+      }
+      case 'network.changed': {
+        // The emergency address bound at connect no longer applies on this
+        // network (DIA-644). The session stays usable — 911/933 still go out —
+        // but non-emergency PSTN is gated until the app confirms/registers an
+        // address valid here. Surfaced as an event for the app to prompt on.
+        this.emit('network.changed');
         return;
       }
       case 'error': {
@@ -378,5 +508,47 @@ export class DialStackPhone {
     this.listeners[event]?.forEach((h) => {
       (h as (...a: unknown[]) => void)(...(args as unknown[]));
     });
+  }
+}
+
+// userIdFromToken extracts the user id (`sub` claim, a user_… id) from the
+// user-session JWT with an UNVERIFIED payload decode. This is safe here: the
+// id is used only to namespace localStorage persistence, never for trust —
+// the server independently verifies the token and scopes every address by
+// the authenticated user. Returns null for undecodable/opaque tokens.
+function userIdFromToken(token: string): string | null {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    const sub = (JSON.parse(json) as { sub?: string }).sub;
+    return typeof sub === 'string' && sub.startsWith('user_') ? sub : null;
+  } catch {
+    return null;
+  }
+}
+
+// localStorage helpers for the persisted emergency-address id, namespaced per
+// user so shared browsers don't leak one user's saved address into another's
+// session. Guarded so the SDK works in non-browser hosts (Node, native shells)
+// where localStorage is absent — there (or when the token can't be decoded)
+// the id must be supplied via PhoneOptions.emergencyAddressId.
+function loadStoredEmergencyAddressId(userId: string | null): string | null {
+  if (!userId) return null;
+  try {
+    return globalThis.localStorage?.getItem(EMERGENCY_ADDRESS_STORAGE_KEY_PREFIX + userId) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function persistEmergencyAddressId(userId: string | null, id: string | null): void {
+  if (!userId) return;
+  const key = EMERGENCY_ADDRESS_STORAGE_KEY_PREFIX + userId;
+  try {
+    if (id) globalThis.localStorage?.setItem(key, id);
+    else globalThis.localStorage?.removeItem(key);
+  } catch {
+    // No localStorage (Node / native) — persistence is a browser nicety.
   }
 }
