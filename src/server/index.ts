@@ -152,6 +152,18 @@ export interface AccountListParams {
   page?: string;
 }
 
+export interface AccountPricing {
+  per_user_rate: number | null;
+  per_did_rate: number | null;
+  per_voiceai_location_rate: number | null;
+}
+
+export interface AccountPricingUpdateParams {
+  per_user_rate: number;
+  per_did_rate: number;
+  per_voiceai_location_rate: number;
+}
+
 export interface User {
   id: string;
   name: string | null;
@@ -1201,6 +1213,26 @@ export class DialStack {
       };
 
       return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+
+    /**
+     * Retrieve the agreed pricing singleton for an account. Rates are null
+     * until pricing has been set.
+     */
+    retrievePricing: (accountId: string, options?: RequestOptions): Promise<AccountPricing> => {
+      return this._request('GET', `/v1/accounts/${accountId}/pricing`, undefined, options);
+    },
+
+    /**
+     * Create or replace the agreed pricing for an account. All three rates
+     * are required, in cents per month.
+     */
+    updatePricing: (
+      accountId: string,
+      params: AccountPricingUpdateParams,
+      options?: RequestOptions
+    ): Promise<AccountPricing> => {
+      return this._request('POST', `/v1/accounts/${accountId}/pricing`, params, options);
     },
   };
 
