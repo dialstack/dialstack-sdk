@@ -503,7 +503,18 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       const response = await this.fetchApi(`/v1/available-phone-numbers?${params}`);
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Failed to search available numbers: ${response.status} ${errorText}`);
+        // The API returns {"error": "<user-facing message>"} — surface that
+        // message directly rather than the raw status and body.
+        let message = `Failed to search available numbers: ${response.status} ${errorText}`;
+        try {
+          const parsed = JSON.parse(errorText);
+          if (typeof parsed?.error === 'string' && parsed.error) {
+            message = parsed.error;
+          }
+        } catch {
+          // Not JSON — keep the fallback message.
+        }
+        throw new Error(message);
       }
 
       const body = await response.json();
