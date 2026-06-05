@@ -114,6 +114,7 @@ export type {
   DeviceStatus,
   RegistrationStatus,
   DeviceLine,
+  DeviceUserAssignment,
   ProvisionedDevice,
   CreateDeskphoneRequest,
   UpdateDeskphoneRequest,
@@ -127,6 +128,15 @@ export type {
   ProvisioningEventListOptions,
 } from './types';
 export { isDeskphone, isDECTBase } from './types';
+
+// Device onboarding-readiness derivation (shared so all consumers agree)
+export { deviceReadiness } from './utils/device-readiness';
+export type {
+  DeviceReadiness,
+  DeviceReadinessInput,
+  DeviceReadinessPrerequisite,
+  DeviceReadinessStep,
+} from './utils/device-readiness';
 
 // DECT types
 export type {

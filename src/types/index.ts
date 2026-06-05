@@ -223,6 +223,7 @@ export type {
   DeviceStatus,
   RegistrationStatus,
   DeviceLine,
+  DeviceUserAssignment,
   ProvisionedDevice,
   CreateDeskphoneRequest,
   UpdateDeskphoneRequest,

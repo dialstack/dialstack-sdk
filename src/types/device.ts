@@ -85,6 +85,13 @@ export interface Device {
   /** ISO 8601 timestamp */
   updated_at: string;
 
+  /**
+   * User assignments (deskphones and DECT handsets). Only hydrated when the
+   * device is fetched with `expand[]=users`; absent otherwise. DECT bases
+   * always carry an empty array — handsets, not bases, are user-assigned.
+   */
+  assignments?: DeviceUserAssignment[];
+
   // Deskphone-specific fields (present when type === 'deskphone')
   /** TypeID of the primary line */
   primary_line_id?: string;
@@ -117,6 +124,28 @@ export function isDeskphone(device: Device): boolean {
  */
 export function isDECTBase(device: Device): boolean {
   return device.type === 'dect_base';
+}
+
+/**
+ * A user assignment on a device, present on `/v1/devices` responses fetched
+ * with `expand[]=users`. On deskphones one assignment exists per assigned
+ * line; on DECT handsets one per extension.
+ */
+export interface DeviceUserAssignment {
+  /** TypeID of the assigned user */
+  user_id: string;
+  /** TypeID of the device */
+  device_id: string;
+  /** Line number on the device (deskphones; 1-based) */
+  line_number?: number;
+  /** ISO 8601 timestamp */
+  created_at: string;
+  /** Assigned user summary (when eager-loaded) */
+  user?: {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+  };
 }
 
 // ============================================================================

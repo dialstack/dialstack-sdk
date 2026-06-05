@@ -25,6 +25,11 @@ describe('SDK Main Entry Exports', () => {
     expect(typeof SDK.isDECTBase).toBe('function');
   });
 
+  it('exports deviceReadiness function', () => {
+    expect(SDK.deviceReadiness).toBeDefined();
+    expect(typeof SDK.deviceReadiness).toBe('function');
+  });
+
   it('does NOT export React components or hooks', () => {
     const sdkAny = SDK as Record<string, unknown>;
     expect(sdkAny['DialstackComponentsProvider']).toBeUndefined();
