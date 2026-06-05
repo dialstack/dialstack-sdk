@@ -95,13 +95,22 @@ export interface IceServersResponse {
 
 export type ClientMessage =
   | { type: 'authenticate'; token: string; emergency_address_id?: string }
-  | { type: 'call.create'; destination: string; sdp: string; client_call_id?: string }
+  | { type: 'call.create'; req_id?: string; destination: string; sdp: string }
   | { type: 'call.answer'; call_id: string }
   | { type: 'call.reject'; call_id: string; reason?: RejectReason }
   | { type: 'call.hangup'; call_id: string }
   | { type: 'call.hold'; call_id: string }
   | { type: 'call.resume'; call_id: string }
   | { type: 'call.mute'; call_id: string }
+  | { type: 'call.transfer'; call_id: string; destination: string }
+  | {
+      type: 'call.transfer.attended';
+      req_id?: string;
+      call_id: string;
+      step: 'consult' | 'complete';
+      destination?: string;
+      sdp?: string;
+    }
   | { type: 'call.unmute'; call_id: string }
   | { type: 'sdp.offer'; call_id: string; sdp: string }
   | { type: 'sdp.answer'; call_id: string; sdp: string }
@@ -117,8 +126,15 @@ export type ClientMessage =
 export type ServerMessage =
   | { type: 'authenticated'; user_id: string; account_id: string; reconnected?: boolean }
   | { type: 'network.changed' }
-  | { type: 'error'; code: string; message: string; call_id?: string | null; fatal?: boolean }
-  | { type: 'call.trying'; call_id: string; client_call_id?: string | null }
+  | {
+      type: 'error';
+      code: string;
+      message: string;
+      req_id?: string | null;
+      call_id?: string | null;
+      fatal?: boolean;
+    }
+  | { type: 'call.trying'; call_id: string; req_id?: string | null }
   | { type: 'call.ringing'; call_id: string }
   | { type: 'call.incoming'; call_id: string; from: string; from_name: string | null; to: string }
   | { type: 'call.answered'; call_id: string; answered_at?: string }

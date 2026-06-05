@@ -12,6 +12,8 @@ opens the WebRTC signalling WebSocket, and lets you place and receive calls.
 - Hold / resume
 - Mute / unmute
 - DTMF
+- Blind transfer
+- Attended transfer: consult, then complete or abandon (hang up consult + resume)
 
 ## Setup
 

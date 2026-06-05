@@ -14,6 +14,9 @@ type CallView = {
   to: string;
   isMuted: boolean;
   isHeld: boolean;
+  // Set on a consult leg: the id of the original (held) call it was dialed
+  // for during an attended transfer.
+  parentId?: string;
 };
 
 const STATUS_LABEL: Record<Status, string> = {
@@ -31,6 +34,7 @@ export default function Page() {
   const [message, setMessage] = useState<string>('');
   const [destination, setDestination] = useState<string>('');
   const [dtmf, setDtmf] = useState<string>('');
+  const [transferDest, setTransferDest] = useState<string>('');
   const [calls, setCalls] = useState<Record<string, { view: CallView; call: Call }>>({});
 
   useEffect(() => {
@@ -39,14 +43,14 @@ export default function Page() {
     };
   }, []);
 
-  const upsertCall = (call: Call) => {
-    setCalls((prev) => ({ ...prev, [call.id]: { view: snapshot(call), call } }));
+  const upsertCall = (call: Call, parentId?: string) => {
+    setCalls((prev) => ({ ...prev, [call.id]: { view: snapshot(call, parentId), call } }));
   };
 
   const refreshCall = (call: Call) => {
     setCalls((prev) => {
       if (!prev[call.id]) return prev;
-      return { ...prev, [call.id]: { call, view: snapshot(call) } };
+      return { ...prev, [call.id]: { call, view: snapshot(call, prev[call.id].view.parentId) } };
     });
   };
 
@@ -58,7 +62,7 @@ export default function Page() {
     });
   };
 
-  const wireCall = (call: Call) => {
+  const wireCall = (call: Call, parentId?: string) => {
     // Example limitation: a single shared <audio> element. Wiring a second
     // concurrent call here overwrites the first call's srcObject, so only
     // the most recent call has audible playback. A real softphone would
@@ -76,7 +80,7 @@ export default function Page() {
       setMessage(`Call ended (${reason})`);
       removeCall(call.id);
     });
-    upsertCall(call);
+    upsertCall(call, parentId);
   };
 
   const connect = async () => {
@@ -136,6 +140,36 @@ export default function Page() {
       setMessage(`Dialing ${destination} …`);
       const call = await phoneRef.current.call(destination);
       wireCall(call);
+    } catch (e) {
+      setMessage((e as Error).message);
+    }
+  };
+
+  const blindTransfer = (call: Call) => {
+    try {
+      call.transfer(transferDest);
+      setMessage(`Transferring to ${transferDest} …`);
+      setTransferDest('');
+    } catch (e) {
+      setMessage((e as Error).message);
+    }
+  };
+
+  const startAttendedTransfer = async (call: Call) => {
+    try {
+      setMessage(`Consulting ${transferDest} …`);
+      const consult = await call.attendedTransfer(transferDest);
+      setTransferDest('');
+      wireCall(consult, call.id);
+    } catch (e) {
+      setMessage((e as Error).message);
+    }
+  };
+
+  const completeTransfer = (call: Call) => {
+    try {
+      call.completeTransfer();
+      setMessage('Completing transfer …');
     } catch (e) {
       setMessage((e as Error).message);
     }
@@ -212,6 +246,9 @@ export default function Page() {
           {Object.values(calls).length === 0 && <p className={styles.empty}>None.</p>}
           {Object.values(calls).map(({ view, call }) => {
             const peer = view.direction === 'inbound' ? view.from : view.to;
+            // Consult leg of an attended transfer started from this call,
+            // if one exists — gates the "Complete transfer" button.
+            const consult = Object.values(calls).find((c) => c.view.parentId === view.id);
             return (
               <div key={view.id} className={styles.call}>
                 <div className={styles.callHeader}>
@@ -271,10 +308,43 @@ export default function Page() {
                       Resume
                     </button>
                   )}
+                  {view.state === 'held' && consult?.view.state === 'active' && (
+                    <button
+                      onClick={() => completeTransfer(call)}
+                      className={`${styles.button} ${styles.buttonPrimary}`}
+                    >
+                      Complete transfer
+                    </button>
+                  )}
                   <button onClick={() => call.hangup()} className={`${styles.button} ${styles.buttonDanger}`}>
                     Hang up
                   </button>
                 </div>
+
+                {view.state === 'active' && (
+                  <div className={styles.dtmfRow}>
+                    <input
+                      value={transferDest}
+                      onChange={(e) => setTransferDest(e.target.value)}
+                      placeholder="Transfer destination"
+                      className={styles.input}
+                    />
+                    <button
+                      onClick={() => blindTransfer(call)}
+                      disabled={!transferDest}
+                      className={styles.button}
+                    >
+                      Blind transfer
+                    </button>
+                    <button
+                      onClick={() => void startAttendedTransfer(call)}
+                      disabled={!transferDest}
+                      className={styles.button}
+                    >
+                      Consult
+                    </button>
+                  </div>
+                )}
 
                 {view.state === 'active' && (
                   <div className={styles.dtmfRow}>
@@ -298,7 +368,7 @@ export default function Page() {
   );
 }
 
-function snapshot(call: Call): CallView {
+function snapshot(call: Call, parentId?: string): CallView {
   return {
     id: call.id,
     direction: call.direction,
@@ -307,6 +377,7 @@ function snapshot(call: Call): CallView {
     to: call.to,
     isMuted: call.isMuted,
     isHeld: call.isHeld,
+    parentId,
   };
 }
 

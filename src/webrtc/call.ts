@@ -1,4 +1,4 @@
-import { NotImplementedError, PhoneError } from './errors';
+import { PhoneError } from './errors';
 import type { Transport } from './transport';
 import type {
   CallDirection,
@@ -29,6 +29,10 @@ export interface CallInit {
   initialState: CallState;
   transport: Transport;
   iceServers: RTCIceServer[];
+  // Phone-owned hook that dials the consult leg of an attended transfer
+  // (the Call can't construct sibling Calls itself — registration, ICE
+  // servers, and pending-call resolution live on DialStackPhone).
+  startConsult: (parent: Call, destination: string) => Promise<Call>;
 }
 
 export class Call {
@@ -49,6 +53,7 @@ export class Call {
   }
 
   private transport: Transport;
+  private readonly startConsult: (parent: Call, destination: string) => Promise<Call>;
   private localStream: MediaStream;
   private remoteStream: MediaStream;
   private dtmfSender: RTCDTMFSender | null = null;
@@ -78,6 +83,7 @@ export class Call {
     this.to = init.to;
     this.state = init.initialState;
     this.transport = init.transport;
+    this.startConsult = init.startConsult;
     this.localStream = new MediaStream();
     this.remoteStream = new MediaStream();
 
@@ -176,16 +182,53 @@ export class Call {
     this.dtmfSender.insertDTMF(digits, duration, interToneGap);
   }
 
-  transfer(_destination: string): void {
-    throw new NotImplementedError('Call.transfer', 'DIA-1282');
+  /**
+   * Blind transfer: immediately redirect the remote party to `destination`.
+   * Fire-and-forget — on success the call ends with reason 'transferred';
+   * on failure a non-fatal error is emitted and the call stays active.
+   * The call must be active.
+   */
+  transfer(destination: string): void {
+    this.assertTransferable();
+    this.transport.send({ type: 'call.transfer', call_id: this.id, destination });
   }
 
-  attendedTransfer(_destination: string): Promise<Call> {
-    throw new NotImplementedError('Call.attendedTransfer', 'DIA-1282');
+  /**
+   * Attended (consultative) transfer, step 1: hold this call and dial
+   * `destination` as a consult leg. Resolves with the consult Call. Once the
+   * consult party answers, call `completeTransfer()` on THIS call to bridge
+   * them; or hang up the consult and `resume()` to abandon the transfer.
+   */
+  attendedTransfer(destination: string): Promise<Call> {
+    this.assertTransferable();
+    return this.startConsult(this, destination);
   }
 
+  /**
+   * Attended transfer, step 2: bridge the remote party to the consult leg's
+   * party. Valid once the consult call (started via `attendedTransfer`) is
+   * answered; this call is held at that point. On success both calls end
+   * with reason 'transferred'.
+   */
   completeTransfer(): void {
-    throw new NotImplementedError('Call.completeTransfer', 'DIA-1282');
+    if (this.state !== 'held') {
+      throw new PhoneError({
+        code: 'invalid_message',
+        message: 'completeTransfer requires a held call with an active consult leg',
+        callId: this.id,
+      });
+    }
+    this.transport.send({ type: 'call.transfer.attended', call_id: this.id, step: 'complete' });
+  }
+
+  private assertTransferable(): void {
+    if (this.state !== 'active') {
+      throw new PhoneError({
+        code: 'invalid_message',
+        message: 'Only active calls can be transferred',
+        callId: this.id,
+      });
+    }
   }
 
   get remoteMediaStream(): MediaStream {

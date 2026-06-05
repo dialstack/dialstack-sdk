@@ -40,7 +40,11 @@ type PhoneEventMap = {
 type Listener<K extends keyof PhoneEventMap> = PhoneEventMap[K];
 
 interface PendingOutbound {
-  clientCallId: string;
+  // The creating frame's req_id. call.trying (the direct reply to a
+  // call-creating frame — call.create or the consult step of
+  // call.transfer.attended) echoes it, as does an error reply; it is the
+  // sole match key for resolving or rejecting this pending call.
+  reqId: string;
   destination: string;
   resolve: (call: Call) => void;
   reject: (err: PhoneError) => void;
@@ -63,7 +67,7 @@ export class DialStackPhone {
   private connectResolvers: { resolve: () => void; reject: (err: PhoneError) => void } | null =
     null;
   private hasConnectedOnce = false;
-  private clientCallSeq = 0;
+  private reqSeq = 0;
   private emergencyAddressId: string | null;
   // User id (token `sub` claim) used to namespace localStorage persistence.
   // null when the token can't be decoded — persistence is then disabled and
@@ -149,7 +153,43 @@ export class DialStackPhone {
     this.isConnected = false;
   }
 
-  async call(destination: string): Promise<Call> {
+  call(destination: string): Promise<Call> {
+    const reqId = this.nextReqId();
+    return this.placeOutbound(destination, reqId, (offerSdp) => {
+      this.transport!.send({
+        type: 'call.create',
+        req_id: reqId,
+        destination,
+        sdp: offerSdp,
+      });
+    });
+  }
+
+  // startConsult dials the consult leg of an attended transfer (DIA-1282):
+  // same outbound machinery as call(), but signalled via
+  // call.transfer.attended{step:consult} so the server holds the parent
+  // first. The consult's call.trying is the direct reply to the consult
+  // frame and echoes its req_id, so it resolves exactly like a normal
+  // outbound call.
+  private startConsult(parent: Call, destination: string): Promise<Call> {
+    const reqId = this.nextReqId();
+    return this.placeOutbound(destination, reqId, (offerSdp) => {
+      this.transport!.send({
+        type: 'call.transfer.attended',
+        req_id: reqId,
+        call_id: parent.id,
+        step: 'consult',
+        destination,
+        sdp: offerSdp,
+      });
+    });
+  }
+
+  private async placeOutbound(
+    destination: string,
+    reqId: string,
+    sendCreate: (offerSdp: string) => void
+  ): Promise<Call> {
     if (!this.transport || !this.isConnected) {
       throw new PhoneError({ code: 'transport_closed', message: 'Phone is not connected' });
     }
@@ -160,10 +200,9 @@ export class DialStackPhone {
       });
     }
 
-    const clientCallId = this.nextClientCallId();
-
     const call = new Call({
-      id: clientCallId,
+      // Provisional id until call.trying delivers the server-assigned one.
+      id: reqId,
       direction: 'outbound',
       from: '',
       fromName: null,
@@ -171,6 +210,7 @@ export class DialStackPhone {
       initialState: 'trying',
       transport: this.transport,
       iceServers: this.iceServers,
+      startConsult: (p, d) => this.startConsult(p, d),
     });
 
     // startOutbound acquires the mic (getUserMedia) internally and gathers ICE
@@ -197,7 +237,7 @@ export class DialStackPhone {
 
     return new Promise<Call>((resolve, reject) => {
       this.pendingOutbound = {
-        clientCallId,
+        reqId,
         destination,
         resolve: (placed) => {
           this.activeCalls.push(placed);
@@ -209,12 +249,7 @@ export class DialStackPhone {
         },
       };
 
-      this.transport!.send({
-        type: 'call.create',
-        destination,
-        sdp: offerSdp,
-        client_call_id: clientCallId,
-      });
+      sendCreate(offerSdp);
 
       this.pendingCall = call;
     });
@@ -300,9 +335,9 @@ export class DialStackPhone {
     );
   }
 
-  private nextClientCallId(): string {
-    this.clientCallSeq += 1;
-    return `c_${Date.now().toString(36)}_${this.clientCallSeq}`;
+  private nextReqId(): string {
+    this.reqSeq += 1;
+    return `req_${Date.now().toString(36)}_${this.reqSeq}`;
   }
 
   // apiRequest is the shared REST helper for the /v1/me/emergency-addresses
@@ -390,10 +425,11 @@ export class DialStackPhone {
           this.connectResolvers.reject(err);
           this.connectResolvers = null;
         }
-        if (
-          this.pendingOutbound &&
-          (msg.call_id === this.pendingOutbound.clientCallId || msg.call_id == null)
-        ) {
+        // A pending outbound is rejected by an error echoing the creating
+        // frame's req_id (the server echoes it on every immediate create /
+        // consult failure), or by any fatal error — the connection is dying
+        // and call.trying will never arrive.
+        if (this.pendingOutbound && (msg.req_id === this.pendingOutbound.reqId || err.fatal)) {
           const p = this.pendingOutbound;
           this.pendingOutbound = null;
           this.pendingCall = null;
@@ -403,11 +439,10 @@ export class DialStackPhone {
         return;
       }
       case 'call.trying': {
-        if (
-          this.pendingOutbound &&
-          msg.client_call_id === this.pendingOutbound.clientCallId &&
-          this.pendingCall
-        ) {
+        // call.trying is the direct reply to the call-creating frame
+        // (call.create or the consult step of call.transfer.attended) and
+        // echoes its req_id.
+        if (this.pendingOutbound && msg.req_id === this.pendingOutbound.reqId && this.pendingCall) {
           this.pendingCall.id = msg.call_id;
           const placed = this.pendingCall;
           this.pendingOutbound.resolve(placed);
@@ -482,6 +517,7 @@ export class DialStackPhone {
       initialState: 'ringing',
       transport: this.transport!,
       iceServers: this.iceServers,
+      startConsult: (p, d) => this.startConsult(p, d),
     });
     // Register the Call synchronously so the sdp.offer + ICE the server sends
     // immediately after call.incoming are routed to it, not dropped via
