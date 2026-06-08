@@ -198,8 +198,9 @@ export class PhoneNumbersComponent extends BaseComponent {
   /**
    * Merge DIDs, number orders, and port orders into a unified list.
    *
-   * Inactive DIDs that have a corresponding non-complete/non-cancelled port order
-   * are excluded — the port order entry in "In Progress" is the correct representation.
+   * Inactive DIDs that have a corresponding in-flight number order or
+   * non-complete/non-cancelled port order are excluded — the order entry in
+   * "In Progress" is the correct representation.
    */
   private mergePhoneNumbers(
     dids: DIDItem[],
@@ -218,10 +219,25 @@ export class PhoneNumbersComponent extends BaseComponent {
       }
     }
 
+    // Build a set of phone numbers still pending in an in-flight number order
+    const activeOrderNumbers = new Set<string>();
+    for (const order of orders) {
+      if (order.status !== 'pending' && order.status !== 'partial') continue;
+      for (const num of order.phone_numbers) {
+        if (!order.completed_numbers.includes(num)) {
+          activeOrderNumbers.add(num);
+        }
+      }
+    }
+
     // Add DIDs first (they take precedence for non-inactive numbers)
     for (const did of dids) {
-      // Skip inactive DIDs that have an in-progress port order
-      if (did.status === 'inactive' && activePortNumbers.has(did.phone_number)) {
+      // Skip inactive DIDs that have an in-progress number order or port order —
+      // these are pre-created rows awaiting order completion, not cancelled numbers
+      if (
+        did.status === 'inactive' &&
+        (activePortNumbers.has(did.phone_number) || activeOrderNumbers.has(did.phone_number))
+      ) {
         continue;
       }
 
