@@ -316,9 +316,11 @@ export default function Page() {
                       Complete transfer
                     </button>
                   )}
-                  <button onClick={() => call.hangup()} className={`${styles.button} ${styles.buttonDanger}`}>
-                    Hang up
-                  </button>
+                  {!(view.direction === 'inbound' && view.state === 'ringing') && (
+                    <button onClick={() => call.hangup()} className={`${styles.button} ${styles.buttonDanger}`}>
+                      Hang up
+                    </button>
+                  )}
                 </div>
 
                 {view.state === 'active' && (
