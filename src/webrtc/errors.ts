@@ -8,6 +8,9 @@ export type PhoneErrorCode =
   | 'session_limit'
   | 'rate_limited'
   | 'internal_error'
+  | 'going_away'
+  | 'idle_timeout'
+  | 'slow_consumer'
   | 'transport_closed'
   | 'ice_fetch_failed';
 
