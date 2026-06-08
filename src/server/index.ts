@@ -168,10 +168,21 @@ export interface AccountPricingUpdateParams {
   per_voiceai_location_rate: number;
 }
 
+export interface UserConfig {
+  /**
+   * Whether incoming calls are held for a wake-up window when the user has no
+   * active web/mobile calling session, so a push notification can wake their
+   * app to answer. Enable when your application delivers push notifications
+   * for this user.
+   */
+  mobile_push_wakeup?: boolean;
+}
+
 export interface User {
   id: string;
   name: string | null;
   email: string | null;
+  config?: UserConfig;
   created_at: string;
   updated_at: string;
 }
@@ -184,6 +195,9 @@ export interface UserCreateParams {
 export interface UserUpdateParams {
   name?: string;
   email?: string;
+  config?: {
+    mobile_push_wakeup?: boolean;
+  };
 }
 
 export interface UserListParams {
