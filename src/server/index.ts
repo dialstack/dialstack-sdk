@@ -569,7 +569,7 @@ export interface RingGroupAddMemberParams {
 // embedded-component side of the SDK. It is duplicated inline here
 // because rollup's `rootDir: 'sdk/src/server'` forbids imports
 // reaching outside the server bundle. Keep the two unions in lockstep
-// until the bundler config is widened (out of scope for DIA-895).
+// until the bundler config is widened.
 export type QueueStrategy =
   | 'ringall'
   | 'linear'

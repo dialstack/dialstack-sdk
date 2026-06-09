@@ -41,7 +41,7 @@ export const config: NodeDefinition = {
     const n = node as AudioClipNodeType;
     return { label: 'Audio Clip', clipId: n.config.clip_id, originalNode: n };
   },
-  // Legacy plans store this node as `sound_clip` (pre-DIA-1029). The default
+  // Legacy plans store this node as `sound_clip`. The default
   // registry alias routes those nodes here; this rewrites them into the
   // current shape so save round-trips as `audio_clip` — an implicit migration
   // on first edit while the SQL migration handles bulk.

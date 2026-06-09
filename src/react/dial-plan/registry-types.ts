@@ -72,7 +72,7 @@ export interface NodeTypeRegistration {
    * shape. Saving the plan then round-trips as the new node type — implicit
    * migration on edit.
    *
-   * TODO(DIA-941): remove this hook once legacy usage drains.
+   * TODO: remove this hook once legacy usage drains.
    */
   normalizeFromAlias?: (node: DialPlanNode) => DialPlanNode;
   /** Override default edge creation for nodes with dynamic exits (e.g., menu per-digit options). */

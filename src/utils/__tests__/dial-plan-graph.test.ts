@@ -212,7 +212,7 @@ describe('dial-plan-graph', () => {
       expect(config['closed']).toBe('voicemail');
     });
 
-    // DIA-1193: holiday is a per-node opt-in exit. These cover the three states
+    // holiday is a per-node opt-in exit. These cover the three states
     // the editor can produce on save.
     describe('schedule holiday exit', () => {
       const holidayPlan: DialPlan = {
@@ -272,7 +272,7 @@ describe('dial-plan-graph', () => {
       });
     });
 
-    // DIA-730: voice_app is its own first-class node type. Round-trip preserves
+    // voice_app is its own first-class node type. Round-trip preserves
     // the new shape (voice_app_id, no timeout, no target_id collapse).
     it('round-trips voice_app nodes without collapsing to internal_dial', () => {
       const plan: DialPlan = {
@@ -303,7 +303,7 @@ describe('dial-plan-graph', () => {
       expect(config['timeout']).toBeUndefined();
     });
 
-    // DIA-730: legacy plans store voice apps as `internal_dial` with a `va_`
+    // legacy plans store voice apps as `internal_dial` with a `va_`
     // `target_id`. Loading promotes them to `voice_app`; saving writes the new
     // shape — implicit migration on first edit.
     it('promotes legacy internal_dial+va_ to voice_app on load and save', () => {
@@ -344,7 +344,7 @@ describe('dial-plan-graph', () => {
       expect(config['timeout']).toBeUndefined();
     });
 
-    // DIA-730: voice_app's "No Answer" exit must round-trip via the `next` edge.
+    // voice_app's "No Answer" exit must round-trip via the `next` edge.
     it('round-trips voice_app next exit through edges', () => {
       const plan: DialPlan = {
         id: 'dp_va_next',

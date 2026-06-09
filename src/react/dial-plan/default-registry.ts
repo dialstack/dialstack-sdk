@@ -36,7 +36,7 @@ for (const def of nodeDefinitions) {
 }
 
 // internal_dial resolves voicemail and (deprecated) voice_app aliases at load
-// time. After DIA-730, voice apps have their own node type; va_ aliasing is
+// time. Voice apps now have their own node type; va_ aliasing is
 // kept for backward compatibility while legacy plans still exist.
 const internalDialReg = defaultRegistry.get('internal_dial');
 if (internalDialReg) {
@@ -46,7 +46,7 @@ if (internalDialReg) {
     if (targetId?.startsWith('svm_') || (config.timeout === 0 && !config.next)) {
       return defaultRegistry.get('voicemail');
     }
-    // TODO(DIA-941): remove va_ aliasing once legacy usage drains.
+    // TODO: remove va_ aliasing once legacy usage drains.
     if (targetId?.startsWith('va_')) {
       return defaultRegistry.get('voice_app');
     }
@@ -54,7 +54,7 @@ if (internalDialReg) {
   };
 }
 
-// DIA-1029 renamed `sound_clip` to `audio_clip`. The SQL migration rewrites
+// `sound_clip` was renamed to `audio_clip`. The SQL migration rewrites
 // persisted rows; this alias keeps the editor functional for any legacy
 // payload the API still emits during the rollout window. AudioClipNode's
 // `normalizeFromAlias` rewrites the type field on first edit, so saves

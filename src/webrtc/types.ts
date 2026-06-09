@@ -13,8 +13,8 @@ export interface PhoneOptions {
   autoReconnect?: boolean;
   iceServers?: RTCIceServer[];
   /**
-   * The emergency-address resource id (emerg_…) this softphone uses for E911
-   * (DIA-644). Presented on the authenticate handshake so the server can bind
+   * The emergency-address resource id (emerg_…) this softphone uses for E911.
+   * Presented on the authenticate handshake so the server can bind
    * it to the current network. When omitted, a previously persisted id (see
    * `setEmergencyAddress`) is loaded from localStorage if available.
    */

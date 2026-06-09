@@ -34,8 +34,8 @@ export class PhoneError extends Error {
 }
 
 export class NotImplementedError extends Error {
-  constructor(method: string, tracking: string) {
-    super(`${method} is not yet implemented (tracked in ${tracking})`);
+  constructor(method: string) {
+    super(`${method} is not yet implemented`);
     this.name = 'NotImplementedError';
   }
 }

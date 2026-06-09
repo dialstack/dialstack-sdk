@@ -1,7 +1,7 @@
 import { computePortalCssVars, LIGHT_COLORS } from '../design-tokens';
 
 describe('computePortalCssVars', () => {
-  describe('white-label override (DIA-729)', () => {
+  describe('white-label override', () => {
     it('propagates colorPrimary to BOTH --ds-color-primary and --ds-portal-color-primary', () => {
       const vars = computePortalCssVars({ colorPrimary: '#00A67E' }) as Record<string, string>;
       expect(vars['--ds-color-primary']).toBe('#00A67E');

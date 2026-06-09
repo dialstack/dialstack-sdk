@@ -16,7 +16,7 @@ import type {
 
 const DEFAULT_API_BASE_URL = 'https://api.dialstack.ai';
 
-// localStorage key prefix for the persisted emergency-address id (DIA-644).
+// localStorage key prefix for the persisted emergency-address id.
 // Lets a softphone re-present the same address across reconnects/sessions so a
 // returning device re-binds without re-prompting the user. Namespaced by the
 // user id (the token's `sub` claim) so two users sharing a browser don't
@@ -82,7 +82,7 @@ export class DialStackPhone {
     this.storageUserId = userIdFromToken(options.token);
     this.emergencyAddressId =
       options.emergencyAddressId ?? loadStoredEmergencyAddressId(this.storageUserId);
-    void options.onTokenExpiring; // Reserved for DIA-1267.
+    void options.onTokenExpiring; // Reserved for a future release.
   }
 
   on<K extends keyof PhoneEventMap>(event: K, handler: Listener<K>): void {
@@ -165,7 +165,7 @@ export class DialStackPhone {
     });
   }
 
-  // startConsult dials the consult leg of an attended transfer (DIA-1282):
+  // startConsult dials the consult leg of an attended transfer:
   // same outbound machinery as call(), but signalled via
   // call.transfer.attended{step:consult} so the server holds the parent
   // first. The consult's call.trying is the direct reply to the consult
@@ -260,15 +260,15 @@ export class DialStackPhone {
   }
 
   subscribePresence(_userIds?: string[]): void {
-    throw new NotImplementedError('DialStackPhone.subscribePresence', 'DIA-1283');
+    throw new NotImplementedError('DialStackPhone.subscribePresence');
   }
 
   setPresence(_status: SettablePresenceStatus, _statusText?: string): Promise<void> {
-    throw new NotImplementedError('DialStackPhone.setPresence', 'DIA-1283');
+    throw new NotImplementedError('DialStackPhone.setPresence');
   }
 
   /**
-   * Register and validate an emergency (E911) address (DIA-644). Creates the
+   * Register and validate an emergency (E911) address. Creates the
    * resource via the REST API (validated against the carrier MSAG), persists
    * its id, and presents it on the next connect so the server binds it to the
    * device's network. To bind a new address immediately (e.g. responding to a
@@ -408,7 +408,7 @@ export class DialStackPhone {
       }
       case 'network.changed': {
         // The emergency address bound at connect no longer applies on this
-        // network (DIA-644). The session stays usable — 911/933 still go out —
+        // network. The session stays usable — 911/933 still go out —
         // but non-emergency PSTN is gated until the app confirms/registers an
         // address valid here. Surfaced as an event for the app to prompt on.
         this.emit('network.changed');
@@ -459,13 +459,12 @@ export class DialStackPhone {
         return;
       }
       case 'call.restored': {
-        // Implementation lights up with DIA-1284. Surface a non-fatal error so consumers know.
+        // Not yet implemented. Surface a non-fatal error so consumers know.
         this.emit(
           'error',
           new PhoneError({
             code: 'internal_error',
-            message:
-              'call.restored received but reconnect/restore is not yet implemented (DIA-1284)',
+            message: 'call.restored received but reconnect/restore is not yet implemented',
             callId: msg.call_id,
           })
         );

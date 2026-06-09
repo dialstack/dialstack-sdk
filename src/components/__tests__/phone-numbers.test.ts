@@ -72,7 +72,7 @@ function rowsText(el: PhoneNumbersEl): string {
   return el.shadowRoot.querySelector('tbody')?.textContent ?? '';
 }
 
-describe('PhoneNumbersComponent merge (DIA-1390)', () => {
+describe('PhoneNumbersComponent merge', () => {
   afterEach(() => {
     document.body.innerHTML = '';
     jest.restoreAllMocks();

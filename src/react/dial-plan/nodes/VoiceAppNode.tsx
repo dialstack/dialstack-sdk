@@ -65,7 +65,7 @@ export const config: NodeDefinition = {
   // The default-registry alias routes those nodes here; this rewrites them
   // into the native voice_app shape so save round-trips as voice_app — an
   // implicit migration on first edit while the SQL migration handles bulk.
-  // TODO(DIA-941): remove this hook once legacy usage drains.
+  // TODO: remove this hook once legacy usage drains.
   normalizeFromAlias: (node: DialPlanNode): DialPlanNode => {
     const config = node.config as unknown as Record<string, unknown>;
     const targetId = (config.target_id as string | undefined) ?? '';

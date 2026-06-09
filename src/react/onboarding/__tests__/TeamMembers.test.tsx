@@ -173,7 +173,7 @@ describe('TeamMembers', () => {
   });
 
   // ==========================================================================
-  // User list persistence (DIA-557)
+  // User list persistence
   // ==========================================================================
 
   it('shows newly added user in the table after creation', async () => {
