@@ -252,7 +252,7 @@ export interface AccountSessionCreateResponse {
  * account belonging to the calling platform.
  *
  * `ttl_seconds` is the requested token lifetime. Defaults server-side to
- * 3600 (1 hour). Values above 86400 (24 hours) are rejected.
+ * 86400 (24 hours). Values above 604800 (7 days) are rejected.
  */
 export interface UserSessionCreateParams {
   user: string;
@@ -275,6 +275,19 @@ export interface UserSessionCreateResponse {
   account: string;
   client_secret: string;
   expires_at: string;
+}
+
+/**
+ * Response from dialstack.users.revokeSessions().
+ *
+ * `sessions_revoked_at` is the server-side cutoff: every user-session
+ * token minted before this instant is invalid, REST calls with it are
+ * rejected, and active WebRTC connections are torn down at their next
+ * call event.
+ */
+export interface UserSessionsRevokeResponse {
+  user: string;
+  sessions_revoked_at: string;
 }
 
 // Transcript types
@@ -1286,6 +1299,18 @@ export class DialStack {
       options: RequestOptions & { dialstackAccount: string }
     ): Promise<QueueAgent> => {
       return this._request('POST', `/v1/users/${userId}/queue-agent`, params, options);
+    },
+
+    /**
+     * Revoke every outstanding user-session token for a user and tear
+     * down their active WebRTC sessions (server-side kill switch).
+     * Platform-level, like userSessions.create() — no account header.
+     */
+    revokeSessions: (
+      userId: string,
+      options?: RequestOptions
+    ): Promise<UserSessionsRevokeResponse> => {
+      return this._request('POST', `/v1/users/${userId}/revoke_sessions`, {}, options);
     },
   };
 

@@ -21,6 +21,10 @@ export class Transport {
   private reconnectAttempts = 0;
   private closedByUser = false;
   private autoReconnect: boolean;
+  // Set when the server sends a terminal fatal error (session_revoked):
+  // the token is dead server-side, so reconnecting with it can only
+  // fail. Suppresses auto-reconnect on the subsequent close.
+  private terminalError: PhoneError | null = null;
 
   constructor(url: string, autoReconnect: boolean) {
     this.url = url;
@@ -67,11 +71,22 @@ export class Transport {
       } catch {
         return;
       }
+      if (parsed.type === 'error' && parsed.fatal && parsed.code === 'session_revoked') {
+        this.terminalError = new PhoneError({
+          code: 'session_revoked',
+          message: parsed.message,
+          fatal: true,
+        });
+      }
       this.listeners.message?.(parsed);
     });
 
     ws.addEventListener('close', () => {
       this.ws = null;
+      if (this.terminalError) {
+        this.listeners.closed?.({ fatal: true, error: this.terminalError });
+        return;
+      }
       if (this.closedByUser) {
         this.listeners.closed?.({ fatal: false });
         return;
