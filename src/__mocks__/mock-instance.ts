@@ -24,6 +24,7 @@ import type {
   CreateButtonTemplateRequest,
   UpdateButtonTemplateRequest,
   CreateTemplateButtonRequest,
+  UpdateTemplateButtonRequest,
   CreateDeviceButtonOverrideRequest,
 } from '../types/button';
 import type {
@@ -685,6 +686,13 @@ export function createMockInstance(
           data: [],
         }),
         create: async (_templateId: string, _request: CreateTemplateButtonRequest) => {
+          throw new Error('Not implemented in mock');
+        },
+        update: async (
+          _templateId: string,
+          _buttonId: string,
+          _request: UpdateTemplateButtonRequest
+        ) => {
           throw new Error('Not implemented in mock');
         },
         del: async (_templateId: string, _buttonId: string): Promise<void> => {},

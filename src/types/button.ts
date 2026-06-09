@@ -156,6 +156,11 @@ export type CreateTemplateButtonRequest = {
   label: string;
 } & ButtonParams;
 
+export interface UpdateTemplateButtonRequest {
+  /** New position for the button (position is the only updatable field). */
+  position: number;
+}
+
 export type CreateDeviceButtonOverrideRequest =
   | {
       position: number;

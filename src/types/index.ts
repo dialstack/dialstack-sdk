@@ -254,6 +254,7 @@ export type {
   CreateButtonTemplateRequest,
   UpdateButtonTemplateRequest,
   CreateTemplateButtonRequest,
+  UpdateTemplateButtonRequest,
   CreateDeviceButtonOverrideRequest,
 } from './button';
 

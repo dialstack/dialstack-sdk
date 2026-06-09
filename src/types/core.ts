@@ -41,6 +41,7 @@ import type {
   CreateButtonTemplateRequest,
   UpdateButtonTemplateRequest,
   CreateTemplateButtonRequest,
+  UpdateTemplateButtonRequest,
   CreateDeviceButtonOverrideRequest,
 } from './button';
 import type {
@@ -396,6 +397,12 @@ export interface ButtonTemplateButtonsResource {
   ): Promise<PaginatedResponse<TemplateButton>>;
   /** Add a button to a template */
   create(templateId: string, request: CreateTemplateButtonRequest): Promise<TemplateButton>;
+  /** Update a template button (position move) */
+  update(
+    templateId: string,
+    buttonId: string,
+    request: UpdateTemplateButtonRequest
+  ): Promise<TemplateButton>;
   /** Delete a button from a template */
   del(templateId: string, buttonId: string): Promise<void>;
 }

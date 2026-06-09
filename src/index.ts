@@ -72,6 +72,7 @@ export type {
   CreateButtonTemplateRequest,
   UpdateButtonTemplateRequest,
   CreateTemplateButtonRequest,
+  UpdateTemplateButtonRequest,
   CreateDeviceButtonOverrideRequest,
   // AI agent types
   AIAgent,

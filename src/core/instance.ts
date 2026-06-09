@@ -49,6 +49,7 @@ import type {
   CreateButtonTemplateRequest,
   UpdateButtonTemplateRequest,
   CreateTemplateButtonRequest,
+  UpdateTemplateButtonRequest,
   CreateDeviceButtonOverrideRequest,
   DECTBase,
   DECTHandset,
@@ -1339,6 +1340,24 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         if (!response.ok) {
           const errorText = await response.text();
           throw new Error(`Failed to create template button: ${response.status} ${errorText}`);
+        }
+        return response.json();
+      },
+      update: async (
+        templateId: string,
+        buttonId: string,
+        request: UpdateTemplateButtonRequest
+      ): Promise<TemplateButton> => {
+        const response = await this.fetchApi(
+          `/v1/button_templates/${templateId}/buttons/${buttonId}`,
+          {
+            method: 'POST',
+            body: JSON.stringify(request),
+          }
+        );
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to update template button: ${response.status} ${errorText}`);
         }
         return response.json();
       },
