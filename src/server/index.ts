@@ -740,7 +740,8 @@ export interface AttachAction {
 
 export interface TransferAction {
   type: 'transfer';
-  extension: string;
+  target: string;
+  mode?: 'blind';
 }
 
 export type CallAction = AttachAction | TransferAction;
