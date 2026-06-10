@@ -28,6 +28,7 @@ import type {
   FaxItem,
   CreateFaxRequest,
   ListFaxesOptions,
+  FaxExpand,
   DeviceLine,
   Device,
   ProvisionedDevice,
@@ -712,6 +713,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       if (options?.direction) params.set('direction', options.direction);
       if (options?.status) params.set('status', options.status);
       if (options?.did_id) params.set('did_id', options.did_id);
+      for (const e of options?.expand ?? []) params.append('expand[]', e);
       const queryString = params.toString();
       const path = queryString ? `/v1/faxes?${queryString}` : '/v1/faxes';
       const response = await this.fetchApi(path);
@@ -739,8 +741,12 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       }
       return response.json();
     },
-    retrieve: async (faxId: string): Promise<FaxItem> => {
-      const response = await this.fetchApi(`/v1/faxes/${faxId}`);
+    retrieve: async (faxId: string, options?: { expand?: FaxExpand[] }): Promise<FaxItem> => {
+      const params = new URLSearchParams();
+      for (const e of options?.expand ?? []) params.append('expand[]', e);
+      const queryString = params.toString();
+      const path = queryString ? `/v1/faxes/${faxId}?${queryString}` : `/v1/faxes/${faxId}`;
+      const response = await this.fetchApi(path);
       if (!response.ok) {
         const errorText = await response.text();
         throw new ApiError(`Failed to get fax: ${response.status} ${errorText}`, response.status);

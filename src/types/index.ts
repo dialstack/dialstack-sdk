@@ -116,9 +116,12 @@ export type {
   FaxDirection,
   FaxStatus,
   FaxTransport,
+  FaxExpand,
   CreateFaxRequest,
   ListFaxesOptions,
 } from './fax';
+
+export type { File } from './file';
 
 // AI agent types
 export type {
