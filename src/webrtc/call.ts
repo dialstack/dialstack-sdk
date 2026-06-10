@@ -63,6 +63,11 @@ export class Call {
   private endedSettled = false;
   private pendingAnswerSdp: string | null = null;
   private answerSent = false;
+  // Set when answer() is called before the answer SDP is ready (offer still
+  // arriving, mic-permission prompt open, or ICE still gathering). The answer
+  // is then sent automatically from prepareAnswerForOffer once ready, rather
+  // than answer() throwing on an eager first click.
+  private wantsAnswer = false;
   // Resolves once the mic tracks are attached to localStream. The Call
   // acquires the mic itself (rather than the caller awaiting getUserMedia
   // before construction) so phone.ts can register the Call synchronously on
@@ -130,13 +135,22 @@ export class Call {
       });
     }
     if (this.answerSent) return;
-    if (!this.pendingAnswerSdp) {
-      throw new PhoneError({
-        code: 'call_failed',
-        message: 'No remote SDP offer received yet',
-        callId: this.id,
-      });
+    // If the answer SDP isn't ready yet (the offer is still arriving, the mic
+    // prompt is open, or ICE is still gathering), don't throw — record the
+    // intent and let prepareAnswerForOffer send the answer the moment it's
+    // ready. This makes an eager first click "just work".
+    if (this.pendingAnswerSdp) {
+      this.sendAnswer();
+    } else {
+      this.wantsAnswer = true;
     }
+  }
+
+  // Sends the buffered answer SDP. Idempotent; no-ops if already answered, the
+  // call has ended, or the answer SDP isn't ready. Called from answer() (when
+  // ready) and from prepareAnswerForOffer() (to flush a deferred answer).
+  private sendAnswer(): void {
+    if (this.answerSent || this.state === 'ended' || !this.pendingAnswerSdp) return;
     this.transport.send({ type: 'call.answer', call_id: this.id });
     this.transport.send({ type: 'sdp.answer', call_id: this.id, sdp: this.pendingAnswerSdp });
     this.answerSent = true;
@@ -259,7 +273,15 @@ export class Call {
     await this.peerConnection.setRemoteDescription({ type: 'offer', sdp });
     this.remoteDescriptionSet = true;
     await this.flushPendingRemoteCandidates();
-    await this.localMediaReady;
+    try {
+      await this.localMediaReady;
+    } catch {
+      // Mic acquisition failed. handleIncoming already surfaces this via
+      // whenLocalMediaReady().catch, so abort answer preparation here without
+      // rejecting — otherwise the owner would emit a duplicate 'error' for the
+      // same denial.
+      return;
+    }
     if (this.peerConnection.getSenders().length === 0) {
       this.localStream
         .getTracks()
@@ -272,6 +294,9 @@ export class Call {
     // answer SDP before sending it, otherwise the negotiated session has no ICE.
     await this.waitForIceGatheringComplete();
     this.pendingAnswerSdp = this.peerConnection.localDescription?.sdp ?? answer.sdp ?? null;
+    // Flush a deferred answer: answer() may have been clicked before the SDP
+    // was ready, in which case it set wantsAnswer instead of sending.
+    if (this.wantsAnswer) this.sendAnswer();
   }
 
   async acceptRemoteAnswer(sdp: string): Promise<void> {

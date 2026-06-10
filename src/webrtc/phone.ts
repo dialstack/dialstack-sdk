@@ -472,7 +472,23 @@ export class DialStackPhone {
       }
       case 'sdp.offer': {
         const call = this.getCall(msg.call_id);
-        if (call) void call.prepareAnswerForOffer(msg.sdp);
+        // Surface non-mic prepare failures (e.g. createAnswer error) via the
+        // error event — otherwise the rejection is unhandled. The mic-permission
+        // failure is owned by handleIncoming (whenLocalMediaReady().catch) and
+        // is swallowed inside prepareAnswerForOffer, so it is not double-emitted
+        // here.
+        if (call) {
+          void call.prepareAnswerForOffer(msg.sdp).catch((e) =>
+            this.emit(
+              'error',
+              new PhoneError({
+                code: 'call_failed',
+                message: `Failed to prepare answer for incoming call: ${(e as Error).message}`,
+                callId: msg.call_id,
+              })
+            )
+          );
+        }
         return;
       }
       case 'sdp.answer': {
