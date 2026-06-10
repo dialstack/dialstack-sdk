@@ -21,8 +21,12 @@ export interface FaxItem {
    * a signed `url`) when expand[]=file is requested; null when there is no file.
    */
   file: string | File | null;
-  /** Source DID for outbound, terminating DID for inbound. */
-  from_did_id: string;
+  /** Our own number on the fax: source DID for outbound, terminating DID for inbound. */
+  did_id: string;
+  /** Sender's number. Null on inbound when the caller ID was withheld. */
+  from_number: string | null;
+  /** Recipient's number. */
+  to_number: string | null;
   call_id: string | null;
   pages: number | null;
   transport: FaxTransport | null;
@@ -42,7 +46,7 @@ export interface FaxItem {
 export interface CreateFaxRequest {
   file_id: string;
   to: string;
-  from_did_id: string;
+  did_id: string;
 }
 
 /** Mark a fax read or unread. Read state is shared across the account. */
