@@ -28,6 +28,10 @@ export interface FaxItem {
   transport: FaxTransport | null;
   error_code: string | null;
   attempts: number;
+  /** Whether the fax has been marked read. Applies to inbound (received) faxes. */
+  is_read: boolean;
+  /** When the fax was marked read, or null if unread. */
+  read_at: string | null;
   submitted_at: string | null;
   completed_at: string | null;
   created_at: string;
@@ -41,11 +45,18 @@ export interface CreateFaxRequest {
   from_did_id: string;
 }
 
+/** Mark a fax read or unread. Read state is shared across the account. */
+export interface UpdateFaxRequest {
+  is_read: boolean;
+}
+
 export interface ListFaxesOptions {
   limit?: number;
   direction?: FaxDirection;
   status?: FaxStatus;
   did_id?: string;
+  /** Filter by read state — pass false to show only unread faxes. */
+  is_read?: boolean;
   /** Related resources to inline. Supported: `file`. */
   expand?: FaxExpand[];
 }

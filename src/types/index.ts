@@ -118,6 +118,7 @@ export type {
   FaxTransport,
   FaxExpand,
   CreateFaxRequest,
+  UpdateFaxRequest,
   ListFaxesOptions,
 } from './fax';
 

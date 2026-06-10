@@ -27,6 +27,7 @@ import type {
   UpdatePhoneNumberRequest,
   FaxItem,
   CreateFaxRequest,
+  UpdateFaxRequest,
   ListFaxesOptions,
   FaxExpand,
   DeviceLine,
@@ -713,6 +714,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       if (options?.direction) params.set('direction', options.direction);
       if (options?.status) params.set('status', options.status);
       if (options?.did_id) params.set('did_id', options.did_id);
+      if (options?.is_read !== undefined) params.set('is_read', String(options.is_read));
       for (const e of options?.expand ?? []) params.append('expand[]', e);
       const queryString = params.toString();
       const path = queryString ? `/v1/faxes?${queryString}` : '/v1/faxes';
@@ -750,6 +752,21 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       if (!response.ok) {
         const errorText = await response.text();
         throw new ApiError(`Failed to get fax: ${response.status} ${errorText}`, response.status);
+      }
+      return response.json();
+    },
+    update: async (faxId: string, data: UpdateFaxRequest): Promise<FaxItem> => {
+      const response = await this.fetchApi(`/v1/faxes/${faxId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new ApiError(
+          `Failed to update fax: ${response.status} ${errorText}`,
+          response.status
+        );
       }
       return response.json();
     },
