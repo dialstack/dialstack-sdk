@@ -111,19 +111,6 @@ export type {
   PhoneNumbersElement,
 } from './phone-numbers';
 
-export type {
-  FaxItem,
-  FaxDirection,
-  FaxStatus,
-  FaxTransport,
-  FaxExpand,
-  CreateFaxRequest,
-  UpdateFaxRequest,
-  ListFaxesOptions,
-} from './fax';
-
-export type { File } from './file';
-
 // AI agent types
 export type {
   AIAgent,

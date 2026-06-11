@@ -25,11 +25,6 @@ import type {
   PaginatedResponse,
   DIDItem,
   UpdatePhoneNumberRequest,
-  FaxItem,
-  CreateFaxRequest,
-  UpdateFaxRequest,
-  ListFaxesOptions,
-  FaxExpand,
   DeviceLine,
   Device,
   ProvisionedDevice,
@@ -704,81 +699,6 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       }
       const data = await response.json();
       return (data.data ?? []).map((r: NamedResource) => ({ id: r.id, name: r.name }));
-    },
-  };
-
-  faxes = {
-    list: async (options?: ListFaxesOptions): Promise<PaginatedResponse<FaxItem>> => {
-      const params = new URLSearchParams();
-      if (options?.limit) params.set('limit', String(options.limit));
-      if (options?.direction) params.set('direction', options.direction);
-      if (options?.status) params.set('status', options.status);
-      if (options?.did_id) params.set('did_id', options.did_id);
-      if (options?.is_read !== undefined) params.set('is_read', String(options.is_read));
-      for (const e of options?.expand ?? []) params.append('expand[]', e);
-      const queryString = params.toString();
-      const path = queryString ? `/v1/faxes?${queryString}` : '/v1/faxes';
-      const response = await this.fetchApi(path);
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new ApiError(
-          `Failed to list faxes: ${response.status} ${errorText}`,
-          response.status
-        );
-      }
-      return response.json();
-    },
-    create: async (data: CreateFaxRequest): Promise<FaxItem> => {
-      const response = await this.fetchApi('/v1/faxes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new ApiError(
-          `Failed to create fax: ${response.status} ${errorText}`,
-          response.status
-        );
-      }
-      return response.json();
-    },
-    retrieve: async (faxId: string, options?: { expand?: FaxExpand[] }): Promise<FaxItem> => {
-      const params = new URLSearchParams();
-      for (const e of options?.expand ?? []) params.append('expand[]', e);
-      const queryString = params.toString();
-      const path = queryString ? `/v1/faxes/${faxId}?${queryString}` : `/v1/faxes/${faxId}`;
-      const response = await this.fetchApi(path);
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new ApiError(`Failed to get fax: ${response.status} ${errorText}`, response.status);
-      }
-      return response.json();
-    },
-    update: async (faxId: string, data: UpdateFaxRequest): Promise<FaxItem> => {
-      const response = await this.fetchApi(`/v1/faxes/${faxId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new ApiError(
-          `Failed to update fax: ${response.status} ${errorText}`,
-          response.status
-        );
-      }
-      return response.json();
-    },
-    del: async (faxId: string): Promise<void> => {
-      const response = await this.fetchApi(`/v1/faxes/${faxId}`, { method: 'DELETE' });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new ApiError(
-          `Failed to delete fax: ${response.status} ${errorText}`,
-          response.status
-        );
-      }
     },
   };
 
