@@ -282,7 +282,13 @@ export class Call {
       // same denial.
       return;
     }
-    if (this.peerConnection.getSenders().length === 0) {
+    // setRemoteDescription(offer) above already created a track-less sender for
+    // each offered m-line, so getSenders() is non-empty here even though no mic
+    // is attached yet. Guard on whether a sender actually has a track — keying
+    // off getSenders().length would skip addTrack and yield an a=recvonly answer
+    // (browser receives but never sends, i.e. one-way "no audio to the far end").
+    // addTrack reuses the existing track-less transceiver and flips it to sendrecv.
+    if (!this.peerConnection.getSenders().some((s) => s.track)) {
       this.localStream
         .getTracks()
         .forEach((t) => this.peerConnection.addTrack(t, this.localStream));
