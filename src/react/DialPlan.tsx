@@ -901,7 +901,8 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
       selectionOnDrag={false}
       selectNodesOnDrag={false}
       panOnDrag={interactive}
-      panOnScroll={interactive}
+      // Keep false even when interactive: xyflow gives panOnScroll wheel precedence over zoomOnScroll, so gating this on `interactive` would re-break wheel-zoom.
+      panOnScroll={false}
       zoomOnScroll={interactive}
       zoomOnPinch={interactive}
       zoomOnDoubleClick={interactive}
