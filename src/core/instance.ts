@@ -85,10 +85,37 @@ import type { AIAgent, UpdateAIAgentRequest } from '../types/ai-agent';
 export class ApiError extends Error {
   constructor(
     message: string,
-    public readonly status: number
+    public readonly status: number,
+    /** Stable machine-readable code from the API body (`{ "code": "..." }`), when present. */
+    public readonly code?: string
   ) {
     super(message);
     this.name = 'ApiError';
+  }
+}
+
+/**
+ * Reads an error response body and extracts the API's `error` message and
+ * stable `code` when the body is JSON-shaped (`{ "error": "...", "code": "..." }`),
+ * falling back to the raw text or a provided default for the message. Lets
+ * callers surface a clean reason and localize against the code instead of
+ * dumping a raw JSON envelope into the thrown error.
+ */
+async function extractApiError(
+  response: Response,
+  fallback: string
+): Promise<{ message: string; code?: string }> {
+  const text = await response.text();
+  if (!text) return { message: fallback };
+  try {
+    const parsed = JSON.parse(text) as { error?: unknown; code?: unknown };
+    const message =
+      typeof parsed?.error === 'string' && parsed.error ? parsed.error : `${fallback} ${text}`;
+    const code = typeof parsed?.code === 'string' && parsed.code ? parsed.code : undefined;
+    return { message, code };
+  } catch {
+    // Not JSON — fall through to the raw text.
+    return { message: `${fallback} ${text}` };
   }
 }
 
@@ -618,8 +645,14 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         method: 'POST',
       });
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to submit port order: ${response.status} ${errorText}`);
+        // Carry the API's stable `code` and message so callers can render their
+        // own localized reason (e.g. an invalid port date the user can fix and
+        // resubmit) instead of the raw response body.
+        const { message, code } = await extractApiError(
+          response,
+          `Failed to submit port order: ${response.status}`
+        );
+        throw new ApiError(message, response.status, code);
       }
       return response.json();
     },
