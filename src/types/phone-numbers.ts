@@ -97,6 +97,7 @@ export interface PhoneNumberItem {
   expires_at?: string | null;
   disconnected_at?: string | null;
   outbound_enabled: boolean | null;
+  fax_enabled?: boolean;
   caller_id_name?: string | null;
   routing_target?: string | null;
   carrier?: string;

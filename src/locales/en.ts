@@ -242,7 +242,7 @@ export const en = {
       phoneNumber: 'Phone Number',
       status: 'Status',
       callerID: 'Caller ID',
-      outbound: 'Direction',
+      outbound: 'Usage',
       carrier: 'Carrier',
       transferDate: 'Transfer Date',
       routingTarget: 'Call Routing',
@@ -266,6 +266,7 @@ export const en = {
     outbound: {
       enabled: 'Two-way',
       disabled: 'Inbound only',
+      fax: 'Fax',
     },
     routingTarget: {
       notSet: 'Not set',

@@ -248,6 +248,7 @@ export class PhoneNumbersComponent extends BaseComponent {
         expires_at: did.expires_at,
         disconnected_at: did.disconnected_at,
         outbound_enabled: did.outbound_enabled,
+        fax_enabled: did.fax_enabled,
         caller_id_name: did.caller_id_name,
         routing_target: did.routing_target,
         source: 'did',
@@ -458,9 +459,10 @@ export class PhoneNumbersComponent extends BaseComponent {
       case 'caller_id':
         return item.caller_id_name || '';
       case 'outbound':
-        if (item.outbound_enabled === true) return 'a';
-        if (item.outbound_enabled === false) return 'b';
-        return 'c';
+        if (item.fax_enabled) return 'a';
+        if (item.outbound_enabled === true) return 'b';
+        if (item.outbound_enabled === false) return 'c';
+        return 'd';
       case 'routing_target':
         return item.routing_target ? (this.resolvedTargetNames.get(item.routing_target) ?? '') : '';
       case 'carrier':
@@ -763,6 +765,7 @@ export class PhoneNumbersComponent extends BaseComponent {
           ? this.escapeHtml(item.caller_id_name)
           : `<span class="text-muted">${this.t('phoneNumbers.routingTarget.notSet')}</span>`;
       case 'outbound':
+        if (item.fax_enabled) return this.t('phoneNumbers.outbound.fax');
         return item.outbound_enabled === true
           ? this.t('phoneNumbers.outbound.enabled')
           : item.outbound_enabled === false
