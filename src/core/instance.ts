@@ -675,7 +675,15 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         const errorText = await response.text();
         throw new Error(`Failed to check port eligibility: ${response.status} ${errorText}`);
       }
-      return response.json();
+      // Normalize both arrays at the boundary so PortEligibilityResult's
+      // non-optional typing holds for every consumer — including older SDKs
+      // pinned against an API that predates the always-serialize fix.
+      const raw = (await response.json()) as PortEligibilityResult;
+      return {
+        ...raw,
+        portable_numbers: raw.portable_numbers ?? [],
+        non_portable_numbers: raw.non_portable_numbers ?? [],
+      };
     },
     uploadCSR: async (orderId: string, file: File): Promise<void> => {
       const formData = new FormData();
