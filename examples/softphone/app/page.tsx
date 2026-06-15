@@ -1,8 +1,23 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { DialStackPhone, type Call, type CallEndReason } from '@dialstack/sdk/webrtc';
+import {
+  DialStackPhone,
+  type Call,
+  type CallEndReason,
+  type EmergencyAddress,
+  type EmergencyAddressInput,
+} from '@dialstack/sdk/webrtc';
 import styles from './page.module.css';
+
+const EMPTY_E911_FORM: EmergencyAddressInput = {
+  address_number: '',
+  street: '',
+  unit: '',
+  city: '',
+  state: '',
+  postal_code: '',
+};
 
 type Status = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
 
@@ -30,12 +45,27 @@ const STATUS_LABEL: Record<Status, string> = {
 export default function Page() {
   const phoneRef = useRef<DialStackPhone | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  // The emergency-address id is presented on every (re)connect so the server
+  // binds it to the current network. We mirror it in a ref because connect()
+  // builds a fresh phone and needs the latest id synchronously, before React
+  // state has flushed.
+  const emergencyIdRef = useRef<string | null>(null);
   const [status, setStatus] = useState<Status>('idle');
   const [message, setMessage] = useState<string>('');
   const [destination, setDestination] = useState<string>('');
   const [dtmf, setDtmf] = useState<string>('');
   const [transferDest, setTransferDest] = useState<string>('');
   const [calls, setCalls] = useState<Record<string, { view: CallView; call: Call }>>({});
+  const [emergency, setEmergency] = useState<EmergencyAddress | null>(null);
+  const [e911Form, setE911Form] = useState<EmergencyAddressInput>(EMPTY_E911_FORM);
+  const [e911Busy, setE911Busy] = useState<boolean>(false);
+  // The SDK reported the device moved networks (network.changed): the current
+  // binding points at the old location until re-bound. Distinct from notBound
+  // so a failed re-bind doesn't read as a fresh "never bound".
+  const [networkChanged, setNetworkChanged] = useState<boolean>(false);
+  // The saved address has no network binding yet (registered_ip === null):
+  // outbound PSTN stays blocked until it binds.
+  const [notBound, setNotBound] = useState<boolean>(false);
 
   useEffect(() => {
     return () => {
@@ -94,10 +124,21 @@ export default function Page() {
       }
       const { token, apiBaseUrl } = (await resp.json()) as { token: string; apiBaseUrl: string };
 
-      const phone = new DialStackPhone({ token, apiBaseUrl });
+      const phone = new DialStackPhone({
+        token,
+        apiBaseUrl,
+        // Present the selected emergency address so the server binds it to this
+        // network during the authenticate handshake. Without a bound address,
+        // outbound calls to phone numbers are blocked (internal/inbound still work).
+        emergencyAddressId: emergencyIdRef.current ?? undefined,
+      });
       phone.on('connected', () => {
         setStatus('connected');
         setMessage('');
+      });
+      phone.on('network.changed', () => {
+        setNetworkChanged(true);
+        setMessage('Network changed — re-bind your emergency address so 911 routes to your current location.');
       });
       phone.on('disconnected', () => {
         setStatus('disconnected');
@@ -109,6 +150,10 @@ export default function Page() {
       phone.on('reconnected', () => {
         setStatus('connected');
         setMessage('');
+        // The transport re-binds the address server-side on reconnect; refresh
+        // so a now-resolved network.changed warning clears (and a moved binding
+        // doesn't keep reading as bound). This gates 911 routing.
+        void refreshEmergencyStatus();
       });
       phone.on('incoming', (call) => {
         setMessage(`Incoming call from ${call.from}`);
@@ -120,6 +165,10 @@ export default function Page() {
 
       phoneRef.current = phone;
       await phone.connect();
+      // Awaited (not in the 'connected' handler) so callers that reconnect to
+      // (re)bind an address — saveEmergencyAddress / rebindForCurrentNetwork —
+      // stay busy until the panel reflects the new binding state.
+      await refreshEmergencyStatus();
     } catch (e) {
       setStatus('error');
       setMessage((e as Error).message);
@@ -132,6 +181,99 @@ export default function Page() {
     setStatus('disconnected');
     setMessage('Disconnected');
     setCalls({});
+    setNetworkChanged(false);
+    setNotBound(false);
+  };
+
+  // Pull the user's saved emergency address so the panel reflects whether
+  // outbound PSTN is unblocked. Best-effort: failures just leave the panel as-is.
+  const refreshEmergencyStatus = async () => {
+    const phone = phoneRef.current;
+    if (!phone) return;
+    try {
+      const page = await phone.listEmergencyAddresses();
+      const current =
+        (emergencyIdRef.current && page.data.find((a) => a.id === emergencyIdRef.current)) ||
+        page.data[0] ||
+        null;
+      setEmergency(current);
+      if (current) {
+        emergencyIdRef.current = current.id;
+        // registered_ip === null means saved but not bound to a network yet.
+        const bound = current.registered_ip !== null;
+        setNotBound(!bound);
+        // A confirmed binding resolves any earlier moved-network warning.
+        if (bound) setNetworkChanged(false);
+        setE911Form({
+          address_number: current.address.address_number ?? '',
+          street: current.address.street ?? '',
+          unit: current.address.unit ?? '',
+          city: current.address.city,
+          state: current.address.state,
+          postal_code: current.address.postal_code,
+        });
+      } else {
+        setNotBound(false);
+        setNetworkChanged(false);
+      }
+    } catch {
+      /* status display is best-effort */
+    }
+  };
+
+  const setE911Field =
+    (field: keyof EmergencyAddressInput) => (e: React.ChangeEvent<HTMLInputElement>) =>
+      setE911Form((prev) => ({ ...prev, [field]: e.target.value }));
+
+  // Validate + save the address, then reconnect so it binds to the current
+  // network. A freshly created address has no binding, so a plain reconnect is
+  // enough to bind it.
+  const saveEmergencyAddress = async () => {
+    const phone = phoneRef.current;
+    if (!phone) return;
+    setE911Busy(true);
+    try {
+      setMessage('Validating emergency address …');
+      const addr = await phone.setEmergencyAddress(e911Form);
+      emergencyIdRef.current = addr.id;
+      setEmergency(addr);
+      setMessage('Address saved. Binding it to this network …');
+      await reconnect();
+    } catch (e) {
+      setMessage((e as Error).message);
+    } finally {
+      setE911Busy(false);
+    }
+  };
+
+  // Re-bind after a network change: clear the stale binding, then reconnect so
+  // the server registers the address against the network the device is on now.
+  const rebindForCurrentNetwork = async () => {
+    const phone = phoneRef.current;
+    const id = emergencyIdRef.current;
+    if (!phone || !id) return;
+    setE911Busy(true);
+    try {
+      setMessage('Re-binding emergency address to this network …');
+      await phone.clearEmergencyAddressRegisteredIp(id);
+      await reconnect();
+    } catch (e) {
+      setMessage((e as Error).message);
+    } finally {
+      setE911Busy(false);
+    }
+  };
+
+  // Tear down and reconnect. The new session presents emergencyIdRef on its
+  // authenticate handshake, which is where the network binding happens.
+  const reconnect = async () => {
+    phoneRef.current?.disconnect();
+    phoneRef.current = null;
+    // disconnect() disposes the old Call objects without emitting 'ended', so
+    // clear them here too — otherwise they'd render live-looking controls
+    // pointing at a disposed phone (mirrors disconnect()).
+    setCalls({});
+    await connect();
   };
 
   const placeCall = async () => {
@@ -218,6 +360,115 @@ export default function Page() {
               </button>
             )}
           </div>
+        </section>
+
+        <section className={styles.panel}>
+          <h2 className={styles.panelTitle}>Emergency address (E911)</h2>
+          {status !== 'connected' ? (
+            <p className={styles.empty}>Connect to register or view your emergency address.</p>
+          ) : (
+            <>
+              <div className={styles.e911Status}>
+                {emergency ? (
+                  emergency.registered_ip ? (
+                    <span className={styles.e911Ok}>
+                      ✓ {emergency.address.formatted_address ?? emergency.address.street} — bound to this
+                      network. Outbound calls to phone numbers are enabled.
+                    </span>
+                  ) : (
+                    <span className={styles.e911Blocked}>
+                      Saved but not bound to a network yet — outbound calls to phone numbers are blocked
+                      until it binds. Reconnect to bind it.
+                    </span>
+                  )
+                ) : (
+                  <span className={styles.e911Blocked}>
+                    No emergency address registered. Calls to phone numbers are blocked until you add one.
+                    (Internal and inbound calls work without it.)
+                  </span>
+                )}
+              </div>
+
+              {emergency && (networkChanged || notBound) && (
+                <div className={styles.e911Warning}>
+                  <span>
+                    {networkChanged
+                      ? 'Your network changed — re-bind so 911 routes to where you are now.'
+                      : 'Saved but not bound to a network yet — bind it to enable outbound calls.'}
+                  </span>
+                  <button
+                    onClick={() => void rebindForCurrentNetwork()}
+                    disabled={e911Busy}
+                    className={`${styles.button} ${styles.buttonPrimary}`}
+                  >
+                    {networkChanged ? 'Re-bind' : 'Bind'}
+                  </button>
+                </div>
+              )}
+
+              <div className={styles.fieldGrid}>
+                <input
+                  className={styles.input}
+                  placeholder="Street number"
+                  value={e911Form.address_number ?? ''}
+                  onChange={setE911Field('address_number')}
+                  autoComplete="off"
+                  required
+                />
+                <input
+                  className={styles.input}
+                  placeholder="Street"
+                  value={e911Form.street}
+                  onChange={setE911Field('street')}
+                  autoComplete="off"
+                />
+                <input
+                  className={styles.input}
+                  placeholder="Unit (optional)"
+                  value={e911Form.unit ?? ''}
+                  onChange={setE911Field('unit')}
+                  autoComplete="off"
+                />
+                <input
+                  className={styles.input}
+                  placeholder="City"
+                  value={e911Form.city}
+                  onChange={setE911Field('city')}
+                  autoComplete="off"
+                />
+                <input
+                  className={styles.input}
+                  placeholder="State (e.g. TX)"
+                  value={e911Form.state}
+                  onChange={setE911Field('state')}
+                  autoComplete="off"
+                />
+                <input
+                  className={styles.input}
+                  placeholder="ZIP"
+                  value={e911Form.postal_code}
+                  onChange={setE911Field('postal_code')}
+                  autoComplete="off"
+                />
+              </div>
+              <div className={styles.row}>
+                <button
+                  onClick={() => void saveEmergencyAddress()}
+                  disabled={
+                    e911Busy ||
+                    !e911Form.address_number ||
+                    !e911Form.street ||
+                    !e911Form.city ||
+                    !e911Form.state ||
+                    !e911Form.postal_code
+                  }
+                  className={`${styles.button} ${styles.buttonPrimary}`}
+                >
+                  {e911Busy ? 'Working …' : emergency ? 'Update & bind address' : 'Save & bind address'}
+                </button>
+              </div>
+            </>
+          )}
         </section>
 
         <section className={styles.panel}>

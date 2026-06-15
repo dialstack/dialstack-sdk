@@ -255,3 +255,39 @@
   display: flex;
   gap: 8px;
 }
+
+.e911Status {
+  font-size: 14px;
+  line-height: 1.45;
+  margin-bottom: 14px;
+}
+
+.e911Ok {
+  color: var(--success);
+  font-weight: 500;
+}
+
+.e911Blocked {
+  color: var(--destructive);
+}
+
+.e911Warning {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #fff6e6;
+  border: 1px solid #f0c674;
+  color: #7a5200;
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+.fieldGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
