@@ -5,47 +5,65 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0](https://github.com/dialstack/dialstack/compare/sdk-v0.2.2-alpha.13...sdk-v1.0.0) (2026-06-10)
+## [1.1.0](https://github.com/dialstack/dialstack-sdk/compare/v1.0.0...v1.1.0) (2026-06-15)
 
 ### Features
 
-- E911 emergency address registration for WebRTC softphones ([ed696b7](https://github.com/dialstack/dialstack/commit/ed696b7d20de784a3eae1bdb7cbd404c8dd330d5))
-- **admin:** device onboarding readiness — stepper, steady state, and guided configuration ([4674638](https://github.com/dialstack/dialstack/commit/4674638c58a510a86e3dc12c6a88435e23fb244e))
-- **admin:** enumerate steady-state signals with status icons; online implies provisioned ([ecabe26](https://github.com/dialstack/dialstack/commit/ecabe26de2dd2c5ffc1036fdd8445fcc769ad3ff))
-- **api,admin:** drag-handle reordering for template buttons ([9785c5d](https://github.com/dialstack/dialstack/commit/9785c5d20ee4938870b25a822f41e7a1b40019a8))
-- **api,sdk:** add signed url to File object + expand[]=file on faxes ([3074207](https://github.com/dialstack/dialstack/commit/307420748051ef902aa42b762b95f36e0d46fd79))
-- **api,sdk:** signed url on File + expand[]=file on faxes ([68de89b](https://github.com/dialstack/dialstack/commit/68de89beb8e427571cd0071c217fbb42ed7e81e3))
-- extend user-session token lifetime + server-side session revocation ([d48c836](https://github.com/dialstack/dialstack/commit/d48c836873d8c8f2ca7f54350c3fd1787b0cbb0b))
-- **kamailio:** hold WebRTC calls for mobile push wake-up ([d609d38](https://github.com/dialstack/dialstack/commit/d609d382e3603de474e0cd566466d8f55d59cbce))
-- **kamailio:** hold WebRTC calls for mobile push wake-up ([da99aa2](https://github.com/dialstack/dialstack/commit/da99aa2702d49b45e67c72dbc02c0937089f5699))
-- **lib:** raise user-session MaxTTL to 7 days ([22be253](https://github.com/dialstack/dialstack/commit/22be253789b5b173a903e2facdbf8bd0178161b5))
-- **sdk,webrtc,ari:** blind/attended transfer in WebRTC SDK + softphone example ([c945e0a](https://github.com/dialstack/dialstack/commit/c945e0a41b18911ec4a1df0c9517e6a57d58ff73))
-- **sdk:** implement blind/attended transfer + softphone example UI ([04ca263](https://github.com/dialstack/dialstack/commit/04ca26397cdd5aed4a69fc925463d84782a22b6e))
-- **sdk:** automate SDK releases with release-please ([0bbcaf2](https://github.com/dialstack/dialstack/commit/0bbcaf25bc6bfa2c96ff7436371baa154eda0581))
-- **sdk:** automate SDK releases with release-please ([2421467](https://github.com/dialstack/dialstack/commit/242146779db2735deb224b0ee6f1e9a2b9a5a34a))
-- **sdk:** session_revoked terminal close + users.revokeSessions ([adb9b5e](https://github.com/dialstack/dialstack/commit/adb9b5e9df660b48bcc899b355ede9b3c125d6c0))
-- **voice:** add blind transfer ([2afef49](https://github.com/dialstack/dialstack/commit/2afef49575e10a4864b2ceb3922016ad97e8afa0))
-- **voice:** add blind transfer to pre-built VoiceAI ([9bcda20](https://github.com/dialstack/dialstack/commit/9bcda205c613f60de5c2a67e6ac903f78fa02f1d))
-- **webrtc:** echo client_call_id on the consult leg's call.trying ([2271d32](https://github.com/dialstack/dialstack/commit/2271d32290488fd7674443cdbcc89ff3bdb19a93))
-- **webrtc:** support transfer on inbound calls (UAS-side REFER) ([5dbe38c](https://github.com/dialstack/dialstack/commit/5dbe38c62f6ad65ee2e186e684e54737dbf7461e))
+- expose the upstream API error code on `ApiError`
+- expose `transfer_mode` on the AI agent types
+- **react:** show "Fax" as a usage in the phone numbers table
 
 ### Bug Fixes
 
-- **api,lib:** product-level position cap and add-vs-move serialization ([ec6ec1f](https://github.com/dialstack/dialstack/commit/ec6ec1ff565202734db98bbfa33422b630b3d463))
-- **api,sdk:** harden button move against races and overflow ([17f988d](https://github.com/dialstack/dialstack/commit/17f988d856909f18cf5d71d0f12bb0a5a592a9ee))
-- **api,sdk:** degrade File url signing gracefully; nullable fax file_id ([170cfa1](https://github.com/dialstack/dialstack/commit/170cfa14a8a479bd539cde36cee40f1b29f36a86))
-- **api:** return actionable 400 for upstream ZIP search rejections ([0faba63](https://github.com/dialstack/dialstack/commit/0faba63869b31b64146b0711b4d74734de11d6ea))
-- **deps:** align @types/react to 19.2.17 across workspaces and allow go binary in admin knip ([2100a3d](https://github.com/dialstack/dialstack/commit/2100a3d6fb74392cadc1bda849388220662cae69))
-- **sdk:** take raw readiness fields at face value — no client-side clamp ([850c0b9](https://github.com/dialstack/dialstack/commit/850c0b9c04378ca99834b6f9d639df715ff1023f))
-- **sdk:** reject pending consult on error frames echoing the parent call_id ([2841b9c](https://github.com/dialstack/dialstack/commit/2841b9cd6c041d31b5b17d6084055e3435fcbb81))
-- **sdk:** keep just-ordered numbers out of the Cancelled tab ([20cb1ce](https://github.com/dialstack/dialstack/commit/20cb1ce75fe55fa4559db6211d0ae91ca7aab9ca))
-- **sdk:** keep just-ordered numbers out of the Cancelled tab ([15f553f](https://github.com/dialstack/dialstack/commit/15f553f20ad47b2404ace6075baf49892c397238))
-- **sdk:** defer inbound answer until the SDP is ready ([e8dea59](https://github.com/dialstack/dialstack/commit/e8dea591c8c93bdca32c839ae79bb3ce19f84cf9))
-- **sdk:** defer inbound answer until the SDP is ready ([8a2d852](https://github.com/dialstack/dialstack/commit/8a2d852b1b16dfcb020525f07ec1ddba8f9dfe6e))
-- **sdk:** don't emit a duplicate error on mic-permission denial ([1ff1d02](https://github.com/dialstack/dialstack/commit/1ff1d02c04bd1a101002b00152646045dd14f40e))
-- **sdk:** export emergency-address + pagination types from webrtc entry ([2a490a9](https://github.com/dialstack/dialstack/commit/2a490a950e0f1e661cf5f8abc5c000da750063e1))
-- **sdk:** hide softphone Hang up button while inbound call is ringing ([b054f1a](https://github.com/dialstack/dialstack/commit/b054f1a0ae2f2fc8410dce5178005f2fefd8279b))
-- **sdk:** hide softphone Hang up button while inbound call is ringing ([d6dbeab](https://github.com/dialstack/dialstack/commit/d6dbeab9ca6e7f369b1d011ac43aec8ad17c9c90))
+- **webrtc:** attach the microphone on inbound answer so the call is not `recvonly`
+- **webrtc:** allow attended mode on the call transfer action
+- **webrtc:** make `transfer_mode` non-nullable and expose it on server resources
+- **react:** rename the phone numbers "Direction" column to "Usage"
+- **react:** show a temporary badge on active phone numbers
+- **react:** zoom the dial plan canvas on scroll wheel instead of panning
+- **react:** clearer port-order submission — actionable failure reason, pre-submit date validation, and edit-after-failure
+
+## 1.0.0 (2026-06-10)
+
+### Features
+
+- E911 emergency address registration for WebRTC softphones
+- **admin:** device onboarding readiness — stepper, steady state, and guided configuration
+- **admin:** enumerate steady-state signals with status icons; online implies provisioned
+- **api,admin:** drag-handle reordering for template buttons
+- **api,sdk:** add signed url to File object + expand[]=file on faxes
+- **api,sdk:** signed url on File + expand[]=file on faxes
+- extend user-session token lifetime + server-side session revocation
+- **kamailio:** hold WebRTC calls for mobile push wake-up
+- **kamailio:** hold WebRTC calls for mobile push wake-up
+- **lib:** raise user-session MaxTTL to 7 days
+- **sdk,webrtc,ari:** blind/attended transfer in WebRTC SDK + softphone example
+- **sdk:** implement blind/attended transfer + softphone example UI
+- **sdk:** automate SDK releases with release-please
+- **sdk:** automate SDK releases with release-please
+- **sdk:** session_revoked terminal close + users.revokeSessions
+- **voice:** add blind transfer
+- **voice:** add blind transfer to pre-built VoiceAI
+- **webrtc:** echo client_call_id on the consult leg's call.trying
+- **webrtc:** support transfer on inbound calls (UAS-side REFER)
+
+### Bug Fixes
+
+- **api,lib:** product-level position cap and add-vs-move serialization
+- **api,sdk:** harden button move against races and overflow
+- **api,sdk:** degrade File url signing gracefully; nullable fax file_id
+- **api:** return actionable 400 for upstream ZIP search rejections
+- **deps:** align @types/react to 19.2.17 across workspaces and allow go binary in admin knip
+- **sdk:** take raw readiness fields at face value — no client-side clamp
+- **sdk:** reject pending consult on error frames echoing the parent call_id
+- **sdk:** keep just-ordered numbers out of the Cancelled tab
+- **sdk:** keep just-ordered numbers out of the Cancelled tab
+- **sdk:** defer inbound answer until the SDP is ready
+- **sdk:** defer inbound answer until the SDP is ready
+- **sdk:** don't emit a duplicate error on mic-permission denial
+- **sdk:** export emergency-address + pagination types from webrtc entry
+- **sdk:** hide softphone Hang up button while inbound call is ringing
+- **sdk:** hide softphone Hang up button while inbound call is ringing
 
 ## [Unreleased]
 
