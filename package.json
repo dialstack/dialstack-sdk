@@ -112,8 +112,8 @@
     "@rollup/plugin-replace": "^6.0.3",
     "@rollup/plugin-terser": "^1.0.0",
     "@rollup/plugin-typescript": "^12.3.0",
-    "@storybook/react": "^10.4.2",
-    "@storybook/react-vite": "^10.4.2",
+    "@storybook/react": "^10.4.4",
+    "@storybook/react-vite": "^10.4.4",
     "@storybook/test-runner": "^0.24.4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.0.0",
@@ -123,7 +123,7 @@
     "@types/jest": "^30.0.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@typescript-eslint/eslint-plugin": "^8.60.1",
+    "@typescript-eslint/eslint-plugin": "^8.61.0",
     "@typescript-eslint/parser": "^8.54.0",
     "@xyflow/react": "^12.11.0",
     "canvas-confetti": "^1.9.4",
@@ -136,19 +136,19 @@
     "http-server": "^14.1.1",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
-    "prettier": "^3.8.3",
+    "prettier": "^3.8.4",
     "rollup": "^4.61.1",
     "storybook": "^10.2.13",
     "ts-jest": "^29.4.9",
     "tslib": "^2.8.1",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.60.1"
+    "typescript-eslint": "^8.61.0"
   },
   "engines": {
     "node": ">=20.0.0"
   },
   "dependencies": {
     "cmdk": "^1.1.1",
-    "libphonenumber-js": "^1.13.5"
+    "libphonenumber-js": "^1.13.6"
   }
 }
