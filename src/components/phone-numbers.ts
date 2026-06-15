@@ -634,6 +634,15 @@ export class PhoneNumbersComponent extends BaseComponent {
           flex-wrap: wrap;
         }
 
+        /* Keeps the temporary badge pinned beside the number in the
+           phone_number cell — no wrap so the badge never drops below it. */
+        .number-with-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: var(--ds-spacing-xs);
+          flex-wrap: nowrap;
+        }
+
         .badge-active {
           background: color-mix(in srgb, var(--ds-color-success) 10%, transparent);
           color: var(--ds-color-success);
@@ -752,14 +761,17 @@ export class PhoneNumbersComponent extends BaseComponent {
   private renderCellContent(item: PhoneNumberItem, col: ColumnId): string {
     const badgeClass = this.classes.statusBadge || '';
     switch (col) {
-      case 'phone_number':
-        return this.escapeHtml(this.formatPhoneNumber(item.phone_number));
-      case 'status': {
+      case 'phone_number': {
         const temporaryBadge = this.isTemporaryNumber(item)
           ? `<span class="badge badge-temporary ${badgeClass}" part="badge badge-temporary">${this.t('phoneNumbers.badges.temporary')}</span>`
           : '';
-        return `<div class="status-badges"><span class="badge ${this.getStatusBadgeClass(item.status)} ${badgeClass}" part="badge badge-status">${this.t(this.getStatusLocaleKey(item.status))}</span>${temporaryBadge}</div>`;
+        const number = this.escapeHtml(this.formatPhoneNumber(item.phone_number));
+        return temporaryBadge
+          ? `<div class="number-with-badge">${number}${temporaryBadge}</div>`
+          : number;
       }
+      case 'status':
+        return `<span class="badge ${this.getStatusBadgeClass(item.status)} ${badgeClass}" part="badge badge-status">${this.t(this.getStatusLocaleKey(item.status))}</span>`;
       case 'caller_id':
         return item.caller_id_name
           ? this.escapeHtml(item.caller_id_name)
