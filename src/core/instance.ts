@@ -25,6 +25,8 @@ import type {
   PaginatedResponse,
   DIDItem,
   UpdatePhoneNumberRequest,
+  SmsPortOutWindow,
+  UpdateSmsPortOutRequest,
   DeviceLine,
   Device,
   ProvisionedDevice,
@@ -511,6 +513,37 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         const errorText = await response.text();
         throw new ApiError(
           `Failed to update routing target: ${response.status} ${errorText}`,
+          response.status
+        );
+      }
+      return response.json();
+    },
+
+    retrieveSmsPortOut: async (phoneNumberId: string): Promise<SmsPortOutWindow> => {
+      const response = await this.fetchApi(`/v1/phone-numbers/${phoneNumberId}/sms-port-out`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new ApiError(
+          `Failed to get SMS port-out window: ${response.status} ${errorText}`,
+          response.status
+        );
+      }
+      return response.json();
+    },
+
+    updateSmsPortOut: async (
+      phoneNumberId: string,
+      data: UpdateSmsPortOutRequest
+    ): Promise<SmsPortOutWindow> => {
+      const response = await this.fetchApi(`/v1/phone-numbers/${phoneNumberId}/sms-port-out`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new ApiError(
+          `Failed to update SMS port-out window: ${response.status} ${errorText}`,
           response.status
         );
       }

@@ -54,6 +54,8 @@ export type {
   DIDItem,
   DirectoryListingType,
   UpdatePhoneNumberRequest,
+  SmsPortOutWindow,
+  UpdateSmsPortOutRequest,
   PhoneNumberStatus,
   PhoneNumberItem,
   PhoneNumbersClasses,

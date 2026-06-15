@@ -105,6 +105,8 @@ export type {
   DIDConfig,
   DirectoryListingType,
   UpdatePhoneNumberRequest,
+  SmsPortOutWindow,
+  UpdateSmsPortOutRequest,
   PhoneNumberStatus,
   PhoneNumberItem,
   PhoneNumbersClasses,

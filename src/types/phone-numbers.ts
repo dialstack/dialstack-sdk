@@ -73,6 +73,24 @@ export interface UpdatePhoneNumberRequest {
 }
 
 /**
+ * The SMS port-out window for a number. `expires_at` is the instant until which
+ * an inbound SMS port-out (messaging transfer) request is authorized; `null`
+ * means the window is locked (requests are denied). Platform-only.
+ */
+export interface SmsPortOutWindow {
+  /** RFC 3339 timestamp, or `null` when locked. */
+  expires_at: string | null;
+}
+
+/**
+ * Request body for POST /v1/phone-numbers/:id/sms-port-out. Set `expires_at` to
+ * a future RFC 3339 timestamp to open the window until then, or `null` to lock.
+ */
+export interface UpdateSmsPortOutRequest {
+  expires_at: string | null;
+}
+
+/**
  * Unified phone number status across DIDs, number orders, and port orders
  */
 export type PhoneNumberStatus =
