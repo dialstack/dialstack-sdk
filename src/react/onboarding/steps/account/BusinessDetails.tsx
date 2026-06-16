@@ -37,7 +37,7 @@ const initialManualAddress: ManualAddress = {
 };
 
 export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onBack }) => {
-  const { dialstack, progressStore, accountConfig, account, locations, reloadSharedData, locale } =
+  const { dialstack, accountConfig, account, locations, reloadSharedData, locale } =
     useOnboarding();
   const t = locale.accountOnboarding.account;
 
@@ -169,17 +169,12 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
       const parsed = parsePhoneNumberFromString(accountPhone, 'US');
       if (!parsed?.isValid()) return;
 
-      const updatedConfig = {
-        ...accountConfig,
-        ...(timezone ? { timezone } : {}),
-      };
-
       await dialstack.account.update({
         email: accountEmail.trim(),
         name: accountName.trim(),
         phone: parsed.number,
         primary_contact_name: primaryContact.trim(),
-        config: updatedConfig,
+        ...(timezone ? { config: { timezone } } : {}),
       });
 
       // Create or update location
@@ -234,9 +229,9 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
       return;
     }
     setIsSaving(false);
-    // Non-critical reload — don't let it block completion
+    // Reload pulls the new account/location and re-derives the business-details
+    // substep from real data — no manual completeSubStep needed.
     await reloadSharedData().catch(() => {});
-    progressStore.completeSubStep('account', 'business-details');
     onAdvance(accountEmail.trim());
   }, [
     isSaving,
@@ -254,7 +249,6 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
     dialstack,
     editingLocationId,
     reloadSharedData,
-    progressStore,
     onAdvance,
     t,
   ]);

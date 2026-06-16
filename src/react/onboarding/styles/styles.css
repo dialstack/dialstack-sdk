@@ -465,6 +465,13 @@
   margin-top: var(--ds-layout-spacing-sm);
 }
 
+.center-btn-row {
+  display: flex;
+  gap: var(--ds-layout-spacing-sm);
+  justify-content: center;
+  margin-top: var(--ds-layout-spacing-md);
+}
+
 /* ── Spinner ── */
 .spinner {
   display: inline-block;

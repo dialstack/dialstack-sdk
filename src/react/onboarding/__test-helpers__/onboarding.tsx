@@ -16,7 +16,9 @@ import {
 } from '@testing-library/react';
 import { DialstackComponentsProvider } from '../../DialstackComponentsProvider';
 import { OnboardingProvider } from '../OnboardingContext';
+import { PortalActionsContext } from '../PortalActionsContext';
 import { OnboardingProgressStore } from '../progress-store';
+import { deriveOnboardingState } from '../derive';
 import { defaultLocale } from '../../../locales';
 import type {
   DialStackInstance,
@@ -41,6 +43,7 @@ export const mockAccount = {
     extension_length: 4,
     timezone: 'America/New_York',
   } as AccountConfig,
+  onboarding_complete: false,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
 };
@@ -529,7 +532,12 @@ export async function renderWithOnboarding(
   const instance = createMockInstance(instanceOverrides);
   const progressStore = new OnboardingProgressStore();
   if (progressHydration) {
-    progressStore.hydrate(progressHydration as Record<string, string[]>);
+    const completed = {
+      account: new Set<string>((progressHydration.account as string[]) ?? []),
+      numbers: new Set<string>((progressHydration.numbers as string[]) ?? []),
+      hardware: new Set<string>((progressHydration.hardware as string[]) ?? []),
+    };
+    progressStore.hydrateFromDerived(completed);
   }
 
   // Resolve shared data: explicit sharedData overrides take priority, then
@@ -545,6 +553,20 @@ export async function renderWithOnboarding(
   const resolvedLocations =
     sharedData?.locations ??
     (await resolveJestMockValue(instanceOverrides?.locations?.list, [mockLocation]));
+
+  // Mirror bootstrap: hydrate the store from the resolved fixtures so initial
+  // render reflects data-driven completion (same way useOnboardingBootstrap
+  // calls hydrateFromDerived on first fetch).
+  if (!progressHydration) {
+    const { completed } = deriveOnboardingState({
+      account: resolvedAccount,
+      users: resolvedUsers,
+      locations: resolvedLocations,
+      dids: [],
+      devices: [],
+    });
+    progressStore.hydrateFromDerived(completed);
+  }
 
   const StatefulWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [users, setUsers] = React.useState<OnboardingUser[]>(resolvedUsers);
@@ -563,6 +585,16 @@ export async function renderWithOnboarding(
       setUsers(newUsers);
       setExtensions(newExtensions);
       setLocations(newLocations);
+      // Mirror useOnboardingBootstrap: re-derive substep completion from the
+      // freshly fetched data so progress percentages stay in sync with reality.
+      const { completed } = deriveOnboardingState({
+        account: newAccount,
+        users: newUsers,
+        locations: newLocations,
+        dids: [],
+        devices: [],
+      });
+      progressStore.hydrateFromDerived(completed);
     }, []);
 
     return (
@@ -578,7 +610,9 @@ export async function renderWithOnboarding(
           locale={defaultLocale}
           collectionOptions={collectionOptions}
         >
-          {children}
+          <PortalActionsContext.Provider value={{ onSaveAndExit: () => {} }}>
+            {children}
+          </PortalActionsContext.Provider>
         </OnboardingProvider>
       </DialstackComponentsProvider>
     );

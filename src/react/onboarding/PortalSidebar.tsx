@@ -12,6 +12,7 @@ import { useOnboardingProgress } from './useOnboardingProgress';
 import { CIRCUMFERENCE } from './portal-constants';
 import { CheckIconWhite, HelpIcon, OverviewIcon, STEP_ICON_COMPONENTS } from './portal-icons';
 import type { StepName } from './progress-store';
+import type { StepEntryMode } from './OnboardingContext';
 
 // Mounts SDK-consumer-supplied logo markup. logoHtml comes from the integrating
 // developer (e.g. admin's buildLogoHtml — platform name is HTML-escaped, logo
@@ -30,7 +31,7 @@ const ConsumerLogo: React.FC<{ html: string }> = ({ html }) => {
 
 export interface PortalSidebarProps {
   viewMode: 'splash' | 'overview' | 'wizard';
-  onSelectStep: (step: string) => void;
+  onSelectStep: (step: string, mode?: StepEntryMode) => void;
   onOverview: () => void;
   onBack?: () => void;
   backLabel?: string;
@@ -102,6 +103,7 @@ const PortalSidebarBase: React.FC<PortalSidebarProps> = ({
 
         const stepsLocale = locale.accountOnboarding.steps as Record<string, string>;
         const stepLabel = stepsLocale[step] ?? step;
+        const entryMode: StepEntryMode = isComplete ? 'review' : 'continue';
 
         return (
           <div
@@ -109,9 +111,9 @@ const PortalSidebarBase: React.FC<PortalSidebarProps> = ({
             className={itemClass}
             role="button"
             tabIndex={0}
-            onClick={() => onSelectStep(step)}
+            onClick={() => onSelectStep(step, entryMode)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') onSelectStep(step);
+              if (e.key === 'Enter' || e.key === ' ') onSelectStep(step, entryMode);
             }}
           >
             <span className="portal-step-icon">

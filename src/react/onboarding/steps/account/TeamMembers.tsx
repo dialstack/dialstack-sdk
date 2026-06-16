@@ -30,7 +30,6 @@ function getExtensionForUser(userId: string, extensions: Extension[]): Extension
 export const TeamMembers: React.FC<TeamMembersProps> = ({ accountEmail, onBack, onDone }) => {
   const {
     dialstack,
-    progressStore,
     locale,
     users: contextUsers,
     extensions: contextExtensions,
@@ -131,17 +130,24 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ accountEmail, onBack, 
     setNewUserExtension(getNextExtensionNumber(contextExtensions));
   }, [contextExtensions]);
 
-  const handleDone = useCallback(() => {
-    const otherUsers = accountEmail
+  // Substep requires ≥1 user other than the signed-in admin (the auto-
+  // provisioned admin user already exists on every account, so a true empty-
+  // team would otherwise mark complete). Mirror the derive's intent without
+  // letting the user advance past a still-incomplete state.
+  const otherUsersCount = (
+    accountEmail
       ? contextUsers.filter((u) => u.email?.toLowerCase() !== accountEmail.toLowerCase())
-      : contextUsers;
-    if (otherUsers.length === 0) {
+      : contextUsers
+  ).length;
+  const hasEnoughUsers = otherUsersCount >= 1;
+
+  const handleDone = useCallback(() => {
+    if (!hasEnoughUsers) {
       setUserError(t.users.atLeastOne);
       return;
     }
-    progressStore.completeSubStep('account', 'team-members');
     onDone();
-  }, [contextUsers, accountEmail, progressStore, onDone, t]);
+  }, [hasEnoughUsers, onDone, t]);
 
   const otherUsers = contextUsers.filter(
     (u) => u.email?.toLowerCase() !== accountEmail.toLowerCase()
@@ -252,6 +258,7 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ accountEmail, onBack, 
         backLabel={`\u2190 ${nav.back}`}
         onNext={handleDone}
         nextLabel={`${nav.next} \u2192`}
+        isNextDisabled={!hasEnoughUsers}
       />
     </div>
   );

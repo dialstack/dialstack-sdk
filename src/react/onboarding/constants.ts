@@ -28,13 +28,17 @@ export const NUMBERS_SUBSTEPS = [
 export type NumSubStep = (typeof NUMBERS_SUBSTEPS)[number];
 
 // ── Hardware substeps ───────────────────────────────────────────────────
-export const HARDWARE_SUBSTEPS = ['device-assignment', 'final-completion'] as const;
+export const HARDWARE_SUBSTEPS = ['device-assignment'] as const;
 export type HardwareSubStep = (typeof HARDWARE_SUBSTEPS)[number];
 
 // ── Sidebar groups ──────────────────────────────────────────────────────
 export interface SidebarGroup {
   sidebarKey: string;
   substeps: string[];
+  /** When true, this group is shown in the sidebar but does not gate
+   *  step-level completion. Use for legally-optional substeps that should
+   *  still be discoverable. */
+  optional?: boolean;
 }
 
 export const SIDEBAR_GROUPS: Record<StepName, SidebarGroup[]> = {
@@ -61,13 +65,10 @@ export const SIDEBAR_GROUPS: Record<StepName, SidebarGroup[]> = {
     },
     { sidebarKey: 'verification', substeps: ['order-status', 'port-submitted'] },
     { sidebarKey: 'primary-did', substeps: ['primary-did'] },
-    { sidebarKey: 'caller-id', substeps: ['caller-id'] },
-    { sidebarKey: 'directory-listing', substeps: ['directory-listing'] },
+    { sidebarKey: 'caller-id', substeps: ['caller-id'], optional: true },
+    { sidebarKey: 'directory-listing', substeps: ['directory-listing'], optional: true },
   ],
-  hardware: [
-    { sidebarKey: 'device-assignment', substeps: ['device-assignment'] },
-    { sidebarKey: 'final-completion', substeps: ['final-completion'] },
-  ],
+  hardware: [{ sidebarKey: 'device-assignment', substeps: ['device-assignment'] }],
 };
 
 /** Flat list of all substeps per step (derived from sidebar groups). */

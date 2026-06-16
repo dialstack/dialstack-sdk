@@ -15,8 +15,10 @@ import { PHONE_SVG } from './icons';
 import type { StepName } from './progress-store';
 import type { PhoneNumberItem } from '../../types';
 
+import type { StepEntryMode } from './OnboardingContext';
+
 export interface OverviewScreenProps {
-  onGoToStep: (step: string) => void;
+  onGoToStep: (step: string, mode?: StepEntryMode) => void;
   phoneNumbers?: PhoneNumberItem[];
   documentationUrl?: string;
   onScheduleCall?: () => void;
@@ -131,7 +133,10 @@ const OverviewScreenBase: React.FC<OverviewScreenProps> = ({
                   <div className="overview-card-progress-fill" style={{ width: `${stepPct}%` }} />
                 </div>
               </div>
-              <button className={btnClass} onClick={() => onGoToStep(step)}>
+              <button
+                className={btnClass}
+                onClick={() => onGoToStep(step, isComplete ? 'review' : 'continue')}
+              >
                 {btnText}
               </button>
             </div>

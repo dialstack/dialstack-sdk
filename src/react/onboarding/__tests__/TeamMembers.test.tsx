@@ -11,6 +11,7 @@ import {
   renderWithOnboarding,
   createStatefulUserMocks,
   createStatefulExtensionMocks,
+  mockUsers,
 } from '../__test-helpers__/onboarding';
 
 /**
@@ -292,17 +293,17 @@ describe('TeamMembers', () => {
     });
   });
 
-  it('requires at least one team member before advancing', async () => {
+  it('disables Next until at least one team member exists', async () => {
     await renderTM({
       ...usersNS({ list: jest.fn().mockResolvedValue([]) }),
       ...extensionsNS({ list: jest.fn().mockResolvedValue([]) }),
     });
 
-    clickNext();
-
-    await waitFor(() => {
-      expect(screen.getByText('Add at least one team member to continue.')).toBeTruthy();
-    });
+    // No team members → wizard must not let the user advance past a state
+    // the data doesn't satisfy. Next stays disabled until ≥1 user other than
+    // the signed-in admin is added.
+    const nextButton = screen.getByRole('button', { name: /next/i });
+    expect(nextButton).toBeDisabled();
   });
 
   // ==========================================================================
@@ -336,7 +337,18 @@ describe('TeamMembers', () => {
   // ==========================================================================
 
   it('calls onDone and completes sub-step when advancing with users', async () => {
-    const { progressStore } = await renderTM();
+    // derive.ts requires users.length >= 2; mockUsers has one entry, so add a
+    // second so team-members flips to done.
+    const extraUser = {
+      id: 'user_02bcd',
+      name: 'Bob',
+      email: 'bob@example.com',
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    };
+    const { progressStore } = await renderTM({
+      users: { list: jest.fn().mockResolvedValue([...mockUsers, extraUser]) },
+    });
 
     clickNext();
 

@@ -129,16 +129,15 @@ describe('HardwareStep', () => {
     ).toBeInTheDocument();
   });
 
-  it('hardware step is skippable (Next works without assignments)', async () => {
+  it('disables Next when nothing is assigned and nothing was previously assigned', async () => {
     await renderHardwareStep();
 
-    const nextButton = screen.getByRole('button', { name: /next/i });
-    fireEvent.click(nextButton);
-
-    // After clicking next with no devices, the step completes and shows the done screen
-    await waitFor(() => {
-      expect(screen.getByText('Hardware Setup Complete')).toBeInTheDocument();
-    });
+    // With zero devices, zero assignments, and zero pre-existing records the
+    // hardware predicate (≥1 device line OR ≥1 DECT extension) can't be met,
+    // so the wizard must not let the user click through to a misleading
+    // "Setup Complete" screen that would bounce right back.
+    const nextButton = screen.getByRole('button', { name: /save & continue/i });
+    expect(nextButton).toBeDisabled();
   });
 
   it('shows no users message when user list is empty on hardware step', async () => {
@@ -278,7 +277,7 @@ describe('HardwareStep', () => {
     });
   });
 
-  it('shows Assign & Complete when all devices assigned', async () => {
+  it('shows Save & Continue when all devices assigned', async () => {
     const unassignedDevice = { ...mockDevice, lines: [] };
     await renderHardwareStep({
       ...devicesNS({ list: jest.fn().mockResolvedValue([unassignedDevice]) }),
@@ -295,12 +294,12 @@ describe('HardwareStep', () => {
     fireEvent.click(document.querySelector('.hw-drop-zone') as HTMLElement);
 
     await waitFor(() => {
-      expect(screen.getByText('Assign & Complete')).toBeInTheDocument();
+      expect(screen.getByText('Save & Continue')).toBeInTheDocument();
       expect(screen.getByText('All devices have been assigned')).toBeInTheDocument();
     });
   });
 
-  it('Assign & Complete calls API to create deskphone line', async () => {
+  it('Save & Continue calls API to create deskphone line', async () => {
     const createDeskphoneLine = jest.fn().mockResolvedValue({
       id: 'dln_new',
       device_id: mockDevice.id,
@@ -327,11 +326,11 @@ describe('HardwareStep', () => {
     fireEvent.click(document.querySelector('.hw-drop-zone') as HTMLElement);
 
     await waitFor(() => {
-      expect(screen.getByText('Assign & Complete')).toBeInTheDocument();
+      expect(screen.getByText('Save & Continue')).toBeInTheDocument();
     });
 
-    // Click Assign & Complete
-    fireEvent.click(screen.getByText('Assign & Complete'));
+    // Click Save & Continue
+    fireEvent.click(screen.getByText('Save & Continue'));
 
     await waitFor(() => {
       expect(createDeskphoneLine).toHaveBeenCalledWith(unassignedDevice.id, {

@@ -16,7 +16,7 @@ import hardwareStyles from '../../styles/hardware-styles.css';
 const HARDWARE_EXTRA_STYLESHEETS = [hardwareStyles];
 
 export const HardwareStep: React.FC = () => {
-  const { locale, progressStore, activeSteps } = useOnboarding();
+  const { locale, progressStore, activeSteps, reloadSharedData } = useOnboarding();
   const [location, setLocation] = useState<OnboardingLocation | null>(null);
   const [isComplete, setIsComplete] = useState(false);
 
@@ -28,11 +28,15 @@ export const HardwareStep: React.FC = () => {
     return () => progressStore.setCurrentStep(prevStep);
   }, [hardwareIdx, activeSteps, progressStore]);
 
-  const handleDone = useCallback(() => {
-    progressStore.completeSubStep('hardware', 'device-assignment');
-    progressStore.completeSubStep('hardware', 'final-completion');
+  const handleDone = useCallback(async () => {
+    // Hardware completion is data-driven (devices/dect_bases on the account);
+    // refresh so the derived state picks up everything DeviceAssignment wrote.
+    // Await before painting the Setup Complete screen so that when the user
+    // clicks Done next, progressStore already reflects the new line/extension
+    // and the Portal's final_complete effect doesn't bounce back to hardware.
+    await reloadSharedData().catch(() => {});
     setIsComplete(true);
-  }, [progressStore]);
+  }, [reloadSharedData]);
 
   const handleCompleteDone = useCallback(() => {
     progressStore.setCurrentStep(findNextIncompleteStep(activeSteps, progressStore, 'hardware'));
@@ -48,11 +52,6 @@ export const HardwareStep: React.FC = () => {
         key: 'device-assignment',
         label: locale.accountOnboarding.sidebar.deviceAssignment,
         description: locale.accountOnboarding.sidebar.deviceAssignmentDesc,
-      },
-      {
-        key: 'final-completion',
-        label: locale.accountOnboarding.sidebar.finalCompletion,
-        description: locale.accountOnboarding.sidebar.finalCompletionDesc,
       },
     ],
     [locale]

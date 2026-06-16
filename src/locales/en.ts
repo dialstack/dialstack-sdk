@@ -312,8 +312,6 @@ export const en = {
       verificationDesc: 'Verify number status',
       deviceAssignment: 'Device Assignment',
       deviceAssignmentDesc: 'Assign devices to users',
-      finalCompletion: 'Final Completion',
-      finalCompletionDesc: 'Complete your onboarding',
     },
     account: {
       title: 'Business Details',
@@ -694,7 +692,7 @@ export const en = {
       dragDropHint: 'Drag and drop device here',
       clickToAssign: 'Click to assign',
       submitOrder: 'Submit Order',
-      assignAndComplete: 'Assign & Complete',
+      assignAndComplete: 'Save & Continue',
       unassign: 'Unassign',
       deskPhone: 'Desk phone',
       cordless: 'Cordless',

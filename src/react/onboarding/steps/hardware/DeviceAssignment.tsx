@@ -3,7 +3,7 @@
  * Handles data loading, drag-and-drop device assignment, and submission.
  */
 
-import React, { useEffect, useCallback, useState, useMemo } from 'react';
+import React, { useEffect, useCallback, useState, useMemo, useRef } from 'react';
 import type {
   Device,
   DECTBase,
@@ -217,18 +217,20 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
   }, []);
 
   // Load device-specific data (users/extensions/locations come from context).
+  // Only seed deviceAssignments / initialDeviceRecords on the FIRST load —
+  // a parent-triggered reload (e.g. from the previous step's handleDone)
+  // could otherwise wipe in-flight user clicks that haven't been submitted.
+  const hasSeededRef = useRef(false);
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      setIsLoading(true);
+      if (!hasSeededRef.current) setIsLoading(true);
       setLoadError(null);
       try {
         const [devicesResult, dectBasesResult] = await Promise.all([
           dialstack.devices.list({ type: 'deskphone' }).catch(() => [] as Device[]),
           dialstack.dectBases.list().catch(() => [] as DECTBase[]),
         ]);
-
-        if (cancelled) return;
 
         if (cancelled) return;
 
@@ -271,8 +273,11 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
         setDectBases(dectBases);
         setDectHandsets(handsetMap);
         setUserEndpointMap(endpointMap);
-        setDeviceAssignments(assignments);
-        setInitialDeviceRecords(initialRecords);
+        if (!hasSeededRef.current) {
+          setDeviceAssignments(assignments);
+          setInitialDeviceRecords(initialRecords);
+          hasSeededRef.current = true;
+        }
         setIsLoading(false);
         setLoadError(null);
 
@@ -442,12 +447,16 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
   ]);
 
   const handleNext = useCallback(() => {
-    if (deviceAssignments.size > 0) {
+    // Submit when there is anything to add (current assignments) OR anything
+    // to remove (initial records the user unassigned). Skipping submit on an
+    // all-unassigned state left previously-saved lines/extensions in place — the
+    // user would see the device "still assigned" on the next mount.
+    if (deviceAssignments.size > 0 || initialDeviceRecords.size > 0) {
       void handleSubmitAssignments();
     } else {
       onDone();
     }
-  }, [deviceAssignments.size, handleSubmitAssignments, onDone]);
+  }, [deviceAssignments.size, initialDeviceRecords.size, handleSubmitAssignments, onDone]);
 
   // ============================================================================
   // Render
@@ -509,7 +518,7 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
           <h2 className="section-title">{hw.title}</h2>
           <p className="section-subtitle">{hw.noUsers}</p>
         </div>
-        <StepNavigation onNext={onDone} nextLabel={`${nav.next} \u2192`} />
+        <StepNavigation nextLabel={`${nav.next} \u2192`} isNextDisabled />
       </div>
     );
   }
@@ -649,20 +658,20 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
   const errorMargin = { marginBottom: 'var(--ds-layout-spacing-sm)' };
   const actionErrorEl = <ErrorAlert message={actionError} style={errorMargin} />;
 
+  // Enable Next whenever there is something to persist \u2014 a new assignment to
+  // add, or a previously-saved assignment the user has just removed. (Disabling
+  // on an empty assignment set made the removal-submit branch in handleNext
+  // unreachable, so unassigning your only device couldn't be saved.) With
+  // nothing to add and nothing to remove there is no work, so keep it disabled.
+  const hasPendingChange = deviceAssignments.size > 0 || initialDeviceRecords.size > 0;
   const footer = (
     <>
       <StepNavigation
         onBack={onBack}
         backLabel={onBack ? `\u2190 ${nav.back}` : undefined}
         onNext={handleNext}
-        nextLabel={
-          deviceAssignments.size > 0
-            ? isSubmitting
-              ? hw.submitting
-              : hw.assignAndComplete
-            : `${nav.next} \u2192`
-        }
-        isNextDisabled={isSubmitting}
+        nextLabel={isSubmitting ? hw.submitting : hw.assignAndComplete}
+        isNextDisabled={isSubmitting || !hasPendingChange}
       />
     </>
   );

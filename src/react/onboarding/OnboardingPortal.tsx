@@ -1,17 +1,27 @@
 /**
  * Top-level OnboardingPortal component.
  *
- * Creates its own OnboardingProgressStore (with DB sync), fetches account config,
- * and composes the portal shell: PortalSidebar + SplashScreen / OverviewScreen / wizard.
+ * Hydrates the progress store from derived account data (no DB sync — onboarding
+ * status is computed live from DIDs, devices, locations, etc.) and composes the
+ * portal shell: PortalSidebar + SplashScreen / OverviewScreen / wizard.
+ *
+ * Splash is gated on a per-browser+account localStorage flag — the flag flips
+ * true when the user clicks "Start Onboarding," so subsequent visits in the
+ * same browser skip splash regardless of step progress. The confetti screen
+ * fires only on the in-session transition into onboarding_complete, so it is
+ * never re-shown on reload.
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
 import { create as createConfetti } from 'canvas-confetti';
 import { computePortalCssVars } from './design-tokens';
 import { ShadowContainer } from './ShadowRoot';
-import { OnboardingProvider } from './OnboardingContext';
+import { OnboardingProvider, findNextIncompleteStep } from './OnboardingContext';
+import type { StepEntryMode } from './OnboardingContext';
+import type { StepName } from './constants';
 import { useOnboarding } from './OnboardingContext';
 import { useOnboardingProgress } from './useOnboardingProgress';
+import { useStartedFlag } from './useStartedFlag';
 import { PortalSidebar } from './PortalSidebar';
 import { SplashScreen } from './SplashScreen';
 import { OverviewScreen } from './OverviewScreen';
@@ -19,6 +29,7 @@ import { AccountStep } from './steps/account/AccountStep';
 import { NumbersStep } from './steps/numbers/NumbersStep';
 import { HardwareStep } from './steps/hardware/HardwareStep';
 import { useOnboardingBootstrap } from './useOnboardingBootstrap';
+import { PortalActionsContext } from './PortalActionsContext';
 import { mergePhoneNumbers } from './merge-phone-numbers';
 import { useAppearance } from '../useAppearance';
 import { defaultLocale } from '../../locales';
@@ -69,6 +80,7 @@ export const OnboardingPortal: React.FC<OnboardingPortalProps> = (props) => {
   const locale = props.locale ?? defaultLocale;
   const { progressStore, sharedData, reloadSharedData, storeHydrated } =
     useOnboardingBootstrap(portalErrorHandler);
+  const [entryMode, setEntryMode] = useState<StepEntryMode>('continue');
 
   if (!storeHydrated) return null;
 
@@ -86,8 +98,9 @@ export const OnboardingPortal: React.FC<OnboardingPortalProps> = (props) => {
       icons={props.icons}
       collectionOptions={props.collectionOptions}
       platformName={props.platformName}
+      entryMode={entryMode}
     >
-      <PortalInner {...props} locale={locale} />
+      <PortalInner {...props} locale={locale} setEntryMode={setEntryMode} />
     </OnboardingProvider>
   );
 };
@@ -96,77 +109,141 @@ export const OnboardingPortal: React.FC<OnboardingPortalProps> = (props) => {
 // PortalInner — internal, not exported
 // ============================================================================
 
-type PortalInnerProps = OnboardingPortalProps & { locale: Locale };
+type PortalInnerProps = OnboardingPortalProps & {
+  locale: Locale;
+  setEntryMode: (mode: StepEntryMode) => void;
+};
 
 const PortalInner: React.FC<PortalInnerProps> = (props) => {
-  const { dialstack, progressStore, activeSteps, locale } = useOnboarding();
+  const { dialstack, progressStore, activeSteps, account, locale } = useOnboarding();
   const { currentStep } = useOnboardingProgress();
+  const { setEntryMode } = props;
 
-  // Determine initial view: skip splash if the user has existing progress.
+  // Re-evaluate auto-redirect to Wahoo whenever step completion changes.
+  // useOnboardingProgress already subscribes to progressStore.notify() — read
+  // isStepComplete here so the snapshot the effect captures is fresh, and
+  // include it as a dep so the effect fires when an async reload flips the
+  // last incomplete step into the done bucket.
+  const completionKey = activeSteps
+    .filter((s) => s !== 'final_complete')
+    .map((s) => (progressStore.isStepComplete(s as StepName) ? '1' : '0'))
+    .join('');
+
+  const { started: localStartedFlag, setStarted: persistStartedFlag } = useStartedFlag(account?.id);
+
+  // Splash shows only on a fresh account. account.onboarding_complete guards
+  // against a stale local derive when the account is already complete.
+  // The localStorage flag suppresses splash after the user has clicked Get
+  // Started in this browser+account.
   const [viewMode, setViewMode] = useState<'splash' | 'overview' | 'wizard'>(() => {
-    const checkSteps: Array<'account' | 'numbers' | 'hardware'> = [
-      'account',
-      'numbers',
-      'hardware',
-    ];
-    const hasProgress = checkSteps.some(
-      (s) => progressStore.getStepProgressPercent(s) > 0 || progressStore.isStepComplete(s)
-    );
-    return hasProgress ? 'overview' : 'splash';
+    if (localStartedFlag || account?.onboarding_complete) return 'overview';
+    const anyStepDone =
+      progressStore.isStepComplete('account') ||
+      progressStore.isStepComplete('numbers') ||
+      progressStore.isStepComplete('hardware');
+    return anyStepDone ? 'overview' : 'splash';
   });
 
   const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumberItem[]>([]);
   const isReviewNavRef = useRef(false);
-  // Wahoo screen is shown at most once per session — subsequent Done clicks go to overview.
-  const wahooSeenRef = useRef(false);
 
-  // Keep a ref to onStepChange so the effect always calls the latest callback
-  // without needing it in the dependency array (avoids stale closure).
+  // Wahoo is one-shot per portal mount. Preseed confettiShown when
+  // account.onboarding_complete is already true so a reload after completion
+  // never re-celebrates. account.onboarding_complete is the single source of
+  // truth for "done" — derive is only for per-substep wizard hints, so the
+  // gate must not consult it. wahooActive flips only between the auto-redirect
+  // and Finish.
+  const [confettiShown, setConfettiShown] = useState(() => account?.onboarding_complete === true);
+  const [wahooActive, setWahooActive] = useState(false);
+
+  // Ref keeps the effect off the onStepChange identity (avoids stale closure
+  // without putting the user-supplied callback in the dep array).
   const onStepChangeRef = useRef(props.onStepChange);
   useLayoutEffect(() => {
     onStepChangeRef.current = props.onStepChange;
   });
 
-  // Wire onStepChange and handle final_complete redirect logic.
+  // The effect below also re-runs on completion/flag ticks where currentStep
+  // is unchanged; track the last step so onStepChange fires only on a real
+  // step change, not on every re-evaluation.
+  const lastNotifiedStepRef = useRef<typeof currentStep | undefined>(undefined);
+
   useEffect(() => {
     if (currentStep === 'final_complete') {
-      const stepsWithoutComplete = activeSteps.filter((s) => s !== 'final_complete');
-      const firstIncomplete = stepsWithoutComplete.find(
-        (s) => !progressStore.isStepComplete(s as 'account' | 'numbers' | 'hardware')
-      );
-      if (firstIncomplete) {
-        progressStore.setCurrentStep(firstIncomplete);
+      // account.onboarding_complete is the completion authority. When the
+      // server reports the account done, show the celebration rather than
+      // letting findNextIncompleteStep (driven by the local per-substep derive)
+      // bounce to a step the client thinks is unfinished — that bounce, paired
+      // with the overview auto-redirect below, would loop forever.
+      const next =
+        account?.onboarding_complete === true
+          ? 'final_complete'
+          : findNextIncompleteStep(activeSteps, progressStore, 'final_complete');
+      if (next !== 'final_complete') {
+        progressStore.setCurrentStep(next);
         return;
       }
-      // Wahoo already shown — go to overview instead of showing it again.
-      // Use queueMicrotask to avoid cascading setState within the effect.
-      if (wahooSeenRef.current) {
-        queueMicrotask(() => setViewMode('overview'));
+      // All steps done. First arrival this mount: show Wahoo (and remember
+      // that we did). Subsequent arrivals (e.g., a Review pass through an
+      // already-complete step that ends with findNextIncompleteStep) bounce
+      // to overview without re-painting the celebration.
+      if (!confettiShown) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- first transition into all-done state
+        setConfettiShown(true);
+        setWahooActive(true);
+        // The render branch for the celebration requires renderViewMode ===
+        // 'wizard'. The wizard click-Next path is already in 'wizard'; the
+        // auto-redirect path arrives here from 'overview', so flip it or the
+        // FinalCompleteScreen is silently skipped.
+        setViewMode('wizard');
         return;
       }
-      // First time reaching final_complete — mark seen and let it render.
-      wahooSeenRef.current = true;
+      if (!wahooActive && viewMode !== 'overview') {
+        setViewMode('overview');
+        return;
+      }
     } else {
-      // If all steps done and this wasn't a review nav, redirect to final_complete.
-      if (!isReviewNavRef.current) {
-        const stepsWithoutComplete = activeSteps.filter((s) => s !== 'final_complete');
-        const allDone =
-          stepsWithoutComplete.length > 0 &&
-          stepsWithoutComplete.every((s) =>
-            progressStore.isStepComplete(s as 'account' | 'numbers' | 'hardware')
-          );
-        if (allDone) {
-          progressStore.setCurrentStep('final_complete');
-          return;
-        }
+      // Auto-redirect to Wahoo when the server reports the account complete
+      // while the user is on the overview screen (a reloadSharedData after the
+      // last step refetches account.onboarding_complete). Gate on the server
+      // flag — the single source of truth — not on derive. Gate on viewMode ===
+      // 'overview' so we don't pre-empt a step's local "Setup Complete" screen;
+      // the wizard owns the transition once the user has clicked Next inside a
+      // step.
+      if (
+        !isReviewNavRef.current &&
+        !confettiShown &&
+        viewMode === 'overview' &&
+        account?.onboarding_complete === true
+      ) {
+        progressStore.setCurrentStep('final_complete');
+        return;
       }
       isReviewNavRef.current = false;
     }
 
-    onStepChangeRef.current?.({ step: currentStep });
-  }, [currentStep, activeSteps, progressStore]);
+    if (lastNotifiedStepRef.current !== currentStep) {
+      lastNotifiedStepRef.current = currentStep;
+      onStepChangeRef.current?.({ step: currentStep });
+    }
+  }, [
+    currentStep,
+    activeSteps,
+    progressStore,
+    wahooActive,
+    viewMode,
+    confettiShown,
+    completionKey,
+    account?.onboarding_complete,
+  ]);
 
-  // Fetch phone numbers when switching to overview and numbers step is active.
+  // Synchronous render override: wizard navigation can land on final_complete
+  // without wahooActive (Review pass through a completed step). Display
+  // overview instead — the effect above syncs the actual viewMode state so
+  // subsequent renders are consistent.
+  const renderViewMode =
+    currentStep === 'final_complete' && !wahooActive && confettiShown ? 'overview' : viewMode;
+
   useEffect(() => {
     if (viewMode !== 'overview') return;
     if (!activeSteps.includes('numbers')) return;
@@ -191,23 +268,39 @@ const PortalInner: React.FC<PortalInnerProps> = (props) => {
   }, [viewMode, activeSteps, dialstack]);
 
   const handleSelectStep = useCallback(
-    (step: string) => {
+    (step: string, mode: StepEntryMode = 'continue') => {
       isReviewNavRef.current = true;
+      setEntryMode(mode);
       progressStore.setCurrentStep(step as AccountOnboardingStep);
       setViewMode('wizard');
     },
-    [progressStore]
+    [progressStore, setEntryMode]
   );
 
   const handleOverview = useCallback(() => {
     setViewMode('overview');
   }, []);
+  const portalActions = useMemo(() => ({ onSaveAndExit: handleOverview }), [handleOverview]);
+
+  const handleConfettiDone = useCallback(() => {
+    setWahooActive(false);
+    setViewMode('overview');
+  }, []);
 
   const handleStart = useCallback(() => {
-    const firstStep = activeSteps.find((s) => s !== 'final_complete') ?? 'account';
-    progressStore.setCurrentStep(firstStep as AccountOnboardingStep);
+    persistStartedFlag();
+
+    const firstIncomplete = activeSteps.find(
+      (s) => s !== 'final_complete' && !progressStore.isStepComplete(s as StepName)
+    );
+    if (!firstIncomplete) {
+      setViewMode('overview');
+      return;
+    }
+    setEntryMode('continue');
+    progressStore.setCurrentStep(firstIncomplete as AccountOnboardingStep);
     setViewMode('wizard');
-  }, [activeSteps, progressStore]);
+  }, [activeSteps, progressStore, setEntryMode, persistStartedFlag]);
 
   const instanceAppearance = useAppearance(dialstack);
   const isDark = (props.theme ?? instanceAppearance?.theme ?? 'light') === 'dark';
@@ -248,7 +341,7 @@ const PortalInner: React.FC<PortalInnerProps> = (props) => {
             flexDirection: 'column',
           }}
         >
-          {viewMode === 'splash' && (
+          {renderViewMode === 'splash' && (
             <SplashScreen
               logoHtml={props.logoHtml}
               platformName={props.platformName}
@@ -256,7 +349,7 @@ const PortalInner: React.FC<PortalInnerProps> = (props) => {
             />
           )}
 
-          {viewMode === 'overview' && (
+          {renderViewMode === 'overview' && (
             <OverviewScreen
               onGoToStep={handleSelectStep}
               phoneNumbers={phoneNumbers}
@@ -265,30 +358,32 @@ const PortalInner: React.FC<PortalInnerProps> = (props) => {
             />
           )}
 
-          {viewMode === 'wizard' && currentStep !== 'final_complete' && (
-            <div className="portal-main">
-              <div
-                className="portal-wizard-header"
-                role="button"
-                tabIndex={0}
-                onClick={handleOverview}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') handleOverview();
-                }}
-              >
-                ← {locale.onboardingPortal.saveAndExit}
+          {renderViewMode === 'wizard' && currentStep !== 'final_complete' && (
+            <PortalActionsContext.Provider value={portalActions}>
+              <div className="portal-main">
+                <div
+                  className="portal-wizard-header"
+                  role="button"
+                  tabIndex={0}
+                  onClick={handleOverview}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') handleOverview();
+                  }}
+                >
+                  ← {locale.onboardingPortal.saveAndExit}
+                </div>
+                <PortalStepRouter />
               </div>
-              <PortalStepRouter />
-            </div>
+            </PortalActionsContext.Provider>
           )}
 
-          {viewMode === 'wizard' && currentStep === 'final_complete' && (
+          {renderViewMode === 'wizard' && currentStep === 'final_complete' && wahooActive && (
             <FinalCompleteScreen
               locale={locale}
               fullTermsOfServiceUrl={props.fullTermsOfServiceUrl}
               recipientTermsOfServiceUrl={props.recipientTermsOfServiceUrl}
               privacyPolicyUrl={props.privacyPolicyUrl}
-              onDone={handleOverview}
+              onDone={handleConfettiDone}
             />
           )}
         </div>

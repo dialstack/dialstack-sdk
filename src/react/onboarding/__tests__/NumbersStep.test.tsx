@@ -1536,7 +1536,7 @@ describe('NumbersStep', () => {
       });
 
       // Retry button should be present
-      const retryBtn = document.querySelector<HTMLButtonElement>('.center-btn button');
+      const retryBtn = document.querySelector<HTMLButtonElement>('.center-btn-row button');
       expect(retryBtn).not.toBeNull();
       expect(retryBtn?.textContent).toContain('Retry');
     }, 15000);
@@ -1642,7 +1642,7 @@ describe('NumbersStep', () => {
       });
 
       // Click retry
-      const retryBtn = document.querySelector<HTMLButtonElement>('.center-btn button')!;
+      const retryBtn = document.querySelector<HTMLButtonElement>('.center-btn-row button')!;
       fireEvent.click(retryBtn);
 
       // Should show success after retry
@@ -1723,7 +1723,7 @@ describe('NumbersStep', () => {
       expect(getLocationMock).toHaveBeenCalledTimes(1);
     }, 15000);
 
-    it('Done button always present regardless of E911 state', async () => {
+    it('exposes a forward button (Next/Retry) when E911 fails — never blocks', async () => {
       const result = await renderNumbers({
         ...phoneNumbersNS({ list: jest.fn().mockResolvedValue(didPage([mockAccountDID])) }),
         ...defaultLocationsNS({
@@ -1738,8 +1738,14 @@ describe('NumbersStep', () => {
         expect(document.body.textContent).toContain('E911 configuration failed');
       });
 
-      // Done button should be present even during error
-      expect(screen.getByRole('button', { name: /Done/i })).toBeTruthy();
+      // When E911 fails the step isn't actually data-complete — we don't
+      // paint a "Numbers Complete" celebration. Instead we surface Retry
+      // (re-attempt provisioning) so the user can recover. Assert Retry
+      // specifically: the always-present footer Next would satisfy a
+      // /retry|next/ regex even if Retry regressed away, defeating the point.
+      // Retry is itself the forward affordance, so its presence also proves
+      // the user is never blocked.
+      expect(screen.getByRole('button', { name: /retry/i })).toBeTruthy();
     }, 15000);
 
     it('aborts E911 when component unmounts (cleanup)', async () => {
@@ -1761,9 +1767,9 @@ describe('NumbersStep', () => {
       resolveSecond([mockLocation]);
       await new Promise((r) => setTimeout(r, 50));
 
-      expect(
-        (result.instance as unknown as Record<string, Record<string, jest.Mock>>).locations.update
-      ).not.toHaveBeenCalled();
+      // locations.update IS called eagerly in handlePrimaryDidNext to persist
+      // the user's primary selection — that's expected. The cleanup contract
+      // only covers the E911 provisioning APIs that run later in the flow.
       expect(
         (result.instance as unknown as Record<string, Record<string, jest.Mock>>).locations
           .validateE911

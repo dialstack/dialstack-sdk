@@ -285,7 +285,10 @@ describe('BusinessDetails', () => {
     });
   });
 
-  it('preserves existing config fields when saving', async () => {
+  it('sends only the timezone in config — the API merges other fields', async () => {
+    // The API merges account.config on partial update, so the client only
+    // needs to send the field it owns (timezone). Spreading the full existing
+    // config would be redundant.
     const { instance } = await renderBD({
       ...accountNS({
         retrieve: jest.fn().mockResolvedValue({
@@ -300,9 +303,7 @@ describe('BusinessDetails', () => {
 
     await waitFor(() => {
       const call = (instance.account.update as jest.Mock).mock.calls[0]?.[0];
-      expect(call.config.region).toBe('us-east');
-      expect(call.config.extension_length).toBe(4);
-      expect(call.config.timezone).toBe('America/New_York');
+      expect(call.config).toEqual({ timezone: 'America/New_York' });
     });
   });
 

@@ -36,6 +36,15 @@ import { useDialstackComponents } from '@dialstack/sdk/react';
 /** The three steps a user navigates through (final_complete is not a nav target). */
 const NAVIGABLE_STEPS: AccountOnboardingStep[] = ['account', 'numbers', 'hardware'];
 
+/**
+ * How the user entered the current step.
+ * - 'continue' — Overview "Continue Setup" / "Complete Setup" CTA. Step is partial; jump to the first
+ *   incomplete substep so we don't make the user click through what's already done.
+ * - 'review' — Overview "Review" CTA on a fully-complete step. Walk every substep from the start so
+ *   the user can revisit/edit existing values.
+ */
+export type StepEntryMode = 'continue' | 'review';
+
 export interface OnboardingContextValue {
   /** SDK instance from the parent DialstackComponentsProvider. */
   dialstack: DialStackInstance;
@@ -61,6 +70,8 @@ export interface OnboardingContextValue {
   reloadSharedData: () => Promise<void>;
   /** Platform name for locale string interpolation (e.g. "Acme Voice"). */
   platformName: string;
+  /** How the user entered the active step (drives initial substep selection). */
+  entryMode: StepEntryMode;
 }
 
 export interface OnboardingProviderProps {
@@ -76,6 +87,7 @@ export interface OnboardingProviderProps {
   icons?: ComponentIcons;
   collectionOptions?: OnboardingCollectionOptions;
   platformName?: string;
+  entryMode?: StepEntryMode;
   children: ReactNode;
 }
 
@@ -120,6 +132,7 @@ export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({
   icons,
   collectionOptions,
   platformName,
+  entryMode,
   children,
 }) => {
   const { dialstack } = useDialstackComponents();
@@ -127,6 +140,7 @@ export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({
   const activeSteps = useMemo(() => computeActiveSteps(collectionOptions), [collectionOptions]);
 
   const resolvedPlatformName = platformName ?? 'DialStack';
+  const resolvedEntryMode: StepEntryMode = entryMode ?? 'continue';
 
   const value: OnboardingContextValue = useMemo(
     () => ({
@@ -144,6 +158,7 @@ export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({
       locations,
       reloadSharedData,
       platformName: resolvedPlatformName,
+      entryMode: resolvedEntryMode,
     }),
     [
       dialstack,
@@ -160,6 +175,7 @@ export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({
       locations,
       reloadSharedData,
       resolvedPlatformName,
+      resolvedEntryMode,
     ]
   );
 

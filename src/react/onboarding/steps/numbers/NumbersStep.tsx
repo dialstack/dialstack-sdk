@@ -17,12 +17,14 @@ import type {
   DialStackInstance,
   SearchAvailableNumbersOptions,
   CreatePortOrderRequest,
+  DialPlan,
 } from '../../../../types';
 import { ApiError } from '../../../../core/instance';
 import { mergePhoneNumbers } from '../../merge-phone-numbers';
-import { ORDERED_SUBSTEPS } from '../../constants';
 import { CHECK_SVG_WHITE, CHECK_CIRCLE_SVG, ERROR_SVG, PHONE_SVG } from '../../icons';
 import { useOnboarding, findNextIncompleteStep } from '../../OnboardingContext';
+import { SIDEBAR_GROUPS } from '../../constants';
+import { usePortalActions } from '../../PortalActionsContext';
 import { OnboardingLayout } from '../../OnboardingLayout';
 import { CheckIcon } from '../../components/icons';
 import numbersStyles from '../../styles/numbers-styles.css';
@@ -55,6 +57,12 @@ import {
 // Stable array for ShadowContainer — step-specific CSS passed to OnboardingLayout.
 const NUMBERS_EXTRA_STYLESHEETS = [numbersStyles];
 
+// Matches the dial plan we auto-create during onboarding so a reload can
+// rediscover and reuse it instead of duplicating. Customization that drifts
+// from this shape is treated as a different plan.
+const isDefaultDialPlanShape = (dp: DialPlan): boolean =>
+  dp.entry_node === 'ring-all' && dp.nodes.length === 1 && dp.nodes[0]?.type === 'ring_all_users';
+
 // ============================================================================
 // Component
 // ============================================================================
@@ -68,8 +76,16 @@ export const NumbersStep: React.FC = () => {
     platformName,
     account: contextAccount,
     locations: contextLocations,
+    reloadSharedData,
+    entryMode,
   } = useOnboarding();
+  const { onSaveAndExit } = usePortalActions();
   const [state, dispatch] = useReducer(numReducer, INITIAL_STATE);
+  // Capture the entry-mode for the lifetime of this mount. `entryMode` reflects
+  // the latest Overview click; we only care about how the user *entered* this
+  // step, not later changes that come from selecting another step's CTA.
+  const initialEntryModeRef = useRef(entryMode);
+  const didResumeRef = useRef(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const orderPollGenRef = useRef(0);
   const e911GenRef = useRef(0);
@@ -112,34 +128,10 @@ export const NumbersStep: React.FC = () => {
   }, []);
 
   // Track sub-step progression: update progress based on navigation direction
-  const prevSubStepRef = useRef(state.subStep);
-  useEffect(() => {
-    const prev = prevSubStepRef.current;
-    prevSubStepRef.current = state.subStep;
-    if (prev === state.subStep) return;
-
-    const ordered = ORDERED_SUBSTEPS.numbers;
-    const prevIdx = ordered.indexOf(prev);
-    const currIdx = ordered.indexOf(state.subStep);
-
-    if (currIdx > prevIdx) {
-      // Forward — mark previous substep complete
-      progressStore.completeSubStep('numbers', prev);
-    } else {
-      // Backward — remove substeps from current+1 onward
-      const toRemove = ordered.slice(currIdx + 1);
-      progressStore.removeSubSteps('numbers', toRemove);
-    }
-  }, [state.subStep, progressStore]);
-
-  // Mark all substeps complete when the step finishes (ensures 100% regardless of which flow the
-  // user took — some groups like 'setup'/'verification' are skipped if numbers already exist)
-  useEffect(() => {
-    if (state.isComplete) {
-      progressStore.markStepComplete('numbers');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.isComplete]);
+  // Numbers progress is data-driven: substep completion is set by
+  // hydrateFromDerived in useOnboardingBootstrap based on actual DIDs / port
+  // orders / caller-id / directory-listing values. Navigating between port
+  // and order screens does not bump the progress bar on its own.
 
   // Load numbers data
   const loadNumbers = useCallback(async () => {
@@ -181,6 +173,8 @@ export const NumbersStep: React.FC = () => {
           dispatch({ type: 'order_poll_update', order, pollCount: newCount });
           if (order.status === 'pending' && newCount < 5) {
             startOrderPollRef.current?.(orderId, newCount);
+          } else if (order.status !== 'pending') {
+            void reloadSharedData().catch(() => {});
           }
         } catch (err) {
           if (process.env.NODE_ENV !== 'production')
@@ -188,7 +182,7 @@ export const NumbersStep: React.FC = () => {
         }
       }, 2000);
     },
-    [dialstack]
+    [dialstack, reloadSharedData]
   );
   useEffect(() => {
     startOrderPollRef.current = startOrderPoll;
@@ -441,6 +435,7 @@ export const NumbersStep: React.FC = () => {
         } else {
           dispatch({ type: 'port_submit_success' });
         }
+        void reloadSharedData().catch(() => {});
       } catch (err) {
         dispatch({
           type: 'port_submit_error',
@@ -448,7 +443,7 @@ export const NumbersStep: React.FC = () => {
         });
       }
     },
-    [dialstack]
+    [dialstack, reloadSharedData]
   );
 
   // Submit a single caller ID entry (returns result without dispatching)
@@ -552,6 +547,39 @@ export const NumbersStep: React.FC = () => {
     [startE911Polling]
   );
 
+  // Run validate + provision against a location, dispatching the appropriate
+  // terminal E911 state. Callers own the generation token so they can short-
+  // circuit if a newer attempt supersedes this one.
+  const runE911Check = useCallback(
+    async (locationId: string, gen: number, cancelled: () => boolean): Promise<void> => {
+      try {
+        await dialstack.locations.validateE911(locationId);
+        if (cancelled()) return;
+        const provisioned = await dialstack.locations.provisionE911(locationId);
+        if (cancelled()) return;
+        handleProvisionResult(provisioned, locationId, gen);
+      } catch (err) {
+        if (cancelled()) return;
+        console.warn('[dialstack] E911 check failed:', err);
+        dispatch({ type: 'e911_set_state', state: 'failed' });
+      }
+    },
+    [dialstack, handleProvisionResult]
+  );
+
+  // Retry button — re-asks the carrier without re-doing dial-plan or DID setup.
+  const retryE911 = useCallback(async () => {
+    if (e911PollTimerRef.current) clearTimeout(e911PollTimerRef.current);
+    const location = stateRef.current.e911ProvisionedLocation ?? contextLocations[0];
+    if (!location) {
+      dispatch({ type: 'e911_set_state', state: 'complex' });
+      return;
+    }
+    dispatch({ type: 'e911_set_state', state: 'running', location, pollCount: 0 });
+    const gen = ++e911GenRef.current;
+    await runE911Check(location.id, gen, () => e911GenRef.current !== gen);
+  }, [contextLocations, runE911Check]);
+
   // Navigate to next main step: show complete state + trigger E911 provisioning
   const navigateToNext = useCallback(
     async (currentState: NumState) => {
@@ -576,22 +604,22 @@ export const NumbersStep: React.FC = () => {
 
         // --- Default dial plan creation & DID routing ---
         if (cancelled()) return;
-        const config = contextAccount?.config;
-        const storedDpId = config?.onboarding_progress?.default_dial_plan_id;
-        let dialPlanId: string | undefined =
-          storedDpId ?? createdDialPlanIdRef.current ?? undefined;
+        let dialPlanId: string | undefined = createdDialPlanIdRef.current ?? undefined;
 
-        // Check if stored dial plan still exists
-        if (dialPlanId) {
-          try {
-            await dialstack.dialPlans.retrieve(dialPlanId);
-          } catch {
-            dialPlanId = undefined; // Gone — will re-create
-          }
+        // Reload after first pass: re-discover by shape (single ring_all_users
+        // node) so we don't create duplicates. Customizing the default later
+        // (e.g. wrapping in a schedule) breaks the match and a new default
+        // would be created on re-entry — acceptable since the numbers step
+        // only runs during onboarding.
+        if (!dialPlanId) {
+          const summaries = await dialstack.dialPlans.list();
+          const fulls = await Promise.all(
+            summaries.map((s) => dialstack.dialPlans.retrieve(s.id).catch(() => null))
+          );
+          dialPlanId = fulls.find((dp): dp is DialPlan => !!dp && isDefaultDialPlanShape(dp))?.id;
         }
         if (cancelled()) return;
 
-        // Create dial plan if needed
         if (!dialPlanId) {
           try {
             const dp = await dialstack.dialPlans.create({
@@ -609,23 +637,6 @@ export const NumbersStep: React.FC = () => {
             createdDialPlanIdRef.current = dialPlanId;
           } catch (err) {
             console.warn('[dialstack] Failed to create default dial plan:', err);
-          }
-
-          // Persist dial plan ID to account config (best-effort — ref keeps it for this session)
-          if (dialPlanId) {
-            try {
-              await dialstack.account.update({
-                config: {
-                  ...config,
-                  onboarding_progress: {
-                    ...config?.onboarding_progress,
-                    default_dial_plan_id: dialPlanId,
-                  },
-                },
-              });
-            } catch (err) {
-              console.warn('[dialstack] Failed to persist dial plan ID to account config:', err);
-            }
           }
         }
         if (cancelled()) return;
@@ -663,19 +674,8 @@ export const NumbersStep: React.FC = () => {
             return;
           }
           if (location.e911_status === 'none' || location.e911_status === 'failed') {
-            try {
-              await dialstack.locations.validateE911(location.id);
-              if (cancelled()) return;
-              const provisioned = await dialstack.locations.provisionE911(location.id);
-              if (cancelled()) return;
-              handleProvisionResult(provisioned, location.id, gen);
-              return;
-            } catch (retryErr) {
-              console.warn('[dialstack] E911 retry provisioning failed:', retryErr);
-              if (cancelled()) return;
-              dispatch({ type: 'e911_set_state', state: 'failed' });
-              return;
-            }
+            await runE911Check(location.id, gen, cancelled);
+            return;
           }
           if (cancelled()) return;
           dispatch({ type: 'e911_set_state', state: 'complex' });
@@ -696,18 +696,15 @@ export const NumbersStep: React.FC = () => {
 
         await dialstack.locations.update(location.id, { primary_did_id: selectedDID.id });
         if (cancelled()) return;
-        await dialstack.locations.validateE911(location.id);
-        if (cancelled()) return;
-        const provisioned = await dialstack.locations.provisionE911(location.id);
-        if (cancelled()) return;
-        handleProvisionResult(provisioned, location.id, gen);
+        void reloadSharedData().catch(() => {});
+        await runE911Check(location.id, gen, cancelled);
       } catch (err) {
         if (cancelled()) return;
         console.warn('[dialstack] E911 auto-provisioning failed:', err);
         dispatch({ type: 'e911_set_state', state: 'failed' });
       }
     },
-    [dialstack, contextLocations, contextAccount, startE911Polling, handleProvisionResult]
+    [dialstack, contextLocations, contextAccount, startE911Polling, runE911Check, reloadSharedData]
   );
 
   // Initialize single-DID directory listing state, then navigate to the substep.
@@ -744,6 +741,85 @@ export const NumbersStep: React.FC = () => {
     },
     [contextLocations, contextAccount]
   );
+
+  // Resume into the first incomplete substep when entering via "Continue Setup".
+  // The progressStore was hydrated from data before this step mounted, so we can
+  // walk SIDEBAR_GROUPS in order, skip groups that are already data-complete, and
+  // land on the first one that still needs work. "Review" mode keeps the default
+  // 'overview' so the user can re-walk every screen.
+  useEffect(() => {
+    if (didResumeRef.current) return;
+    if (initialEntryModeRef.current !== 'continue') return;
+    // Wait until initial loadNumbers has settled — phoneNumbers is the first thing
+    // populated, and isLoadingNumbers flips back to false on success or error.
+    if (state.isLoadingNumbers) return;
+    didResumeRef.current = true;
+
+    const completed = progressStore.getCompletedSubSteps('numbers');
+    const substepsFor = (key: string) =>
+      SIDEBAR_GROUPS.numbers.find((g) => g.sidebarKey === key)?.substeps ?? [];
+    const optionsDone = substepsFor('options').some((s) => completed.has(s));
+    const setupDone = substepsFor('setup').some((s) => completed.has(s));
+    const verificationDone = substepsFor('verification').some((s) => completed.has(s));
+    const primaryDone = completed.has('primary-did');
+    const callerIdDone = completed.has('caller-id');
+    const dlDone = completed.has('directory-listing');
+
+    if (!optionsDone || !setupDone || !verificationDone) {
+      // No DID yet — leave the user on the overview chooser.
+      return;
+    }
+
+    // From here on we need active DIDs in local state to render content. Load
+    // them (idempotent — same call the existing handlers make on advance).
+    void (async () => {
+      const dids = await loadActiveDIDs(contextAccount?.phone ?? '');
+      if (dids.length === 0) return;
+
+      if (!primaryDone) {
+        dispatch({ type: 'set_substep', subStep: 'primary-did' });
+        return;
+      }
+
+      // Past primary — initialize caller-id inputs the same way handlePrimaryDidNext does.
+      const inputs: Record<string, string> = {};
+      const statuses: Record<string, 'idle' | 'submitted'> = {};
+      for (const did of dids) {
+        if (did.number_class === 'temporary') continue;
+        inputs[did.id] = did.caller_id_name ?? '';
+        statuses[did.id] = did.caller_id_name ? 'submitted' : 'idle';
+      }
+      dispatch({ type: 'caller_id_init', inputs, statuses });
+
+      if (!callerIdDone) {
+        dispatch({ type: 'set_substep', subStep: 'caller-id' });
+        return;
+      }
+
+      if (!dlDone) {
+        // Inline dl_init so we don't rely on reducer state having flushed —
+        // mirrors initDirectoryListingState but reads from the just-loaded
+        // `dids` array directly.
+        const eligible = dids.filter((d) => d.number_class !== 'temporary');
+        const savedPrimary = contextLocations[0]?.primary_did_id ?? null;
+        const defaultLoc =
+          contextLocations.find(
+            (loc) => loc.primary_did_id && loc.primary_did_id === savedPrimary
+          ) ?? contextLocations[0];
+        const existingListed = eligible.find(
+          (d) => d.directory_listing_type && d.directory_listing_type !== 'non_registered'
+        );
+        dispatch({
+          type: 'dl_init',
+          eligibleDIDs: eligible,
+          selectedDIDId: existingListed?.id ?? null,
+          businessName: existingListed?.directory_listing_name ?? contextAccount?.name ?? '',
+          locationId: existingListed?.directory_listing_location_id ?? defaultLoc?.id ?? '',
+        });
+        dispatch({ type: 'set_substep', subStep: 'directory-listing' });
+      }
+    })();
+  }, [state.isLoadingNumbers, progressStore, loadActiveDIDs, contextAccount, contextLocations]);
 
   // Caller ID bulk submit on "Next"
   const handleCallerIdNext = useCallback(
@@ -813,17 +889,22 @@ export const NumbersStep: React.FC = () => {
         attempted: true,
       });
 
-      if (allOk && stateRef.current.subStep === 'caller-id') {
-        initDirectoryListingState(stateRef.current);
+      if (allOk) {
+        void reloadSharedData().catch(() => {});
+        if (stateRef.current.subStep === 'caller-id') {
+          initDirectoryListingState(stateRef.current);
+        }
       }
     },
-    [t, dialstack, navigateToNext, submitCallerIdSingle, initDirectoryListingState]
+    [t, dialstack, submitCallerIdSingle, initDirectoryListingState, reloadSharedData]
   );
 
   // "Next" from directory listing — submit DL update for the selected DID, then navigate to complete
   const handleDirectoryListingNext = useCallback(
     async (s: NumState) => {
-      // No DID selected — skip directory listing
+      // No DID selected — pure navigation. Directory listing isn't required
+      // for onboarding_complete; skipping leaves the substep in its
+      // data-derived state (incomplete unless any DID was already listed).
       if (!s.dlSelectedDIDId) {
         await navigateToNext(s);
         return;
@@ -849,13 +930,14 @@ export const NumbersStep: React.FC = () => {
           }),
         });
         dispatch({ type: 'dl_submit_success' });
+        void reloadSharedData().catch(() => {});
         await navigateToNext(stateRef.current);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Failed to update directory listing';
         dispatch({ type: 'dl_submit_error', error: msg });
       }
     },
-    [t, dialstack, navigateToNext]
+    [t, dialstack, navigateToNext, contextAccount, reloadSharedData]
   );
 
   // "Next" from overview
@@ -890,7 +972,7 @@ export const NumbersStep: React.FC = () => {
 
   // "Next" on primary-did
   const handlePrimaryDidNext = useCallback(
-    (s: NumState) => {
+    async (s: NumState) => {
       if (s.selectedPrimaryDIDId === null) {
         dispatch({
           type: 'set_primary_did_error',
@@ -899,6 +981,24 @@ export const NumbersStep: React.FC = () => {
         return;
       }
       dispatch({ type: 'set_primary_did_error', error: null });
+
+      // Persist primary_did_id immediately so derive sees the substep as
+      // complete on the next reload — navigateToNext (called later from the
+      // directory-listing step) also writes this, but doing it here makes
+      // completion order-independent: if the e911 flow bails out for any
+      // reason, the user's selection is still recorded.
+      const location = contextLocations[0];
+      if (location && location.primary_did_id !== s.selectedPrimaryDIDId) {
+        try {
+          await dialstack.locations.update(location.id, {
+            primary_did_id: s.selectedPrimaryDIDId,
+          });
+          void reloadSharedData().catch(() => {});
+        } catch (err) {
+          console.warn('[dialstack] Failed to persist primary DID:', err);
+        }
+      }
+
       const inputs: Record<string, string> = {};
       const statuses: Record<string, 'idle' | 'submitted'> = {};
       for (const did of s.activeDIDs) {
@@ -909,7 +1009,7 @@ export const NumbersStep: React.FC = () => {
       dispatch({ type: 'caller_id_init', inputs, statuses });
       dispatch({ type: 'set_substep', subStep: 'caller-id' });
     },
-    [t]
+    [t, dialstack, contextLocations, reloadSharedData]
   );
 
   // ============================================================================
@@ -1102,6 +1202,11 @@ export const NumbersStep: React.FC = () => {
   if (state.isComplete) {
     const stepLabel = t('accountOnboarding.steps.numbers');
     const handleDone = () => {
+      // Fire-and-forget the reload — awaiting it before setCurrentStep races
+      // with the next step's mount: the click resolves, the user proceeds to
+      // hardware, then the late reload's findNextIncompleteStep fires
+      // setCurrentStep('final_complete') and unmounts the active step.
+      void reloadSharedData().catch(() => {});
       progressStore.setCurrentStep(findNextIncompleteStep(activeSteps, progressStore, 'numbers'));
     };
 
@@ -1149,57 +1254,81 @@ export const NumbersStep: React.FC = () => {
           </div>
         );
       }
-    } else if (state.e911FlowState === 'failed') {
+    } else if (state.e911FlowState === 'failed' || state.e911FlowState === 'complex') {
+      const title =
+        state.e911FlowState === 'failed' ? t('accountOnboarding.complete.e911.errorTitle') : null;
+      const detail =
+        state.e911FlowState === 'failed'
+          ? t('accountOnboarding.complete.e911.errorDescription')
+          : t('accountOnboarding.complete.e911.deferred');
       e911Panel = (
         <div className="e911-panel">
           <div className="center-state">
             {/* SAFETY: ERROR_SVG is a static SVG constant */}
             {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
             <div className="center-icon error" dangerouslySetInnerHTML={{ __html: ERROR_SVG }} />
-            <div className="center-title">{t('accountOnboarding.complete.e911.errorTitle')}</div>
-            <div className="center-detail">
-              {t('accountOnboarding.complete.e911.errorDescription')}
-            </div>
-            <div className="center-btn">
-              <button className="btn btn-primary" onClick={() => navigateToNext(stateRef.current)}>
-                {t('accountOnboarding.complete.e911.retryButton')}
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    } else if (state.e911FlowState === 'complex') {
-      e911Panel = (
-        <div className="e911-panel">
-          <div className="inline-alert warning">
-            {t('accountOnboarding.complete.e911.deferred')}
+            {title && <div className="center-title">{title}</div>}
+            <div className="center-detail">{detail}</div>
           </div>
         </div>
       );
     }
 
+    // Suppress the success celebration while E911 isn't yet a terminal success.
+    // 'running' is included so the success card doesn't flash between a failure
+    // and its retry.
+    const e911Blocking =
+      state.e911FlowState === 'running' ||
+      state.e911FlowState === 'complex' ||
+      state.e911FlowState === 'failed';
+    const e911HasProblem = state.e911FlowState === 'complex' || state.e911FlowState === 'failed';
+    const otherIncompleteStep = activeSteps.find(
+      (s) => s !== 'final_complete' && s !== 'numbers' && !progressStore.isStepComplete(s)
+    );
+
     return (
       <OnboardingLayout sidebar={sidebar} extraStylesheets={NUMBERS_EXTRA_STYLESHEETS}>
         <div className="card">
-          <div className="placeholder" style={{ minHeight: 200 }}>
-            {/* SAFETY: CHECK_SVG_WHITE is a static SVG constant */}
-            {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
-            <div
-              className="complete-icon-circle"
-              dangerouslySetInnerHTML={{ __html: CHECK_SVG_WHITE }}
-            />
-            <h2 className="section-title">
-              {t('accountOnboarding.stepComplete.title', { stepName: stepLabel })}
-            </h2>
-            <button
-              className="btn btn-primary"
-              style={{ marginTop: 'var(--ds-layout-spacing-lg)' }}
-              onClick={handleDone}
-            >
-              {t('accountOnboarding.stepComplete.done')}
-            </button>
-          </div>
+          {!e911Blocking && (
+            <div className="placeholder" style={{ minHeight: 200 }}>
+              {/* SAFETY: CHECK_SVG_WHITE is a static SVG constant */}
+              {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
+              <div
+                className="complete-icon-circle"
+                dangerouslySetInnerHTML={{ __html: CHECK_SVG_WHITE }}
+              />
+              <h2 className="section-title">
+                {t('accountOnboarding.stepComplete.title', { stepName: stepLabel })}
+              </h2>
+              <button
+                className="btn btn-primary"
+                style={{ marginTop: 'var(--ds-layout-spacing-lg)' }}
+                onClick={handleDone}
+              >
+                {t('accountOnboarding.stepComplete.done')}
+              </button>
+            </div>
+          )}
           {e911Panel}
+          {e911HasProblem && (
+            <div className="center-btn-row">
+              <button className="btn btn-secondary" onClick={() => void retryE911()}>
+                {t('accountOnboarding.complete.e911.retryButton')}
+              </button>
+              {otherIncompleteStep ? (
+                <button
+                  className="btn btn-primary"
+                  onClick={() => progressStore.setCurrentStep(otherIncompleteStep)}
+                >
+                  {t('accountOnboarding.nav.next')}
+                </button>
+              ) : (
+                <button className="btn btn-primary" onClick={onSaveAndExit}>
+                  {locale.onboardingPortal.saveAndExit}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </OnboardingLayout>
     );

@@ -1,8 +1,14 @@
 /**
- * OnboardingProgressStore — single source of truth for onboarding progress.
+ * OnboardingProgressStore — ephemeral, in-memory projection of onboarding state.
  *
- * Holds completed substeps per step, derives sidebar progress percentages,
- * and syncs to the DB on every mutation (fire-and-forget).
+ * Completion is derived from real account data (DIDs, devices, locations, …)
+ * via deriveOnboardingState. The store holds that derived snapshot plus the
+ * user's current navigation step so the existing portal/step components keep
+ * their pub/sub subscription model.
+ *
+ * It does NOT persist to the database. Substep mutators (completeSubStep,
+ * markStepComplete) update the in-memory set for optimistic UI updates after
+ * a data write; the next bootstrap re-derives from the source of truth.
  */
 
 import type { AccountOnboardingStep } from '../../types/account-onboarding';
@@ -16,13 +22,6 @@ import {
 
 export type { StepName, SidebarGroup };
 
-export interface OnboardingProgress {
-  current_step?: AccountOnboardingStep;
-  account?: string[];
-  numbers?: string[];
-  hardware?: string[];
-}
-
 export class OnboardingProgressStore {
   private currentStep: AccountOnboardingStep = 'account';
   private completed: Record<StepName, Set<string>> = {
@@ -32,55 +31,28 @@ export class OnboardingProgressStore {
   };
   private sidebarMappings: Record<string, SidebarGroup[]> = { ...SIDEBAR_GROUPS };
   private listeners = new Set<() => void>();
-  private syncFn: ((progress: OnboardingProgress) => void) | null;
-
-  constructor(syncFn?: (progress: OnboardingProgress) => void) {
-    this.syncFn = syncFn ?? null;
-  }
 
   // ============================================================================
-  // Hydration
+  // Hydration from derived snapshot
   // ============================================================================
 
   /**
-   * Hydrate from DB payload. Handles both old string format and new array format.
+   * Replace the in-memory completion sets with a freshly derived snapshot.
+   * Called by useOnboardingBootstrap after fetching account data. Polls during
+   * port/E911 flows keep firing identical snapshots — skip notify when nothing
+   * changed so downstream subscribers don't re-render on every reload tick.
    */
-  hydrate(progress: OnboardingProgress | OldFormatProgress | undefined): void {
-    if (!progress) return;
-
-    if (progress.current_step && progress.current_step !== ('complete' as string)) {
-      this.currentStep = progress.current_step;
-    }
-
+  hydrateFromDerived(completed: Record<StepName, Set<string>>): void {
+    let changed = false;
     for (const step of ONBOARDING_STEPS) {
-      const value = progress[step];
-      if (value == null) continue;
-
-      if (Array.isArray(value)) {
-        // New format: string[]
-        this.completed[step] = new Set(value);
-      } else {
-        // Old format: single string — convert
-        this.completed[step] = this.migrateOldFormat(step, value);
+      const next = completed[step];
+      const prev = this.completed[step];
+      if (prev.size !== next.size || ![...next].every((s) => prev.has(s))) {
+        this.completed[step] = new Set(next);
+        changed = true;
       }
     }
-  }
-
-  private migrateOldFormat(step: StepName, value: string): Set<string> {
-    const ordered = ORDERED_SUBSTEPS[step];
-    if (!ordered) return new Set();
-
-    if (value === 'complete') {
-      return new Set(ordered);
-    }
-
-    // Mark everything before `value` as complete
-    const set = new Set<string>();
-    for (const substep of ordered) {
-      if (substep === value) break;
-      set.add(substep);
-    }
-    return set;
+    if (changed) this.notify();
   }
 
   // ============================================================================
@@ -90,9 +62,6 @@ export class OnboardingProgressStore {
   setCurrentStep(step: AccountOnboardingStep): void {
     if (this.currentStep === step) return;
     this.currentStep = step;
-    if (step !== 'final_complete') {
-      this.persist();
-    }
     this.notify();
   }
 
@@ -108,27 +77,13 @@ export class OnboardingProgressStore {
   }
 
   // ============================================================================
-  // Substep completion
+  // Substep completion (optimistic local updates)
   // ============================================================================
 
   completeSubStep(step: StepName, substep: string): void {
     if (this.completed[step].has(substep)) return;
     this.completed[step].add(substep);
-    this.persist();
     this.notify();
-  }
-
-  removeSubSteps(step: StepName, substeps: string[]): void {
-    let changed = false;
-    for (const substep of substeps) {
-      if (this.completed[step].delete(substep)) {
-        changed = true;
-      }
-    }
-    if (changed) {
-      this.persist();
-      this.notify();
-    }
   }
 
   getCompletedSubSteps(step: StepName): ReadonlySet<string> {
@@ -149,16 +104,15 @@ export class OnboardingProgressStore {
         changed = true;
       }
     }
-    if (changed) {
-      this.persist();
-      this.notify();
-    }
+    if (changed) this.notify();
   }
 
   isStepComplete(step: StepName): boolean {
     const mappings = this.sidebarMappings[step];
     if (!mappings || mappings.length === 0) return false;
-    return mappings.every((group) => group.substeps.some((s) => this.completed[step].has(s)));
+    const required = mappings.filter((group) => !group.optional);
+    if (required.length === 0) return false;
+    return required.every((group) => group.substeps.some((s) => this.completed[step].has(s)));
   }
 
   // ============================================================================
@@ -168,20 +122,14 @@ export class OnboardingProgressStore {
   getStepProgressPercent(step: StepName): number {
     const mappings = this.sidebarMappings[step];
     if (!mappings || mappings.length === 0) return 0;
+    const required = mappings.filter((group) => !group.optional);
+    if (required.length === 0) return 0;
 
-    const completedGroups = mappings.filter((group) =>
+    const completedGroups = required.filter((group) =>
       group.substeps.some((s) => this.completed[step].has(s))
     ).length;
 
-    return Math.round((completedGroups / mappings.length) * 100);
-  }
-
-  // ============================================================================
-  // Sidebar mapping registration
-  // ============================================================================
-
-  registerSidebarMapping(step: StepName, groups: SidebarGroup[]): void {
-    this.sidebarMappings[step] = groups;
+    return Math.round((completedGroups / required.length) * 100);
   }
 
   // ============================================================================
@@ -198,34 +146,4 @@ export class OnboardingProgressStore {
       listener();
     }
   }
-
-  // ============================================================================
-  // DB persistence
-  // ============================================================================
-
-  toDbModel(): OnboardingProgress {
-    return {
-      current_step: this.allStepsComplete()
-        ? ('complete' as AccountOnboardingStep)
-        : this.currentStep,
-      account: [...this.completed.account],
-      numbers: [...this.completed.numbers],
-      hardware: [...this.completed.hardware],
-    };
-  }
-
-  private persist(): void {
-    this.syncFn?.(this.toDbModel());
-  }
-}
-
-/**
- * Old DB format where each step is a single string (or null).
- * Kept for hydration backward-compat only.
- */
-interface OldFormatProgress {
-  current_step?: AccountOnboardingStep;
-  account?: string | null;
-  numbers?: string | null;
-  hardware?: string | null;
 }

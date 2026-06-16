@@ -17,8 +17,16 @@ import { TeamMembers } from './TeamMembers';
 type AccountSubStep = 'business-details' | 'team-members' | 'complete';
 
 export const AccountStep: React.FC = () => {
-  const { locale, progressStore, activeSteps, account } = useOnboarding();
-  const [subStep, setSubStep] = useState<AccountSubStep>('business-details');
+  const { locale, progressStore, activeSteps, account, entryMode } = useOnboarding();
+  // 'continue' entry: jump to the first substep not yet data-satisfied. 'review'
+  // walks from the start so the user can revisit existing values.
+  const [subStep, setSubStep] = useState<AccountSubStep>(() => {
+    if (entryMode === 'review') return 'business-details';
+    const done = progressStore.getCompletedSubSteps('account');
+    if (!done.has('business-details')) return 'business-details';
+    if (!done.has('team-members')) return 'team-members';
+    return 'business-details';
+  });
   const [accountEmail, setAccountEmail] = useState(account?.email ?? '');
 
   // Back from first sub-step goes to previous step (if any).

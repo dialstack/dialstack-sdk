@@ -75,10 +75,17 @@ const preview: Preview = {
       const theme = (context.args.theme as Theme) ?? 'light';
       const empty = (context.args._empty as boolean) ?? false;
       const dids = context.args.dids as DIDItem[] | undefined;
-      const rawInstance = createMockInstance({ theme }, { empty, dids });
       const storyTitle = context.title ?? 'unknown';
       const label = storyTitle.startsWith('Web Components') ? 'WC' : 'React';
-      const instance = withApiLogging(rawInstance, label);
+      // Memoize the mock so its in-memory state (mockLocations, mockAccount, etc.)
+      // persists across re-renders WITHIN a story. Each story gets its own
+      // instance via context.id so writes from one story don't leak into the
+      // next — without this the data-driven derive reads stale state and
+      // tests interfere with each other.
+      const instance = React.useMemo(
+        () => withApiLogging(createMockInstance({ theme }, { empty, dids }), label),
+        [theme, empty, dids, label, context.id]
+      );
 
       return (
         <DialstackComponentsProvider dialstack={instance}>

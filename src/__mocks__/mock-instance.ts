@@ -96,7 +96,7 @@ const MOCK_DIAL_PLAN_RING_ALL: DialPlan = {
  */
 export function createMockInstance(
   appearance: AppearanceOptions = { theme: 'light' },
-  options: { empty?: boolean; dids?: DIDItem[] } = {}
+  options: { empty?: boolean; dids?: DIDItem[]; account?: Partial<Account> } = {}
 ): DialStackInstanceImpl {
   const empty = options.empty ?? false;
   const mockOrders = new Map<string, NumberOrder>();
@@ -153,6 +153,40 @@ export function createMockInstance(
           email: 'bob@acme.com',
           created_at: '2025-01-02T00:00:00Z',
           updated_at: '2025-01-02T00:00:00Z',
+        },
+      ];
+
+  const mockAccount: Account = {
+    id: 'acct_mock01',
+    name: 'Acme Corp',
+    email: 'admin@acme.com',
+    phone: '+12018401234',
+    primary_contact_name: 'Jane Doe',
+    config: { timezone: 'America/New_York', extension_length: 4 },
+    onboarding_complete: false,
+    created_at: '2025-01-01T00:00:00Z',
+    updated_at: '2025-01-01T00:00:00Z',
+    ...options.account,
+  };
+
+  const mockLocations: OnboardingLocation[] = empty
+    ? []
+    : [
+        {
+          id: 'loc_mock01',
+          name: 'Main Office',
+          address: {
+            street: '123 Main St',
+            city: 'New York',
+            state: 'NY',
+            postal_code: '10001',
+            country: 'US',
+            formatted_address: '123 Main St, New York, NY 10001, US',
+          },
+          status: 'active',
+          e911_status: 'none',
+          created_at: '2025-01-01T00:00:00Z',
+          updated_at: '2025-01-01T00:00:00Z',
         },
       ];
 
@@ -295,13 +329,14 @@ export function createMockInstance(
         await delay();
         const did = mockDIDs.find((d) => d.id === phoneNumberId);
         if (!did) throw new Error('Phone number not found');
+        const writable = did as Record<string, unknown>;
+        if (update.caller_id_name !== undefined) writable.caller_id_name = update.caller_id_name;
         if (update.directory_listing_type !== undefined)
-          (did as Record<string, unknown>).directory_listing_type = update.directory_listing_type;
+          writable.directory_listing_type = update.directory_listing_type;
         if (update.directory_listing_name !== undefined)
-          (did as Record<string, unknown>).directory_listing_name = update.directory_listing_name;
+          writable.directory_listing_name = update.directory_listing_name;
         if (update.directory_listing_location_id !== undefined)
-          (did as Record<string, unknown>).directory_listing_location_id =
-            update.directory_listing_location_id;
+          writable.directory_listing_location_id = update.directory_listing_location_id;
         return { ...did };
       },
       updateRoute: async (phoneNumberId: string, routingTarget: string | null) => {
@@ -604,7 +639,8 @@ export function createMockInstance(
       retrieve: async (_id: string) => {
         throw new Error('Not implemented in mock');
       },
-      list: async (_options?: DeviceListOptions) => [...mockDevices],
+      list: async (_options?: DeviceListOptions) =>
+        mockDevices.map((d) => ({ ...d, lines: mockDeviceLines.get(d.id) ?? d.lines ?? [] })),
       update: async (id: string, request: UpdateDeviceRequest) => {
         const idx = mockDevices.findIndex((d) => d.id === id);
         if (idx !== -1) {
@@ -806,29 +842,23 @@ export function createMockInstance(
     account: {
       retrieve: async (): Promise<Account> => {
         await delay();
-        return {
-          id: 'acct_mock01',
-          name: 'Acme Corp',
-          email: 'admin@acme.com',
-          phone: '+12018401234',
-          primary_contact_name: 'Jane Doe',
-          config: { timezone: 'America/New_York', extension_length: 4 },
-          created_at: '2025-01-01T00:00:00Z',
-          updated_at: '2025-01-01T00:00:00Z',
-        };
+        return { ...mockAccount, config: { ...mockAccount.config } };
       },
-      update: async (_request) => {
+      update: async (request) => {
         await delay();
-        return {
-          id: 'acct_mock01',
-          name: 'Acme Corp',
-          email: 'admin@acme.com',
-          phone: '+12018401234',
-          primary_contact_name: 'Jane Doe',
-          config: { timezone: 'America/New_York' },
-          created_at: '2025-01-01T00:00:00Z',
-          updated_at: new Date().toISOString(),
-        };
+        if (request.name !== undefined) mockAccount.name = request.name;
+        if (request.email !== undefined) mockAccount.email = request.email;
+        if (request.phone !== undefined) mockAccount.phone = request.phone;
+        if (request.primary_contact_name !== undefined)
+          mockAccount.primary_contact_name = request.primary_contact_name;
+        if (request.config !== undefined) {
+          mockAccount.config = {
+            ...mockAccount.config,
+            ...request.config,
+          };
+        }
+        mockAccount.updated_at = new Date().toISOString();
+        return { ...mockAccount, config: { ...mockAccount.config } };
       },
     },
 
@@ -899,7 +929,7 @@ export function createMockInstance(
     locations: {
       create: async (request: CreateLocationRequest): Promise<OnboardingLocation> => {
         await delay();
-        return {
+        const loc: OnboardingLocation = {
           id: 'loc_' + Math.random().toString(36).slice(2, 10),
           name: request.name,
           address: {
@@ -913,60 +943,53 @@ export function createMockInstance(
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
+        mockLocations.push(loc);
+        return loc;
       },
       retrieve: async (_locationId: string) => {
         throw new Error('Not implemented in mock');
       },
       list: async (): Promise<OnboardingLocation[]> => {
         await delay();
-        return empty
-          ? []
-          : [
-              {
-                id: 'loc_mock01',
-                name: 'Main Office',
-                address: {
-                  street: '123 Main St',
-                  city: 'New York',
-                  state: 'NY',
-                  postal_code: '10001',
-                  country: 'US',
-                  formatted_address: '123 Main St, New York, NY 10001, US',
-                },
-                status: 'active',
-                created_at: '2025-01-01T00:00:00Z',
-                updated_at: '2025-01-01T00:00:00Z',
-              },
-            ];
+        return [...mockLocations];
       },
       update: async (
-        _locationId: string,
+        locationId: string,
         request: UpdateLocationRequest
       ): Promise<OnboardingLocation> => {
         await delay();
-        return {
-          id: _locationId,
-          name: request.name,
-          address: {
-            ...request.address,
-            city: request.address.city,
-            state: request.address.state,
-            postal_code: request.address.postal_code,
-            country: request.address.country,
-          },
-          status: 'active',
-          created_at: '2025-01-01T00:00:00Z',
+        const idx = mockLocations.findIndex((l) => l.id === locationId);
+        if (idx === -1) throw new Error('Location not found');
+        const existing = mockLocations[idx]!;
+        const updated: OnboardingLocation = {
+          ...existing,
+          ...(request.name !== undefined && { name: request.name }),
+          ...(request.address !== undefined && {
+            address: { ...existing.address, ...request.address },
+          }),
+          ...(request.primary_did_id !== undefined && { primary_did_id: request.primary_did_id }),
           updated_at: new Date().toISOString(),
         };
+        mockLocations[idx] = updated;
+        return updated;
       },
       validateE911: async (_locationId: string) => {
         await delay();
         return { valid: true };
       },
-      provisionE911: async (_locationId: string) => {
+      provisionE911: async (locationId: string) => {
         await delay();
+        const idx = mockLocations.findIndex((l) => l.id === locationId);
+        if (idx >= 0) {
+          mockLocations[idx] = {
+            ...mockLocations[idx]!,
+            e911_status: 'provisioned',
+            updated_at: new Date().toISOString(),
+          };
+          return mockLocations[idx]!;
+        }
         return {
-          id: _locationId,
+          id: locationId,
           name: 'Main Office',
           status: 'active',
           e911_status: 'provisioned',

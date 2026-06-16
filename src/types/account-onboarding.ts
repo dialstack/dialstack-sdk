@@ -45,13 +45,6 @@ export interface AccountConfig {
   transcription_enabled?: boolean;
   timezone?: string;
   max_phone_numbers?: number;
-  onboarding_progress?: {
-    current_step?: AccountOnboardingStep;
-    account?: string[];
-    numbers?: string[];
-    hardware?: string[];
-    default_dial_plan_id?: string;
-  };
   e911_notification?: E911NotificationConfig;
 }
 
@@ -62,6 +55,8 @@ export interface Account {
   phone?: string | null;
   primary_contact_name?: string | null;
   config: AccountConfig;
+  /** True when the account has completed every onboarding step. */
+  onboarding_complete: boolean;
   hold_music_clip_id?: string | null;
   main_location_id?: string | null;
   created_at: string;

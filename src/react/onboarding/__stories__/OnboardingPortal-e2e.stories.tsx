@@ -21,11 +21,31 @@ const LOGO_HTML = `<div style="display:flex;align-items:center;gap:8px">
 
 type Props = React.ComponentProps<typeof OnboardingPortal> & DecoratorArgs;
 
+/**
+ * Reset the per-browser splash flag before each story. Without this, a story
+ * that clicks "Get Started" persists `dialstack_onboarding_started_*` in
+ * localStorage, suppressing the splash for every subsequent story in the run.
+ */
+function clearStartedFlags(): void {
+  if (typeof window === 'undefined') return;
+  for (const key of Object.keys(window.localStorage)) {
+    if (key.startsWith('dialstack_onboarding_started_')) {
+      window.localStorage.removeItem(key);
+    }
+  }
+}
+
 const meta: Meta<Props> = {
   title: 'React/Onboarding/Portal E2E',
   component: OnboardingPortal,
   args: { logoHtml: LOGO_HTML },
   parameters: { layout: 'fullscreen' },
+  decorators: [
+    (StoryFn) => {
+      clearStartedFlags();
+      return <StoryFn />;
+    },
+  ],
 };
 
 export default meta;
@@ -37,6 +57,30 @@ type Story = StoryObj<Props>;
 
 /** Wait for async data to load (mock uses 300ms delays). */
 const DATA_TIMEOUT = 5000;
+
+/**
+ * Navigate from the portal entry view into the wizard at the requested step.
+ *
+ * With the data-driven splash gate, mocks that already hold devices/DIDs/users
+ * skip splash and land on the overview screen — the splash button is no longer
+ * present. This helper clicks the matching overview card button instead.
+ *
+ * `stepIndex`: 0 = Account, 1 = Numbers, 2 = Hardware.
+ */
+async function enterWizardAt(
+  _canvas: ReturnType<typeof within>,
+  canvasElement: HTMLElement,
+  stepIndex: 0 | 1 | 2
+): Promise<void> {
+  await waitFor(
+    () => {
+      expect(canvasElement.querySelectorAll('.overview-card').length).toBe(3);
+    },
+    { timeout: DATA_TIMEOUT }
+  );
+  const cardBtns = canvasElement.querySelectorAll<HTMLElement>('.overview-card-btn');
+  await userEvent.click(cardBtns[stepIndex]!);
+}
 
 /**
  * Click a button by its text content. When multiple buttons match (e.g. footer
@@ -183,17 +227,40 @@ async function completeNumbersStep(
     { timeout: DATA_TIMEOUT }
   );
 
+  // Wait for E911 provisioning to settle. navigateToNext kicks off
+  // validateE911 + provisionE911 async; clicking Done before they finish
+  // cancels the chain on unmount and primary-did never marks complete.
+  await waitFor(
+    () => {
+      expect(canvasElement.querySelector('.e911-panel .spinner')).toBeNull();
+    },
+    { timeout: DATA_TIMEOUT }
+  );
+
   // Done -> navigates to Hardware step
   await userEvent.click(canvas.getByRole('button', { name: /^Done$/ }));
 }
 
 /**
- * Navigate through the Hardware step -> assign & complete -> Done.
+ * Navigate through the Hardware step -> save & continue -> Done.
  */
 async function completeHardwareStep(
   canvas: ReturnType<typeof within>,
   canvasElement: HTMLElement
 ): Promise<void> {
+  // Mock data already satisfies the data-driven hardware completion check, so
+  // the wizard auto-advances past Hardware to the Wahoo screen. Force-enter
+  // Hardware via the sidebar so the assign-devices flow can be exercised.
+  if (!canvas.queryByText('Assign Devices')) {
+    const sidebarItems = canvasElement.querySelectorAll('.portal-step-item');
+    const hardwareItem = Array.from(sidebarItems).find((el) =>
+      el.textContent?.includes('Hardware')
+    ) as HTMLElement | undefined;
+    if (hardwareItem) {
+      await userEvent.click(hardwareItem);
+    }
+  }
+
   // Wait for Hardware step to load
   await waitFor(
     () => {
@@ -246,16 +313,16 @@ async function completeHardwareStep(
     }
   }
 
-  // Wait for "Assign & Complete" button to appear (all users have devices)
+  // Wait for "Save & Continue" button to appear (all users have devices)
   await waitFor(
     () => {
-      expect(canvas.getByText('Assign & Complete')).toBeInTheDocument();
+      expect(canvas.getByText('Save & Continue')).toBeInTheDocument();
     },
     { timeout: DATA_TIMEOUT }
   );
 
-  // Click Assign & Complete
-  await userEvent.click(canvas.getByText('Assign & Complete'));
+  // Click Save & Continue
+  await userEvent.click(canvas.getByText('Save & Continue'));
 
   // Wait for Hardware Complete
   await waitFor(
@@ -277,23 +344,8 @@ export const FullHappyPath: Story = {
   play: async ({ canvasElement, step }) => {
     const canvas = within(canvasElement);
 
-    await step('Splash screen renders with Start button', async () => {
-      await waitFor(
-        () => {
-          expect(canvas.getByText(/Welcome/)).toBeInTheDocument();
-        },
-        { timeout: DATA_TIMEOUT }
-      );
-      expect(canvas.getByRole('button', { name: /Start Onboarding/i })).toBeInTheDocument();
-
-      // Verify the 3 splash chips are shown
-      expect(canvas.getByText('Account Details')).toBeInTheDocument();
-      expect(canvas.getByText('Setup Phone Numbers')).toBeInTheDocument();
-      expect(canvas.getByText('Assign Hardware')).toBeInTheDocument();
-    });
-
-    await step('Click Start -> Account Business Details', async () => {
-      await userEvent.click(canvas.getByRole('button', { name: /Start Onboarding/i }));
+    await step('Overview renders, click Account card to enter wizard', async () => {
+      await enterWizardAt(canvas, canvasElement, 0);
 
       await waitFor(
         () => {
@@ -381,6 +433,10 @@ export const FullHappyPath: Story = {
         canvas.getByText("It's time to start using your embedded voice system")
       ).toBeInTheDocument();
 
+      // Linger on Wahoo so the celebration is actually visible/screenshot-able
+      // before we click through.
+      await new Promise((r) => setTimeout(r, 1500));
+
       // Click Finish to go to overview
       await userEvent.click(canvas.getByRole('button', { name: /Finish/ }));
       await waitFor(
@@ -401,14 +457,8 @@ export const SidebarNavigation: Story = {
   play: async ({ canvasElement, step }) => {
     const canvas = within(canvasElement);
 
-    await step('Start and complete Account step', async () => {
-      await waitFor(
-        () => {
-          expect(canvas.getByRole('button', { name: /Start Onboarding/i })).toBeInTheDocument();
-        },
-        { timeout: DATA_TIMEOUT }
-      );
-      await userEvent.click(canvas.getByRole('button', { name: /Start Onboarding/i }));
+    await step('Enter Account step from overview and complete it', async () => {
+      await enterWizardAt(canvas, canvasElement, 0);
       await completeAccountStep(canvas, canvasElement);
     });
 
@@ -512,6 +562,7 @@ export const SidebarNavigation: Story = {
 // ============================================================================
 
 export const SaveAndExitFlow: Story = {
+  args: { _empty: true },
   play: async ({ canvasElement, step }) => {
     const canvas = within(canvasElement);
 
@@ -595,6 +646,7 @@ export const SaveAndExitFlow: Story = {
 // ============================================================================
 
 export const ValidationErrors: Story = {
+  args: { _empty: true },
   play: async ({ canvasElement, step }) => {
     const canvas = within(canvasElement);
 
@@ -687,14 +739,8 @@ export const ReviewCompletedStep: Story = {
   play: async ({ canvasElement, step }) => {
     const canvas = within(canvasElement);
 
-    await step('Start and complete Account step', async () => {
-      await waitFor(
-        () => {
-          expect(canvas.getByRole('button', { name: /Start Onboarding/i })).toBeInTheDocument();
-        },
-        { timeout: DATA_TIMEOUT }
-      );
-      await userEvent.click(canvas.getByRole('button', { name: /Start Onboarding/i }));
+    await step('Enter Account step from overview and complete it', async () => {
+      await enterWizardAt(canvas, canvasElement, 0);
       await completeAccountStep(canvas, canvasElement);
     });
 
@@ -767,7 +813,7 @@ export const ReviewCompletedStep: Story = {
       expect(accountItem?.classList.contains('active')).toBe(true);
     });
 
-    await step('Numbers and Hardware cards show incomplete state', async () => {
+    await step('Numbers and Hardware cards still render on overview', async () => {
       // Go back to overview
       await userEvent.click(canvasElement.querySelector('.portal-wizard-header')!);
       await waitFor(
@@ -777,19 +823,14 @@ export const ReviewCompletedStep: Story = {
         { timeout: DATA_TIMEOUT }
       );
 
+      // The completion state of Numbers and Hardware is data-driven (DID and
+      // device counts in the mock), so we don't assert their "Review" state
+      // here — only that the cards render alongside Account.
       const cards = canvasElement.querySelectorAll('.overview-card');
-
-      // Numbers card should not be complete
       const numbersCard = Array.from(cards).find((c) => c.textContent?.includes('Phone Numbers'));
       expect(numbersCard).not.toBeUndefined();
-      const numbersReview = numbersCard?.querySelector('.overview-card-btn--review');
-      expect(numbersReview).toBeNull(); // Should not have Review button
-
-      // Hardware card should not be complete
       const hardwareCard = Array.from(cards).find((c) => c.textContent?.includes('Hardware Setup'));
       expect(hardwareCard).not.toBeUndefined();
-      const hardwareReview = hardwareCard?.querySelector('.overview-card-btn--review');
-      expect(hardwareReview).toBeNull();
     });
   },
 };
@@ -802,13 +843,7 @@ async function startAndReachNumbers(
   canvas: ReturnType<typeof within>,
   canvasElement: HTMLElement
 ): Promise<void> {
-  await waitFor(
-    () => {
-      expect(canvas.getByRole('button', { name: /Start Onboarding/i })).toBeInTheDocument();
-    },
-    { timeout: DATA_TIMEOUT }
-  );
-  await userEvent.click(canvas.getByRole('button', { name: /Start Onboarding/i }));
+  await enterWizardAt(canvas, canvasElement, 0);
   await completeAccountStep(canvas, canvasElement);
   await waitFor(
     () => {
@@ -1343,7 +1378,18 @@ export const DeviceAssignment: Story = {
       await startAndReachNumbers(canvas, canvasElement);
       await completeNumbersStep(canvas, canvasElement);
 
-      // Wait for Hardware to load
+      // Hardware step is data-complete in the mock (15 devices), so the wizard
+      // skips it and lands on Wahoo. Use the sidebar to force-enter Hardware.
+      if (!canvas.queryByText('Assign Devices')) {
+        const sidebarItems = canvasElement.querySelectorAll('.portal-step-item');
+        const hardwareItem = Array.from(sidebarItems).find((el) =>
+          el.textContent?.includes('Hardware')
+        ) as HTMLElement | undefined;
+        if (hardwareItem) {
+          await userEvent.click(hardwareItem);
+        }
+      }
+
       await waitFor(
         () => {
           expect(canvas.getByText('Assign Devices')).toBeInTheDocument();
@@ -1470,9 +1516,9 @@ export const DeviceAssignment: Story = {
     await step('All assigned state shows correct UI', async () => {
       // "All devices have been assigned" text may appear if all devices are assigned
       // But with 15+ devices and only 2 users, not all devices are assigned.
-      // However, all USERS have devices, so "Assign & Complete" button should appear
+      // However, all USERS have devices, so "Save & Continue" button should appear
       const assignBtn = Array.from(canvasElement.querySelectorAll('button')).find((b) =>
-        b.textContent?.includes('Assign & Complete')
+        b.textContent?.includes('Save & Continue')
       );
       expect(assignBtn).not.toBeUndefined();
     });
@@ -1489,9 +1535,9 @@ export const DeviceAssignment: Story = {
         expect(badges.length).toBe(1);
       });
 
-      // "Assign & Complete" should still appear (partial assignments allowed)
+      // "Save & Continue" should still appear (partial assignments allowed)
       const assignBtn = Array.from(canvasElement.querySelectorAll('button')).find((b) =>
-        b.textContent?.includes('Assign & Complete')
+        b.textContent?.includes('Save & Continue')
       );
       expect(assignBtn).not.toBeUndefined();
 
@@ -1521,9 +1567,9 @@ export const DeviceAssignment: Story = {
         expect(badges.length).toBe(2);
       });
 
-      // Click "Assign & Complete"
+      // Click "Save & Continue"
       const assignBtn = Array.from(canvasElement.querySelectorAll('button')).find((b) =>
-        b.textContent?.includes('Assign & Complete')
+        b.textContent?.includes('Save & Continue')
       );
       expect(assignBtn).not.toBeUndefined();
       await userEvent.click(assignBtn!);
@@ -1549,14 +1595,8 @@ export const ComprehensiveValidation: Story = {
 
     // ---- Account - Business Details Validation ----
 
-    await step('Start onboarding and reach Business Details', async () => {
-      await waitFor(
-        () => {
-          expect(canvas.getByRole('button', { name: /Start Onboarding/i })).toBeInTheDocument();
-        },
-        { timeout: DATA_TIMEOUT }
-      );
-      await userEvent.click(canvas.getByRole('button', { name: /Start Onboarding/i }));
+    await step('Enter Account step from overview and reach Business Details', async () => {
+      await enterWizardAt(canvas, canvasElement, 0);
 
       await waitFor(
         () => {
@@ -1817,6 +1857,10 @@ export const ReviewAllSteps: Story = {
         { timeout: DATA_TIMEOUT }
       );
 
+      // Linger on Wahoo so the celebration is actually visible before
+      // clicking through to the overview.
+      await new Promise((r) => setTimeout(r, 1500));
+
       // Click Finish to go to overview
       await userEvent.click(canvas.getByRole('button', { name: /Finish/ }));
 
@@ -1959,7 +2003,7 @@ const TEMPORARY_DID = {
 
 export const TemporaryDID: Story = {
   render: () => {
-    const instance = createMockInstance({ theme: 'light' }, { dids: [TEMPORARY_DID] });
+    const instance = createMockInstance({ theme: 'light' }, { empty: true, dids: [TEMPORARY_DID] });
     return (
       <DialstackComponentsProvider dialstack={instance}>
         <OnboardingPortal logoHtml={LOGO_HTML} />
@@ -2057,7 +2101,7 @@ export const TemporaryDID: Story = {
 
 export const MultiCarrierPort: Story = {
   render: () => {
-    const rawInstance = createMockInstance({ theme: 'light' });
+    const rawInstance = createMockInstance({ theme: 'light' }, { empty: true });
     // Override checkPortEligibility to return multi-carrier results
     rawInstance.portOrders.checkEligibility = async () => ({
       portable_numbers: [
@@ -2445,14 +2489,8 @@ export const TeamMemberAddDelete: Story = {
   play: async ({ canvasElement, step }) => {
     const canvas = within(canvasElement);
 
-    await step('Start onboarding and navigate to Team Members', async () => {
-      await waitFor(
-        () => {
-          expect(canvas.getByRole('button', { name: /Start Onboarding/i })).toBeInTheDocument();
-        },
-        { timeout: DATA_TIMEOUT }
-      );
-      await userEvent.click(canvas.getByRole('button', { name: /Start Onboarding/i }));
+    await step('Enter Account step from overview and navigate to Team Members', async () => {
+      await enterWizardAt(canvas, canvasElement, 0);
 
       await waitFor(
         () => {
@@ -2548,6 +2586,303 @@ export const TeamMemberAddDelete: Story = {
       // Original users should still be present
       expect(canvas.getByText('Alice Smith')).toBeInTheDocument();
       expect(canvas.getByText('Bob Jones')).toBeInTheDocument();
+    });
+  },
+};
+
+// ============================================================================
+// Story: SplashSuppressedByLocalStorageFlag
+// ============================================================================
+//
+// Plan A2: per-browser+account `dialstack_onboarding_started_<accountId>`
+// localStorage flag set on mount → splash is suppressed, the portal lands on
+// overview directly. No "Welcome to NetVoice" CTA, no "Start Onboarding"
+// button. The "started" state lives entirely in localStorage.
+
+const STARTED_FLAG_KEY = 'dialstack_onboarding_started_acct_mock01';
+
+export const SplashSuppressedByLocalStorageFlag: Story = {
+  render: () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(STARTED_FLAG_KEY, '1');
+    }
+    const instance = createMockInstance({ theme: 'light' });
+    return (
+      <DialstackComponentsProvider dialstack={instance}>
+        <OnboardingPortal logoHtml={LOGO_HTML} />
+      </DialstackComponentsProvider>
+    );
+  },
+  play: async ({ canvasElement, step }) => {
+    const canvas = within(canvasElement);
+
+    await step('Overview renders, splash suppressed', async () => {
+      await waitFor(
+        () => {
+          expect(canvas.getByText('Your Business Onboarding')).toBeInTheDocument();
+        },
+        { timeout: DATA_TIMEOUT }
+      );
+      // Splash artifacts must not be in the DOM.
+      expect(canvas.queryByRole('button', { name: /Start Onboarding/i })).toBeNull();
+      expect(canvasElement.querySelectorAll('.overview-card').length).toBe(3);
+    });
+  },
+};
+
+// ============================================================================
+// Story: ReviewOnAlreadyCompleteAccount
+// ============================================================================
+//
+// Plan E3 + E4: mount with `onboarding_complete=true`, click Review on a
+// completed card → wizard for that step, no auto-redirect to Wahoo. Click
+// Save & Exit → returns to Overview. Same render-time guard as E7 but
+// triggered from a cleaner starting state.
+
+export const ReviewOnAlreadyCompleteAccount: Story = {
+  render: () => {
+    const instance = createMockInstance(
+      { theme: 'light' },
+      { account: { onboarding_complete: true } }
+    );
+    return (
+      <DialstackComponentsProvider dialstack={instance}>
+        <OnboardingPortal logoHtml={LOGO_HTML} />
+      </DialstackComponentsProvider>
+    );
+  },
+  play: async ({ canvasElement, step }) => {
+    const canvas = within(canvasElement);
+
+    await step('Overview renders, no Wahoo', async () => {
+      await waitFor(
+        () => {
+          expect(canvas.getByText('Your Business Onboarding')).toBeInTheDocument();
+        },
+        { timeout: DATA_TIMEOUT }
+      );
+      expect(canvas.queryByText('Wahoo!')).toBeNull();
+    });
+
+    await step('Click Review on Account → wizard, NO Wahoo', async () => {
+      const cards = canvasElement.querySelectorAll('.overview-card');
+      const accountCard = Array.from(cards).find((c) => c.textContent?.includes('Account Setup'));
+      const reviewBtn = accountCard?.querySelector('.overview-card-btn--review') as HTMLElement;
+      expect(reviewBtn).not.toBeNull();
+      await userEvent.click(reviewBtn);
+
+      await waitFor(
+        () => {
+          expect(canvas.getByRole('heading', { name: /Business Details/i })).toBeInTheDocument();
+        },
+        { timeout: DATA_TIMEOUT }
+      );
+      expect(canvas.queryByText('Wahoo!')).toBeNull();
+    });
+
+    await step('Click Save & Exit → Overview, still no Wahoo', async () => {
+      await userEvent.click(canvasElement.querySelector('.portal-wizard-header')!);
+      await waitFor(
+        () => {
+          expect(canvas.getByText('Your Business Onboarding')).toBeInTheDocument();
+        },
+        { timeout: DATA_TIMEOUT }
+      );
+      expect(canvas.queryByText('Wahoo!')).toBeNull();
+    });
+  },
+};
+
+// ============================================================================
+// Story: WahooNeverShownWhenAlreadyComplete
+// ============================================================================
+//
+// Plan E2: account.onboarding_complete=true on portal mount → Wahoo must not
+// auto-redirect on render. confettiShown is initialized true from
+// account.onboarding_complete, so the guard short-circuits before any
+// transition into final_complete.
+
+export const WahooNeverShownWhenAlreadyComplete: Story = {
+  render: () => {
+    const instance = createMockInstance(
+      { theme: 'light' },
+      { account: { onboarding_complete: true } }
+    );
+    return (
+      <DialstackComponentsProvider dialstack={instance}>
+        <OnboardingPortal logoHtml={LOGO_HTML} />
+      </DialstackComponentsProvider>
+    );
+  },
+  play: async ({ canvasElement, step }) => {
+    const canvas = within(canvasElement);
+
+    await step('Overview renders, no Wahoo', async () => {
+      await waitFor(
+        () => {
+          expect(canvas.getByText('Your Business Onboarding')).toBeInTheDocument();
+        },
+        { timeout: DATA_TIMEOUT }
+      );
+      expect(canvas.queryByText('Wahoo!')).toBeNull();
+      expect(canvasElement.querySelectorAll('.overview-card').length).toBe(3);
+    });
+
+    await step('Wait a beat to let any auto-redirect race finish', async () => {
+      await new Promise((r) => setTimeout(r, 300));
+      expect(canvas.queryByText('Wahoo!')).toBeNull();
+      expect(canvas.getByText('Your Business Onboarding')).toBeInTheDocument();
+    });
+  },
+};
+
+// ============================================================================
+// Story: NoWahooReshowAfterFinishAndReview
+// ============================================================================
+//
+// Plan E5/E6/E7 + H3: walk through the wizard from incomplete → Wahoo shows
+// once, click Finish to land on Overview, then click Review on the Account
+// card and walk through the wizard again. The review-completion path
+// (findNextIncompleteStep -> 'final_complete') must NOT re-paint Wahoo —
+// renderViewMode synchronously falls back to overview because confettiShown
+// is true and wahooActive is false.
+
+export const NoWahooReshowAfterFinishAndReview: Story = {
+  play: async ({ canvasElement, step }) => {
+    const canvas = within(canvasElement);
+    let wahooFirstSeen = 0;
+
+    await step('Walk through Account → Numbers → Hardware to first Wahoo', async () => {
+      await startAndReachNumbers(canvas, canvasElement);
+      await completeNumbersStep(canvas, canvasElement);
+      await completeHardwareStep(canvas, canvasElement);
+
+      await waitFor(
+        () => {
+          expect(canvas.getByText('Wahoo!')).toBeInTheDocument();
+        },
+        { timeout: DATA_TIMEOUT }
+      );
+      wahooFirstSeen += 1;
+      expect(wahooFirstSeen).toBe(1);
+    });
+
+    await step('Click Finish → Overview, no Wahoo', async () => {
+      await userEvent.click(canvas.getByRole('button', { name: /Finish/ }));
+      await waitFor(
+        () => {
+          expect(canvas.getByText('Your Business Onboarding')).toBeInTheDocument();
+        },
+        { timeout: DATA_TIMEOUT }
+      );
+      expect(canvas.queryByText('Wahoo!')).toBeNull();
+    });
+
+    await step('Click Review on Account card → wizard, NOT Wahoo', async () => {
+      const cards = canvasElement.querySelectorAll('.overview-card');
+      const accountCard = Array.from(cards).find((c) => c.textContent?.includes('Account Setup'));
+      const reviewBtn = accountCard?.querySelector('.overview-card-btn--review') as HTMLElement;
+      expect(reviewBtn).not.toBeNull();
+      await userEvent.click(reviewBtn);
+
+      await waitFor(
+        () => {
+          expect(canvas.getByRole('heading', { name: /Business Details/i })).toBeInTheDocument();
+        },
+        { timeout: DATA_TIMEOUT }
+      );
+      // Confirm Wahoo never painted on review entry.
+      expect(canvas.queryByText('Wahoo!')).toBeNull();
+    });
+
+    await step(
+      'Walk through Account wizard to "Done" — must land on Overview, not Wahoo',
+      async () => {
+        // Next → Team Members
+        await clickButton(canvas, canvasElement, /Next →/, { last: true });
+        await waitFor(
+          () => {
+            expect(canvas.getByRole('heading', { name: /Team Members/i })).toBeInTheDocument();
+          },
+          { timeout: DATA_TIMEOUT }
+        );
+
+        // Next → Account Complete
+        await clickButton(canvas, canvasElement, /Next →/, { last: true });
+        await waitFor(
+          () => {
+            expect(canvas.getByText('Account Setup Complete')).toBeInTheDocument();
+          },
+          { timeout: DATA_TIMEOUT }
+        );
+
+        // Done → step components call setCurrentStep(findNextIncompleteStep(...))
+        // which returns 'final_complete' (everything is done). The render-time
+        // override must keep Wahoo from painting; we should land on Overview.
+        await userEvent.click(canvas.getByRole('button', { name: /^Done$/ }));
+
+        await waitFor(
+          () => {
+            expect(canvas.getByText('Your Business Onboarding')).toBeInTheDocument();
+          },
+          { timeout: DATA_TIMEOUT }
+        );
+
+        // Wahoo must NOT have re-rendered.
+        expect(canvas.queryByText('Wahoo!')).toBeNull();
+        // Sanity: counter still 1 (the only Wahoo render was the in-session
+        // first arrival earlier).
+        expect(wahooFirstSeen).toBe(1);
+      }
+    );
+  },
+};
+
+// ============================================================================
+// Story: LocalStorageStartedFlagWrittenOnGetStarted
+// ============================================================================
+//
+// Plan H1: clicking "Start Onboarding" on the splash must record the
+// per-browser+account `dialstack_onboarding_started_<accountId>` localStorage
+// flag. The entire signal lives client-side.
+
+export const LocalStorageStartedFlagWrittenOnGetStarted: Story = {
+  render: () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(STARTED_FLAG_KEY);
+    }
+    // Empty mock so anyStepDone is false → splash actually renders.
+    const instance = createMockInstance({ theme: 'light' }, { empty: true });
+    return (
+      <DialstackComponentsProvider dialstack={instance}>
+        <OnboardingPortal logoHtml={LOGO_HTML} />
+      </DialstackComponentsProvider>
+    );
+  },
+  play: async ({ canvasElement, step }) => {
+    const canvas = within(canvasElement);
+
+    await step('Splash renders, flag is unset', async () => {
+      await waitFor(
+        () => {
+          expect(canvas.getByRole('button', { name: /Start Onboarding/i })).toBeInTheDocument();
+        },
+        { timeout: DATA_TIMEOUT }
+      );
+      expect(window.localStorage.getItem(STARTED_FLAG_KEY)).toBeNull();
+    });
+
+    await step('Click Start Onboarding → flag flips to "1"', async () => {
+      await userEvent.click(canvas.getByRole('button', { name: /Start Onboarding/i }));
+
+      await waitFor(
+        () => {
+          expect(canvas.getByRole('heading', { name: /Business Details/i })).toBeInTheDocument();
+        },
+        { timeout: DATA_TIMEOUT }
+      );
+
+      expect(window.localStorage.getItem(STARTED_FLAG_KEY)).toBe('1');
     });
   },
 };
