@@ -737,6 +737,31 @@ export interface QueueAgent {
   updated_at: string;
 }
 
+// Presence types — read whether a user is reachable / on a call right now,
+// verified live from the phone system. Distinct from the user-settable status
+// on /v1/me/presence.
+export type PresenceState = 'available' | 'on_call' | 'offline';
+
+export interface UserPresence {
+  state: PresenceState;
+  /**
+   * Reachable by waking a backgrounded or parked device when not currently
+   * registered. A separate axis from `state`: a user can be `offline` but
+   * `notifiable`.
+   */
+  notifiable: boolean;
+}
+
+export interface UserPresenceItem extends UserPresence {
+  /** The user this presence belongs to (carries the user id). */
+  user: string;
+}
+
+export interface PresenceListParams {
+  /** The bounded set of users to read presence for. Capped per request. */
+  users: string[];
+}
+
 // Call Control types
 export interface AttachAction {
   type: 'attach';
@@ -904,7 +929,7 @@ export interface WebhookErrorResponse {
   };
 }
 
-interface ListResponse<T> {
+export interface ListResponse<T> {
   object: string;
   url: string;
   next_page_url: string | null;
@@ -1284,6 +1309,18 @@ export class DialStack {
     },
 
     /**
+     * Retrieve a user's live presence — reachable / on a call right now. The
+     * value is always freshly verified; a read that cannot be confirmed fails
+     * with 503 rather than returning a stale or guessed value (no `unknown`).
+     */
+    retrievePresence: (
+      userId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<UserPresence> => {
+      return this._request('GET', `/v1/users/${userId}/presence`, undefined, options);
+    },
+
+    /**
      * Retrieve the queue-agent singleton for a user. Throws on 404 when no
      * queue-agent state has ever been written for the user.
      */
@@ -1317,6 +1354,28 @@ export class DialStack {
       options?: RequestOptions
     ): Promise<UserSessionsRevokeResponse> => {
       return this._request('POST', `/v1/users/${userId}/revoke_sessions`, {}, options);
+    },
+  };
+
+  presence = {
+    /**
+     * Read presence for an explicit, bounded set of users in one request — the
+     * candidate set a caller already has in hand. A filtered list by id, not a
+     * paginated collection: results come back in request order in the standard
+     * list envelope (`next_page_url`/`previous_page_url` are always null). The
+     * set is capped per request; if any user cannot be resolved or read, the
+     * whole request fails rather than returning a partial result.
+     */
+    list: (
+      params: PresenceListParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<ListResponse<UserPresenceItem>> => {
+      const queryParams = new URLSearchParams();
+      for (const user of params.users) {
+        queryParams.append('user[]', user);
+      }
+      const path = `/v1/presence?${queryParams.toString()}`;
+      return this._request('GET', path, undefined, options);
     },
   };
 
