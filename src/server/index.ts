@@ -510,6 +510,11 @@ export interface ExtensionCreateParams {
 
 export interface ExtensionUpdateParams {
   target?: string;
+  /**
+   * New extension number. When provided, the extension is renamed to this
+   * number. Must be unique within the account (a collision returns 409).
+   */
+  number?: string;
 }
 
 export interface ExtensionListParams {
