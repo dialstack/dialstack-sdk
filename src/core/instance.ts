@@ -126,6 +126,10 @@ const DEFAULT_SESSION_DURATION_MS = 60 * 60 * 1000; // 1 hour default
 const SESSION_REFRESH_BUFFER_MS = 5 * 60 * 1000; // Refresh 5 minutes before expiry
 const MIN_REFRESH_INTERVAL_MS = 30 * 1000; // Minimum 30 seconds between refreshes
 const SESSION_RETRY_INTERVAL_MS = 1 * 60 * 1000; // 1 minute retry on error
+// Consecutive 401/403s on the event stream before we stop reconnecting. A
+// rejected secret means the session is dead, not that the connection blipped;
+// retrying with the same secret just loops one failed request per attempt.
+const MAX_STREAM_AUTH_FAILURES = 3;
 
 export type RoutingTargetType =
   | 'user'
@@ -172,6 +176,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     } | null>
   >();
   private reconnectAttempts = 0;
+  private authStreamFailures = 0;
 
   constructor(params: DialStackInitParams) {
     this.publishableKey = params.publishableKey;
@@ -369,9 +374,35 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   }
 
   /**
-   * Make authenticated API request
+   * Drop the cached session so the next getClientSecret() re-fetches a fresh
+   * secret via fetchClientSecret. Shared by the API request path and the event
+   * stream when a 401/403 reveals the cached secret is dead.
+   */
+  private invalidateSession(): void {
+    this.sessionData = null;
+    this.sessionPromise = null;
+  }
+
+  /**
+   * Make an authenticated API request. On a 401/403 the cached secret has been
+   * rejected (expired or revoked), so drop it, re-fetch a fresh one, and retry
+   * once — otherwise a stale secret fails every subsequent call until something
+   * else refreshes the session. A second 401/403 is returned as-is for the
+   * caller to handle. Auth-rejected requests never reach business logic, so the
+   * retry is safe for non-idempotent verbs.
    */
   async fetchApi(path: string, options: RequestInit = {}): Promise<Response> {
+    let response = await this.sendApiRequest(path, options);
+
+    if (response.status === 401 || response.status === 403) {
+      this.invalidateSession();
+      response = await this.sendApiRequest(path, options);
+    }
+
+    return response;
+  }
+
+  private async sendApiRequest(path: string, options: RequestInit): Promise<Response> {
     const clientSecret = await this.getClientSecret();
 
     const headers = new Headers(options.headers);
@@ -1961,11 +1992,20 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       });
 
       if (!response.ok) {
+        // 401/403 means the client secret was rejected (expired or revoked),
+        // not a transient drop. Reconnecting with the same secret would loop
+        // forever, one failed request per attempt — so refresh the session
+        // instead, and give up after a few consecutive auth failures.
+        if (response.status === 401 || response.status === 403) {
+          this.handleStreamAuthFailure(response.status);
+          return;
+        }
         throw new Error(`SSE connection failed: ${response.status}`);
       }
 
-      // Reset reconnect attempts on successful connection
+      // Reset reconnect + auth-failure counters on a successful connection
       this.reconnectAttempts = 0;
+      this.authStreamFailures = 0;
 
       const reader = response.body?.getReader();
       if (!reader) {
@@ -2045,6 +2085,44 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   }
 
   /**
+   * Handle a 401/403 from the event stream. The session secret is dead, so
+   * drop the cached session — the next reconnect's getClientSecret() will
+   * re-run fetchClientSecret to obtain a fresh one. After
+   * MAX_STREAM_AUTH_FAILURES consecutive auth failures, stop reconnecting so a
+   * permanently-invalid credential can't hammer the API indefinitely.
+   */
+  private handleStreamAuthFailure(status: number): void {
+    this.authStreamFailures++;
+
+    if (this.authStreamFailures > MAX_STREAM_AUTH_FAILURES) {
+      console.error(
+        `DialStack: event stream authentication failed (${status}) ` +
+          `${this.authStreamFailures} times; giving up. ` +
+          'Verify that fetchClientSecret returns a currently-valid client secret.'
+      );
+      // Fully wind down the dead session. Without clearing refreshTimeoutId the
+      // background scheduleRefresh() timer (re-armed by each reconnect's
+      // getClientSecret → startSession) would keep firing, re-invoking
+      // fetchClientSecret and re-caching the rejected secret long after the
+      // stream gave up. Clearing the cached session too means the next
+      // resubscribe or API call re-establishes from scratch. (The no-listener
+      // off() path deliberately leaves refresh running, so we wind down here
+      // rather than in disconnectEventStream().)
+      if (this.refreshTimeoutId) {
+        clearTimeout(this.refreshTimeoutId);
+        this.refreshTimeoutId = null;
+      }
+      this.invalidateSession();
+      this.disconnectEventStream();
+      return;
+    }
+
+    // Invalidate the dead session so the reconnect fetches a fresh secret.
+    this.invalidateSession();
+    this.scheduleReconnect();
+  }
+
+  /**
    * Schedule reconnection with exponential backoff
    */
   private scheduleReconnect(): void {
@@ -2079,6 +2157,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     }
 
     this.reconnectAttempts = 0;
+    this.authStreamFailures = 0;
   }
 
   /**
