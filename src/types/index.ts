@@ -109,6 +109,8 @@ export type {
   UpdateSmsPortOutRequest,
   PhoneNumberStatus,
   PhoneNumberItem,
+  PhoneNumberRowSection,
+  PhoneNumberRowClickEvent,
   PhoneNumbersClasses,
   PhoneNumbersElement,
 } from './phone-numbers';

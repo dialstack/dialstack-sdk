@@ -10,6 +10,8 @@ import type { RoutingTargetComponent } from './routing-target';
 import type {
   PhoneNumberItem,
   PhoneNumberStatus,
+  PhoneNumberRowClickEvent,
+  PhoneNumberRowSection,
   PhoneNumbersClasses,
   PaginatedResponse,
   DIDItem,
@@ -61,7 +63,7 @@ type ColumnId =
 
 const TAB_COLUMNS: Record<StatusFilter, ColumnId[]> = {
   active: ['phone_number', 'caller_id', 'outbound', 'routing_target'],
-  in_progress: ['phone_number', 'status', 'carrier', 'transfer_date'],
+  in_progress: ['phone_number', 'status', 'routing_target', 'carrier', 'transfer_date'],
   cancelled: ['phone_number', 'cancelled_date'],
 };
 
@@ -89,7 +91,7 @@ export class PhoneNumbersComponent extends BaseComponent {
   protected override classes: PhoneNumbersClasses = {};
 
   // Callbacks
-  private _onRowClick?: (event: { phoneNumber: string; item: PhoneNumberItem }) => void;
+  private _onRowClick?: (event: PhoneNumberRowClickEvent) => void;
 
   protected initialize(): void {
     if (this.isInitialized) return;
@@ -102,8 +104,15 @@ export class PhoneNumbersComponent extends BaseComponent {
   // Callback Setters
   // ============================================================================
 
-  setOnRowClick(callback: (event: { phoneNumber: string; item: PhoneNumberItem }) => void): void {
+  setOnRowClick(callback: (event: PhoneNumberRowClickEvent) => void): void {
     this._onRowClick = callback;
+    // Render output depends on _onRowClick (the routing cell only becomes an
+    // actionable deep-link when a handler is wired), so re-render if a host wires
+    // or changes it after the initial render — e.g. React's effect firing after
+    // loadData's render.
+    if (this.isInitialized) {
+      this.render();
+    }
   }
 
   override setClasses(classes: PhoneNumbersClasses): void {
@@ -230,14 +239,24 @@ export class PhoneNumbersComponent extends BaseComponent {
       }
     }
 
-    // Add DIDs first (they take precedence for non-inactive numbers)
+    // Add DIDs first (they take precedence for non-inactive numbers).
+    //
+    // An inactive DID pre-created for an in-flight order/port is not shown as its
+    // own row — the order/port row represents it in "In Progress". But that DID
+    // is the routable record (it carries the id the routing endpoint accepts plus
+    // any routing target already assigned), so index it instead and graft it onto
+    // the synthetic row below. That lets a number be routed before its order
+    // completes, so it routes the instant it activates — no scramble at FOC.
+    const backingInactiveDids = new Map<string, { id: string; routing_target?: string | null }>();
     for (const did of dids) {
-      // Skip inactive DIDs that have an in-progress number order or port order —
-      // these are pre-created rows awaiting order completion, not cancelled numbers
-      if (
+      const isBackingForInFlightOrder =
         did.status === 'inactive' &&
-        (activePortNumbers.has(did.phone_number) || activeOrderNumbers.has(did.phone_number))
-      ) {
+        (activePortNumbers.has(did.phone_number) || activeOrderNumbers.has(did.phone_number));
+      if (isBackingForInFlightOrder) {
+        backingInactiveDids.set(did.phone_number, {
+          id: did.id,
+          routing_target: did.routing_target,
+        });
         continue;
       }
 
@@ -268,14 +287,17 @@ export class PhoneNumbersComponent extends BaseComponent {
         if (map.has(num)) continue;
 
         const isFailed = order.failed_numbers.includes(num);
+        const backing = backingInactiveDids.get(num);
         map.set(num, {
           phone_number: num,
           status: isFailed ? 'order_failed' : 'ordering',
           outbound_enabled: null,
+          routing_target: backing?.routing_target ?? null,
           source: 'number_order',
           created_at: order.created_at,
           updated_at: order.updated_at,
           order_id: order.id,
+          did_id: backing?.id,
         });
       }
     }
@@ -297,16 +319,19 @@ export class PhoneNumbersComponent extends BaseComponent {
       for (const num of port.details.phone_numbers) {
         if (map.has(num)) continue;
 
+        const backing = backingInactiveDids.get(num);
         map.set(num, {
           phone_number: num,
           status: portStatus,
           outbound_enabled: null,
           carrier: port.details.losing_carrier?.name,
           transfer_date: port.details.actual_foc_date || port.details.requested_foc_date,
+          routing_target: backing?.routing_target ?? null,
           source: 'port_order',
           created_at: port.created_at,
           updated_at: port.updated_at,
           port_order_id: port.id,
+          did_id: backing?.id,
         });
       }
     }
@@ -619,6 +644,41 @@ export class PhoneNumbersComponent extends BaseComponent {
           background: var(--ds-color-surface-subtle);
         }
 
+        td.routing-cell {
+          cursor: pointer;
+        }
+
+        .routing-action {
+          display: inline-flex;
+          align-items: center;
+          gap: var(--ds-spacing-xs);
+        }
+
+        /* Empty-state call to action: reads as a link at rest so it's
+           discoverable, not just on hover. */
+        .routing-action-cta {
+          color: var(--ds-color-primary);
+          font-weight: var(--ds-font-weight-medium);
+        }
+
+        .routing-action-chevron {
+          display: inline-flex;
+          color: var(--ds-color-text-secondary);
+        }
+
+        .routing-action-chevron svg {
+          width: 1em;
+          height: 1em;
+        }
+
+        td.routing-cell:hover .routing-action {
+          text-decoration: underline;
+        }
+
+        td.routing-cell:hover .routing-action-chevron {
+          color: var(--ds-color-primary);
+        }
+
         .badge {
           display: inline-block;
           padding: var(--ds-spacing-xs) var(--ds-spacing-sm);
@@ -758,6 +818,17 @@ export class PhoneNumbersComponent extends BaseComponent {
     return col === 'caller_id' ? 'caller_id' : (col as SortColumn);
   }
 
+  /**
+   * Whether the routing cell is an actionable deep-link: the row resolves to a
+   * DID (including inactive numbers mid-order/mid-port) and a host wired the
+   * click callback. Single source of truth — `renderCellContent` uses it to
+   * decide the cell *content*, and `renderTable` uses it to attach the cell's
+   * class/attrs (and thus its listener). The two must agree.
+   */
+  private isRoutable(item: PhoneNumberItem): boolean {
+    return !!item.did_id && !!this._onRowClick;
+  }
+
   private renderCellContent(item: PhoneNumberItem, col: ColumnId): string {
     const badgeClass = this.classes.statusBadge || '';
     switch (col) {
@@ -783,10 +854,20 @@ export class PhoneNumbersComponent extends BaseComponent {
           : item.outbound_enabled === false
             ? this.t('phoneNumbers.outbound.disabled')
             : '';
-      case 'routing_target':
-        return item.routing_target
-          ? `<dialstack-routing-target target="${this.escapeHtml(item.routing_target)}"></dialstack-routing-target>`
-          : `<span class="text-muted">${this.t('phoneNumbers.routingTarget.notSet')}</span>`;
+      case 'routing_target': {
+        // When routable the cell is an explicit action so it's discoverable as
+        // clickable at rest, not only on hover.
+        const routable = this.isRoutable(item);
+        if (item.routing_target) {
+          const chip = `<dialstack-routing-target target="${this.escapeHtml(item.routing_target)}"></dialstack-routing-target>`;
+          if (!routable) return chip;
+          return `<span class="routing-action" part="routing-action">${chip}<span class="routing-action-chevron" aria-hidden="true">${this.getIcon('chevronRight')}</span></span>`;
+        }
+        if (!routable) {
+          return `<span class="text-muted">${this.t('phoneNumbers.routingTarget.notSet')}</span>`;
+        }
+        return `<span class="routing-action routing-action-cta" part="routing-action">${this.t('phoneNumbers.routingTarget.setAction')}<span class="routing-action-chevron" aria-hidden="true">${this.getIcon('chevronRight')}</span></span>`;
+      }
       case 'carrier':
         return this.escapeHtml(item.carrier || '');
       case 'transfer_date':
@@ -822,7 +903,17 @@ export class PhoneNumbersComponent extends BaseComponent {
         const rowClass = classes ? ` class="${classes}"` : '';
 
         const cells = columns
-          .map((col) => `<td part="cell cell-${col}">${this.renderCellContent(item, col)}</td>`)
+          .map((col) => {
+            // The routing cell deep-links to the number's own routing surface
+            // (distinct from the row click, which may target the order/port
+            // detail).
+            const routable = col === 'routing_target' && this.isRoutable(item);
+            const cellClass = routable ? ' class="routing-cell"' : '';
+            const cellAttrs = routable
+              ? ` data-routing-phone="${this.escapeHtml(item.phone_number)}"`
+              : '';
+            return `<td part="cell cell-${col}"${cellClass}${cellAttrs}>${this.renderCellContent(item, col)}</td>`;
+          })
           .join('');
 
         return `<tr data-phone="${this.escapeHtml(item.phone_number)}" tabindex="0" role="row" part="table-row"${rowClass}>${cells}</tr>`;
@@ -919,21 +1010,34 @@ export class PhoneNumbersComponent extends BaseComponent {
       if (!phoneNumber) return;
 
       row.addEventListener('click', () => {
-        this.handleRowClick(phoneNumber);
+        this.handleRowClick(phoneNumber, 'detail');
       });
       row.addEventListener('keydown', (e) => {
         if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
           e.preventDefault();
-          this.handleRowClick(phoneNumber);
+          this.handleRowClick(phoneNumber, 'detail');
         }
+      });
+    });
+
+    // Routing cell: deep-link to the number's routing surface, independent of
+    // the row click. stopPropagation keeps it from also firing the row handler.
+    const routingCells = this.shadowRoot.querySelectorAll('td.routing-cell[data-routing-phone]');
+    routingCells.forEach((cell) => {
+      const phoneNumber = cell.getAttribute('data-routing-phone');
+      if (!phoneNumber) return;
+
+      cell.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.handleRowClick(phoneNumber, 'routing');
       });
     });
   }
 
-  private handleRowClick(phoneNumber: string): void {
+  private handleRowClick(phoneNumber: string, section: PhoneNumberRowSection): void {
     const item = this.allItems.find((i) => i.phone_number === phoneNumber);
     if (item && this._onRowClick) {
-      this._onRowClick({ phoneNumber, item });
+      this._onRowClick({ phoneNumber, item, section });
     }
   }
 }

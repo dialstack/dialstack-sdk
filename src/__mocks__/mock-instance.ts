@@ -96,11 +96,19 @@ const MOCK_DIAL_PLAN_RING_ALL: DialPlan = {
  */
 export function createMockInstance(
   appearance: AppearanceOptions = { theme: 'light' },
-  options: { empty?: boolean; dids?: DIDItem[]; account?: Partial<Account> } = {}
+  options: {
+    empty?: boolean;
+    dids?: DIDItem[];
+    orders?: NumberOrder[];
+    ports?: PortOrder[];
+    account?: Partial<Account>;
+  } = {}
 ): DialStackInstanceImpl {
   const empty = options.empty ?? false;
   const mockOrders = new Map<string, NumberOrder>();
   const mockPortOrders = new Map<string, PortOrder>();
+  for (const order of options.orders ?? []) mockOrders.set(order.id, order);
+  for (const port of options.ports ?? []) mockPortOrders.set(port.id, port);
   const mockEndpoints = new Map<string, OnboardingEndpoint[]>(); // userId → endpoints
   const mockDeviceLines = new Map<string, DeviceLine[]>(); // deviceId → lines
   const mockDECTExts = new Map<string, DECTExtension[]>(); // `${baseId}/${handsetId}` → extensions
@@ -397,7 +405,13 @@ export function createMockInstance(
         if (!order) throw new Error(`Order ${orderId} not found`);
         return order;
       },
-      list: async () => MOCK_EMPTY_RESPONSE,
+      list: async () => ({
+        object: 'list' as const,
+        url: '/v1/phone-number-orders',
+        data: Array.from(mockOrders.values()),
+        next_page_url: null,
+        previous_page_url: null,
+      }),
     },
 
     portOrders: {

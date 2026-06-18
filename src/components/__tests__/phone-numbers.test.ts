@@ -1,6 +1,6 @@
 import '../phone-numbers';
 import type { DialStackInstanceImpl } from '../../types/core';
-import type { DIDItem } from '../../types/phone-numbers';
+import type { DIDItem, PhoneNumberRowClickEvent } from '../../types/phone-numbers';
 import type { NumberOrder, PortOrder } from '../../types/phone-number-ordering';
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -33,6 +33,21 @@ function makeOrder(overrides: Partial<NumberOrder> = {}): NumberOrder {
   } as NumberOrder;
 }
 
+function makePort(overrides: Partial<PortOrder> = {}): PortOrder {
+  return {
+    id: 'port_01abc',
+    status: 'submitted',
+    details: {
+      phone_numbers: ['+15145551234'],
+      requested_foc_date: '2026-06-20',
+    },
+    submitted_at: '2026-06-03T17:49:00Z',
+    created_at: '2026-06-03T17:49:00Z',
+    updated_at: '2026-06-03T17:49:00Z',
+    ...overrides,
+  } as PortOrder;
+}
+
 function makeInstance(dids: DIDItem[], orders: NumberOrder[], ports: PortOrder[] = []) {
   const page = <T>(data: T[]) => ({ data, has_more: false, next_page_url: null });
   return {
@@ -46,6 +61,7 @@ function makeInstance(dids: DIDItem[], orders: NumberOrder[], ports: PortOrder[]
 
 type PhoneNumbersEl = HTMLElement & {
   setInstance: (i: DialStackInstanceImpl) => void;
+  setOnRowClick: (cb: (event: PhoneNumberRowClickEvent) => void) => void;
   shadowRoot: ShadowRoot;
 };
 
@@ -70,6 +86,10 @@ function clickFilter(el: PhoneNumbersEl, filter: string) {
 
 function rowsText(el: PhoneNumbersEl): string {
   return el.shadowRoot.querySelector('tbody')?.textContent ?? '';
+}
+
+function routingCell(el: PhoneNumbersEl, phone: string): HTMLElement | null {
+  return el.shadowRoot.querySelector<HTMLElement>(`td.routing-cell[data-routing-phone="${phone}"]`);
 }
 
 describe('PhoneNumbersComponent merge', () => {
@@ -112,5 +132,75 @@ describe('PhoneNumbersComponent merge', () => {
 
     clickFilter(el, 'in_progress');
     expect(rowsText(el)).not.toContain('555-1234');
+  });
+
+  it('surfaces the routing target pre-assigned to an in-progress port number', async () => {
+    const el = await mount(
+      makeInstance([makeDID({ routing_target: 'vapp_01abc' })], [], [makePort()])
+    );
+    el.setOnRowClick(() => {});
+
+    clickFilter(el, 'in_progress');
+    const target = el.shadowRoot.querySelector('tbody dialstack-routing-target');
+    expect(target?.getAttribute('target')).toBe('vapp_01abc');
+  });
+
+  it('lets an in-progress port row be routed: routing cell deep-links via section=routing with the backing DID id', async () => {
+    const el = await mount(makeInstance([makeDID({ routing_target: null })], [], [makePort()]));
+    const events: PhoneNumberRowClickEvent[] = [];
+    el.setOnRowClick((e) => events.push(e));
+
+    clickFilter(el, 'in_progress');
+
+    const cell = routingCell(el, '+15145551234');
+    expect(cell).not.toBeNull();
+    expect(cell?.textContent).toContain('Set routing');
+
+    cell!.click();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      section: 'routing',
+      item: { did_id: 'did_01abc', port_order_id: 'port_01abc', source: 'port_order' },
+    });
+  });
+
+  it('the row body of an in-progress port targets the port detail (section=detail)', async () => {
+    const el = await mount(makeInstance([makeDID()], [], [makePort()]));
+    const events: PhoneNumberRowClickEvent[] = [];
+    el.setOnRowClick((e) => events.push(e));
+
+    clickFilter(el, 'in_progress');
+    el.shadowRoot.querySelector<HTMLElement>('tbody tr[data-phone]')?.click();
+
+    expect(events[0]?.section).toBe('detail');
+    expect(events[0]?.item.port_order_id).toBe('port_01abc');
+  });
+
+  it('re-renders so the routing cell becomes actionable when onRowClick is wired after load', async () => {
+    const el = await mount(makeInstance([makeDID({ routing_target: null })], [], [makePort()]));
+
+    clickFilter(el, 'in_progress');
+    // No handler wired yet → the cell is inert (no listener, no marker).
+    expect(routingCell(el, '+15145551234')).toBeNull();
+
+    // Wiring the handler must trigger a re-render that marks the cell routable,
+    // without waiting for an unrelated filter/paginate re-render.
+    el.setOnRowClick(() => {});
+    expect(routingCell(el, '+15145551234')).not.toBeNull();
+  });
+
+  it('carries the backing DID id and routing target onto an in-progress number-order row', async () => {
+    const el = await mount(makeInstance([makeDID({ routing_target: 'rg_01abc' })], [makeOrder()]));
+    const events: PhoneNumberRowClickEvent[] = [];
+    el.setOnRowClick((e) => events.push(e));
+
+    clickFilter(el, 'in_progress');
+    routingCell(el, '+15145551234')?.click();
+
+    expect(events[0]).toMatchObject({
+      section: 'routing',
+      item: { did_id: 'did_01abc', source: 'number_order' },
+    });
+    expect(events[0]?.item.port_order_id).toBeUndefined();
   });
 });

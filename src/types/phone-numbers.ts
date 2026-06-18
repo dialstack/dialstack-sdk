@@ -129,6 +129,26 @@ export interface PhoneNumberItem {
 }
 
 /**
+ * Which surface a row interaction targets.
+ *
+ * - `detail` (default): the row body. For an in-flight order/port this resolves
+ *   to the order/port detail so its progress stays reachable.
+ * - `routing`: the routing-target cell. Always the number's own routing surface,
+ *   so a pre-created (inactive) number can have its routing target configured
+ *   before its order completes — it then routes the instant it activates.
+ */
+export type PhoneNumberRowSection = 'detail' | 'routing';
+
+/**
+ * Payload passed to the `onRowClick` host callback.
+ */
+export interface PhoneNumberRowClickEvent {
+  phoneNumber: string;
+  item: PhoneNumberItem;
+  section: PhoneNumberRowSection;
+}
+
+/**
  * CSS classes for the PhoneNumbers component
  */
 export interface PhoneNumbersClasses extends BaseComponentClasses {
@@ -144,7 +164,5 @@ export interface PhoneNumbersClasses extends BaseComponentClasses {
 export interface PhoneNumbersElement extends Omit<BaseComponentElement, 'setClasses'> {
   setClasses: (classes: PhoneNumbersClasses) => void;
   setLimit: (limit: number) => void;
-  setOnRowClick: (
-    callback: (event: { phoneNumber: string; item: PhoneNumberItem }) => void
-  ) => void;
+  setOnRowClick: (callback: (event: PhoneNumberRowClickEvent) => void) => void;
 }

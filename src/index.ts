@@ -58,6 +58,8 @@ export type {
   UpdateSmsPortOutRequest,
   PhoneNumberStatus,
   PhoneNumberItem,
+  PhoneNumberRowSection,
+  PhoneNumberRowClickEvent,
   PhoneNumbersClasses,
   // Programmable button types
   ButtonType,

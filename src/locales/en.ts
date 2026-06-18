@@ -270,6 +270,7 @@ export const en = {
     },
     routingTarget: {
       notSet: 'Not set',
+      setAction: 'Set routing',
     },
     routingTargetTypes: {
       user: 'User',

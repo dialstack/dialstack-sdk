@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import type { DialStackInstanceImpl } from '../../types/core';
 import type { AppearanceOptions, LayoutVariant } from '../../types/appearance';
-import type { DIDItem } from '../../types';
+import type { DIDItem, NumberOrder, PortOrder } from '../../types';
 import { createMockInstance } from '../../__mocks__/mock-instance';
 
 export interface WebComponentStoryProps {
@@ -12,6 +12,10 @@ export interface WebComponentStoryProps {
   empty?: boolean;
   /** Override DIDs returned by the mock instance */
   dids?: DIDItem[];
+  /** Number orders returned by the mock instance */
+  orders?: NumberOrder[];
+  /** Port orders returned by the mock instance */
+  ports?: PortOrder[];
   /** Extra setup after setInstance (e.g. calling setUserId) */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setup?: (el: any) => void;
@@ -26,6 +30,8 @@ export const WebComponentStory: React.FC<WebComponentStoryProps> = ({
   layoutVariant,
   empty = false,
   dids,
+  orders,
+  ports,
   setup,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -35,7 +41,7 @@ export const WebComponentStory: React.FC<WebComponentStoryProps> = ({
     if (!container) return;
 
     const appearance: AppearanceOptions = { theme };
-    const rawInstance = createMockInstance(appearance, { empty, dids });
+    const rawInstance = createMockInstance(appearance, { empty, dids, orders, ports });
     // Wrap with logging proxy to trace API calls
     const instance = new Proxy(rawInstance, {
       get(target, prop, receiver) {
@@ -81,7 +87,7 @@ export const WebComponentStory: React.FC<WebComponentStoryProps> = ({
     return () => {
       container.removeChild(el);
     };
-  }, [tagName, theme, layoutVariant, empty, setup]);
+  }, [tagName, theme, layoutVariant, empty, dids, orders, ports, setup]);
 
   return <div ref={containerRef} />;
 };

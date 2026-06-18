@@ -9,7 +9,7 @@ import { useUpdateWithSetter } from './useUpdateWithSetter';
 import type {
   LoaderStart,
   LoadError,
-  PhoneNumberItem,
+  PhoneNumberRowClickEvent,
   PhoneNumbersClasses,
   FormattingOptions,
   ComponentIcons,
@@ -69,9 +69,11 @@ export interface PhoneNumbersProps {
   onLoadError?: (event: LoadError) => void;
 
   /**
-   * Callback when a row is clicked
+   * Callback when a row (or the routing cell) is clicked. `event.section` is
+   * `'routing'` when the routing-target cell was clicked and `'detail'` for the
+   * row body, so hosts can route the two to different surfaces.
    */
-  onRowClick?: (event: { phoneNumber: string; item: PhoneNumberItem }) => void;
+  onRowClick?: (event: PhoneNumberRowClickEvent) => void;
 }
 
 /**
