@@ -20,6 +20,27 @@ class FakeMediaStream {
   }
 }
 
+// Models a remote audio MediaStreamTrack for ringback arbitration: it arrives
+// `muted` (negotiated, no RTP yet) and fires `unmute` when packets start, which
+// is the real-media signal the Call suppresses on. `flow()` simulates RTP start.
+class FakeRemoteAudioTrack {
+  kind = 'audio';
+  private unmuteHandlers: Array<() => void> = [];
+  constructor(public muted = true) {}
+  addEventListener(type: string, handler: () => void): void {
+    if (type === 'unmute') this.unmuteHandlers.push(handler);
+  }
+  flow(): void {
+    this.muted = false;
+    this.unmuteHandlers.splice(0).forEach((h) => h());
+  }
+}
+
+// Build a remote 'track' event carrying an audio track (muted by default).
+function trackEvent(track: FakeRemoteAudioTrack): unknown {
+  return { track, streams: [new FakeMediaStream()] };
+}
+
 type FakeSender = { track: FakeTrack | null; dtmf: unknown };
 
 // Models the relevant slice of RTCPeerConnection: setRemoteDescription(offer)
@@ -31,8 +52,15 @@ class FakeRTCPeerConnection {
   iceGatheringState = 'complete';
   remoteDescriptions: { type: string; sdp: string }[] = [];
   iceAdded = 0;
+  private listeners: Record<string, Array<(evt: unknown) => void>> = {};
 
-  addEventListener(): void {}
+  addEventListener(type: string, handler: (evt: unknown) => void): void {
+    (this.listeners[type] ??= []).push(handler);
+  }
+  // Test hook: fire a wired event (e.g. an inbound remote 'track').
+  emit(type: string, evt: unknown): void {
+    this.listeners[type]?.forEach((h) => h(evt));
+  }
 
   setRemoteDescription(desc: { type: string; sdp?: string }): Promise<void> {
     this.remoteDescriptions.push({ type: desc.type, sdp: desc.sdp ?? '' });
@@ -168,5 +196,224 @@ describe('Call early-media provisional answer', () => {
     // The provisional answer is a remote description → buffered candidate flushes.
     await call.acceptRemoteProvisionalAnswer('early-media-sdp');
     expect(pc.iceAdded).toBe(1);
+  });
+});
+
+// Stubs only the audio boundary; Call's start/stop arbitration is the code
+// under test. Idempotent to mirror the real RingbackTone.
+class RingbackStub {
+  starts = 0;
+  stops = 0;
+  playing = false;
+  start(): void {
+    if (this.playing) return;
+    this.starts += 1;
+    this.playing = true;
+  }
+  stop(): void {
+    if (this.playing) this.stops += 1;
+    this.playing = false;
+  }
+  get isPlaying(): boolean {
+    return this.playing;
+  }
+}
+
+function makeOutboundInit(): CallInit {
+  return { ...makeInit(), direction: 'outbound', initialState: 'trying' };
+}
+
+function withRingbackStub(call: Call): RingbackStub {
+  const stub = new RingbackStub();
+  (call as unknown as { ringback: RingbackStub }).ringback = stub;
+  return stub;
+}
+
+describe('Call local ringback arbitration', () => {
+  beforeEach(() => {
+    (globalThis as Record<string, unknown>).RTCPeerConnection = FakeRTCPeerConnection;
+    (globalThis as Record<string, unknown>).MediaStream = FakeMediaStream;
+    Object.defineProperty(globalThis, 'navigator', {
+      value: {
+        mediaDevices: {
+          getUserMedia: async () => {
+            const s = new FakeMediaStream();
+            s.addTrack(new FakeTrack());
+            return s;
+          },
+        },
+      },
+      configurable: true,
+    });
+  });
+
+  it('starts the tone on ringing when no early media is present', () => {
+    const call = new Call(makeOutboundInit());
+    const ringback = withRingbackStub(call);
+
+    call.handleServerMessage({ type: 'call.ringing', call_id: call.id });
+
+    expect(ringback.starts).toBe(1);
+    expect(ringback.isPlaying).toBe(true);
+  });
+
+  it('does not start the tone for inbound calls', () => {
+    const call = new Call(makeInit());
+    const ringback = withRingbackStub(call);
+
+    call.handleServerMessage({ type: 'call.ringing', call_id: call.id });
+
+    expect(ringback.starts).toBe(0);
+    expect(ringback.isPlaying).toBe(false);
+  });
+
+  it('starts the tone once across duplicate ringing frames', () => {
+    const call = new Call(makeOutboundInit());
+    const ringback = withRingbackStub(call);
+
+    call.handleServerMessage({ type: 'call.ringing', call_id: call.id });
+    call.handleServerMessage({ type: 'call.ringing', call_id: call.id });
+
+    expect(ringback.starts).toBe(1);
+    expect(ringback.isPlaying).toBe(true);
+  });
+
+  it('stops the tone on answered', () => {
+    const call = new Call(makeOutboundInit());
+    const ringback = withRingbackStub(call);
+
+    call.handleServerMessage({ type: 'call.ringing', call_id: call.id });
+    call.handleServerMessage({ type: 'call.answered', call_id: call.id });
+
+    expect(ringback.isPlaying).toBe(false);
+    expect(ringback.stops).toBe(1);
+  });
+
+  it('stops the tone on ended', () => {
+    const call = new Call(makeOutboundInit());
+    const ringback = withRingbackStub(call);
+
+    call.handleServerMessage({ type: 'call.ringing', call_id: call.id });
+    call.handleServerMessage({
+      type: 'call.ended',
+      call_id: call.id,
+      reason: 'no-answer',
+      duration_seconds: null,
+    });
+
+    expect(ringback.isPlaying).toBe(false);
+    expect(ringback.stops).toBe(1);
+  });
+
+  it('keeps ringing while early media is only negotiated (track muted, no RTP)', () => {
+    // The carrier negotiated early media (track arrives) but sends no packets —
+    // the track stays muted. Suppressing here would be dead air during alerting,
+    // so the synthetic tone must keep playing.
+    const call = new Call(makeOutboundInit());
+    const ringback = withRingbackStub(call);
+    const pc = call.peerConnection as unknown as FakeRTCPeerConnection;
+
+    pc.emit('track', trackEvent(new FakeRemoteAudioTrack(true)));
+    call.handleServerMessage({ type: 'call.ringing', call_id: call.id });
+
+    expect(ringback.isPlaying).toBe(true);
+  });
+
+  it('stops the tone when the remote audio track unmutes (RTP starts) mid-ring', () => {
+    const call = new Call(makeOutboundInit());
+    const ringback = withRingbackStub(call);
+    const pc = call.peerConnection as unknown as FakeRTCPeerConnection;
+
+    const track = new FakeRemoteAudioTrack(true);
+    pc.emit('track', trackEvent(track));
+    call.handleServerMessage({ type: 'call.ringing', call_id: call.id });
+    expect(ringback.isPlaying).toBe(true);
+
+    track.flow(); // RTP starts → unmute
+
+    expect(ringback.isPlaying).toBe(false);
+    expect(ringback.stops).toBe(1);
+  });
+
+  it('does not start the tone when remote audio is already flowing before ringing', () => {
+    const call = new Call(makeOutboundInit());
+    const ringback = withRingbackStub(call);
+    const pc = call.peerConnection as unknown as FakeRTCPeerConnection;
+
+    // Track already unmuted at attach — media is flowing before the 180.
+    pc.emit('track', trackEvent(new FakeRemoteAudioTrack(false)));
+    call.handleServerMessage({ type: 'call.ringing', call_id: call.id });
+
+    expect(ringback.starts).toBe(0);
+    expect(ringback.isPlaying).toBe(false);
+  });
+
+  it('does not suppress on a provisional answer alone (no media yet)', async () => {
+    // sdp.pranswer is signaling, not media. Applying it must NOT suppress — only
+    // real received audio does.
+    const call = new Call(makeOutboundInit());
+    const ringback = withRingbackStub(call);
+
+    await call.acceptRemoteProvisionalAnswer('early-media-sdp');
+    call.handleServerMessage({ type: 'call.ringing', call_id: call.id });
+
+    expect(ringback.isPlaying).toBe(true);
+  });
+
+  it('never starts a tone for a 183-only call (early media, no call.ringing)', () => {
+    // No alerting (180), so no call.ringing is emitted and no synthetic tone
+    // starts — the forwarded early media is what's audible.
+    const call = new Call(makeOutboundInit());
+    const ringback = withRingbackStub(call);
+    const pc = call.peerConnection as unknown as FakeRTCPeerConnection;
+
+    void call.acceptRemoteProvisionalAnswer('early-media-sdp');
+    pc.emit('track', trackEvent(new FakeRemoteAudioTrack(true)));
+
+    expect(ringback.starts).toBe(0);
+    expect(ringback.isPlaying).toBe(false);
+  });
+
+  it('does not restart the tone on a rogue ringing after answered', () => {
+    const call = new Call(makeOutboundInit());
+    const ringback = withRingbackStub(call);
+
+    call.handleServerMessage({ type: 'call.ringing', call_id: call.id });
+    call.handleServerMessage({ type: 'call.answered', call_id: call.id });
+    // A late/duplicate 180 after the 200 OK must not bring the tone back.
+    call.handleServerMessage({ type: 'call.ringing', call_id: call.id });
+
+    expect(ringback.isPlaying).toBe(false);
+    expect(ringback.starts).toBe(1);
+  });
+
+  it('does not restart the tone on a rogue ringing after ended', () => {
+    const call = new Call(makeOutboundInit());
+    const ringback = withRingbackStub(call);
+
+    call.handleServerMessage({ type: 'call.ringing', call_id: call.id });
+    call.handleServerMessage({
+      type: 'call.ended',
+      call_id: call.id,
+      reason: 'no-answer',
+      duration_seconds: null,
+    });
+    call.handleServerMessage({ type: 'call.ringing', call_id: call.id });
+
+    expect(ringback.isPlaying).toBe(false);
+    expect(ringback.starts).toBe(1);
+  });
+
+  it('stops the tone on dispose', () => {
+    const call = new Call(makeOutboundInit());
+    const ringback = withRingbackStub(call);
+
+    call.handleServerMessage({ type: 'call.ringing', call_id: call.id });
+    expect(ringback.isPlaying).toBe(true);
+
+    call.dispose();
+
+    expect(ringback.isPlaying).toBe(false);
+    expect(ringback.stops).toBe(1);
   });
 });

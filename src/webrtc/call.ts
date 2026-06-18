@@ -1,4 +1,5 @@
 import { PhoneError } from './errors';
+import { RingbackTone } from './ringback';
 import type { Transport } from './transport';
 import type {
   CallDirection,
@@ -79,6 +80,14 @@ export class Call {
   // setRemoteDescription resolves) — applied once the description is in place.
   private pendingRemoteCandidates: RTCIceCandidateInit[] = [];
   private remoteDescriptionSet = false;
+  private readonly ringback = new RingbackTone();
+  // Suppression keys on REAL received audio, not SDP negotiation. A remote track
+  // arriving (or an sdp.pranswer being applied) only means early media was
+  // negotiated — the carrier may negotiate it and never send a packet, which
+  // would leave the caller with dead air during alerting. So we keep ringing
+  // until the remote audio track actually unmutes (RTP starts flowing); a brief
+  // tone/early-media overlap is preferable to silence.
+  private remoteAudioFlowing = false;
 
   constructor(init: CallInit) {
     this.id = init.id;
@@ -359,11 +368,25 @@ export class Call {
         return;
       case 'call.ringing':
         this.state = 'ringing';
+        // call.ringing fires on alerting (SIP 180). Play local ringback only for
+        // an outbound call still in its pre-answer ringing phase with no real
+        // remote media: a late/rogue 180 after answer or end must not restart the
+        // tone, and network early media (provisional answer / live remote track)
+        // suppresses it since the forwarded media is what's audible.
+        if (
+          this.direction === 'outbound' &&
+          this.answeredAt === null &&
+          !this.endedSettled &&
+          !this.remoteAudioFlowing
+        ) {
+          this.ringback.start();
+        }
         this.emit('ringing');
         return;
       case 'call.answered':
         this.state = 'active';
         this.answeredAt = Date.now();
+        this.ringback.stop();
         this.startDurationTimer();
         this.emit('answered');
         return;
@@ -384,6 +407,7 @@ export class Call {
   }
 
   dispose(): void {
+    this.ringback.stop();
     this.stopDurationTimer();
     this.releaseMedia();
   }
@@ -392,6 +416,7 @@ export class Call {
     if (this.endedSettled) return;
     this.endedSettled = true;
     this.state = 'ended';
+    this.ringback.stop();
     this.stopDurationTimer();
     this.releaseMedia();
     this.emit('ended', reason);
@@ -416,11 +441,30 @@ export class Call {
     });
   }
 
+  // Marks real audio as flowing and stops any synthetic ringback. Driven by the
+  // remote track's `unmute` (RTP actually started), never by track arrival.
+  private onRemoteAudioFlowing(): void {
+    this.remoteAudioFlowing = true;
+    this.ringback.stop();
+  }
+
   private wirePeerConnection(): void {
     this.peerConnection.addEventListener('track', (evt) => {
       evt.streams[0]?.getTracks().forEach((t) => {
         if (!this.remoteStream.getTracks().includes(t)) this.remoteStream.addTrack(t);
       });
+      // Stop the synthetic tone only when real audio is actually received: the
+      // remote audio track's `unmute` (RTP started), not its arrival (which is
+      // SDP-negotiation time). An already-unmuted track means media is flowing
+      // now. Keying on negotiation would cut the tone to dead air when a carrier
+      // negotiates early media but sends no packets.
+      const track = evt.track;
+      if (track?.kind !== 'audio') return;
+      if (track.muted === false) {
+        this.onRemoteAudioFlowing();
+      } else {
+        track.addEventListener('unmute', () => this.onRemoteAudioFlowing(), { once: true });
+      }
     });
 
     this.peerConnection.addEventListener('icecandidate', (evt) => {
