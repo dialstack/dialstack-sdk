@@ -152,6 +152,7 @@ export type ServerMessage =
   | { type: 'call.held'; call_id: string; held_by: HeldBy }
   | { type: 'call.resumed'; call_id: string }
   | { type: 'sdp.offer'; call_id: string; sdp: string }
+  | { type: 'sdp.pranswer'; call_id: string; sdp: string }
   | { type: 'sdp.answer'; call_id: string; sdp: string }
   | {
       type: 'ice.candidate';

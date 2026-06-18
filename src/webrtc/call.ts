@@ -305,6 +305,18 @@ export class Call {
     if (this.wantsAnswer) this.sendAnswer();
   }
 
+  // Applies network early media (the carrier's 183 SDP) as a JSEP provisional
+  // answer so RTP can play before answer; acceptRemoteAnswer replaces it at
+  // pickup. The server may forward several pranswers; the browser's operations
+  // chain (WebRTC 1.0 §4.4.1) serializes the setRemoteDescription calls FIFO and
+  // the WS handler dispatches them in arrival order, so they apply in order
+  // without overlapping. Setting remoteDescriptionSet lets buffered ICE flow.
+  async acceptRemoteProvisionalAnswer(sdp: string): Promise<void> {
+    await this.peerConnection.setRemoteDescription({ type: 'pranswer', sdp });
+    this.remoteDescriptionSet = true;
+    await this.flushPendingRemoteCandidates();
+  }
+
   async acceptRemoteAnswer(sdp: string): Promise<void> {
     await this.peerConnection.setRemoteDescription({ type: 'answer', sdp });
     this.remoteDescriptionSet = true;

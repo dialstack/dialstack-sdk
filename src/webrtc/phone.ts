@@ -491,9 +491,42 @@ export class DialStackPhone {
         }
         return;
       }
+      case 'sdp.pranswer': {
+        // Network early media (carrier 183): apply it as a provisional answer
+        // so audio plays during ringing. The final sdp.answer replaces it at
+        // pickup. Opaque to the app — no separate event.
+        const call = this.getCall(msg.call_id);
+        if (call) {
+          void call.acceptRemoteProvisionalAnswer(msg.sdp).catch((e) =>
+            this.emit(
+              'error',
+              new PhoneError({
+                code: 'call_failed',
+                message: `Failed to apply provisional answer: ${(e as Error).message}`,
+                callId: msg.call_id,
+              })
+            )
+          );
+        }
+        return;
+      }
       case 'sdp.answer': {
         const call = this.getCall(msg.call_id);
-        if (call) void call.acceptRemoteAnswer(msg.sdp);
+        if (call) {
+          // Surface a failed setRemoteDescription(answer) instead of a silent
+          // unhandled rejection — the browser may reject or ICE-restart on a
+          // final answer that's incompatible with the applied provisional.
+          void call.acceptRemoteAnswer(msg.sdp).catch((e) =>
+            this.emit(
+              'error',
+              new PhoneError({
+                code: 'call_failed',
+                message: `Failed to apply answer: ${(e as Error).message}`,
+                callId: msg.call_id,
+              })
+            )
+          );
+        }
         return;
       }
       case 'ice.candidate': {
