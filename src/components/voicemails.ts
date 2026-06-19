@@ -9,6 +9,7 @@ import type {
   VoicemailBehaviorOptions,
   VoicemailRowRenderer,
   VoicemailsClasses,
+  CallLog,
 } from '../types';
 
 import type { TranscriptStatus } from '../types';
@@ -27,6 +28,9 @@ interface Voicemail {
   format?: string;
   transcription?: string;
   summary?: string;
+  // ID of the call that produced this voicemail (or the expanded CallLog object).
+  // Null/absent when the call could not be resolved.
+  call?: string | CallLog | null;
 }
 
 /**
