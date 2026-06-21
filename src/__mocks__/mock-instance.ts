@@ -37,6 +37,7 @@ import type {
 } from '../types/dect';
 import type {
   Account,
+  Tos,
   OnboardingUser,
   OnboardingLocation,
   CreateUserRequest,
@@ -102,6 +103,7 @@ export function createMockInstance(
     orders?: NumberOrder[];
     ports?: PortOrder[];
     account?: Partial<Account>;
+    tos?: Partial<Tos>;
   } = {}
 ): DialStackInstanceImpl {
   const empty = options.empty ?? false;
@@ -175,6 +177,31 @@ export function createMockInstance(
     created_at: '2025-01-01T00:00:00Z',
     updated_at: '2025-01-01T00:00:00Z',
     ...options.account,
+  };
+
+  // Default: agreement already accepted so the first-login gate is OFF — keeps
+  // the portal stories/tests on their own scenario. Override via options.tos
+  // (e.g. set `acceptance: null`) to exercise the gate.
+  const mockTosPricing = {
+    per_user_rate: 1500,
+    per_did_rate: 200,
+    per_voiceai_location_rate: 5000,
+  };
+  const mockTos: Tos = {
+    version: '0-draft',
+    url: 'https://www.dialstack.ai/ssa',
+    content:
+      'I have read, understood, and agree to the DialStack Service Subscription Agreement, ' +
+      'available at www.dialstack.ai/ssa, including its 911/E911 limitations, such as that 911 ' +
+      'may not work during a power or internet outage or if my registered address is out of date, ' +
+      'and that I should keep a backup way to reach 911.',
+    acceptance: {
+      version: '0-draft',
+      accepted_at: '2025-01-01T00:00:00Z',
+      pricing: mockTosPricing,
+    },
+    pricing: mockTosPricing,
+    ...options.tos,
   };
 
   const mockLocations: OnboardingLocation[] = empty
@@ -873,6 +900,28 @@ export function createMockInstance(
         }
         mockAccount.updated_at = new Date().toISOString();
         return { ...mockAccount, config: { ...mockAccount.config } };
+      },
+      tos: {
+        retrieve: async (retrieveOptions?: { expand?: string[] }): Promise<Tos> => {
+          await delay();
+          const expandPricing = retrieveOptions?.expand?.includes('pricing') ?? false;
+          const { pricing: _pricing, ...rest } = mockTos;
+          return expandPricing ? { ...mockTos } : { ...rest };
+        },
+        accept: async (version: string): Promise<Tos> => {
+          await delay();
+          mockTos.acceptance = {
+            version,
+            accepted_at: new Date().toISOString(),
+            pricing: mockTos.pricing ?? {
+              per_user_rate: null,
+              per_did_rate: null,
+              per_voiceai_location_rate: null,
+            },
+          };
+          mockTos.version = version;
+          return { ...mockTos };
+        },
       },
     },
 

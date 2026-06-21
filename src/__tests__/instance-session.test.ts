@@ -166,6 +166,90 @@ describe('DialStackInstanceImplClass session behavior', () => {
     expect(result).toEqual(locationData);
   });
 
+  describe('account.tos', () => {
+    const newInstance = async () => {
+      const { DialStackInstanceImplClass } = await import('../core/instance');
+      const instance = new DialStackInstanceImplClass({
+        publishableKey: 'pk_test_xxx',
+        fetchClientSecret: async () => ({
+          clientSecret: 'cs_test_secret',
+          accountId: 'acct_01h00000000000000000000000',
+        }),
+      });
+      await instance.startSession();
+      return instance;
+    };
+
+    const tosDoc = {
+      version: '0-draft',
+      url: 'https://www.dialstack.ai/ssa',
+      content: 'I have read, understood, and agree...',
+      acceptance: null,
+      pricing: { per_user_rate: 1500, per_did_rate: 200, per_voiceai_location_rate: 5000 },
+    };
+
+    it('retrieve requests the account-scoped path with expand[]=pricing', async () => {
+      const instance = await newInstance();
+      mockFetch.mockResolvedValueOnce(mockJsonResponse(tosDoc));
+
+      const result = await instance.account.tos.retrieve({ expand: ['pricing'] });
+
+      const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toContain('/v1/accounts/acct_01h00000000000000000000000/tos');
+      expect(url).toContain('expand%5B%5D=pricing');
+      expect((options.method ?? 'GET').toUpperCase()).toBe('GET');
+      expect(result).toEqual(tosDoc);
+    });
+
+    it('retrieve omits the query string when no expand is given', async () => {
+      const instance = await newInstance();
+      mockFetch.mockResolvedValueOnce(mockJsonResponse({ ...tosDoc, pricing: undefined }));
+
+      await instance.account.tos.retrieve();
+
+      const [url] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toMatch(/\/v1\/accounts\/acct_01h00000000000000000000000\/tos$/);
+    });
+
+    it('accept POSTs the version and returns the updated agreement', async () => {
+      const instance = await newInstance();
+      const accepted = {
+        ...tosDoc,
+        acceptance: { version: '0-draft', accepted_at: 'now', pricing: tosDoc.pricing },
+      };
+      mockFetch.mockResolvedValueOnce(mockJsonResponse(accepted));
+
+      const result = await instance.account.tos.accept('0-draft');
+
+      const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(url).toContain('/v1/accounts/acct_01h00000000000000000000000/tos');
+      expect(options.method).toBe('POST');
+      expect(JSON.parse(options.body as string)).toEqual({ version: '0-draft' });
+      expect(result).toEqual(accepted);
+    });
+
+    it('accept surfaces a 409 stale-version error with its status', async () => {
+      const instance = await newInstance();
+      mockFetch.mockResolvedValueOnce(
+        mockJsonResponse(
+          { error: 'Agreement version is out of date', code: 'tos_version_stale' },
+          409
+        )
+      );
+
+      await expect(instance.account.tos.accept('0-draft')).rejects.toMatchObject({ status: 409 });
+    });
+
+    it('accept surfaces a 422 pricing-not-set error with its status', async () => {
+      const instance = await newInstance();
+      mockFetch.mockResolvedValueOnce(
+        mockJsonResponse({ error: 'Account pricing must be set' }, 422)
+      );
+
+      await expect(instance.account.tos.accept('0-draft')).rejects.toMatchObject({ status: 422 });
+    });
+  });
+
   it('refetches the session and retries once when an API request returns 401', async () => {
     const { DialStackInstanceImplClass } = await import('../core/instance');
     const fetchClientSecret = jest

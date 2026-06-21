@@ -94,6 +94,10 @@ export type {
   OnboardingPortalClasses,
   OnboardingUser,
   UpdateEndpointRequest,
+  // Subscription-agreement (tos) types
+  AccountPricing,
+  TosAcceptance,
+  Tos,
   // Custom render types
   VoicemailRowRenderer,
   CallLogRowRenderer,

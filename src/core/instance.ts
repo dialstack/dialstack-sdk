@@ -64,6 +64,7 @@ import type {
   PortEligibilityResult,
   Account,
   UpdateAccountRequest,
+  Tos,
   OnboardingUser,
   CreateUserRequest,
   CreateExtensionRequest,
@@ -1601,6 +1602,51 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         throw new Error(`Failed to update account: ${response.status} ${errorText}`);
       }
       return response.json();
+    },
+    tos: {
+      /**
+       * Retrieve the current subscription agreement and this account's
+       * acceptance state. Pass `expand: ['pricing']` to include the pricing
+       * the customer is agreeing to.
+       */
+      retrieve: async (options?: { expand?: string[] }): Promise<Tos> => {
+        const accountId = await this.getAccountId();
+        const params = new URLSearchParams();
+        for (const e of options?.expand ?? []) params.append('expand[]', e);
+        const query = params.toString();
+        const path = `/v1/accounts/${accountId}/tos${query ? `?${query}` : ''}`;
+        const response = await this.fetchApi(path);
+        if (!response.ok) {
+          const { message, code } = await extractApiError(
+            response,
+            'Failed to get subscription agreement:'
+          );
+          throw new ApiError(message, response.status, code);
+        }
+        return response.json();
+      },
+      /**
+       * Record acceptance of the agreement at `version` for this account. The
+       * server snapshots the account's pricing and derives the capture method
+       * from the session. Throws an {@link ApiError} on a stale version (409)
+       * or when pricing has not been set (422) so callers can branch on
+       * `error.status`.
+       */
+      accept: async (version: string): Promise<Tos> => {
+        const accountId = await this.getAccountId();
+        const response = await this.fetchApi(`/v1/accounts/${accountId}/tos`, {
+          method: 'POST',
+          body: JSON.stringify({ version }),
+        });
+        if (!response.ok) {
+          const { message, code } = await extractApiError(
+            response,
+            'Failed to accept subscription agreement:'
+          );
+          throw new ApiError(message, response.status, code);
+        }
+        return response.json();
+      },
     },
   };
 

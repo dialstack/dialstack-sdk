@@ -65,6 +65,7 @@ import type {
 import type {
   Account,
   UpdateAccountRequest,
+  Tos,
   OnboardingUser,
   CreateUserRequest,
   CreateExtensionRequest,
@@ -460,11 +461,23 @@ export interface DECTBasesResource {
   extensions: DECTExtensionsResource;
 }
 
+export interface AccountTosResource {
+  /**
+   * Retrieve the current subscription agreement and this account's acceptance
+   * state. Pass `expand: ['pricing']` to include the agreed pricing.
+   */
+  retrieve(options?: { expand?: string[] }): Promise<Tos>;
+  /** Record acceptance of the agreement at `version` for this account. */
+  accept(version: string): Promise<Tos>;
+}
+
 export interface AccountResource {
   /** Retrieve the current account */
   retrieve(): Promise<Account>;
   /** Update the current account */
   update(request: UpdateAccountRequest): Promise<Account>;
+  /** Subscription-agreement acceptance sub-resource */
+  tos: AccountTosResource;
 }
 
 export interface UserEndpointsResource {

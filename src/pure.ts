@@ -74,6 +74,10 @@ export type {
   CreateTemplateButtonRequest,
   UpdateTemplateButtonRequest,
   CreateDeviceButtonOverrideRequest,
+  // Subscription-agreement (tos) types
+  AccountPricing,
+  TosAcceptance,
+  Tos,
 } from './types';
 
 // Default icons (can be used to customize or extend)

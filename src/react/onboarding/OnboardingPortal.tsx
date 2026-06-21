@@ -29,6 +29,7 @@ import { AccountStep } from './steps/account/AccountStep';
 import { NumbersStep } from './steps/numbers/NumbersStep';
 import { HardwareStep } from './steps/hardware/HardwareStep';
 import { useOnboardingBootstrap } from './useOnboardingBootstrap';
+import { SsaAcceptanceGate, SsaGateLoadError } from './SsaAcceptanceGate';
 import { PortalActionsContext } from './PortalActionsContext';
 import { mergePhoneNumbers } from './merge-phone-numbers';
 import { useAppearance } from '../useAppearance';
@@ -44,6 +45,7 @@ import type {
   PortOrder,
 } from '../../types';
 import type { Locale } from '../../locales';
+import type { Tos } from '../../types';
 import PORTAL_STYLES from './styles/portal-styles.css';
 import SPLASH_STYLES from './styles/splash-styles.css';
 import OVERVIEW_STYLES from './styles/overview-styles.css';
@@ -76,13 +78,59 @@ export interface OnboardingPortalProps {
 const portalErrorHandler = (err: unknown) =>
   console.warn('OnboardingPortal: failed to load shared data:', err);
 
+/**
+ * Whether the account still owes acceptance of the current agreement. True when
+ * never accepted, or when the accepted version no longer matches the current one
+ * (a material change requires re-acceptance).
+ */
+function tosNeedsAcceptance(tos: Tos | null): tos is Tos {
+  if (!tos) return false;
+  return !tos.acceptance || tos.acceptance.version !== tos.version;
+}
+
 export const OnboardingPortal: React.FC<OnboardingPortalProps> = (props) => {
   const locale = props.locale ?? defaultLocale;
   const { progressStore, sharedData, reloadSharedData, storeHydrated } =
     useOnboardingBootstrap(portalErrorHandler);
   const [entryMode, setEntryMode] = useState<StepEntryMode>('continue');
+  // Latches once accepted so the portal renders immediately after submit without
+  // waiting on the shared-data refetch to flip the gate condition.
+  const [tosAccepted, setTosAccepted] = useState(false);
 
   if (!storeHydrated) return null;
+
+  // Forced first-login acceptance: a top-level blocking gate that replaces the
+  // entire portal (no sidebar, no exit) until the agreement is accepted. Shown
+  // even when onboarding is otherwise complete, so it can't be routed around.
+  if (!tosAccepted) {
+    // Fail closed: if the agreement couldn't be loaded we cannot prove it was
+    // accepted, so block the portal behind a retry rather than letting the user in.
+    if (sharedData.tosLoadFailed) {
+      return (
+        <SsaGateLoadError
+          locale={locale}
+          theme={props.theme}
+          appearance={props.appearance}
+          onRetry={reloadSharedData}
+        />
+      );
+    }
+    if (tosNeedsAcceptance(sharedData.tos)) {
+      return (
+        <SsaAcceptanceGate
+          tos={sharedData.tos}
+          locale={locale}
+          formatting={props.formatting}
+          theme={props.theme}
+          appearance={props.appearance}
+          onAccepted={() => {
+            setTosAccepted(true);
+            void reloadSharedData();
+          }}
+        />
+      );
+    }
+  }
 
   return (
     <OnboardingProvider

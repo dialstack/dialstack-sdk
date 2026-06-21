@@ -73,6 +73,48 @@ export interface UpdateAccountRequest {
   main_location_id?: string;
 }
 
+/**
+ * Per-account pricing the customer is agreeing to alongside the subscription
+ * agreement. Rates are in cents per month; `null` means the rate is not yet set.
+ */
+export interface AccountPricing {
+  per_user_rate: number | null;
+  per_did_rate: number | null;
+  per_voiceai_location_rate: number | null;
+}
+
+/**
+ * A recorded acceptance of the subscription agreement for an account. Absent
+ * (`null`) until the account owner has accepted.
+ */
+export interface TosAcceptance {
+  /** The agreement version that was accepted. */
+  version: string;
+  accepted_at: string;
+  ip?: string;
+  user_agent?: string;
+  /** Snapshot of the pricing as it stood when the agreement was accepted. */
+  pricing: AccountPricing;
+}
+
+/**
+ * The current subscription agreement plus this account's acceptance state.
+ * Returned by `account.tos.retrieve()`; `pricing` is only present when
+ * requested via `expand: ['pricing']`.
+ */
+export interface Tos {
+  /** The current agreement version. */
+  version: string;
+  /** Canonical URL of the full agreement. */
+  url: string;
+  /** The acceptance language to affirm (includes the 911/E911 acknowledgement). */
+  content: string;
+  /** The latest acceptance for this account, or `null` if never accepted. */
+  acceptance: TosAcceptance | null;
+  /** Present only when expanded; `null` when the account's pricing is incomplete. */
+  pricing?: AccountPricing | null;
+}
+
 export interface OnboardingUser {
   id: string;
   name?: string | null;

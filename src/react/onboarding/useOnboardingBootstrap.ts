@@ -12,7 +12,7 @@ import { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } fr
 import { useDialstackComponents } from '@dialstack/sdk/react';
 import { OnboardingProgressStore } from './progress-store';
 import { deriveOnboardingState } from './derive';
-import type { Account, OnboardingUser, OnboardingLocation } from '../../types';
+import type { Account, OnboardingUser, OnboardingLocation, Tos } from '../../types';
 import type { Extension } from '../../types/dial-plan';
 import type { DIDItem } from '../../types/phone-numbers';
 import type { Device } from '../../types/device';
@@ -21,6 +21,9 @@ export interface OnboardingBootstrapResult {
   progressStore: OnboardingProgressStore;
   sharedData: {
     account: Account | null;
+    tos: Tos | null;
+    /** True when the agreement fetch failed — the gate must fail closed. */
+    tosLoadFailed: boolean;
     users: OnboardingUser[];
     extensions: Extension[];
     locations: OnboardingLocation[];
@@ -52,24 +55,46 @@ export function useOnboardingBootstrap(
 
   const [sharedData, setSharedData] = useState<{
     account: Account | null;
+    tos: Tos | null;
+    tosLoadFailed: boolean;
     users: OnboardingUser[];
     extensions: Extension[];
     locations: OnboardingLocation[];
     dids: DIDItem[];
     devices: Device[];
-  }>({ account: null, users: [], extensions: [], locations: [], dids: [], devices: [] });
+  }>({
+    account: null,
+    tos: null,
+    tosLoadFailed: false,
+    users: [],
+    extensions: [],
+    locations: [],
+    dids: [],
+    devices: [],
+  });
   const [storeHydrated, setStoreHydrated] = useState(false);
 
   const fetchSnapshot = useCallback(async () => {
-    const [account, users, extensions, locations, dids, deskphones, dectBases] = await Promise.all([
-      dialstack.account.retrieve(),
-      dialstack.users.list(),
-      dialstack.extensions.list(),
-      dialstack.locations.list(),
-      dialstack.fetchAllPages<DIDItem>((opts) => dialstack.phoneNumbers.list(opts)),
-      dialstack.devices.list({ type: 'deskphone' }).catch(() => [] as Device[]),
-      dialstack.devices.list({ type: 'dect_base' }).catch(() => [] as Device[]),
-    ]);
+    const [account, tosResult, users, extensions, locations, dids, deskphones, dectBases] =
+      await Promise.all([
+        dialstack.account.retrieve(),
+        // The subscription-agreement gate keys off this. A fetch failure must NOT
+        // silently drop the gate (it's a compliance gate — failing open is unsafe),
+        // so we capture the failure distinctly rather than coercing to null, and
+        // it must not abort the rest of bootstrap.
+        dialstack.account.tos
+          .retrieve({ expand: ['pricing'] })
+          .then((tos) => ({ tos, failed: false }))
+          .catch(() => ({ tos: null, failed: true })),
+        dialstack.users.list(),
+        dialstack.extensions.list(),
+        dialstack.locations.list(),
+        dialstack.fetchAllPages<DIDItem>((opts) => dialstack.phoneNumbers.list(opts)),
+        dialstack.devices.list({ type: 'deskphone' }).catch(() => [] as Device[]),
+        dialstack.devices.list({ type: 'dect_base' }).catch(() => [] as Device[]),
+      ]);
+    const tos = tosResult.tos;
+    const tosLoadFailed = tosResult.failed;
     // /v1/devices doesn't eager-load device_lines or DECT handsets/extensions,
     // but the hardware-step derive needs either (a) a deskphone with a line
     // or (b) a DECT extension on a handset to mark device-assignment complete.
@@ -90,7 +115,7 @@ export function useOnboardingBootstrap(
       }),
     ]);
     const devices = [...deskphones, ...dectBases];
-    return { account, users, extensions, locations, dids, devices };
+    return { account, tos, tosLoadFailed, users, extensions, locations, dids, devices };
   }, [dialstack]);
 
   useEffect(() => {

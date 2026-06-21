@@ -741,6 +741,34 @@ export const en = {
       recipientTerms: 'Recipient Terms of Service',
       privacyPolicy: 'Privacy Policy',
     },
+    ssa: {
+      title: 'Review and accept your subscription agreement',
+      intro:
+        'Before you can use your phone service, please review the Service Subscription Agreement below — including its emergency calling (911/E911) terms — and confirm your acceptance.',
+      pricingTitle: 'Your plan pricing',
+      perUser: 'Per user',
+      perNumber: 'Per phone number',
+      perAiLocation: 'Per AI location',
+      perMonthSuffix: '/mo',
+      agreementLabel: 'Service Subscription Agreement',
+      openInNewTab: 'Open the full agreement in a new tab',
+      accept: 'Accept & Continue',
+      submitting: 'Recording your acceptance…',
+      errors: {
+        stale: 'The agreement was updated. Please review the latest version and accept again.',
+        pricingMissing:
+          'Your plan pricing has not been finalized yet. Please contact your provider to continue.',
+        generic: 'We could not record your acceptance. Please try again.',
+        retry: 'Try again',
+      },
+      loadError: {
+        title: 'Unable to load your agreement',
+        description:
+          'We could not load your subscription agreement, which is required before you can continue. Please try again.',
+        retry: 'Try again',
+        retrying: 'Loading…',
+      },
+    },
   },
   onboardingPortal: {
     onboardingFlows: 'ONBOARDING FLOWS',

@@ -48,6 +48,20 @@ export const mockAccount = {
   updated_at: '2026-01-01T00:00:00Z',
 };
 
+export const mockTos = {
+  version: '0-draft',
+  url: 'https://www.dialstack.ai/ssa',
+  content:
+    'I have read, understood, and agree to the DialStack Service Subscription Agreement, ' +
+    'including its 911/E911 limitations.',
+  acceptance: null,
+  pricing: {
+    per_user_rate: 1500,
+    per_did_rate: 200,
+    per_voiceai_location_rate: 5000,
+  },
+};
+
 export const mockUsers = [
   {
     id: 'user_01abc',
@@ -350,6 +364,18 @@ export function createMockInstance(overrides?: MockInstanceOverrides): DialStack
     account: {
       retrieve: jest.fn().mockResolvedValue(mockAccount),
       update: jest.fn().mockResolvedValue(mockAccount),
+      tos: {
+        retrieve: jest.fn().mockResolvedValue(mockTos),
+        accept: jest.fn().mockImplementation(async (version: string) => ({
+          ...mockTos,
+          version,
+          acceptance: {
+            version,
+            accepted_at: new Date().toISOString(),
+            pricing: mockTos.pricing,
+          },
+        })),
+      },
     },
     users: {
       create: jest.fn().mockImplementation(async (data: { name: string; email: string }) => ({
