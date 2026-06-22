@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0](https://github.com/dialstack/dialstack-sdk/compare/v1.1.0...v1.2.0) (2026-06-22)
+
+### Features
+
+- **server:** user presence API — single-user and bulk reads
+- per-DID SMS port-out toggle, configurable after a number is created
+- voicemails now reference their originating call (`expand[]=call`)
+- **react/onboarding:** in-band subscriber agreement (SSA) acceptance gate at first login
+- **react:** route in-progress port/order numbers before the port or order completes
+- **webrtc:** local ringback tone on `call.ringing`
+- **webrtc:** apply network early media as a JSEP provisional answer (pranswer); ringing on `180` only
+
+### Bug Fixes
+
+- **react/onboarding:** guard port-in eligibility arrays so empty or missing values no longer white-screen onboarding
+- **react/onboarding:** fail closed on agreement load and recover from a stale agreement version
+- **react:** stop a released DID from masking an active re-port
+- invalidate the session and retry once on an API-request auth failure
+- **webrtc:** stop the event-stream reconnect loop and wind down the refresh timer on auth give-up
+
 ## [1.1.0](https://github.com/dialstack/dialstack-sdk/compare/v1.0.0...v1.1.0) (2026-06-15)
 
 ### Features
