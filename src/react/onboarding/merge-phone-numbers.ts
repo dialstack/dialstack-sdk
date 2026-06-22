@@ -27,8 +27,24 @@ export function mergePhoneNumbers(
     }
   }
 
+  const activeOrderNumbers = new Set<string>();
+  for (const order of orders) {
+    if (order.status !== 'pending' && order.status !== 'partial') continue;
+    for (const num of order.phone_numbers) {
+      if (!order.completed_numbers.includes(num)) activeOrderNumbers.add(num);
+    }
+  }
+
   for (const did of dids) {
-    if (did.status === 'inactive' && activePortNumbers.has(did.phone_number)) continue;
+    const numberHasInFlightOrder =
+      activePortNumbers.has(did.phone_number) || activeOrderNumbers.has(did.phone_number);
+    // An inactive DID pre-created for an in-flight order/port is represented by
+    // the order/port row below, not its own row.
+    if (did.status === 'inactive' && numberHasInFlightOrder) continue;
+    // A released DID left behind by a cancelled/superseded order must not mask
+    // an active re-port of the same number — otherwise it renders under
+    // Cancelled and hides the in-flight port (incl. any exception).
+    if (did.status === 'released' && numberHasInFlightOrder) continue;
     map.set(did.phone_number, {
       phone_number: did.phone_number,
       status: did.status as PhoneNumberStatus,

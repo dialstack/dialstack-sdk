@@ -249,14 +249,24 @@ export class PhoneNumbersComponent extends BaseComponent {
     // completes, so it routes the instant it activates — no scramble at FOC.
     const backingInactiveDids = new Map<string, { id: string; routing_target?: string | null }>();
     for (const did of dids) {
-      const isBackingForInFlightOrder =
-        did.status === 'inactive' &&
-        (activePortNumbers.has(did.phone_number) || activeOrderNumbers.has(did.phone_number));
-      if (isBackingForInFlightOrder) {
+      const numberHasInFlightOrder =
+        activePortNumbers.has(did.phone_number) || activeOrderNumbers.has(did.phone_number);
+
+      if (did.status === 'inactive' && numberHasInFlightOrder) {
         backingInactiveDids.set(did.phone_number, {
           id: did.id,
           routing_target: did.routing_target,
         });
+        continue;
+      }
+
+      // A `released` DID left behind by a cancelled/superseded order must not
+      // mask an active re-port of the same number. Skip it so the active
+      // port/number-order row below wins (e.g. one combined order cancelled and
+      // split into two). Without this the number renders under "Cancelled" and
+      // the in-flight port — including any exception needing customer action —
+      // is hidden.
+      if (did.status === 'released' && numberHasInFlightOrder) {
         continue;
       }
 

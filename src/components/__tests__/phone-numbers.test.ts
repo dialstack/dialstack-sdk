@@ -119,6 +119,33 @@ describe('PhoneNumbersComponent merge', () => {
     expect(rowsText(el)).not.toContain('555-1234');
   });
 
+  it('keeps a re-ported number under In Progress when a released DID lingers from a cancelled order', async () => {
+    // A combined order was cancelled (leaving a `released` DID behind) and the
+    // number was re-submitted in a new port order (with a fresh `inactive`
+    // backing DID). The stale released DID must not mask the active port —
+    // otherwise the number shows under Cancelled and the in-flight port (here
+    // an exception needing customer action) is hidden.
+    const el = await mount(
+      makeInstance(
+        [
+          makeDID({ id: 'did_released', status: 'released' }),
+          makeDID({ id: 'did_inactive', status: 'inactive' }),
+        ],
+        [],
+        [makePort({ status: 'exception' })]
+      )
+    );
+
+    clickFilter(el, 'cancelled');
+    expect(rowsText(el)).not.toContain('555-1234');
+
+    clickFilter(el, 'in_progress');
+    expect(rowsText(el)).toContain('555-1234');
+    // ...and with the port's own status, not a stray order row — the whole
+    // point is surfacing the exception that needs customer action.
+    expect(rowsText(el)).toContain('Port Issue');
+  });
+
   it('shows the DID (not the order row) once its number is in completed_numbers', async () => {
     const el = await mount(
       makeInstance(
