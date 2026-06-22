@@ -215,7 +215,7 @@ describe('DialStackInstanceImplClass session behavior', () => {
       const instance = await newInstance();
       const accepted = {
         ...tosDoc,
-        acceptance: { version: '0-draft', accepted_at: 'now', pricing: tosDoc.pricing },
+        acceptance: { accepted_at: 'now', pricing: tosDoc.pricing },
       };
       mockFetch.mockResolvedValueOnce(mockJsonResponse(accepted));
 

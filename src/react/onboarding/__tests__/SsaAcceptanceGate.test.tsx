@@ -93,7 +93,7 @@ describe('SsaAcceptanceGate', () => {
     const accept = jest
       .fn()
       .mockRejectedValueOnce(new ApiError('stale', 409, 'tos_version_stale'))
-      .mockResolvedValueOnce({ ...freshTos, acceptance: { version: '1-final' } });
+      .mockResolvedValueOnce({ ...freshTos, acceptance: null });
     const { instance, onAccepted } = renderGate({
       instanceOverrides: {
         account: { tos: { accept, retrieve: jest.fn().mockResolvedValue(freshTos) } },

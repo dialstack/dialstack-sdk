@@ -79,13 +79,14 @@ const portalErrorHandler = (err: unknown) =>
   console.warn('OnboardingPortal: failed to load shared data:', err);
 
 /**
- * Whether the account still owes acceptance of the current agreement. True when
- * never accepted, or when the accepted version no longer matches the current one
- * (a material change requires re-acceptance).
+ * Whether the account still owes acceptance of the current agreement. The
+ * server only reports an acceptance that satisfies the *current* version — a
+ * superseded acceptance comes back as `null` — so presence is the signal here
+ * and a material change (version bump) re-prompts automatically.
  */
 function tosNeedsAcceptance(tos: Tos | null): tos is Tos {
   if (!tos) return false;
-  return !tos.acceptance || tos.acceptance.version !== tos.version;
+  return !tos.acceptance;
 }
 
 export const OnboardingPortal: React.FC<OnboardingPortalProps> = (props) => {

@@ -84,12 +84,11 @@ export interface AccountPricing {
 }
 
 /**
- * A recorded acceptance of the subscription agreement for an account. Absent
- * (`null`) until the account owner has accepted.
+ * A recorded acceptance of the subscription agreement for an account. Present
+ * only when it satisfies the current agreement version — a superseded
+ * acceptance comes back as `null`, the same as never having accepted.
  */
 export interface TosAcceptance {
-  /** The agreement version that was accepted. */
-  version: string;
   accepted_at: string;
   ip?: string;
   user_agent?: string;

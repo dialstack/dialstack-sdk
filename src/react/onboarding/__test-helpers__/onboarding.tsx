@@ -370,7 +370,6 @@ export function createMockInstance(overrides?: MockInstanceOverrides): DialStack
           ...mockTos,
           version,
           acceptance: {
-            version,
             accepted_at: new Date().toISOString(),
             pricing: mockTos.pricing,
           },

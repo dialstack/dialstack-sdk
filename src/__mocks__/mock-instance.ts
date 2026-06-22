@@ -196,7 +196,6 @@ export function createMockInstance(
       'may not work during a power or internet outage or if my registered address is out of date, ' +
       'and that I should keep a backup way to reach 911.',
     acceptance: {
-      version: '0-draft',
       accepted_at: '2025-01-01T00:00:00Z',
       pricing: mockTosPricing,
     },
