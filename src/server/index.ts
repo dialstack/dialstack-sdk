@@ -10,8 +10,18 @@
  *
  * const dialstack = new DialStack(process.env.DIALSTACK_API_KEY);
  *
- * // Create an account
- * const account = await dialstack.accounts.create({ email: 'test@example.com' });
+ * // Create an account (billing address and agreed pricing are required)
+ * const account = await dialstack.accounts.create({
+ *   email: 'test@example.com',
+ *   billing_address: {
+ *     street: '123 Main St',
+ *     city: 'New York',
+ *     state: 'NY',
+ *     postal_code: '10001',
+ *     country: 'US',
+ *   },
+ *   pricing: { per_user_rate: 1999, per_did_rate: 299, per_voiceai_location_rate: 4999 },
+ * });
  *
  * // Create a session for embedded components
  * const session = await dialstack.accountSessions.create({
@@ -139,9 +149,23 @@ export interface AccountConfig {
   timezone?: string;
 }
 
+export interface BillingAddress {
+  address_number?: string;
+  street: string;
+  unit?: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+}
+
 export interface AccountCreateParams {
   email?: string;
   config?: AccountConfig;
+  /** Billing address for the account. Required when creating an account. */
+  billing_address: BillingAddress;
+  /** Agreed monthly rates, in cents. Required when creating an account. */
+  pricing: AccountPricingParams;
 }
 
 export interface AccountUpdateParams {
@@ -157,16 +181,18 @@ export interface AccountListParams {
 }
 
 export interface AccountPricing {
-  per_user_rate: number | null;
-  per_did_rate: number | null;
-  per_voiceai_location_rate: number | null;
-}
-
-export interface AccountPricingUpdateParams {
   per_user_rate: number;
   per_did_rate: number;
   per_voiceai_location_rate: number;
 }
+
+export interface AccountPricingParams {
+  per_user_rate: number;
+  per_did_rate: number;
+  per_voiceai_location_rate: number;
+}
+
+export type AccountPricingUpdateParams = AccountPricingParams;
 
 export interface UserConfig {
   /**
@@ -1204,8 +1230,8 @@ export class DialStack {
   // ==========================================================================
 
   accounts = {
-    create: (params?: AccountCreateParams, options?: RequestOptions): Promise<Account> => {
-      return this._request('POST', '/v1/accounts', params || {}, options);
+    create: (params: AccountCreateParams, options?: RequestOptions): Promise<Account> => {
+      return this._request('POST', '/v1/accounts', params, options);
     },
 
     retrieve: (accountId: string, options?: RequestOptions): Promise<Account> => {
@@ -1239,10 +1265,7 @@ export class DialStack {
       return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
     },
 
-    /**
-     * Retrieve the agreed pricing singleton for an account. Rates are null
-     * until pricing has been set.
-     */
+    /** Retrieve the agreed pricing singleton for an account. */
     retrievePricing: (accountId: string, options?: RequestOptions): Promise<AccountPricing> => {
       return this._request('GET', `/v1/accounts/${accountId}/pricing`, undefined, options);
     },
