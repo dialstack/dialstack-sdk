@@ -70,7 +70,8 @@ export type ButtonParams =
 export type ButtonCompatibilityReason =
   | 'vendor_does_not_support_type'
   | 'position_out_of_range_for_model'
-  | 'device_has_no_owning_user';
+  | 'device_has_no_owning_user'
+  | 'park_slot_not_provisioned';
 
 export interface ButtonCompatibilityVerdict {
   supported: boolean;
