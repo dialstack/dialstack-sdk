@@ -186,6 +186,45 @@ export interface AccountPricing {
   per_voiceai_location_rate: number;
 }
 
+/**
+ * A webhook endpoint receives event notifications. Endpoints are mode-scoped:
+ * an endpoint created with a live key (and `livemode: true`) only receives
+ * events from live accounts; one created with a test key only receives events
+ * from sandbox accounts. The signing `secret` is returned only when the
+ * endpoint is created.
+ */
+export interface WebhookEndpoint {
+  id: string;
+  url: string;
+  livemode: boolean;
+  /** Subscribed event types, or `["*"]` for all events. */
+  enabled_events: string[];
+  status: 'enabled' | 'disabled';
+  description: string | null;
+  /** Present only on the create response. Store it to verify signatures. */
+  secret?: string;
+  created_at: string;
+}
+
+export interface WebhookEndpointCreateParams {
+  url: string;
+  /** Defaults to `["*"]` (all events) when omitted. */
+  enabled_events?: string[];
+  description?: string;
+}
+
+export interface WebhookEndpointUpdateParams {
+  url?: string;
+  enabled_events?: string[];
+  status?: 'enabled' | 'disabled';
+  description?: string | null;
+}
+
+export interface WebhookEndpointListParams {
+  limit?: number;
+  page?: string;
+}
+
 export interface AccountPricingParams {
   per_user_rate: number;
   per_did_rate: number;
@@ -1280,6 +1319,59 @@ export class DialStack {
       options?: RequestOptions
     ): Promise<AccountPricing> => {
       return this._request('POST', `/v1/accounts/${accountId}/pricing`, params, options);
+    },
+  };
+
+  /**
+   * Manage webhook endpoints. The mode of the endpoint (live vs sandbox) is
+   * determined by the API key used — a test key creates and lists sandbox
+   * endpoints, a live key creates and lists live endpoints.
+   */
+  webhookEndpoints = {
+    create: (
+      params: WebhookEndpointCreateParams,
+      options?: RequestOptions
+    ): Promise<WebhookEndpoint> => {
+      return this._request('POST', '/v1/webhook_endpoints', params, options);
+    },
+
+    retrieve: (webhookEndpointId: string, options?: RequestOptions): Promise<WebhookEndpoint> => {
+      return this._request('GET', `/v1/webhook_endpoints/${webhookEndpointId}`, undefined, options);
+    },
+
+    update: (
+      webhookEndpointId: string,
+      params: WebhookEndpointUpdateParams,
+      options?: RequestOptions
+    ): Promise<WebhookEndpoint> => {
+      return this._request('POST', `/v1/webhook_endpoints/${webhookEndpointId}`, params, options);
+    },
+
+    del: (webhookEndpointId: string, options?: RequestOptions): Promise<void> => {
+      return this._request(
+        'DELETE',
+        `/v1/webhook_endpoints/${webhookEndpointId}`,
+        undefined,
+        options
+      );
+    },
+
+    list: (
+      params?: WebhookEndpointListParams,
+      options?: RequestOptions
+    ): PaginatedList<WebhookEndpoint> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
+
+      const query = queryParams.toString();
+      const path = `/v1/webhook_endpoints${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<WebhookEndpoint>> => {
+        return this._request('GET', url, undefined, options);
+      };
+
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
     },
   };
 
