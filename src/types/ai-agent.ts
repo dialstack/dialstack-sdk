@@ -21,6 +21,8 @@ export interface SchedulingConfig {
 export interface AIAgent {
   id: string;
   name: string;
+  voice_app?: string;
+  /** @deprecated Use `voice_app`. Retained for backwards compatibility. */
   voice_app_id: string;
   persona_name?: string | null;
   greeting_name?: string | null;

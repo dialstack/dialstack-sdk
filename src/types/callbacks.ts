@@ -70,6 +70,10 @@ export interface IncomingCallEvent {
    * directly; omitted for ring groups, voice apps, dial plans, and other
    * shared destinations where no single user is known at ring time.
    */
+  user?: string;
+  /**
+   * @deprecated Use `user`. Retained for backwards compatibility.
+   */
   user_id?: string;
   /** When the call started ringing */
   timestamp: Date;

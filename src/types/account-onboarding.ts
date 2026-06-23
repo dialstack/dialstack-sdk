@@ -57,7 +57,11 @@ export interface Account {
   config: AccountConfig;
   /** True when the account has completed every onboarding step. */
   onboarding_complete: boolean;
+  hold_music_clip?: string | null;
+  /** @deprecated Use `hold_music_clip`. Retained for backwards compatibility. */
   hold_music_clip_id?: string | null;
+  main_location?: string | null;
+  /** @deprecated Use `main_location`. Retained for backwards compatibility. */
   main_location_id?: string | null;
   created_at: string;
   updated_at: string;
@@ -69,7 +73,11 @@ export interface UpdateAccountRequest {
   phone?: string;
   primary_contact_name?: string;
   config?: AccountConfig;
+  hold_music_clip?: string | null;
+  /** @deprecated Use `hold_music_clip`. Retained for backwards compatibility. */
   hold_music_clip_id?: string | null;
+  main_location?: string;
+  /** @deprecated Use `main_location`. Retained for backwards compatibility. */
   main_location_id?: string;
 }
 
@@ -183,6 +191,9 @@ export interface OnboardingLocation {
     longitude?: number;
     formatted_address?: string;
   };
+  /** ID of the primary phone number assigned to this location. */
+  primary_did?: string | null;
+  /** @deprecated Use `primary_did`. Retained for backwards compatibility. */
   primary_did_id?: string | null;
   e911_status?: 'none' | 'pending' | 'binding' | 'provisioned' | 'failed';
   /** @deprecated The operational-status field was retired; always "active". */
@@ -195,11 +206,18 @@ export interface OnboardingLocation {
 export interface CreateLocationRequest {
   name: string;
   address: LocationAddressInput;
+  /** ID of the primary phone number for this location. */
+  primary_did?: string;
+  /** @deprecated Use `primary_did`. Retained for backwards compatibility. */
+  primary_did_id?: string;
 }
 
 export interface UpdateLocationRequest {
   name?: string;
   address?: LocationAddressInput;
+  /** ID of the primary phone number for this location. */
+  primary_did?: string | null;
+  /** @deprecated Use `primary_did`. Retained for backwards compatibility. */
   primary_did_id?: string | null;
   config?: LocationConfig;
 }
@@ -211,6 +229,8 @@ export interface UpdateLocationRequest {
  */
 export interface OnboardingEndpoint {
   id: string;
+  user?: string;
+  /** @deprecated Use `user`. Retained for backwards compatibility. */
   user_id: string;
   name?: string;
   created_at: string;

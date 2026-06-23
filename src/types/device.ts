@@ -52,8 +52,12 @@ export interface Device {
    * their own — they inherit from the paired base and the handset
    * response carries `null` here.
    */
+  location?: string | null;
+  /** @deprecated Use `location`. Retained for backwards compatibility. */
   location_id?: string | null;
   /** Reusable programmable-key template bound to this device. */
+  button_template?: string | null;
+  /** @deprecated Use `button_template`. Retained for backwards compatibility. */
   button_template_id?: string | null;
   /** Current provisioning status */
   status: DeviceStatus;
@@ -94,6 +98,8 @@ export interface Device {
 
   // Deskphone-specific fields (present when type === 'deskphone')
   /** TypeID of the primary line */
+  primary_line?: string;
+  /** @deprecated Use `primary_line`. Retained for backwards compatibility. */
   primary_line_id?: string;
   /** Configured lines on this device */
   lines?: DeviceLine[];
@@ -132,20 +138,27 @@ export function isDECTBase(device: Device): boolean {
  * line; on DECT handsets one per extension.
  */
 export interface DeviceUserAssignment {
-  /** TypeID of the assigned user */
+  /**
+   * The assigned user. Expandable: the API returns the user's id string; when
+   * eager-loaded (e.g. by the admin BFF) it is the user summary object.
+   */
+  user?:
+    | string
+    | {
+        id: string;
+        name?: string | null;
+        email?: string | null;
+      };
+  /** @deprecated Use `user`. Retained for backwards compatibility. */
   user_id: string;
   /** TypeID of the device */
+  device?: string;
+  /** @deprecated Use `device`. Retained for backwards compatibility. */
   device_id: string;
   /** Line number on the device (deskphones; 1-based) */
   line_number?: number;
   /** ISO 8601 timestamp */
   created_at: string;
-  /** Assigned user summary (when eager-loaded) */
-  user?: {
-    id: string;
-    name?: string | null;
-    email?: string | null;
-  };
 }
 
 // ============================================================================
@@ -179,10 +192,14 @@ export interface DeviceLine {
   /** TypeID with `dln_` prefix */
   id: string;
   /** TypeID of the parent device */
+  device?: string;
+  /** @deprecated Use `device`. Retained for backwards compatibility. */
   device_id: string;
   /** Line number on the device (1-based) */
   line_number: number;
   /** TypeID of the associated endpoint, if any */
+  endpoint?: string;
+  /** @deprecated Use `endpoint`. Retained for backwards compatibility. */
   endpoint_id?: string;
   /** ISO 8601 timestamp */
   created_at: string;
@@ -211,8 +228,12 @@ export interface ProvisionedDevice {
   /** Human-friendly label for the deskphone. `null` when unassigned. */
   name?: string | null;
   /** Physical E911 location. `null` when unassigned. */
+  location?: string | null;
+  /** @deprecated Use `location`. Retained for backwards compatibility. */
   location_id?: string | null;
   /** Reusable programmable-key template bound to this deskphone. */
+  button_template?: string | null;
+  /** @deprecated Use `button_template`. Retained for backwards compatibility. */
   button_template_id?: string | null;
   /** Current provisioning status */
   status: DeviceStatus;
@@ -225,6 +246,8 @@ export interface ProvisionedDevice {
   /** ISO 8601 timestamp of last successful config fetch */
   last_provisioned_at?: string;
   /** TypeID of the primary line */
+  primary_line?: string;
+  /** @deprecated Use `primary_line`. Retained for backwards compatibility. */
   primary_line_id?: string;
   /** Configured lines on this device */
   lines?: DeviceLine[];
@@ -298,6 +321,8 @@ export interface CreateDeviceRequest {
   /** Multicell role. `dect_base` only. */
   multicell_role?: MulticellRole;
   /** Parent DECT base. `dect_handset` only; omit to stock as unpaired. */
+  base?: string;
+  /** @deprecated Use `base`. Retained for backwards compatibility. */
   base_id?: string;
   /** Handset IPEI. Required for `dect_handset`. */
   ipei?: string;
@@ -305,6 +330,8 @@ export interface CreateDeviceRequest {
    * Physical E911 location. Set on `deskphone` or `dect_base`; handsets
    * inherit from their paired base.
    */
+  location?: string;
+  /** @deprecated Use `location`. Retained for backwards compatibility. */
   location_id?: string;
 }
 
@@ -325,13 +352,19 @@ export interface UpdateDeviceRequest {
   /** Tri-state human-friendly label. */
   name?: string | null;
   /** Tri-state dispatch location. `deskphone` and `dect_base` only. */
+  location?: string | null;
+  /** @deprecated Use `location`. Retained for backwards compatibility. */
   location_id?: string | null;
   /** Tri-state programmable-key template binding. */
+  button_template?: string | null;
+  /** @deprecated Use `button_template`. Retained for backwards compatibility. */
   button_template_id?: string | null;
   /**
    * Tri-state parent base. `dect_handset` only — repair to a different
    * base (string) or unpair (`null`).
    */
+  base?: string | null;
+  /** @deprecated Use `base`. Retained for backwards compatibility. */
   base_id?: string | null;
 }
 
@@ -360,6 +393,8 @@ export interface ProvisioningEvent {
   /** TypeID with `preve_` prefix */
   id: string;
   /** TypeID of the device */
+  device?: string;
+  /** @deprecated Use `device`. Retained for backwards compatibility. */
   device_id: string;
   /** Type of event (e.g., "config_fetch", "config_error") */
   event_type: string;
@@ -378,6 +413,8 @@ export interface ProvisioningEvent {
  */
 export interface CreateDeskphoneLineRequest {
   /** TypeID of the endpoint to assign */
+  endpoint?: string;
+  /** @deprecated Use `endpoint`. Retained for backwards compatibility. */
   endpoint_id: string;
 }
 
@@ -386,6 +423,8 @@ export interface CreateDeskphoneLineRequest {
  */
 export interface UpdateDeskphoneLineRequest {
   /** TypeID of the new endpoint to assign */
+  endpoint?: string;
+  /** @deprecated Use `endpoint`. Retained for backwards compatibility. */
   endpoint_id: string;
 }
 

@@ -70,12 +70,17 @@ const MOCK_DIAL_PLAN_DEFAULT: DialPlan = {
     {
       id: 'sched_01',
       type: 'schedule',
-      config: { schedule_id: 'sched_01abc', open: 'dial_01', closed: undefined },
+      config: {
+        schedule: 'sched_01abc',
+        schedule_id: 'sched_01abc',
+        open: 'dial_01',
+        closed: undefined,
+      },
     },
     {
       id: 'dial_01',
       type: 'internal_dial',
-      config: { target_id: 'user_01abc', next: undefined },
+      config: { target: 'user_01abc', target_id: 'user_01abc', next: undefined },
     },
   ],
   created_at: '2025-01-01T00:00:00Z',
@@ -323,6 +328,7 @@ export function createMockInstance(
 
     voicemails: {
       retrieveTranscript: async (_voicemailId: string) => ({
+        voicemail: 'mock',
         voicemail_id: 'mock',
         status: 'completed' as const,
         text: 'Hello, this is a test voicemail. Please call me back when you get a chance. Thanks!',
@@ -369,8 +375,15 @@ export function createMockInstance(
           writable.directory_listing_type = update.directory_listing_type;
         if (update.directory_listing_name !== undefined)
           writable.directory_listing_name = update.directory_listing_name;
-        if (update.directory_listing_location_id !== undefined)
-          writable.directory_listing_location_id = update.directory_listing_location_id;
+        // Canonical `directory_listing_location` wins; fall back to the
+        // deprecated `_id` alias. Mirror onto both keys so the mock dual-emits
+        // like the real API.
+        const directoryListingLocation =
+          update.directory_listing_location ?? update.directory_listing_location_id;
+        if (directoryListingLocation !== undefined) {
+          writable.directory_listing_location = directoryListingLocation;
+          writable.directory_listing_location_id = directoryListingLocation;
+        }
         return { ...did };
       },
       updateRoute: async (phoneNumberId: string, routingTarget: string | null) => {
@@ -566,6 +579,7 @@ export function createMockInstance(
         return {
           id: 'aia_01abc',
           name: 'VoiceAI Agent',
+          voice_app: 'va_01abc',
           voice_app_id: 'va_01abc',
           persona_name: 'Receptionist',
           greeting_name: 'Sample Practice',
@@ -584,6 +598,7 @@ export function createMockInstance(
         return {
           id: aiAgentId,
           name: data.name ?? 'VoiceAI Agent',
+          voice_app: 'va_01abc',
           voice_app_id: 'va_01abc',
           persona_name: data.persona_name ?? null,
           greeting_name: data.greeting_name ?? null,
@@ -643,11 +658,16 @@ export function createMockInstance(
         ): Promise<DeviceLine> => {
           await delay();
           const existing = mockDeviceLines.get(deskphoneId) ?? [];
+          // Canonical `endpoint` wins; fall back to the deprecated `endpoint_id`
+          // alias. Mirror onto both keys so the mock dual-emits like the real API.
+          const endpoint = data.endpoint ?? data.endpoint_id;
           const line: DeviceLine = {
             id: 'dln_' + Math.random().toString(36).slice(2, 10),
+            device: deskphoneId,
             device_id: deskphoneId,
             line_number: existing.length + 1,
-            endpoint_id: data.endpoint_id,
+            endpoint,
+            endpoint_id: endpoint,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };
@@ -813,6 +833,7 @@ export function createMockInstance(
           const handsets = [
             {
               id: 'decth_mock001',
+              base: baseId,
               base_id: baseId,
               ipei: '00000000001',
               status: 'registered' as const,
@@ -825,6 +846,7 @@ export function createMockInstance(
             },
             {
               id: 'decth_mock002',
+              base: baseId,
               base_id: baseId,
               ipei: '00000000002',
               status: 'registered' as const,
@@ -856,8 +878,9 @@ export function createMockInstance(
           await delay();
           const ext: DECTExtension = {
             id: 'decte_' + Math.random().toString(36).slice(2, 10),
+            handset: handsetId,
             handset_id: handsetId,
-            endpoint_id: data.endpoint_id,
+            endpoint_id: data.endpoint ?? data.endpoint_id,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };
@@ -954,6 +977,7 @@ export function createMockInstance(
           await delay();
           const ep: OnboardingEndpoint = {
             id: 'ep_' + Math.random().toString(36).slice(2, 10),
+            user: userId,
             user_id: userId,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -1023,13 +1047,16 @@ export function createMockInstance(
         const idx = mockLocations.findIndex((l) => l.id === locationId);
         if (idx === -1) throw new Error('Location not found');
         const existing = mockLocations[idx]!;
+        // Canonical primary_did wins; fall back to the deprecated primary_did_id
+        // alias. Mirror onto both keys so the mock dual-emits like the real API.
+        const primaryDid = request.primary_did ?? request.primary_did_id;
         const updated: OnboardingLocation = {
           ...existing,
           ...(request.name !== undefined && { name: request.name }),
           ...(request.address !== undefined && {
             address: { ...existing.address, ...request.address },
           }),
-          ...(request.primary_did_id !== undefined && { primary_did_id: request.primary_did_id }),
+          ...(primaryDid !== undefined && { primary_did: primaryDid, primary_did_id: primaryDid }),
           updated_at: new Date().toISOString(),
         };
         mockLocations[idx] = updated;

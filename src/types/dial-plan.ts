@@ -16,6 +16,8 @@
  */
 export interface ScheduleNodeConfig {
   /** Reference to the schedule definition */
+  schedule?: string;
+  /** @deprecated Use `schedule`. Retained for backwards compatibility. */
   schedule_id: string;
   /** Node ID to route to when schedule is open */
   open?: string;
@@ -35,6 +37,8 @@ export interface ScheduleNodeConfig {
  */
 export interface InternalDialNodeConfig {
   /** User ID, group ID, or dial plan ID to dial */
+  target?: string;
+  /** @deprecated Use `target`. Retained for backwards compatibility. */
   target_id: string;
   /** Timeout in seconds before routing to next node */
   timeout?: number;
@@ -82,6 +86,8 @@ export interface MenuOption {
  */
 export interface MenuNodeConfig {
   /** Audio clip ID for the menu prompt */
+  prompt_clip?: string;
+  /** @deprecated Use `prompt_clip`. Retained for backwards compatibility. */
   prompt_clip_id: string;
   /** Seconds to wait for input (1-30) */
   timeout: number;
@@ -98,6 +104,8 @@ export interface MenuNodeConfig {
  */
 export interface AudioClipNodeConfig {
   /** Audio clip ID to play */
+  clip?: string;
+  /** @deprecated Use `clip`. Retained for backwards compatibility. */
   clip_id: string;
   /** Node ID to route to after playback (nil = terminate) */
   next?: string;
@@ -109,6 +117,8 @@ export interface AudioClipNodeConfig {
  */
 export interface VoiceAppNodeConfig {
   /** ID of the voice app to invoke (va_ prefix) */
+  voice_app?: string;
+  /** @deprecated Use `voice_app`. Retained for backwards compatibility. */
   voice_app_id: string;
   /**
    * Dispatch mode:

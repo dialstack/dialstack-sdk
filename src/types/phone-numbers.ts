@@ -32,6 +32,8 @@ export interface DIDItem {
   caller_id_name?: string | null;
   directory_listing_name?: string | null;
   directory_listing_type?: DirectoryListingType;
+  directory_listing_location?: string | null;
+  /** @deprecated Use `directory_listing_location`. Retained for backwards compatibility. */
   directory_listing_location_id?: string | null;
   routing_target?: string | null;
   created_at: string;
@@ -64,6 +66,8 @@ export interface UpdatePhoneNumberRequest {
   expires_at?: null;
   directory_listing_name?: string;
   directory_listing_type?: DirectoryListingType;
+  directory_listing_location?: string;
+  /** @deprecated Use `directory_listing_location`. Retained for backwards compatibility. */
   directory_listing_location_id?: string;
   caller_id_name?: string;
   caller_id_visibility?: 'PUBLIC' | 'PRIVATE';
@@ -123,8 +127,14 @@ export interface PhoneNumberItem {
   source: 'did' | 'number_order' | 'port_order';
   created_at: string;
   updated_at: string;
+  did?: string;
+  /** @deprecated Use `did`. Retained for backwards compatibility. */
   did_id?: string;
+  order?: string;
+  /** @deprecated Use `order`. Retained for backwards compatibility. */
   order_id?: string;
+  port_order?: string;
+  /** @deprecated Use `port_order`. Retained for backwards compatibility. */
   port_order_id?: string;
 }
 

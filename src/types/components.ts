@@ -202,6 +202,8 @@ export type CallLogRowRenderer = (call: CallLog) => string;
  */
 export interface QualityMetricLeg {
   leg: 'pstn' | 'endpoint';
+  endpoint?: string | null;
+  /** @deprecated Use `endpoint`. Retained for backwards compatibility. */
   endpoint_id?: string | null;
   jitter_ms?: number | null;
   jitter_min_ms?: number | null;
@@ -231,7 +233,11 @@ export interface CallLogDID {
 
 export interface CallLog {
   id: string;
+  user?: string | null;
+  /** @deprecated Use `user`. Retained for backwards compatibility. */
   user_id: string | null;
+  endpoint?: string | null;
+  /** @deprecated Use `endpoint`. Retained for backwards compatibility. */
   endpoint_id: string | null;
   /** @deprecated Use `did` (its id form). Retained for backwards compatibility. */
   did_id: string | null;
@@ -280,6 +286,8 @@ export interface Transcript {
  * Voicemail transcript data
  */
 export interface VoicemailTranscript {
+  voicemail?: string;
+  /** @deprecated Use `voicemail`. Retained for backwards compatibility. */
   voicemail_id: string;
   status: TranscriptStatus;
   text: string | null;

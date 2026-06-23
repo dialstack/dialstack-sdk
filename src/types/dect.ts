@@ -56,6 +56,8 @@ export interface DECTBase {
   last_provisioned_at?: string;
   /** Physical E911 location for this base. All handsets paired with this base
    *  share this location. `null` when unassigned. */
+  location?: string | null;
+  /** @deprecated Use `location`. Retained for backwards compatibility. */
   location_id?: string | null;
   /** Associated handsets (when eager-loaded) */
   handsets?: DECTHandset[];
@@ -87,6 +89,8 @@ export interface DECTHandset {
   id: string;
   /** Parent base station. `null` when the handset is stocked but not yet
    *  paired with a base — set this field to a base ID to pair it. */
+  base?: string | null;
+  /** @deprecated Use `base`. Retained for backwards compatibility. */
   base_id: string | null;
   /** International Portable Equipment Identity (20-char unique identifier) */
   ipei: string;
@@ -121,6 +125,8 @@ export interface DECTExtension {
   /** TypeID with `decte_` prefix */
   id: string;
   /** TypeID of the parent handset */
+  handset?: string;
+  /** @deprecated Use `handset`. Retained for backwards compatibility. */
   handset_id: string;
   /** TypeID of the SIP endpoint */
   endpoint_id: string;
@@ -202,6 +208,8 @@ export interface UpdateDECTHandsetRequest {
  */
 export interface CreateDECTExtensionRequest {
   /** TypeID of the SIP endpoint to assign */
+  endpoint?: string;
+  /** @deprecated Use `endpoint`. Retained for backwards compatibility. */
   endpoint_id: string;
   /** Optional display name override */
   display_name?: string;

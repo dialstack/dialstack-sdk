@@ -86,7 +86,11 @@ export interface ButtonCompatibilitySummary {
   };
   supported_count: number;
   unsupported: Array<{
+    template_button?: string | null;
+    /** @deprecated Use `template_button`. Retained for backwards compatibility. */
     template_button_id?: string | null;
+    override?: string | null;
+    /** @deprecated Use `override`. Retained for backwards compatibility. */
     override_id?: string | null;
     position: number;
     type: ButtonType;
@@ -111,6 +115,8 @@ export interface ButtonTemplateWithDetails extends ButtonTemplate {
 
 export interface TemplateButton {
   id: string;
+  template?: string;
+  /** @deprecated Use `template`. Retained for backwards compatibility. */
   template_id: string;
   position: number;
   label: string;
@@ -121,6 +127,8 @@ export interface TemplateButton {
 
 export interface DeviceButtonOverride {
   id: string;
+  device?: string;
+  /** @deprecated Use `device`. Retained for backwards compatibility. */
   device_id: string;
   position: number;
   suppressed: boolean;
@@ -136,7 +144,11 @@ export interface MaterializedButton {
   type: ButtonType;
   target: ButtonTarget;
   source: 'template' | 'override' | 'template_overridden';
+  template_button?: string | null;
+  /** @deprecated Use `template_button`. Retained for backwards compatibility. */
   template_button_id?: string | null;
+  override?: string | null;
+  /** @deprecated Use `override`. Retained for backwards compatibility. */
   override_id?: string | null;
   compatibility: ButtonCompatibilityVerdict;
 }
