@@ -47,6 +47,21 @@ export interface DIDItem {
 export interface DIDConfig {
   fax_notifications?: {
     recipients?: string[];
+    /**
+     * When true, fax documents are not retained on the server (defaults false).
+     * Inbound: the received fax is attached to the notification email and the
+     * stored copy is removed after sending. Outbound: the uploaded source is
+     * deleted once the fax reaches a terminal status (delivered or failed).
+     * When false, the email includes a time-bounded link to the received fax
+     * and documents are retained.
+     */
+    delete_documents?: boolean;
+    /**
+     * Deprecated, kept only for backwards compatibility. Accepted on input but
+     * ignored (not stored, no effect) and always returned as `true`. Use
+     * `delete_documents` to control document handling.
+     * @deprecated Use `delete_documents` instead.
+     */
     attach_pdf?: boolean;
   };
 }
