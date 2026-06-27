@@ -254,4 +254,48 @@ describe('PhoneNumbersComponent merge', () => {
     });
     expect(events[0]?.item.port_order_id).toBeUndefined();
   });
+
+  function statusBadge(el: PhoneNumbersEl): HTMLElement | null {
+    return el.shadowRoot.querySelector<HTMLElement>('tbody [part~="badge-status"]');
+  }
+
+  it('renders an approved port as a neutral pre-submission state, not active/green', async () => {
+    // `approved` means the customer signed the LOA — nothing has been sent to
+    // the carrier yet. It must not borrow the active number's green badge, and
+    // must read as pending rather than "Port Approved".
+    const el = await mount(
+      makeInstance([], [], [makePort({ status: 'approved', submitted_at: null })])
+    );
+
+    clickFilter(el, 'in_progress');
+    const badge = statusBadge(el);
+    expect(badge?.textContent).toBe('Ready to Submit');
+    expect(badge?.classList.contains('badge-info')).toBe(true);
+    expect(badge?.classList.contains('badge-active')).toBe(false);
+  });
+
+  it('hides the transfer date until the port has reached the carrier', async () => {
+    // requested_foc_date on an approved order is only a request — showing it as
+    // a transfer date implies a confirmed cutover that has not been scheduled.
+    const approved = await mount(
+      makeInstance([], [], [makePort({ status: 'approved', submitted_at: null })])
+    );
+    clickFilter(approved, 'in_progress');
+    expect(rowsText(approved)).not.toMatch(/Jun \d+, 2026/);
+
+    // Once submitted (submitted_at set), the date is meaningful and shown.
+    const submitted = await mount(makeInstance([], [], [makePort({ status: 'submitted' })]));
+    clickFilter(submitted, 'in_progress');
+    expect(rowsText(submitted)).toMatch(/Jun \d+, 2026/);
+  });
+
+  it('keeps the cutover date for a port that reached the carrier then hit an exception', async () => {
+    // A submitted/FOC port has a real cutover date; transitioning to exception
+    // (a carrier-side rejection after submission) must not erase it — that's
+    // exactly when the customer needs to see the affected date.
+    // makePort() defaults to submitted_at set + a requested_foc_date.
+    const el = await mount(makeInstance([], [], [makePort({ status: 'exception' })]));
+    clickFilter(el, 'in_progress');
+    expect(rowsText(el)).toMatch(/Jun \d+, 2026/);
+  });
 });

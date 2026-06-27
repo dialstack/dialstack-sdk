@@ -255,7 +255,7 @@ export const en = {
       ordering: 'Ordering',
       orderFailed: 'Order Failed',
       portingDraft: 'Port Draft',
-      portingApproved: 'Port Approved',
+      portingApproved: 'Ready to Submit',
       portingSubmitted: 'Port Submitted',
       portingException: 'Port Issue',
       portingFoc: 'Port Scheduled',
@@ -476,7 +476,7 @@ export const en = {
         porting_submitted: 'Port Submitted',
         porting_exception: 'Port Exception',
         porting_foc: 'Port Scheduled',
-        porting_approved: 'Port Approved',
+        porting_approved: 'Ready to Submit',
       },
       source: {
         did: 'Account',

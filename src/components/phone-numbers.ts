@@ -351,7 +351,16 @@ export class PhoneNumbersComponent extends BaseComponent {
           status: portStatus,
           outbound_enabled: null,
           carrier: port.details.losing_carrier?.name,
-          transfer_date: port.details.actual_foc_date || port.details.requested_foc_date,
+          // Only surface a transfer date once the order has actually reached the
+          // carrier (`submitted_at` set). A draft/approved order has only a
+          // *requested* FOC date with nothing scheduled yet, so showing it reads
+          // as a confirmed cutover. Gating on `submitted_at` rather than the
+          // status keeps the real cutover date visible for a port that reached
+          // the carrier and then hit an exception, and avoids duplicating the
+          // "in flight at the carrier" status list maintained elsewhere.
+          transfer_date: port.submitted_at
+            ? port.details.actual_foc_date || port.details.requested_foc_date
+            : undefined,
           routing_target: backing?.routing_target ?? null,
           source: 'port_order',
           created_at: port.created_at,
@@ -447,10 +456,9 @@ export class PhoneNumbersComponent extends BaseComponent {
         return 'badge-inactive';
       case 'released':
         return 'badge-released';
-      case 'porting_approved':
-        return 'badge-active';
       case 'ordering':
       case 'porting_draft':
+      case 'porting_approved':
       case 'porting_submitted':
       case 'porting_foc':
         return 'badge-info';
