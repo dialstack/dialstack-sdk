@@ -20,7 +20,7 @@
     "format": "prettier --write 'src/**/*.ts'"
   },
   "dependencies": {
-    "@dialstack/sdk": "^0.2.2-alpha.13",
+    "@dialstack/sdk": "^1.2.0",
     "@google/genai": "^2.10.0",
     "alawmulaw": "^6.0.0",
     "dotenv": "^17.0.0",
@@ -31,7 +31,7 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
-    "@types/node": "^25.9.3",
+    "@types/node": "^26.0.1",
     "@types/ws": "^8.5.0",
     "eslint": "^10.5.0",
     "prettier": "^3.8.4",
