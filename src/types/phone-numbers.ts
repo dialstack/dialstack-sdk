@@ -54,6 +54,10 @@ export interface DIDConfig {
      * deleted once the fax reaches a terminal status (delivered or failed).
      * When false, the email includes a time-bounded link to the received fax
      * and documents are retained.
+     *
+     * Requires at least one entry in `recipients`: enabling this with an empty
+     * recipient list is rejected, since a received fax would be neither stored
+     * nor delivered.
      */
     delete_documents?: boolean;
     /**
