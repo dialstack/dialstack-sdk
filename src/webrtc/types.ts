@@ -9,6 +9,20 @@ export type SettablePresenceStatus = 'available' | 'dnd' | 'away';
 export interface PhoneOptions {
   token: string;
   apiBaseUrl?: string;
+  /**
+   * Base URL of the signaling server the phone opens its WebSocket to, e.g.
+   * `wss://webrtc.dialstack.ai`. The signaling host is separate from
+   * `apiBaseUrl` (the REST API) and is served by region-aware infrastructure,
+   * so latency-based DNS routes each client to the nearest region
+   * automatically — no client-side region selection is needed.
+   *
+   * When omitted, it defaults to the standard signaling host derived from
+   * `apiBaseUrl` (the `api.` hostname label becomes `webrtc.`). Override only
+   * for self-hosting, staging, or a proxy. `ws`/`wss` and `http`/`https` are
+   * accepted; `http(s)` is upgraded to `ws(s)`. A trailing `/v1/webrtc` path
+   * is appended automatically if absent.
+   */
+  signalingBaseUrl?: string;
   onTokenExpiring?: () => Promise<string>;
   autoReconnect?: boolean;
   iceServers?: RTCIceServer[];

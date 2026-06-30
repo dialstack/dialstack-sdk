@@ -56,6 +56,7 @@ export class DialStackPhone {
 
   private token: string;
   private apiBaseUrl: string;
+  private signalingUrl: string;
   private autoReconnect: boolean;
   private iceServersOverride: RTCIceServer[] | null;
 
@@ -77,6 +78,7 @@ export class DialStackPhone {
   constructor(options: PhoneOptions) {
     this.token = options.token;
     this.apiBaseUrl = options.apiBaseUrl ?? DEFAULT_API_BASE_URL;
+    this.signalingUrl = resolveSignalingUrl(options.signalingBaseUrl, this.apiBaseUrl);
     this.autoReconnect = options.autoReconnect ?? true;
     this.iceServersOverride = options.iceServers ?? null;
     this.storageUserId = userIdFromToken(options.token);
@@ -108,8 +110,7 @@ export class DialStackPhone {
 
     this.iceServers = this.iceServersOverride ?? (await this.fetchIceServers());
 
-    const url = this.apiBaseUrl.replace(/^http/, 'ws') + '/v1/webrtc';
-    const transport = new Transport(url, this.autoReconnect);
+    const transport = new Transport(this.signalingUrl, this.autoReconnect);
     this.transport = transport;
 
     transport.on('open', () => {
@@ -600,6 +601,51 @@ export class DialStackPhone {
 // id is used only to namespace localStorage persistence, never for trust —
 // the server independently verifies the token and scopes every address by
 // the authenticated user. Returns null for undecodable/opaque tokens.
+// Resolves the WebSocket signaling URL the phone connects to.
+//
+// Precedence: a non-empty `signalingBaseUrl` wins; otherwise the default is
+// derived from `apiBaseUrl` by swapping the leading `api.` host label for
+// `webrtc.` (the signaling host is a separate, region-aware hostname). Hosts
+// that don't start with `api.` (self-host, proxies) are left unchanged. The
+// base is upgraded http(s)→ws(s) (case-insensitive) and gets the `/v1/webrtc`
+// path appended if it isn't already present.
+//
+// `||` (not `??`) so an explicit empty string falls back to the derived
+// default rather than producing a scheme-less relative URL.
+export function resolveSignalingUrl(
+  signalingBaseUrl: string | undefined,
+  apiBaseUrl: string
+): string {
+  const base = signalingBaseUrl || deriveDefaultSignalingBaseUrl(apiBaseUrl);
+  // Normalize the scheme token case-insensitively: http(s)->ws(s), lowercased.
+  // (A naive /^http/i would turn "HTTPS://" into the invalid "wsS://".)
+  let url = base
+    .replace(/^(https?|wss?):/i, (m) => {
+      const s = m.toLowerCase();
+      return s === 'http:' ? 'ws:' : s === 'https:' ? 'wss:' : s;
+    })
+    .replace(/\/+$/, '');
+  if (!url.endsWith('/v1/webrtc')) url += '/v1/webrtc';
+  return url;
+}
+
+function deriveDefaultSignalingBaseUrl(apiBaseUrl: string): string {
+  try {
+    const u = new URL(apiBaseUrl);
+    if (u.hostname.startsWith('api.')) {
+      u.hostname = 'webrtc.' + u.hostname.slice('api.'.length);
+    }
+    // Preserve any path prefix (e.g. a proxied `https://gw.example.com/api`)
+    // so the WS path matches where REST calls go; `.origin` would drop it.
+    // Trailing slashes are trimmed by resolveSignalingUrl.
+    return `${u.protocol}//${u.host}${u.pathname}`;
+  } catch {
+    // Not a parseable absolute URL (e.g. a relative base in a test harness) —
+    // fall back to the raw value; resolveSignalingUrl still normalises it.
+    return apiBaseUrl;
+  }
+}
+
 function userIdFromToken(token: string): string | null {
   try {
     const payload = token.split('.')[1];
