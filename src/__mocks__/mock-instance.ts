@@ -200,6 +200,10 @@ export function createMockInstance(
       'available at www.dialstack.ai/ssa, including its 911/E911 limitations, such as that 911 ' +
       'may not work during a power or internet outage or if my registered address is out of date, ' +
       'and that I should keep a backup way to reach 911.',
+    body:
+      '<h2>1. The Service</h2><p>Mock agreement body for stories and tests.</p>' +
+      '<h2 id="s7">7. Emergency Calls (911): Please Read This</h2>' +
+      '<p>911 on internet phone service has real limitations.</p>',
     acceptance: {
       accepted_at: '2025-01-01T00:00:00Z',
       pricing: mockTosPricing,

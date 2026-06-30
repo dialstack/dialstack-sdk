@@ -184,6 +184,7 @@ describe('DialStackInstanceImplClass session behavior', () => {
       version: '0-draft',
       url: 'https://www.dialstack.ai/ssa',
       content: 'I have read, understood, and agree...',
+      body: '<h2 id="s1">1. The Service</h2><p>Full agreement body.</p>',
       acceptance: null,
       pricing: { per_user_rate: 1500, per_did_rate: 200, per_voiceai_location_rate: 5000 },
     };

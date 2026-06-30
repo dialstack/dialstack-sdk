@@ -54,6 +54,10 @@ export const mockTos = {
   content:
     'I have read, understood, and agree to the DialStack Service Subscription Agreement, ' +
     'including its 911/E911 limitations.',
+  body:
+    '<p class="ssa-intro">Mock agreement body for tests.</p>' +
+    '<h2 id="s7">7. Emergency Calls (911): Please Read This</h2>' +
+    '<p>911 on internet phone service has real limitations.</p>',
   acceptance: null,
   pricing: {
     per_user_rate: 1500,

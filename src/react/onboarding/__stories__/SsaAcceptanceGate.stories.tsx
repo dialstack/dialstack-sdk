@@ -15,12 +15,17 @@ const SSA_PRICING = { per_user_rate: 1500, per_did_rate: 200, per_voiceai_locati
 
 const SSA_TOS: Tos = {
   version: '0-draft',
-  // The agreement is rendered inline from a bundled constant; this URL only
-  // backs the secondary "open the hosted copy" link.
+  // The agreement body is served by the tos API; this URL only backs the
+  // secondary "open the hosted copy" link.
   url: 'https://www.dialstack.ai/ssa',
   content:
     'I have read, understood, and agree to the Service Subscription Agreement, including its ' +
     '911/E911 limitations, such as that 911 may not work during a power or internet outage.',
+  body:
+    '<p class="ssa-intro">Mock agreement body for the gate story.</p>' +
+    '<h2 id="s1">1. The Service</h2><p>We provide a hosted internet phone (VoIP) service.</p>' +
+    '<h2 id="s7">7. Emergency Calls (911): Please Read This</h2>' +
+    '<p>911 on internet phone service has real limitations.</p>',
   acceptance: null,
   pricing: SSA_PRICING,
 };

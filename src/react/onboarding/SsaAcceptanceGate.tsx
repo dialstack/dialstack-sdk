@@ -18,7 +18,6 @@ import { ApiError } from '../../core/instance';
 import { computePortalCssVars, generateLayoutCssVars } from './design-tokens';
 import { ShadowContainer } from './ShadowRoot';
 import { useAppearance } from '../useAppearance';
-import { SSA_AGREEMENT_HTML } from './ssa-content';
 import type { Locale } from '../../locales';
 import type { Tos, AccountPricing, FormattingOptions } from '../../types';
 import SHARED_STYLES from './styles/styles.css';
@@ -192,6 +191,12 @@ export const SsaAcceptanceGate: React.FC<SsaAcceptanceGateProps> = ({
     currentTos.pricing.per_did_rate == null ||
     currentTos.pricing.per_voiceai_location_rate == null;
 
+  // Re-fetch the agreement in place (used by the missing-body retry below).
+  const reloadAgreement = async () => {
+    const fresh = await dialstack.account.tos.retrieve({ expand: ['pricing'] });
+    setCurrentTos(fresh);
+  };
+
   const handleAccept = async () => {
     setSubmitting(true);
     setError(null);
@@ -219,6 +224,22 @@ export const SsaAcceptanceGate: React.FC<SsaAcceptanceGateProps> = ({
     }
   };
 
+  // Fail closed when the agreement body is absent — an older API mid-deploy, a
+  // stale/cached response, or a 409 refresh that returned a body-less document.
+  // Never let the user accept an agreement whose body was not shown; route to the
+  // same retry screen as a load failure (so they have a way forward), and the
+  // narrowing makes `currentTos.body` a guaranteed string below.
+  if (!currentTos.body) {
+    return (
+      <SsaGateLoadError
+        locale={locale}
+        theme={theme}
+        appearance={appearance}
+        onRetry={reloadAgreement}
+      />
+    );
+  }
+
   return (
     <ShadowContainer stylesheets={STYLESHEETS} style={{ height: '100vh', width: '100%' }}>
       <div className="ssa-gate" style={hostStyle}>
@@ -230,14 +251,18 @@ export const SsaAcceptanceGate: React.FC<SsaAcceptanceGateProps> = ({
             <PricingSummary pricing={currentTos.pricing} locale={locale} formatting={formatting} />
           )}
 
-          {/* Static, authored agreement text (see ssa-content.ts) — no user
-              input or interpolation, so this is not an injection vector. */}
+          {/* Agreement body served by the tos API (the single source of truth,
+              pinned to the accepted version). It is first-party-authored,
+              DialStack-owned legal text with no user input or interpolation, so
+              rendering it raw is not an injection vector. Revisit if the body
+              ever becomes per-account or templated. A missing body never reaches
+              here — it fails closed above. */}
           <div
             className="ssa-agreement"
             role="region"
             aria-label={ssa.agreementLabel}
             tabIndex={0}
-            dangerouslySetInnerHTML={{ __html: SSA_AGREEMENT_HTML }}
+            dangerouslySetInnerHTML={{ __html: currentTos.body }}
           />
 
           <a

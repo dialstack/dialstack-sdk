@@ -61,6 +61,25 @@ describe('SsaAcceptanceGate', () => {
     await waitFor(() => expect(onAccepted).toHaveBeenCalled());
   });
 
+  it('fails closed with a retry when the agreement body is missing', async () => {
+    // Mixed-version deploy / stale response: the API did not return `body`. The
+    // gate must not let the user accept an agreement whose body was never shown —
+    // it routes to the load-error screen (with retry) instead.
+    renderGate({ tos: { body: '' } });
+    expect(screen.getByText(ssa.loadError.title)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: ssa.accept })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: ssa.agreementLabel })).not.toBeInTheDocument();
+
+    // Retry re-fetches the agreement; the mock returns a body, so the gate
+    // recovers into the normal accept flow rather than stranding the user.
+    fireEvent.click(screen.getByRole('button', { name: ssa.loadError.retry }));
+    await waitFor(() =>
+      expect(screen.getByRole('region', { name: ssa.agreementLabel })).toBeInTheDocument()
+    );
+    expect(screen.getByRole('button', { name: ssa.accept })).toBeInTheDocument();
+  });
+
   it('shows a dead-end message and no Accept button when pricing is not set', () => {
     renderGate({
       tos: {

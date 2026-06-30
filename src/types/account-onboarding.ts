@@ -114,8 +114,14 @@ export interface Tos {
   version: string;
   /** Canonical URL of the full agreement. */
   url: string;
-  /** The acceptance language to affirm (includes the 911/E911 acknowledgement). */
+  /** The short affirmation to tick (the checkbox label, including the 911/E911 acknowledgement). */
   content: string;
+  /**
+   * Full agreement text (HTML) to render as the agreement body. Optional: an
+   * older API during a mixed-version deploy may omit it, so consumers must
+   * handle its absence (the acceptance gate fails closed when it is missing).
+   */
+  body?: string;
   /** The latest acceptance for this account, or `null` if never accepted. */
   acceptance: TosAcceptance | null;
   /** Present only when expanded; `null` when the account's pricing is incomplete. */
