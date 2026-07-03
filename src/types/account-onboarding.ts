@@ -46,6 +46,12 @@ export interface AccountConfig {
   timezone?: string;
   max_phone_numbers?: number;
   e911_notification?: E911NotificationConfig;
+  /**
+   * Account-level override for whether the managed AI agent is offered when
+   * creating a voice app. Tri-state: null/undefined inherits the platform
+   * default, `true` shows it, `false` hides it.
+   */
+  default_agent_visible?: boolean | null;
 }
 
 export interface Account {

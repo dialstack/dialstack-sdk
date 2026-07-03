@@ -147,6 +147,12 @@ export interface AccountConfig {
   transcription_enabled?: boolean;
   /** IANA timezone (default: "UTC") */
   timezone?: string;
+  /**
+   * Account-level override for whether the managed AI agent is offered when
+   * creating a voice app. Tri-state: null/undefined inherits the platform
+   * default, `true` shows it, `false` hides it.
+   */
+  default_agent_visible?: boolean | null;
 }
 
 export interface BillingAddress {
