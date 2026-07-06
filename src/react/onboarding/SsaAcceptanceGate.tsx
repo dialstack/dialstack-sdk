@@ -29,6 +29,12 @@ const GATE_CSS = `
   overflow-y: auto;
   display: flex;
   justify-content: center;
+  /* align-items defaults to stretch, which would stretch .ssa-gate-inner to
+     the full viewport height. Its column children (cards with overflow:auto,
+     whose flex min-height then resolves to 0) would be squeezed below their
+     content and clip — e.g. the pricing values. flex-start keeps the inner at
+     its natural height so this overflow scrolls here instead. */
+  align-items: flex-start;
   background: var(--ds-color-background, #fff);
   color: var(--ds-color-text, #1a1a1a);
 }
