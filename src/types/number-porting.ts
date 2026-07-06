@@ -49,13 +49,7 @@ export interface ApprovePortOrderRequest {
 }
 
 export type PortOrderStatus =
-  | 'draft'
-  | 'approved'
-  | 'submitted'
-  | 'exception'
-  | 'foc'
-  | 'complete'
-  | 'cancelled';
+  'draft' | 'approved' | 'submitted' | 'exception' | 'foc' | 'complete' | 'cancelled';
 
 export interface PortNumberEligibility {
   phone_number: string;

@@ -394,8 +394,7 @@ export class AIAgentComponent extends BaseComponent {
       ) => AIAgentHostCreateResult | Promise<AIAgentHostCreateResult>)
     | undefined;
   private onSaveRequested:
-    | ((payload: AIAgentHostSubmitPayload) => void | Promise<void>)
-    | undefined;
+    ((payload: AIAgentHostSubmitPayload) => void | Promise<void>) | undefined;
   private onCheckExtensionAvailability:
     | ((
         extensionNumber: string

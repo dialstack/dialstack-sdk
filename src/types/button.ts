@@ -68,9 +68,7 @@ export type ButtonParams =
   | { type: 'record_toggle'; target?: Record<string, never> };
 
 export type ButtonCompatibilityReason =
-  | 'vendor_does_not_support_type'
-  | 'position_out_of_range_for_model'
-  | 'device_has_no_owning_user';
+  'vendor_does_not_support_type' | 'position_out_of_range_for_model' | 'device_has_no_owning_user';
 
 export interface ButtonCompatibilityVerdict {
   supported: boolean;

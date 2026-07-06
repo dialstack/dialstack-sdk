@@ -6,10 +6,4 @@
  * rather than redeclaring the union per call site.
  */
 export type QueueStrategy =
-  | 'ringall'
-  | 'linear'
-  | 'rrmemory'
-  | 'leastrecent'
-  | 'fewestcalls'
-  | 'random'
-  | 'wrandom';
+  'ringall' | 'linear' | 'rrmemory' | 'leastrecent' | 'fewestcalls' | 'random' | 'wrandom';

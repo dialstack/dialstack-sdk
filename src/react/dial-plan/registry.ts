@@ -68,8 +68,7 @@ export class NodeTypeRegistry {
     const edges: Edge[] = [];
     for (const exit of reg.exits) {
       const targetId = (node.config as unknown as Record<string, unknown>)[exit.configKey] as
-        | string
-        | undefined;
+        string | undefined;
       if (targetId && nodeMap.has(targetId)) {
         edges.push({
           id: `${node.id}-${exit.id}->${targetId}`,

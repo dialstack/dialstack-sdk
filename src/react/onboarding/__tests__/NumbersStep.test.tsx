@@ -1893,8 +1893,7 @@ describe('NumbersStep', () => {
     ) {
       // Merge portOrders overrides with the multiCarrier checkEligibility default
       const portOrdersOverride = (overrides as Record<string, unknown>)?.portOrders as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       const { portOrders: _discarded, ...restOverrides } = (overrides || {}) as Record<
         string,
         unknown

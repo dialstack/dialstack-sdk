@@ -824,8 +824,7 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
       if (!onNodeClick) return;
       if (node.id === '__start__') return;
       const originalNode = (node.data as Record<string, unknown>)?.originalNode as
-        | DialPlanNode
-        | undefined;
+        DialPlanNode | undefined;
       if (originalNode) onNodeClick(node.id, originalNode);
     },
     [onNodeClick]

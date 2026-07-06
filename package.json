@@ -123,12 +123,12 @@
     "@types/jest": "^30.0.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@typescript-eslint/eslint-plugin": "^8.62.0",
-    "@typescript-eslint/parser": "^8.54.0",
+    "@typescript-eslint/eslint-plugin": "^8.62.1",
+    "@typescript-eslint/parser": "^8.62.1",
     "@xyflow/react": "^12.11.1",
     "canvas-confetti": "^1.9.4",
     "dagre": "^0.8.5",
-    "eslint": "^10.5.0",
+    "eslint": "^10.6.0",
     "eslint-plugin-compat": "^7.0.2",
     "eslint-plugin-react": "^7.0.0",
     "eslint-plugin-react-hooks": "^7.1.1",
@@ -136,19 +136,19 @@
     "http-server": "^14.1.1",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
-    "prettier": "^3.8.4",
+    "prettier": "^3.9.4",
     "rollup": "^4.62.2",
     "storybook": "^10.2.13",
     "ts-jest": "^29.4.9",
     "tslib": "^2.8.1",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.62.0"
+    "typescript-eslint": "^8.62.1"
   },
   "engines": {
     "node": ">=20.0.0"
   },
   "dependencies": {
     "cmdk": "^1.1.1",
-    "libphonenumber-js": "^1.13.7"
+    "libphonenumber-js": "^1.13.8"
   }
 }

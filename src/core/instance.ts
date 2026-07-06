@@ -133,12 +133,7 @@ const SESSION_RETRY_INTERVAL_MS = 1 * 60 * 1000; // 1 minute retry on error
 const MAX_STREAM_AUTH_FAILURES = 3;
 
 export type RoutingTargetType =
-  | 'user'
-  | 'dial_plan'
-  | 'voice_app'
-  | 'ring_group'
-  | 'queue'
-  | 'shared_voicemail';
+  'user' | 'dial_plan' | 'voice_app' | 'ring_group' | 'queue' | 'shared_voicemail';
 
 /** Canonical mapping from TypeID prefix to API path and routing target type. */
 export const ROUTING_TARGET_TYPES: Record<string, { path: string; type: RoutingTargetType }> = {

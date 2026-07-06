@@ -660,17 +660,10 @@ export interface RingGroupAddMemberParams {
 // reaching outside the server bundle. Keep the two unions in lockstep
 // until the bundler config is widened.
 export type QueueStrategy =
-  | 'ringall'
-  | 'linear'
-  | 'rrmemory'
-  | 'leastrecent'
-  | 'fewestcalls'
-  | 'random'
-  | 'wrandom';
+  'ringall' | 'linear' | 'rrmemory' | 'leastrecent' | 'fewestcalls' | 'random' | 'wrandom';
 
 export type QueueTimeout =
-  | { type: 'ring_user'; user: string }
-  | { type: 'voicemail'; voicemail: string };
+  { type: 'ring_user'; user: string } | { type: 'voicemail'; voicemail: string };
 
 /**
  * Press-1 callback configuration on a Queue. The Queue's `callback` field is
