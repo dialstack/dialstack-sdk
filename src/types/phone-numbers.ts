@@ -19,6 +19,13 @@ export interface PaginatedResponse<T> {
 /**
  * A DID (Direct Inward Dial) as returned by the API
  */
+/**
+ * How inbound calls to a number are handled. `default` follows `routing_target`
+ * (routing to the target when set, otherwise ringing all users on the account);
+ * `drop` deliberately drops inbound calls with no ring and no message.
+ */
+export type InboundRouting = 'default' | 'drop';
+
 export interface DIDItem {
   id: string;
   phone_number: string;
@@ -36,6 +43,8 @@ export interface DIDItem {
   /** @deprecated Use `directory_listing_location`. Retained for backwards compatibility. */
   directory_listing_location_id?: string | null;
   routing_target?: string | null;
+  /** Inbound call handling. `routing_target` is null when this is `drop`. */
+  inbound_routing: InboundRouting;
   created_at: string;
   updated_at: string;
 }
@@ -141,6 +150,11 @@ export interface PhoneNumberItem {
   fax_enabled?: boolean;
   caller_id_name?: string | null;
   routing_target?: string | null;
+  /**
+   * Inbound call handling. `routing_target` is null when this is `drop`.
+   * Number-order and port-order rows are not yet DIDs and are always `default`.
+   */
+  inbound_routing: InboundRouting;
   carrier?: string;
   transfer_date?: string;
   source: 'did' | 'number_order' | 'port_order';

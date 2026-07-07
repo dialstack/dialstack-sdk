@@ -52,6 +52,7 @@ export type {
   // Phone numbers types
   PaginatedResponse,
   DIDItem,
+  InboundRouting,
   DirectoryListingType,
   UpdatePhoneNumberRequest,
   SmsPortOutWindow,

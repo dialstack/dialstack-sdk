@@ -102,6 +102,7 @@ export type {
 export type {
   PaginatedResponse,
   DIDItem,
+  InboundRouting,
   DIDConfig,
   DirectoryListingType,
   UpdatePhoneNumberRequest,

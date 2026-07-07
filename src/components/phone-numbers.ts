@@ -15,6 +15,7 @@ import type {
   PhoneNumbersClasses,
   PaginatedResponse,
   DIDItem,
+  InboundRouting,
   NumberOrder,
   PortOrder,
 } from '../types';
@@ -247,7 +248,10 @@ export class PhoneNumbersComponent extends BaseComponent {
     // any routing target already assigned), so index it instead and graft it onto
     // the synthetic row below. That lets a number be routed before its order
     // completes, so it routes the instant it activates — no scramble at FOC.
-    const backingInactiveDids = new Map<string, { id: string; routing_target?: string | null }>();
+    const backingInactiveDids = new Map<
+      string,
+      { id: string; routing_target?: string | null; inbound_routing?: InboundRouting }
+    >();
 
     // Numbers that have a non-released (active or inactive) DID. A `released` DID
     // for one of these is a stale leftover from a cancelled/superseded order — the
@@ -266,6 +270,7 @@ export class PhoneNumbersComponent extends BaseComponent {
         backingInactiveDids.set(did.phone_number, {
           id: did.id,
           routing_target: did.routing_target,
+          inbound_routing: did.inbound_routing,
         });
         continue;
       }
@@ -296,6 +301,7 @@ export class PhoneNumbersComponent extends BaseComponent {
         fax_enabled: did.fax_enabled,
         caller_id_name: did.caller_id_name,
         routing_target: did.routing_target,
+        inbound_routing: did.inbound_routing,
         source: 'did',
         created_at: did.created_at,
         updated_at: did.updated_at,
@@ -319,6 +325,7 @@ export class PhoneNumbersComponent extends BaseComponent {
           status: isFailed ? 'order_failed' : 'ordering',
           outbound_enabled: null,
           routing_target: backing?.routing_target ?? null,
+          inbound_routing: backing?.inbound_routing ?? 'default',
           source: 'number_order',
           created_at: order.created_at,
           updated_at: order.updated_at,
@@ -362,6 +369,7 @@ export class PhoneNumbersComponent extends BaseComponent {
             ? port.details.actual_foc_date || port.details.requested_foc_date
             : undefined,
           routing_target: backing?.routing_target ?? null,
+          inbound_routing: backing?.inbound_routing ?? 'default',
           source: 'port_order',
           created_at: port.created_at,
           updated_at: port.updated_at,
