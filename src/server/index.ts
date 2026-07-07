@@ -1544,6 +1544,30 @@ export class DialStack {
     retrieveTranscript: (callId: string, options?: RequestOptions): Promise<Transcript> => {
       return this._request('GET', `/v1/calls/${callId}/transcript`, undefined, options);
     },
+
+    /**
+     * Pause recording on an active call — e.g. while an agent collects a
+     * customer's payment card number so the sensitive audio is never captured.
+     * Recording stays paused until {@link resumeRecording} or the call ends;
+     * both parties hear a short confirmation tone.
+     */
+    pauseRecording: (
+      callId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request('POST', `/v1/calls/${callId}/recording/pause`, undefined, options);
+    },
+
+    /**
+     * Resume a recording previously paused with {@link pauseRecording}. Both
+     * parties hear a short confirmation tone.
+     */
+    resumeRecording: (
+      callId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request('POST', `/v1/calls/${callId}/recording/resume`, undefined, options);
+    },
   };
 
   voiceApps = {
