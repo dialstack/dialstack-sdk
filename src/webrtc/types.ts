@@ -147,6 +147,10 @@ export type ServerMessage =
       req_id?: string | null;
       call_id?: string | null;
       fatal?: boolean;
+      // Optional per-concern detail; which fields are present depends on `code`.
+      // For `presence_unavailable`, `context.users` names the requested users
+      // whose presence subscription could not be established.
+      context?: { users?: string[] };
     }
   | { type: 'call.trying'; call_id: string; req_id?: string | null }
   | { type: 'call.ringing'; call_id: string }
