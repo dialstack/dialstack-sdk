@@ -8,11 +8,10 @@ import type {
   Device,
   DECTBase,
   DECTHandset,
-  OnboardingEndpoint,
+  DeviceUserAssignment,
   OnboardingLocation,
 } from '../../../../types';
 import type { Extension } from '../../../../types/dial-plan';
-import type { DialStackInstance } from '../../../../types';
 import { useOnboarding } from '../../OnboardingContext';
 import { StepNavigation } from '../../StepNavigation';
 import { ErrorAlert } from '../../components/ErrorAlert';
@@ -21,69 +20,55 @@ import { DeviceCard } from './DeviceCard';
 import type { AssignableDevice } from './DeviceCard';
 
 // ============================================================================
-// Types
-// ============================================================================
-
-interface InitialDeviceRecord {
-  type: 'line' | 'dect';
-  recordId: string;
-  endpointId: string;
-  deviceId: string;
-  baseId?: string;
-  handsetId?: string;
-}
-
-// ============================================================================
 // Pure helpers
 // ============================================================================
 
+/** Resolve the assigned user's TypeID from an assignment (the API returns the
+ *  id string, or a summary object when eager-loaded). */
+function assignmentUserId(assignment: DeviceUserAssignment): string | undefined {
+  const { user } = assignment;
+  if (typeof user === 'string') return user;
+  if (user && typeof user === 'object') return user.id;
+  return assignment.user_id;
+}
+
+/** First assignment whose user is one of the onboarding users. */
+function firstKnownAssignedUser(
+  assignments: DeviceUserAssignment[] | undefined,
+  knownUserIds: Set<string>
+): string | undefined {
+  for (const a of assignments ?? []) {
+    const userId = assignmentUserId(a);
+    if (userId && knownUserIds.has(userId)) return userId;
+  }
+  return undefined;
+}
+
+/**
+ * Reconstruct the current device→user assignments from the device-assignment
+ * data (`Device.assignments` on deskphones, `DECTHandset.assignments` on
+ * handsets), keyed by the assignable device id.
+ */
 function buildInitialAssignments(
   devices: Device[],
   dectHandsets: Map<string, DECTHandset[]>,
-  userEndpointMap: Map<string, OnboardingEndpoint[]>
-): { assignments: Map<string, string>; initialRecords: Map<string, InitialDeviceRecord> } {
-  const endpointToUser = new Map<string, string>();
-  for (const [userId, eps] of userEndpointMap.entries()) {
-    for (const ep of eps) endpointToUser.set(ep.id, userId);
-  }
-
+  knownUserIds: Set<string>
+): Map<string, string> {
   const assignments = new Map<string, string>();
-  const initialRecords = new Map<string, InitialDeviceRecord>();
 
   for (const dev of devices) {
-    const lines = dev.lines ?? [];
-    const assignedLine = lines.find((l) => l.endpoint_id && endpointToUser.has(l.endpoint_id));
-    if (assignedLine) {
-      const userId = endpointToUser.get(assignedLine.endpoint_id!)!;
-      assignments.set(dev.id, userId);
-      initialRecords.set(dev.id, {
-        type: 'line',
-        recordId: assignedLine.id,
-        endpointId: assignedLine.endpoint_id!,
-        deviceId: dev.id,
-      });
-    }
+    const userId = firstKnownAssignedUser(dev.assignments, knownUserIds);
+    if (userId) assignments.set(dev.id, userId);
   }
 
-  for (const [baseId, handsets] of dectHandsets.entries()) {
+  for (const handsets of dectHandsets.values()) {
     for (const hs of handsets) {
-      const ext = (hs.extensions ?? []).find((e) => endpointToUser.has(e.endpoint_id));
-      if (ext) {
-        const userId = endpointToUser.get(ext.endpoint_id)!;
-        assignments.set(hs.id, userId);
-        initialRecords.set(hs.id, {
-          type: 'dect',
-          recordId: ext.id,
-          endpointId: ext.endpoint_id,
-          deviceId: hs.id,
-          baseId,
-          handsetId: hs.id,
-        });
-      }
+      const userId = firstKnownAssignedUser(hs.assignments, knownUserIds);
+      if (userId) assignments.set(hs.id, userId);
     }
   }
 
-  return { assignments, initialRecords };
+  return assignments;
 }
 
 function getAllAssignableDevices(
@@ -110,34 +95,6 @@ function getAllAssignableDevices(
     }
   }
   return result;
-}
-
-async function ensureEndpoint(
-  userId: string,
-  userEndpointMap: Map<string, OnboardingEndpoint[]>,
-  dialstack: DialStackInstance
-): Promise<{ endpoint: OnboardingEndpoint; isNew: boolean }> {
-  const existing = userEndpointMap.get(userId) ?? [];
-  if (existing.length > 0) return { endpoint: existing[0]!, isNew: false };
-  const endpoint = await dialstack.users.endpoints.create(userId);
-  return { endpoint, isNew: true };
-}
-
-async function deleteDeviceRecord(
-  record: {
-    type: 'line' | 'dect';
-    recordId: string;
-    deviceId: string;
-    baseId?: string;
-    handsetId?: string;
-  },
-  dialstack: DialStackInstance
-): Promise<void> {
-  if (record.type === 'line') {
-    await dialstack.deskphones.lines.del(record.deviceId, record.recordId);
-  } else if (record.baseId && record.handsetId) {
-    await dialstack.dectBases.extensions.del(record.baseId, record.handsetId, record.recordId);
-  }
 }
 
 // ============================================================================
@@ -174,13 +131,10 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
   const [devices, setDevices] = useState<Device[]>([]);
   const [dectBases, setDectBases] = useState<DECTBase[]>([]);
   const [dectHandsets, setDectHandsets] = useState<Map<string, DECTHandset[]>>(new Map());
-  const [userEndpointMap, setUserEndpointMap] = useState<Map<string, OnboardingEndpoint[]>>(
-    new Map()
-  );
   const [deviceAssignments, setDeviceAssignments] = useState<Map<string, string>>(new Map());
-  const [initialDeviceRecords, setInitialDeviceRecords] = useState<
-    Map<string, InitialDeviceRecord>
-  >(new Map());
+  // Frozen snapshot of the assignments loaded from the server; the submit diffs
+  // the current assignments against it to decide what to add/remove.
+  const [initialAssignments, setInitialAssignments] = useState<Map<string, string>>(new Map());
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -217,7 +171,7 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
   }, []);
 
   // Load device-specific data (users/extensions/locations come from context).
-  // Only seed deviceAssignments / initialDeviceRecords on the FIRST load —
+  // Only seed deviceAssignments / initialAssignments on the FIRST load —
   // a parent-triggered reload (e.g. from the previous step's handleDone)
   // could otherwise wipe in-flight user clicks that haven't been submitted.
   const hasSeededRef = useRef(false);
@@ -227,55 +181,45 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
       if (!hasSeededRef.current) setIsLoading(true);
       setLoadError(null);
       try {
+        // expand[]=users hydrates Device.assignments in the same list call.
         const [devicesResult, dectBasesResult] = await Promise.all([
-          dialstack.devices.list({ type: 'deskphone' }).catch(() => [] as Device[]),
+          dialstack.devices
+            .list({ type: 'deskphone', expand: ['users'] })
+            .catch(() => [] as Device[]),
           dialstack.dectBases.list().catch(() => [] as DECTBase[]),
         ]);
 
         if (cancelled) return;
 
         const devices = devicesResult ?? [];
-        await Promise.all(
-          devices.map(async (dev) => {
-            dev.lines = await dialstack.deskphones.lines.list(dev.id);
-          })
-        );
-
-        if (cancelled) return;
-
         const dectBases = dectBasesResult ?? [];
         const handsetMap = new Map<string, DECTHandset[]>();
+        // Handset IDs are device IDs, so their assignments come from the
+        // device-assignment endpoint (there is no expand on the handset list).
         await Promise.all(
           dectBases.map(async (b) => {
             const hs = await dialstack.dectBases.handsets.list(b.id);
+            await Promise.all(
+              hs.map(async (h) => {
+                h.assignments = await dialstack.devices.users.list(h.id).catch(() => []);
+              })
+            );
             handsetMap.set(b.id, hs);
           })
         );
 
         if (cancelled) return;
 
-        const endpointMap = new Map<string, OnboardingEndpoint[]>();
-        await Promise.all(
-          contextUsers.map(async (u) => {
-            const eps = await dialstack.users.endpoints.list(u.id);
-            endpointMap.set(u.id, eps);
-          })
-        );
-
+        const knownUserIds = new Set(contextUsers.map((u) => u.id));
         const loc = contextLocations[0] ?? null;
-        const { assignments, initialRecords } = buildInitialAssignments(
-          devices,
-          handsetMap,
-          endpointMap
-        );
+        const assignments = buildInitialAssignments(devices, handsetMap, knownUserIds);
 
         setDevices(devices);
         setDectBases(dectBases);
         setDectHandsets(handsetMap);
-        setUserEndpointMap(endpointMap);
         if (!hasSeededRef.current) {
           setDeviceAssignments(assignments);
-          setInitialDeviceRecords(initialRecords);
+          setInitialAssignments(assignments);
           hasSeededRef.current = true;
         }
         setIsLoading(false);
@@ -340,66 +284,27 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
     setIsSubmitting(true);
     setActionError(null);
 
-    // We need a mutable copy of the endpoint map for ensureEndpoint
-    const localEndpointMap = new Map(userEndpointMap);
-
     try {
-      // Remove stale assignments
-      for (const [deviceId, initial] of initialDeviceRecords.entries()) {
-        const currentUserId = deviceAssignments.get(deviceId);
-        if (!currentUserId) {
-          await deleteDeviceRecord(initial, dialstack);
-          continue;
-        }
-        const { endpoint, isNew } = await ensureEndpoint(
-          currentUserId,
-          localEndpointMap,
-          dialstack
-        );
-        if (isNew) {
-          const existing = localEndpointMap.get(currentUserId) ?? [];
-          localEndpointMap.set(currentUserId, [...existing, endpoint]);
-        }
-        if (endpoint.id !== initial.endpointId) {
-          await deleteDeviceRecord(initial, dialstack);
+      // Remove assignments the user changed or cleared. Do all removals before
+      // additions: a user holds a single endpoint, so reassigning a user to a
+      // new device would 409 (user_already_has_endpoint) if the old assignment
+      // still exists. Assigning a user provisions the endpoint + line/extension
+      // server-side, and removing it cleans them up.
+      for (const [deviceId, initialUserId] of initialAssignments.entries()) {
+        if (deviceAssignments.get(deviceId) !== initialUserId) {
+          await dialstack.devices.users.del(deviceId, initialUserId);
         }
       }
 
       for (const [deviceId, userId] of deviceAssignments.entries()) {
-        const device = allDevices.find((d) => d.id === deviceId);
-        if (!device) continue;
-
-        const { endpoint, isNew } = await ensureEndpoint(userId, localEndpointMap, dialstack);
-        if (isNew) {
-          const existing = localEndpointMap.get(userId) ?? [];
-          localEndpointMap.set(userId, [...existing, endpoint]);
-          setUserEndpointMap((prev) => {
-            const next = new Map(prev);
-            const existing = next.get(userId) ?? [];
-            next.set(userId, [...existing, endpoint]);
-            return next;
-          });
-        }
-
-        if (device.type === 'deskphone') {
-          const dev = devices.find((d) => d.id === deviceId);
-          const lines = dev?.lines ?? [];
-          const existingLine = lines.find((l) => l.endpoint_id === endpoint.id);
-          if (!existingLine) {
-            await dialstack.deskphones.lines.create(deviceId, { endpoint_id: endpoint.id });
-          }
-        } else if (device.type === 'dect-handset' && device.baseId) {
-          const handsets = dectHandsets.get(device.baseId) ?? [];
-          const hs = handsets.find((h) => h.id === deviceId);
-          const exts = hs?.extensions ?? [];
-          const existingExt = exts.find((e) => e.endpoint_id === endpoint.id);
-          if (!existingExt) {
-            await dialstack.dectBases.extensions.create(device.baseId, deviceId, {
-              endpoint_id: endpoint.id,
-            });
-          }
-        }
+        if (initialAssignments.get(deviceId) === userId) continue;
+        await dialstack.devices.users.create(deviceId, { user: userId });
       }
+
+      // Baseline the applied assignment state now, before the (idempotent)
+      // location backfill. If backfill fails, a retry re-runs only the backfill
+      // rather than replaying the create/delete calls (which would 409/404).
+      setInitialAssignments(new Map(deviceAssignments));
 
       // Backfill location_id on assigned devices that don't have one yet, so
       // outbound PSTN works as soon as onboarding completes. Devices that
@@ -434,12 +339,10 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
     }
   }, [
     isSubmitting,
-    initialDeviceRecords,
+    initialAssignments,
     deviceAssignments,
     devices,
     dectBases,
-    dectHandsets,
-    userEndpointMap,
     allDevices,
     contextLocations,
     dialstack,
@@ -448,15 +351,15 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
 
   const handleNext = useCallback(() => {
     // Submit when there is anything to add (current assignments) OR anything
-    // to remove (initial records the user unassigned). Skipping submit on an
-    // all-unassigned state left previously-saved lines/extensions in place — the
+    // to remove (an initial assignment the user unassigned). Skipping submit on
+    // an all-unassigned state left previously-saved assignments in place — the
     // user would see the device "still assigned" on the next mount.
-    if (deviceAssignments.size > 0 || initialDeviceRecords.size > 0) {
+    if (deviceAssignments.size > 0 || initialAssignments.size > 0) {
       void handleSubmitAssignments();
     } else {
       onDone();
     }
-  }, [deviceAssignments.size, initialDeviceRecords.size, handleSubmitAssignments, onDone]);
+  }, [deviceAssignments.size, initialAssignments.size, handleSubmitAssignments, onDone]);
 
   // ============================================================================
   // Render
@@ -663,7 +566,7 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
   // on an empty assignment set made the removal-submit branch in handleNext
   // unreachable, so unassigning your only device couldn't be saved.) With
   // nothing to add and nothing to remove there is no work, so keep it disabled.
-  const hasPendingChange = deviceAssignments.size > 0 || initialDeviceRecords.size > 0;
+  const hasPendingChange = deviceAssignments.size > 0 || initialAssignments.size > 0;
   const footer = (
     <>
       <StepNavigation

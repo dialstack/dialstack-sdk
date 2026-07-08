@@ -161,6 +161,15 @@ export interface DeviceUserAssignment {
   created_at: string;
 }
 
+/**
+ * Request body for `POST /v1/devices/:id/users`. Assigning a user provisions
+ * the endpoint (SIP credentials) and the device line/extension server-side.
+ */
+export interface AssignDeviceUserRequest {
+  /** TypeID of the user to assign (`user_...`) */
+  user: string;
+}
+
 // ============================================================================
 // Device Status
 // ============================================================================
@@ -380,6 +389,8 @@ export interface DeviceListOptions {
   limit?: number;
   /** Filter by device type ('deskphone' or 'dect_base') */
   type?: DeviceType;
+  /** Eager-load related resources. `users` populates `Device.assignments`. */
+  expand?: Array<'users'>;
 }
 
 // ============================================================================

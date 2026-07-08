@@ -29,6 +29,8 @@ import type {
   CreateDeviceResponse,
   UpdateDeviceRequest,
   DeviceListOptions,
+  DeviceUserAssignment,
+  AssignDeviceUserRequest,
   ProvisioningEvent,
   ProvisioningEventListOptions,
 } from './device';
@@ -75,7 +77,6 @@ import type {
   CreateLocationRequest,
   UpdateLocationRequest,
   OnboardingEndpoint,
-  CreateEndpointRequest,
   UpdateEndpointRequest,
   E911ValidationResult,
 } from './account-onboarding';
@@ -376,6 +377,17 @@ export interface DevicesResource {
   ): Promise<DeviceButtonOverride>;
   /** Delete a per-device button override */
   deleteButtonOverride(id: string, overrideId: string): Promise<void>;
+  /** User assignments on a device (provisions the endpoint + line/extension) */
+  users: DeviceUsersResource;
+}
+
+export interface DeviceUsersResource {
+  /** Assign a user to a device, provisioning the endpoint + line/extension */
+  create(deviceId: string, request: AssignDeviceUserRequest): Promise<DeviceUserAssignment>;
+  /** List user assignments on a device */
+  list(deviceId: string): Promise<DeviceUserAssignment[]>;
+  /** Remove a user assignment from a device */
+  del(deviceId: string, userId: string): Promise<void>;
 }
 
 export interface ButtonTemplateButtonsResource {
@@ -481,8 +493,6 @@ export interface AccountResource {
 }
 
 export interface UserEndpointsResource {
-  /** Create an endpoint for a user */
-  create(userId: string, request?: CreateEndpointRequest): Promise<OnboardingEndpoint>;
   /** List endpoints for a user */
   list(userId: string): Promise<OnboardingEndpoint[]>;
   /** Update an endpoint */

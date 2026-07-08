@@ -339,6 +339,21 @@ export function createMockInstance(overrides?: MockInstanceOverrides): DialStack
     devices: {
       retrieve: jest.fn().mockResolvedValue({}),
       list: jest.fn().mockResolvedValue([]),
+      update: jest.fn().mockResolvedValue({}),
+      users: {
+        create: jest
+          .fn()
+          .mockImplementation(async (deviceId: string, request: { user: string }) => ({
+            user: request.user,
+            user_id: request.user,
+            device: deviceId,
+            device_id: deviceId,
+            line_number: 1,
+            created_at: new Date().toISOString(),
+          })),
+        list: jest.fn().mockResolvedValue([]),
+        del: jest.fn().mockResolvedValue(undefined),
+      },
     },
     dectBases: {
       create: jest.fn().mockResolvedValue({}),
@@ -391,12 +406,6 @@ export function createMockInstance(overrides?: MockInstanceOverrides): DialStack
       list: jest.fn().mockResolvedValue(mockUsers),
       del: jest.fn().mockResolvedValue(undefined),
       endpoints: {
-        create: jest.fn().mockImplementation(async (userId: string) => ({
-          id: 'ep_new_' + Math.random().toString(36).slice(2, 8),
-          user_id: userId,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })),
         list: jest.fn().mockResolvedValue([]),
       },
     },

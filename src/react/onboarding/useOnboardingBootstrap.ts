@@ -90,30 +90,28 @@ export function useOnboardingBootstrap(
         dialstack.extensions.list(),
         dialstack.locations.list(),
         dialstack.fetchAllPages<DIDItem>((opts) => dialstack.phoneNumbers.list(opts)),
-        dialstack.devices.list({ type: 'deskphone' }).catch(() => [] as Device[]),
+        dialstack.devices
+          .list({ type: 'deskphone', expand: ['users'] })
+          .catch(() => [] as Device[]),
         dialstack.devices.list({ type: 'dect_base' }).catch(() => [] as Device[]),
       ]);
     const tos = tosResult.tos;
     const tosLoadFailed = tosResult.failed;
-    // /v1/devices doesn't eager-load device_lines or DECT handsets/extensions,
-    // but the hardware-step derive needs either (a) a deskphone with a line
-    // or (b) a DECT extension on a handset to mark device-assignment complete.
-    // Fetch both sub-resources in parallel so device-assignment completion
-    // reflects deskphone lines and DECT extensions.
-    await Promise.all([
-      ...deskphones.map(async (dev) => {
-        dev.lines = await dialstack.deskphones.lines.list(dev.id).catch(() => []);
-      }),
-      ...dectBases.map(async (base) => {
+    // The hardware-step derive marks device-assignment complete when a device
+    // has a user assignment. Deskphone assignments come eager-loaded via
+    // expand[]=users above; DECT handsets are separate devices, so fetch each
+    // handset's assignments (handset IDs are device IDs).
+    await Promise.all(
+      dectBases.map(async (base) => {
         const handsets = await dialstack.dectBases.handsets.list(base.id).catch(() => []);
         await Promise.all(
           handsets.map(async (h) => {
-            h.extensions = await dialstack.dectBases.extensions.list(base.id, h.id).catch(() => []);
+            h.assignments = await dialstack.devices.users.list(h.id).catch(() => []);
           })
         );
         base.handsets = handsets;
-      }),
-    ]);
+      })
+    );
     const devices = [...deskphones, ...dectBases];
     return { account, tos, tosLoadFailed, users, extensions, locations, dids, devices };
   }, [dialstack]);

@@ -11,7 +11,7 @@
  */
 
 import type { DeviceSettings } from './provisioning';
-import type { DeviceStatus } from './device';
+import type { DeviceStatus, DeviceUserAssignment } from './device';
 
 // ============================================================================
 // DECT Base Types
@@ -108,6 +108,9 @@ export interface DECTHandset {
   registered_at?: string;
   /** Associated extensions (when eager-loaded) */
   extensions?: DECTExtension[];
+  /** User assignments (handset IDs are device IDs; populated via
+   *  `devices.users.list` or `expand[]=users`). */
+  assignments?: DeviceUserAssignment[];
   /** ISO 8601 timestamp */
   created_at: string;
   /** ISO 8601 timestamp */

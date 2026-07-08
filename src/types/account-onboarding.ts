@@ -249,10 +249,6 @@ export interface OnboardingEndpoint {
   updated_at: string;
 }
 
-export interface CreateEndpointRequest {
-  name?: string;
-}
-
 export interface UpdateEndpointRequest {
   name?: string;
 }

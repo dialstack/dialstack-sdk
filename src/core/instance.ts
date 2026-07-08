@@ -38,6 +38,8 @@ import type {
   CreateDeviceResponse,
   UpdateDeviceRequest,
   DeviceListOptions,
+  DeviceUserAssignment,
+  AssignDeviceUserRequest,
   ProvisioningEvent,
   ProvisioningEventListOptions,
   ButtonTemplate,
@@ -74,7 +76,6 @@ import type {
   CreateLocationRequest,
   UpdateLocationRequest,
   OnboardingEndpoint,
-  CreateEndpointRequest,
   UpdateEndpointRequest,
   E911ValidationResult,
   NamedResource,
@@ -1185,6 +1186,9 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       if (options?.type) {
         params.set('type', options.type);
       }
+      for (const e of options?.expand ?? []) {
+        params.append('expand[]', e);
+      }
 
       const queryString = params.toString();
       const path = queryString ? `/v1/devices?${queryString}` : '/v1/devices';
@@ -1279,6 +1283,40 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         const errorText = await response.text();
         throw new Error(`Failed to delete device button override: ${response.status} ${errorText}`);
       }
+    },
+    users: {
+      create: async (
+        deviceId: string,
+        request: AssignDeviceUserRequest
+      ): Promise<DeviceUserAssignment> => {
+        const response = await this.fetchApi(`/v1/devices/${deviceId}/users`, {
+          method: 'POST',
+          body: JSON.stringify(request),
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to assign user to device: ${response.status} ${errorText}`);
+        }
+        return response.json();
+      },
+      list: async (deviceId: string): Promise<DeviceUserAssignment[]> => {
+        const response = await this.fetchApi(`/v1/devices/${deviceId}/users`);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to list device users: ${response.status} ${errorText}`);
+        }
+        const data = await response.json();
+        return data.data ?? [];
+      },
+      del: async (deviceId: string, userId: string): Promise<void> => {
+        const response = await this.fetchApi(`/v1/devices/${deviceId}/users/${userId}`, {
+          method: 'DELETE',
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to remove user from device: ${response.status} ${errorText}`);
+        }
+      },
     },
   };
 
@@ -1686,20 +1724,6 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       }
     },
     endpoints: {
-      create: async (
-        userId: string,
-        request?: CreateEndpointRequest
-      ): Promise<OnboardingEndpoint> => {
-        const response = await this.fetchApi(`/v1/users/${userId}/endpoints`, {
-          method: 'POST',
-          body: JSON.stringify(request ?? {}),
-        });
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Failed to create endpoint: ${response.status} ${errorText}`);
-        }
-        return response.json();
-      },
       list: async (userId: string): Promise<OnboardingEndpoint[]> => {
         const response = await this.fetchApi(`/v1/users/${userId}/endpoints`);
         if (!response.ok) {

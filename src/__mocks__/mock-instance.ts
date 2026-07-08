@@ -46,12 +46,13 @@ import type {
   UpdateLocationRequest,
 } from '../types/account-onboarding';
 import type { Extension } from '../types/dial-plan';
-import type { CreateDeskphoneLineRequest, DeviceLine } from '../types/device';
 import type {
-  OnboardingEndpoint,
-  CreateEndpointRequest,
-  UpdateEndpointRequest,
-} from '../types/account-onboarding';
+  CreateDeskphoneLineRequest,
+  DeviceLine,
+  DeviceUserAssignment,
+  AssignDeviceUserRequest,
+} from '../types/device';
+import type { OnboardingEndpoint, UpdateEndpointRequest } from '../types/account-onboarding';
 import {
   MOCK_CALLS,
   MOCK_VOICEMAILS,
@@ -119,6 +120,7 @@ export function createMockInstance(
   const mockEndpoints = new Map<string, OnboardingEndpoint[]>(); // userId → endpoints
   const mockDeviceLines = new Map<string, DeviceLine[]>(); // deviceId → lines
   const mockDECTExts = new Map<string, DECTExtension[]>(); // `${baseId}/${handsetId}` → extensions
+  const mockDeviceAssignments = new Map<string, DeviceUserAssignment[]>(); // deviceId → assignments
   const mockDIDs: DIDItem[] = options.dids ?? (empty ? [] : [...MOCK_PHONE_NUMBERS.data]);
   const mockDeviceModels: Array<{ vendor: string; model: string; count: number }> = [
     { vendor: 'snom', model: 'D785', count: 3 },
@@ -704,7 +706,11 @@ export function createMockInstance(
         throw new Error('Not implemented in mock');
       },
       list: async (_options?: DeviceListOptions) =>
-        mockDevices.map((d) => ({ ...d, lines: mockDeviceLines.get(d.id) ?? d.lines ?? [] })),
+        mockDevices.map((d) => ({
+          ...d,
+          lines: mockDeviceLines.get(d.id) ?? d.lines ?? [],
+          assignments: mockDeviceAssignments.get(d.id) ?? d.assignments ?? [],
+        })),
       update: async (id: string, request: UpdateDeviceRequest) => {
         const idx = mockDevices.findIndex((d) => d.id === id);
         if (idx !== -1) {
@@ -757,6 +763,49 @@ export function createMockInstance(
         throw new Error('Not implemented in mock');
       },
       deleteButtonOverride: async (_id: string, _overrideId: string): Promise<void> => {},
+      users: {
+        create: async (
+          deviceId: string,
+          request: AssignDeviceUserRequest
+        ): Promise<DeviceUserAssignment> => {
+          await delay();
+          // Assigning provisions the endpoint server-side; the mock mirrors that
+          // by minting an endpoint for the user alongside the assignment.
+          const eps = mockEndpoints.get(request.user) ?? [];
+          if (eps.length === 0) {
+            mockEndpoints.set(request.user, [
+              {
+                id: 'ep_' + Math.random().toString(36).slice(2, 10),
+                user: request.user,
+                user_id: request.user,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+            ]);
+          }
+          const existing = mockDeviceAssignments.get(deviceId) ?? [];
+          const assignment: DeviceUserAssignment = {
+            user: request.user,
+            user_id: request.user,
+            device: deviceId,
+            device_id: deviceId,
+            line_number: existing.length + 1,
+            created_at: new Date().toISOString(),
+          };
+          mockDeviceAssignments.set(deviceId, [...existing, assignment]);
+          return assignment;
+        },
+        list: async (deviceId: string): Promise<DeviceUserAssignment[]> =>
+          mockDeviceAssignments.get(deviceId) ?? [],
+        del: async (deviceId: string, userId: string): Promise<void> => {
+          await delay();
+          const assignments = mockDeviceAssignments.get(deviceId) ?? [];
+          mockDeviceAssignments.set(
+            deviceId,
+            assignments.filter((a) => a.user !== userId && a.user_id !== userId)
+          );
+        },
+      },
     },
 
     buttonTemplates: {
@@ -974,22 +1023,6 @@ export function createMockInstance(
         if (idx !== -1) mockUsersList.splice(idx, 1);
       },
       endpoints: {
-        create: async (
-          userId: string,
-          _request?: CreateEndpointRequest
-        ): Promise<OnboardingEndpoint> => {
-          await delay();
-          const ep: OnboardingEndpoint = {
-            id: 'ep_' + Math.random().toString(36).slice(2, 10),
-            user: userId,
-            user_id: userId,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-          const existing = mockEndpoints.get(userId) ?? [];
-          mockEndpoints.set(userId, [...existing, ep]);
-          return ep;
-        },
         list: async (userId: string): Promise<OnboardingEndpoint[]> =>
           mockEndpoints.get(userId) ?? [],
         update: async (

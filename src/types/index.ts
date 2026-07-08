@@ -150,7 +150,6 @@ export type {
   CreateLocationRequest,
   UpdateLocationRequest,
   OnboardingEndpoint,
-  CreateEndpointRequest,
   UpdateEndpointRequest,
   E911ValidationResult,
 } from './account-onboarding';
@@ -223,6 +222,7 @@ export type {
   RegistrationStatus,
   DeviceLine,
   DeviceUserAssignment,
+  AssignDeviceUserRequest,
   ProvisionedDevice,
   CreateDeskphoneRequest,
   UpdateDeskphoneRequest,

@@ -1,7 +1,7 @@
 import { deriveOnboardingState, type OnboardingDataSnapshot } from '../derive';
 import type { Account, OnboardingLocation, OnboardingUser } from '../../../types';
 import type { DIDItem } from '../../../types/phone-numbers';
-import type { Device, DeviceLine } from '../../../types/device';
+import type { Device, DeviceUserAssignment } from '../../../types/device';
 
 function mkAccount(overrides: Partial<Account> = {}): Account {
   return {
@@ -53,27 +53,27 @@ function mkDID(overrides: Partial<DIDItem> = {}): DIDItem {
   };
 }
 
-function mkDevice(id = 'dev_x', lines?: DeviceLine[]): Device {
+function mkDevice(id = 'dev_x', assignments?: DeviceUserAssignment[]): Device {
   return {
     id,
     type: 'deskphone',
     mac_address: '00:04:13:aa:bb:cc',
     vendor: 'snom',
     status: 'pending-sync',
-    lines,
+    assignments,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
   } as Device;
 }
 
-function mkLine(endpointId = 'ep_x'): DeviceLine {
+function mkAssignment(userId = 'user_x'): DeviceUserAssignment {
   return {
-    id: 'dln_x',
+    user: userId,
+    user_id: userId,
+    device: 'dev_x',
     device_id: 'dev_x',
     line_number: 1,
-    endpoint_id: endpointId,
     created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z',
   };
 }
 
@@ -314,17 +314,17 @@ describe('deriveOnboardingState', () => {
     });
   });
 
-  describe('hardware — device-assignment requires a line-bound device', () => {
-    it('marks device-assignment when a device has at least one line', () => {
+  describe('hardware — device-assignment requires a user-assigned device', () => {
+    it('marks device-assignment when a device has at least one user assignment', () => {
       const { completed } = deriveOnboardingState({
         ...emptySnapshot,
         account: mkAccount(),
-        devices: [mkDevice('dev_a', [mkLine()])],
+        devices: [mkDevice('dev_a', [mkAssignment()])],
       });
       expect(completed.hardware.has('device-assignment')).toBe(true);
     });
 
-    it('does NOT mark device-assignment when a device exists but has no lines', () => {
+    it('does NOT mark device-assignment when a device exists but has no assignments', () => {
       const { completed } = deriveOnboardingState({
         ...emptySnapshot,
         account: mkAccount(),
@@ -333,7 +333,7 @@ describe('deriveOnboardingState', () => {
       expect(completed.hardware.has('device-assignment')).toBe(false);
     });
 
-    it('does NOT mark device-assignment when a device has an empty lines array', () => {
+    it('does NOT mark device-assignment when a device has an empty assignments array', () => {
       const { completed } = deriveOnboardingState({
         ...emptySnapshot,
         account: mkAccount(),
@@ -350,7 +350,7 @@ describe('deriveOnboardingState', () => {
       expect(completed.hardware.size).toBe(0);
     });
 
-    it('marks device-assignment when a DECT base has a handset with an extension', () => {
+    it('marks device-assignment when a DECT base has a handset with an assignment', () => {
       const { completed } = deriveOnboardingState({
         ...emptySnapshot,
         account: mkAccount(),
@@ -368,7 +368,7 @@ describe('deriveOnboardingState', () => {
                 ipei: '00000000001',
                 slot_number: 1,
                 status: 'paired',
-                extensions: [{ id: 'de_x', handset_id: 'dh_x', endpoint_id: 'ep_x' }],
+                assignments: [mkAssignment()],
                 created_at: '2026-01-01T00:00:00Z',
                 updated_at: '2026-01-01T00:00:00Z',
               },
@@ -382,7 +382,7 @@ describe('deriveOnboardingState', () => {
       expect(completed.hardware.has('device-assignment')).toBe(true);
     });
 
-    it('does NOT mark device-assignment when a DECT base has handsets but no extensions', () => {
+    it('does NOT mark device-assignment when a DECT base has handsets but no assignments', () => {
       const { completed } = deriveOnboardingState({
         ...emptySnapshot,
         account: mkAccount(),
@@ -400,7 +400,7 @@ describe('deriveOnboardingState', () => {
                 ipei: '00000000001',
                 slot_number: 1,
                 status: 'paired',
-                extensions: [],
+                assignments: [],
                 created_at: '2026-01-01T00:00:00Z',
                 updated_at: '2026-01-01T00:00:00Z',
               },

@@ -110,14 +110,14 @@ export function deriveOnboardingState(snapshot: OnboardingDataSnapshot): Derived
   }
 
   // device-assignment requires a real binding from device → user. Two paths
-  // count: (a) a deskphone with ≥1 line, or (b) a DECT base with a handset
-  // that has ≥1 extension. A device existing on the account isn't enough on
-  // its own.
-  const hasDeskphoneLine = devices.some((d) => (d.lines?.length ?? 0) > 0);
-  const hasDECTExtension = devices.some((d) =>
-    (d.handsets ?? []).some((h) => (h.extensions?.length ?? 0) > 0)
+  // count: (a) a deskphone with ≥1 user assignment, or (b) a DECT base with a
+  // handset that has ≥1 user assignment. A device existing on the account
+  // isn't enough on its own.
+  const hasDeskphoneAssignment = devices.some((d) => (d.assignments?.length ?? 0) > 0);
+  const hasHandsetAssignment = devices.some((d) =>
+    (d.handsets ?? []).some((h) => (h.assignments?.length ?? 0) > 0)
   );
-  if (hasDeskphoneLine || hasDECTExtension) {
+  if (hasDeskphoneAssignment || hasHandsetAssignment) {
     completed.hardware.add('device-assignment');
   }
 
