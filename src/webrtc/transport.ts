@@ -40,11 +40,27 @@ export class Transport {
     this.openSocket();
   }
 
+  /** True when the socket is open and a send() would succeed. */
+  isOpen(): boolean {
+    return !!this.ws && this.ws.readyState === WebSocket.OPEN;
+  }
+
   send(msg: ClientMessage): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       throw new PhoneError({ code: 'transport_closed', message: 'WebSocket is not open' });
     }
     this.ws.send(JSON.stringify(msg));
+  }
+
+  /**
+   * Best-effort send for messages emitted on their own async timeline (ICE
+   * candidates fire from the peer connection, and can arrive while the socket is
+   * mid-reconnect or closed). Silently drops when the socket isn't open rather
+   * than throwing an uncaught error into an event handler. Trickle ICE tolerates
+   * loss, and a closed socket means the call is already tearing down.
+   */
+  trySend(msg: ClientMessage): void {
+    if (this.isOpen()) this.ws!.send(JSON.stringify(msg));
   }
 
   close(): void {

@@ -1,5 +1,13 @@
 import { PhoneError } from './errors';
-import { RingbackTone } from './ringback';
+import { Ringback, createMediaStream, createPeerConnection, getUserMedia } from './platform';
+import type {
+  MediaStream,
+  RTCDTMFSender,
+  RTCIceCandidateInit,
+  RTCIceServer,
+  RTCPeerConnection,
+  RTCSessionDescriptionInit,
+} from './platform';
 import type { Transport } from './transport';
 import type {
   CallDirection,
@@ -80,7 +88,7 @@ export class Call {
   // setRemoteDescription resolves) — applied once the description is in place.
   private pendingRemoteCandidates: RTCIceCandidateInit[] = [];
   private remoteDescriptionSet = false;
-  private readonly ringback = new RingbackTone();
+  private readonly ringback = new Ringback();
   // Suppression keys on REAL received audio, not SDP negotiation. A remote track
   // arriving (or an sdp.pranswer being applied) only means early media was
   // negotiated — the carrier may negotiate it and never send a packet, which
@@ -98,10 +106,10 @@ export class Call {
     this.state = init.initialState;
     this.transport = init.transport;
     this.startConsult = init.startConsult;
-    this.localStream = new MediaStream();
-    this.remoteStream = new MediaStream();
+    this.localStream = createMediaStream();
+    this.remoteStream = createMediaStream();
 
-    this.peerConnection = new RTCPeerConnection({ iceServers: init.iceServers });
+    this.peerConnection = createPeerConnection(init.iceServers);
     this.wirePeerConnection();
     this.localMediaReady = this.acquireLocalMedia();
   }
@@ -114,7 +122,7 @@ export class Call {
   }
 
   private async acquireLocalMedia(): Promise<void> {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const stream = await getUserMedia({ audio: true });
     stream.getTracks().forEach((t) => this.localStream.addTrack(t));
   }
 
@@ -468,8 +476,13 @@ export class Call {
     });
 
     this.peerConnection.addEventListener('icecandidate', (evt) => {
+      // ICE candidates fire asynchronously from the peer connection and can
+      // arrive while the socket is mid-reconnect or closed. Use best-effort
+      // trySend so a late candidate doesn't throw an uncaught PhoneError into
+      // this handler (trickle ICE tolerates loss; a closed socket means the
+      // call is already tearing down).
       if (evt.candidate) {
-        this.transport.send({
+        this.transport.trySend({
           type: 'ice.candidate',
           call_id: this.id,
           candidate: evt.candidate.candidate,
@@ -477,7 +490,7 @@ export class Call {
           sdp_m_line_index: evt.candidate.sdpMLineIndex ?? null,
         });
       } else {
-        this.transport.send({ type: 'ice.done', call_id: this.id });
+        this.transport.trySend({ type: 'ice.done', call_id: this.id });
       }
     });
   }

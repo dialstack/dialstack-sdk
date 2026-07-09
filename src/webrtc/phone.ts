@@ -1,6 +1,8 @@
 import { createPaginatedList, type PaginatedList } from '../shared/pagination';
 import { Call } from './call';
 import { NotImplementedError, PhoneError } from './errors';
+import { storage } from './platform';
+import type { RTCIceServer, RTCSessionDescriptionInit } from './platform';
 import { Transport } from './transport';
 import type {
   EmergencyAddress,
@@ -658,27 +660,20 @@ function userIdFromToken(token: string): string | null {
   }
 }
 
-// localStorage helpers for the persisted emergency-address id, namespaced per
-// user so shared browsers don't leak one user's saved address into another's
-// session. Guarded so the SDK works in non-browser hosts (Node, native shells)
-// where localStorage is absent — there (or when the token can't be decoded)
+// Persistence helpers for the emergency-address id, namespaced per user so
+// shared browsers don't leak one user's saved address into another's session.
+// Backed by the platform storage shim (localStorage on web, AsyncStorage-backed
+// cache on native), which is itself guarded so the SDK works in non-browser
+// hosts where storage is absent — there (or when the token can't be decoded)
 // the id must be supplied via PhoneOptions.emergencyAddressId.
 function loadStoredEmergencyAddressId(userId: string | null): string | null {
   if (!userId) return null;
-  try {
-    return globalThis.localStorage?.getItem(EMERGENCY_ADDRESS_STORAGE_KEY_PREFIX + userId) ?? null;
-  } catch {
-    return null;
-  }
+  return storage.getItem(EMERGENCY_ADDRESS_STORAGE_KEY_PREFIX + userId);
 }
 
 function persistEmergencyAddressId(userId: string | null, id: string | null): void {
   if (!userId) return;
   const key = EMERGENCY_ADDRESS_STORAGE_KEY_PREFIX + userId;
-  try {
-    if (id) globalThis.localStorage?.setItem(key, id);
-    else globalThis.localStorage?.removeItem(key);
-  } catch {
-    // No localStorage (Node / native) — persistence is a browser nicety.
-  }
+  if (id) storage.setItem(key, id);
+  else storage.removeItem(key);
 }
