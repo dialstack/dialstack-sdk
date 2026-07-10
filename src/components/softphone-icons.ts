@@ -1,15 +1,15 @@
 /**
- * Dialer glyph path data, shared so the React Dialer and any other web surface
+ * Softphone glyph path data, shared so the React Softphone and any other web surface
  * render the same icons. Each value is the `d` attribute of a single 24×24 path
  * (plus an optional transform), independent of the SDK's data-component icon set.
  */
 
-export interface DialerGlyph {
+export interface SoftphoneGlyph {
   path: string;
   transform?: string;
 }
 
-export const dialerGlyphs = {
+export const softphoneGlyphs = {
   phone: {
     path: 'M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z',
   },
@@ -36,6 +36,6 @@ export const dialerGlyphs = {
     path: 'M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z',
   },
   chevronDown: { path: 'M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z' },
-} satisfies Record<string, DialerGlyph>;
+} satisfies Record<string, SoftphoneGlyph>;
 
-export type DialerGlyphName = keyof typeof dialerGlyphs;
+export type SoftphoneGlyphName = keyof typeof softphoneGlyphs;

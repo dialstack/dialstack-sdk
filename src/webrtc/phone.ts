@@ -115,7 +115,15 @@ export class DialStackPhone {
     const transport = new Transport(this.signalingUrl, this.autoReconnect);
     this.transport = transport;
 
+    // A superseded transport (after disconnect()/reconnect() swapped in a new
+    // one) can still fire async callbacks — its `closed` in particular. Ignore
+    // any callback from a transport that is no longer the current one, or a late
+    // close from the old socket would flip `isConnected`/emit `disconnected`
+    // over a freshly-authenticated new socket.
+    const isCurrent = () => this.transport === transport;
+
     transport.on('open', () => {
+      if (!isCurrent()) return;
       transport.send({
         type: 'authenticate',
         token: this.token,
@@ -123,14 +131,19 @@ export class DialStackPhone {
       });
     });
 
-    transport.on('message', (msg) => this.handleMessage(msg));
+    transport.on('message', (msg) => {
+      if (!isCurrent()) return;
+      this.handleMessage(msg);
+    });
 
     transport.on('reconnecting', (attempt, delayMs) => {
+      if (!isCurrent()) return;
       this.isConnected = false;
       this.emit('reconnecting', attempt, delayMs);
     });
 
     transport.on('closed', () => {
+      if (!isCurrent()) return;
       this.isConnected = false;
       this.emit('disconnected');
     });
@@ -154,6 +167,27 @@ export class DialStackPhone {
     this.transport?.close();
     this.transport = null;
     this.isConnected = false;
+  }
+
+  /**
+   * Tear down and reconnect, re-running the `authenticate` handshake. The new
+   * session presents the current `emergencyAddressId`, which is where the server
+   * binds the emergency address to the connection's network — so this is how an
+   * app applies a just-selected/created address (or re-binds after a network
+   * move). Safe to call while idle; any live calls are torn down.
+   */
+  async reconnect(): Promise<void> {
+    // Emit an explicit `reconnecting` before tearing down. The old transport's
+    // async `closed` no longer surfaces `disconnected` (the transport-staleness
+    // guard drops it once disconnect() nulls this.transport), so without this the
+    // connection state would never leave `connected` across a reconnect — and a
+    // consumer watching for a connected→…→connected transition (e.g. the E911
+    // binding re-check) would never see one. This drives the observable
+    // transition that the subsequent `authenticated` (→ `reconnected`) completes.
+    this.emit('reconnecting', 0, 0);
+    this.isConnected = false;
+    this.disconnect();
+    await this.connect();
   }
 
   call(destination: string): Promise<Call> {
@@ -289,6 +323,16 @@ export class DialStackPhone {
     this.emergencyAddressId = created.id;
     persistEmergencyAddressId(this.storageUserId, created.id);
     return created;
+  }
+
+  /**
+   * Select an already-saved emergency address to present on the next
+   * (re)connect (sets + persists it). The server binds it at the authenticate
+   * handshake, so call `reconnect()` afterwards for it to take effect.
+   */
+  selectEmergencyAddress(id: string): void {
+    this.emergencyAddressId = id;
+    persistEmergencyAddressId(this.storageUserId, id);
   }
 
   /** Fetch a saved emergency address (defaults to the one this phone uses). */

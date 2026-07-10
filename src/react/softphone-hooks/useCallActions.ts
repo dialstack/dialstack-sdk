@@ -3,7 +3,7 @@
  * web ↔ RN.
  *
  * Wraps the foreground `Call`'s imperative actions (answer / reject / hangup /
- * mute / hold / DTMF / transfer) so both dialers call them identically, with the
+ * mute / hold / DTMF / transfer) so both softphones call them identically, with the
  * same `PhoneError` → `onError` normalization, and owns the mutually-exclusive
  * keypad / transfer overlay flags. It deliberately does NOT render anything — it
  * returns plain callbacks + booleans the platform UI binds to its own controls.

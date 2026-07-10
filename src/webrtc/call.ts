@@ -61,6 +61,17 @@ export class Call {
     return this.state === 'held';
   }
 
+  /**
+   * Whether DTMF can be sent on this call. False on platforms whose WebRTC
+   * senders expose no `.dtmf` (react-native-webrtc has no RTCDTMFSender), which
+   * is why the softphone UI gates its in-call keypad on this. Only meaningful
+   * once the call is active — the sender is attached during answer/offer
+   * negotiation (attachDtmfSender). `sendDtmf()` still throws if called anyway.
+   */
+  get canSendDtmf(): boolean {
+    return this.dtmfSender !== null;
+  }
+
   private transport: Transport;
   private readonly startConsult: (parent: Call, destination: string) => Promise<Call>;
   private localStream: MediaStream;

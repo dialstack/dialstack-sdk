@@ -1,6 +1,6 @@
 /**
  * Pure, platform-agnostic view-model helpers shared by the web and React Native
- * dialers. No React, no DOM, no React Native — just functions over the headless
+ * softphones. No React, no DOM, no React Native — just functions over the headless
  * core's `Call` shape, so both UIs format and route identically and the logic is
  * unit-testable in isolation.
  */
@@ -8,8 +8,8 @@
 import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenumber-js';
 import type { Call, CallState } from '../webrtc';
 
-/** Which screen the dialer should present for the current foreground call. */
-export type DialerScreen = 'dial' | 'incoming' | 'in-call';
+/** Which screen the softphone should present for the current foreground call. */
+export type SoftphoneScreen = 'dial' | 'incoming' | 'in-call';
 
 /**
  * An inbound call still alerting (the user hasn't answered). `trying` is
@@ -26,7 +26,7 @@ export function isCallActive(call: Call): boolean {
 }
 
 /** Pick the screen for the current foreground call (null → the dial pad). */
-export function selectScreen(call: Call | null): DialerScreen {
+export function selectScreen(call: Call | null): SoftphoneScreen {
   if (!call) return 'dial';
   return isIncomingRinging(call) ? 'incoming' : 'in-call';
 }
@@ -56,7 +56,7 @@ export function formatCallDuration(seconds: number): string {
 /**
  * Pretty-print an E.164 / national number for display, leaving extensions and
  * partial input untouched. Mirrors the formatting used across the SDK
- * components. `defaultCountry` defaults to `US` (matching the dialer UIs).
+ * components. `defaultCountry` defaults to `US` (matching the softphone UIs).
  */
 export function formatDisplayNumber(value: string, defaultCountry: CountryCode = 'US'): string {
   if (!value) return '';

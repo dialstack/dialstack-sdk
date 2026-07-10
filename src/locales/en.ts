@@ -19,8 +19,8 @@ export const en = {
     play: 'Play',
     pause: 'Pause',
   },
-  dialer: {
-    title: 'Dialer',
+  softphone: {
+    title: 'Softphone',
     destinationPlaceholder: 'Enter a number',
     call: 'Call',
     backspace: 'Delete',
@@ -48,16 +48,22 @@ export const en = {
     stateHeld: 'On hold',
     stateEnded: 'Call ended',
     done: 'Done',
-    emergencySetPrompt: 'Set emergency location to place calls',
-    emergencyHint: 'Required by 911 regulations before this phone can dial outside numbers.',
+    // E911 "Are you here?" location confirmation (shown until the session's
+    // emergency address is bound to the current network).
+    emergencyPrompt: 'Set your emergency location to be able to place external calls',
+    emergencyHint:
+      'Confirm your location before placing calls — required by 911 regulations for a browser phone.',
+    emergencyConfirm: "Yes, I'm here",
+    emergencyNewLocation: 'Set a new location',
     emergencyNumber: 'Number',
     emergencyStreet: 'Street',
     emergencyUnit: 'Unit (optional)',
     emergencyCity: 'City',
     emergencyState: 'State',
     emergencyPostalCode: 'Postal code',
-    emergencySave: 'Save location',
+    emergencySave: 'Confirm location',
     emergencySaving: 'Saving…',
+    emergencyBack: 'Back',
   },
   aiAgent: {
     loading: 'Loading AI agent…',

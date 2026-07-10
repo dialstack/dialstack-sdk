@@ -1,0 +1,32 @@
+{
+  "name": "dialstack-mobile-softphone-example",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "prebuild": "expo prebuild --clean",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@config-plugins/react-native-webrtc": "^13.0.0",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "expo": "^54.0.0",
+    "expo-dev-client": "~6.0.0",
+    "expo-status-bar": "~3.0.0",
+    "libphonenumber-js": "^1.13.6",
+    "react": "19.1.0",
+    "react-native": "0.81.4",
+    "react-native-incall-manager": "^4.2.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-svg": "15.12.1",
+    "react-native-webrtc": "^124.0.5"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.0",
+    "babel-preset-expo": "^54.0.11",
+    "typescript": "~5.9.2"
+  }
+}

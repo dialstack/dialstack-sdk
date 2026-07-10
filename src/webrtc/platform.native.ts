@@ -13,7 +13,12 @@
  *   localStorage                                    → NOT on RN → AsyncStorage    ✓
  *   WebSocket (transport.ts)                        → global exists on RN, untouched
  *   fetch (phone.ts)                                → global exists on RN
- *   RTCRtpSender.dtmf / insertDTMF                  → partial on RN; core no-ops if absent
+ *   RTCRtpSender.dtmf / insertDTMF                  → NOT on RN (no RTCDTMFSender in
+ *                                                     react-native-webrtc 124.x) → the
+ *                                                     sender's `.dtmf` is undefined, so
+ *                                                     Call.canSendDtmf is false and the
+ *                                                     softphone hides the in-call keypad
+ *                                                     (Call.sendDtmf still throws if called)
  *   <audio autoplay> element                        → NOT on RN; RN auto-routes remote
  *                                                     audio once the track is on the PC
  *

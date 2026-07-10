@@ -1,0 +1,229 @@
+/**
+ * `useEmergencyBinding` — the Softphone's built-in E911 provisioning logic.
+ *
+ * Model: "always send it, the server decides." The server binds the presented
+ * emergency address to the connection's network at the `authenticate` handshake
+ * and is the authority on whether it's valid here — it rejects a mismatch via
+ * the `network.changed` signal.
+ *
+ *   - On connect, if the session has a saved address but presented none (fresh
+ *     browser), auto-present it (select + reconnect once). Same network → the
+ *     server binds it silently (reused). Different network → the server denies
+ *     (network.changed) → we prompt.
+ *   - `bound` is true unless the server denied (network.changed) or there is no
+ *     saved address to present at all.
+ *
+ * When the host supplies `emergencyAddressId`, it manages E911 itself and this
+ * hook stays dormant (`disabled`). 911/933 are never gated by any of this.
+ */
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { EmergencyAddress, EmergencyAddressInput } from '../../webrtc';
+import type { SoftphoneConnectionState } from './useCall';
+
+export interface UseEmergencyBindingDeps {
+  /** Skip all E911 handling (the host supplies emergencyAddressId itself). */
+  disabled: boolean;
+  /** Live connection state — the check runs when this becomes 'connected'. */
+  connection: SoftphoneConnectionState;
+  /**
+   * Identity of the session this binding belongs to (the WebRTC token). When it
+   * changes the phone reconnects as a DIFFERENT user, so ALL binding state must
+   * reset — otherwise, on a shared client, the previous user's `bound`/addresses
+   * and the one-shot auto-adopt guard linger and the new user can show E911
+   * unlocked without ever presenting their own address (a safety-relevant gate
+   * reading green for the wrong identity).
+   */
+  identityKey: string;
+  list: () => Promise<EmergencyAddress[]>;
+  save: (input: EmergencyAddressInput) => Promise<EmergencyAddress>;
+  select: (id: string) => void;
+  clearRegisteredIp: (id: string) => Promise<void>;
+  reconnect: () => Promise<void>;
+}
+
+export interface UseEmergencyBinding {
+  /** True until the first post-connect status resolves. */
+  loading: boolean;
+  /**
+   * True when outbound PSTN is usable for this session — the server accepted the
+   * presented address for the current network. False when it denied
+   * (network.changed) or there's no saved address → show the prompt.
+   */
+  bound: boolean;
+  /** Saved addresses to offer as "Are you here?" choices. */
+  savedAddresses: EmergencyAddress[];
+  /** True while a confirm/create (+ reconnect) is in flight. */
+  busy: boolean;
+  /** Last error (e.g. a carrier rejection). */
+  error: string | null;
+  /** Called from the Softphone when the phone emits `network.changed` (denied). */
+  onNetworkChanged: () => void;
+  /** Confirm an existing saved address for this network (selects + reconnects). */
+  confirm: (id: string) => Promise<void>;
+  /** Create + validate a new address, then bind it (reconnect). */
+  create: (input: EmergencyAddressInput) => Promise<void>;
+}
+
+export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergencyBinding {
+  const { disabled, connection, identityKey, list, save, select, clearRegisteredIp, reconnect } =
+    deps;
+  const [loading, setLoading] = useState(!disabled);
+  const [bound, setBound] = useState(false);
+  const [denied, setDenied] = useState(false);
+  const [savedAddresses, setSavedAddresses] = useState<EmergencyAddress[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Latest deps via refs so the connect effect doesn't churn on identity changes.
+  const fns = useRef({ list, select, reconnect });
+  useEffect(() => {
+    fns.current = { list, select, reconnect };
+  });
+  // Guard so we auto-adopt at most once per connected session (no reconnect loop).
+  const autoAdoptedRef = useRef(false);
+
+  // Reset ALL session-scoped state when the identity (token) changes — a
+  // different user is now on this (possibly shared) client. Without this the
+  // prior user's `bound`/`savedAddresses` and the one-shot auto-adopt guard
+  // persist, so the new user's session skips presenting its own address and
+  // inherits the previous unlock. Re-arm `loading` so the banner stays hidden
+  // until the new user's status resolves. Skipped on the initial mount (the
+  // useState initializers already hold these values) to avoid a redundant pass.
+  const prevIdentityRef = useRef(identityKey);
+  useEffect(() => {
+    if (prevIdentityRef.current === identityKey) return;
+    prevIdentityRef.current = identityKey;
+    autoAdoptedRef.current = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset binding state on identity (user) change
+    setBound(false);
+    setDenied(false);
+    setSavedAddresses([]);
+    setError(null);
+    setLoading(!disabled);
+  }, [identityKey, disabled]);
+
+  const onNetworkChanged = useCallback(() => {
+    setDenied(true);
+    setBound(false);
+  }, []);
+
+  // After each (re)connect: list addresses. If we have a saved one but haven't
+  // yet presented it this session (fresh browser), auto-present it + reconnect
+  // once — the server then binds it (same network) or denies via
+  // network.changed (moved). Otherwise the session is bound unless denied.
+  useEffect(() => {
+    if (disabled) return;
+    if (connection !== 'connected') {
+      // Never resolve loading off a transient 'connecting'/'reconnecting' — those
+      // are on the way to 'connected'. But a terminal 'disconnected'/'error' will
+      // not reach 'connected' on its own, so stop showing the loading state (the
+      // banner hides while loading, which would otherwise suppress the E911 prompt
+      // forever on a session that authenticated but never connected).
+      if (connection === 'disconnected' || connection === 'error') {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- resolve loading on a terminal non-connected state
+        setLoading(false);
+      }
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const addrs = await fns.current.list();
+        if (cancelled) return;
+        setSavedAddresses(addrs);
+        const active = addrs[0] ?? null;
+        if (!active) {
+          // Nothing saved → must collect an address.
+          setBound(false);
+          return;
+        }
+        if (!autoAdoptedRef.current && !denied) {
+          autoAdoptedRef.current = true;
+          if (active.registered_ip != null) {
+            // Already anchored to a network. The phone persists the emergency
+            // address id and presents it in the authenticate frame on THIS
+            // socket's connect, so a same-network (re)connect has already re-bound
+            // it server-side — treat it as bound without a redundant reconnect
+            // (which would drop the registration and, for an already-bound
+            // address, come back denied → the banner would never clear). A moved
+            // network arrives as network.changed → denied instead.
+            setBound(true);
+          } else {
+            // Never anchored: present the saved address and let the server decide
+            // (same-network → bound; moved → network.changed → denied). One-shot.
+            fns.current.select(active.id);
+            await fns.current.reconnect();
+            return; // the reconnect drives a fresh 'connected' → effect re-runs
+          }
+        } else {
+          // Presented; bound unless the server denied it for this network.
+          setBound(!denied);
+        }
+      } catch {
+        if (!cancelled) setBound(false);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [disabled, connection, denied]);
+
+  const confirm = useCallback(
+    async (id: string) => {
+      setBusy(true);
+      setError(null);
+      try {
+        setDenied(false);
+        autoAdoptedRef.current = true; // explicit choice; don't auto-adopt over it
+        // The address may be anchored to a PRIOR network (registered_ip set) — the
+        // server only (re)binds a NULL anchor, so clear it first, then reconnect
+        // so authenticate re-binds it to THIS network. (Confirming a same-network
+        // address is idempotent: cleared then immediately re-bound to the same IP.)
+        await clearRegisteredIp(id);
+        select(id);
+        await reconnect();
+      } catch (e) {
+        // Surface the error AND rethrow: a failed confirm leaves outbound PSTN
+        // gated, so the caller (the banner) must NOT treat this as success and
+        // collapse its form. Rethrowing lets the UI keep the prompt open and the
+        // host onError fire, instead of a silent failure that looks bound.
+        setError(e instanceof Error ? e.message : 'Failed to confirm emergency address');
+        throw e;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [clearRegisteredIp, select, reconnect]
+  );
+
+  const create = useCallback(
+    async (input: EmergencyAddressInput) => {
+      setBusy(true);
+      setError(null);
+      try {
+        setDenied(false);
+        autoAdoptedRef.current = true;
+        // Present the NEW address on the reconnect (and persist its id), same as
+        // confirm() does — otherwise the socket re-authenticates without carrying
+        // it, so the server never binds it to this session and the banner never
+        // clears even though the address was created.
+        const created = await save(input);
+        select(created.id);
+        await reconnect();
+      } catch (e) {
+        // See confirm(): surface + rethrow so a failed create doesn't collapse
+        // the form as if the address were bound.
+        setError(e instanceof Error ? e.message : 'Failed to save emergency address');
+        throw e;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [save, select, reconnect]
+  );
+
+  return { loading, bound, savedAddresses, busy, error, onNetworkChanged, confirm, create };
+}

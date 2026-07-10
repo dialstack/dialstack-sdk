@@ -1,15 +1,15 @@
 /**
- * The Dialer's CSS, as a function of the resolved palette. Kept separate from
+ * The Softphone's CSS, as a function of the resolved palette. Kept separate from
  * the React component so the (long) stylesheet is a single, framework-agnostic
- * source of truth — the React Dialer injects it into a scoped <style>, and the
+ * source of truth — the React Softphone injects it into a scoped <style>, and the
  * class names (`ds-*`) are shared with the markup the component renders.
  */
 
-import { dialerDimensions, dialerFontFamily, type DialerPalette } from './dialer-theme';
+import { softphoneDimensions, softphoneFontFamily, type SoftphonePalette } from './softphone-theme';
 
-/** Build the Dialer stylesheet for a palette. `scope` is a class the rules are nested under. */
-export function buildDialerStyles(p: DialerPalette, scope = 'ds-dialer'): string {
-  const d = dialerDimensions;
+/** Build the Softphone stylesheet for a palette. `scope` is a class the rules are nested under. */
+export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'): string {
+  const d = softphoneDimensions;
   return `
     .${scope} {
       --dsd-bg: ${p.background};
@@ -21,8 +21,9 @@ export function buildDialerStyles(p: DialerPalette, scope = 'ds-dialer'): string
       --dsd-accent: ${p.accent};
       --dsd-success: ${p.success};
       --dsd-danger: ${p.danger};
+      --dsd-warning: ${p.warning};
       --dsd-on-accent: ${p.onAccent};
-      font-family: var(--ds-font-family, ${dialerFontFamily});
+      font-family: var(--ds-font-family, ${softphoneFontFamily});
       background: var(--dsd-bg);
       color: var(--dsd-text);
       width: 100%;
@@ -178,24 +179,33 @@ export function buildDialerStyles(p: DialerPalette, scope = 'ds-dialer'): string
       overflow: hidden; background: var(--dsd-surface);
     }
     .${scope} .ds-e911-toggle {
-      display: flex; align-items: center; gap: 8px; width: 100%;
+      display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
       padding: 10px 12px; border: none; cursor: pointer;
-      background: transparent; color: var(--dsd-text-secondary);
-      font-family: inherit; font-size: 13px; font-weight: 600; text-align: left;
-    }
-    .${scope} .ds-e911-unset .ds-e911-toggle {
-      background: color-mix(in srgb, var(--dsd-danger) 12%, transparent);
-      color: var(--dsd-danger);
+      background: color-mix(in srgb, var(--dsd-warning) 18%, transparent);
+      color: color-mix(in srgb, var(--dsd-warning) 60%, var(--dsd-text));
+      font-family: inherit; font-size: 13px;
+      font-weight: 600; text-align: center;
     }
     .${scope} .ds-e911-toggle svg { width: 16px; height: 16px; flex: none; }
-    .${scope} .ds-e911-label { flex: 1; }
+    .${scope} .ds-e911-label { flex: 0 1 auto; text-align: center; }
     .${scope} .ds-e911-chevron { transition: transform 0.15s ease; }
     .${scope} .ds-e911-open .ds-e911-chevron { transform: rotate(180deg); }
-    .${scope} .ds-e911-form {
+    .${scope} .ds-e911-body {
       display: flex; flex-direction: column; gap: 8px;
       padding: 12px; border-top: 1px solid var(--dsd-border);
     }
     .${scope} .ds-e911-hint { font-size: 12px; color: var(--dsd-text-secondary); margin: 0; }
+    /* Saved-address choice buttons ("Are you here?") */
+    .${scope} .ds-e911-choice {
+      display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+      padding: 10px 12px; border: 1px solid var(--dsd-border); border-radius: 8px;
+      background: var(--dsd-bg); color: var(--dsd-text); cursor: pointer;
+      font-family: inherit; font-size: 13px;
+    }
+    .${scope} .ds-e911-choice:hover { border-color: var(--dsd-accent); }
+    .${scope} .ds-e911-choice svg { width: 14px; height: 14px; flex: none; color: var(--dsd-success); }
+    .${scope} .ds-e911-choice-addr { flex: 1; min-width: 0; }
+    .${scope} .ds-e911-choice-cta { font-size: 12px; font-weight: 600; color: var(--dsd-accent); }
     .${scope} .ds-e911-row { display: flex; gap: 8px; }
     .${scope} .ds-e911-field { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
     .${scope} .ds-e911-field-sm { flex: none; width: 88px; }
@@ -207,12 +217,16 @@ export function buildDialerStyles(p: DialerPalette, scope = 'ds-dialer'): string
     }
     .${scope} .ds-e911-input:focus { border-color: var(--dsd-accent); }
     .${scope} .ds-e911-error { font-size: 12px; color: var(--dsd-danger); margin: 0; }
-    .${scope} .ds-e911-save {
-      border: none; border-radius: 8px; padding: 10px;
+    .${scope} .ds-e911-actions { display: flex; gap: 8px; }
+    .${scope} .ds-e911-btn {
+      flex: 1; border: none; border-radius: 8px; padding: 10px;
       background: var(--dsd-accent); color: var(--dsd-on-accent);
       font-weight: 600; cursor: pointer; font-family: inherit; font-size: 14px;
     }
-    .${scope} .ds-e911-save:disabled { opacity: 0.5; cursor: not-allowed; }
+    .${scope} .ds-e911-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .${scope} .ds-e911-btn-secondary {
+      flex: none; background: var(--dsd-surface); color: var(--dsd-text);
+    }
 
     .${scope} button:focus-visible, .${scope} input:focus-visible {
       outline: none;

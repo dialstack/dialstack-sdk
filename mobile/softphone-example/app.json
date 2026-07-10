@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "DialStack Softphone",
+    "slug": "dialstack-mobile-softphone",
+    "version": "1.0.0",
+    "orientation": "default",
+    "scheme": "dialstack-softphone",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ai.dialstack.softphone.example",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "DialStack needs the microphone to place and receive calls.",
+        "UIBackgroundModes": ["audio", "voip"]
+      }
+    },
+    "android": {
+      "package": "ai.dialstack.softphone.example",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ]
+    },
+    "plugins": ["@config-plugins/react-native-webrtc", "expo-dev-client"]
+  }
+}

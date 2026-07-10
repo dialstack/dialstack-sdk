@@ -10,7 +10,16 @@ interface DialstackComponentsContextValue {
   dialstack: DialStackInstance;
 }
 
+/**
+ * The DialStack components context. Exported so components that can also run
+ * standalone (e.g. the softphone, which needs only a WebRTC token) may read it
+ * *optionally* via `useContext` — subscribing to live appearance updates when a
+ * `<DialstackComponentsProvider>` is present, and falling back to their own
+ * props when it is not. Components that always require the provider should use
+ * `useDialstackComponents()` (which throws when absent) instead.
+ */
 const DialstackComponentsContext = createContext<DialstackComponentsContextValue | null>(null);
+export { DialstackComponentsContext };
 
 export interface DialstackComponentsProviderProps {
   /**

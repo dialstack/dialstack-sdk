@@ -7,7 +7,7 @@ import {
   formatCallDuration,
   formatDisplayNumber,
   callStateLabelKey,
-} from '../dialer-view-model';
+} from '../softphone-view-model';
 import type { Call, CallDirection, CallState } from '../../webrtc';
 
 // A minimal Call-shaped stub — the view-model only reads these fields.

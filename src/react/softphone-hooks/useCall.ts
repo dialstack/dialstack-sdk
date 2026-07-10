@@ -1,5 +1,5 @@
 /**
- * `useCall` — the shared "brain" of the dialer, web and React Native.
+ * `useCall` — the shared "brain" of the softphone, web and React Native.
  *
  * It owns a `DialStackPhone`: constructs it from credentials, subscribes to the
  * connection + incoming-call events, applies the foreground-call policy (the UI
@@ -24,8 +24,8 @@ import type {
   PhoneOptions,
 } from '../../webrtc';
 
-/** Connection lifecycle surfaced to the dialer UI. */
-export type DialerConnectionState =
+/** Connection lifecycle surfaced to the softphone UI. */
+export type SoftphoneConnectionState =
   'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error';
 
 export interface UseCallOptions extends PhoneOptions {
@@ -42,7 +42,7 @@ export interface UseCallOptions extends PhoneOptions {
   onCallStarted?: (e: { direction: 'inbound' | 'outbound'; peer: string }) => void;
 
   /**
-   * Fired when a call is answered (becomes active). The web dialer ignores this
+   * Fired when a call is answered (becomes active). The web softphone ignores this
    * (remote audio auto-plays through its `<audio>` element); React Native uses
    * it to take the audio session (`InCallManager.start`).
    */
@@ -56,11 +56,18 @@ export interface UseCallOptions extends PhoneOptions {
 
   /** Fired on a non-fatal or fatal phone error. */
   onError?: (e: { code: string; message: string }) => void;
+
+  /**
+   * Fired when the server rejects the session's emergency address for the
+   * current network (the `network.changed` signal). Outbound PSTN is gated
+   * until an address valid here is confirmed; 911/933 still flow.
+   */
+  onNetworkChanged?: () => void;
 }
 
 export interface UseCallResult {
   /** Connection lifecycle state. */
-  connection: DialerConnectionState;
+  connection: SoftphoneConnectionState;
   /** The single foreground call the UI represents, or null when idle. */
   activeCall: Call | null;
   /**
@@ -70,19 +77,27 @@ export interface UseCallResult {
   placeCall: (destination: string) => Promise<void>;
 
   /**
-   * List the user's saved emergency addresses. Uses the SAME phone as the call
-   * session (no second connection), so it never disturbs the registration.
-   * Returns [] before the phone exists.
+   * List the user's saved emergency addresses. Truth for "is this session's
+   * emergency address bound to the current network" is `registered_ip !== null`
+   * on the presented address (server binds it at the authenticate handshake).
    */
   listEmergencyAddresses: () => Promise<EmergencyAddress[]>;
 
-  /**
-   * Create/validate a per-user emergency address for outbound PSTN. Updates the
-   * live phone in place (and its localStorage selection) — it does NOT reconnect
-   * or re-register, so an in-progress registration is unaffected. Rejects with a
-   * `PhoneError` on carrier rejection.
-   */
+  /** Create + validate a new emergency address (does not bind until reconnect). */
   setEmergencyAddress: (input: EmergencyAddressInput) => Promise<EmergencyAddress>;
+
+  /** Select an already-saved address to present on the next (re)connect. */
+  selectEmergencyAddress: (id: string) => void;
+
+  /** Clear an address's network binding (registered_ip) so a reconnect re-binds. */
+  clearEmergencyAddressRegisteredIp: (id: string) => Promise<void>;
+
+  /**
+   * Tear down and reconnect, re-running authenticate so the current emergency
+   * address binds to this network. How a just-selected/created address takes
+   * effect, and how a moved session re-binds.
+   */
+  reconnect: () => Promise<void>;
 }
 
 /**
@@ -103,7 +118,7 @@ export function useCall(options: UseCallOptions): UseCallResult {
   // Start in 'connecting' when autoConnect so the initial render already shows
   // the connecting state (the connect effect then only transitions from here),
   // avoiding a synchronous setState in the effect body.
-  const [connection, setConnection] = useState<DialerConnectionState>(
+  const [connection, setConnection] = useState<SoftphoneConnectionState>(
     autoConnect && options.token ? 'connecting' : 'idle'
   );
   // Mirror of `connection` read by the otherwise-stable `placeCall` callback, so
@@ -127,9 +142,17 @@ export function useCall(options: UseCallOptions): UseCallResult {
     onCallActivated,
     onCallEnded,
     onError,
+    onNetworkChanged: options.onNetworkChanged,
   });
   useEffect(() => {
-    handlers.current = { onIncomingCall, onCallStarted, onCallActivated, onCallEnded, onError };
+    handlers.current = {
+      onIncomingCall,
+      onCallStarted,
+      onCallActivated,
+      onCallEnded,
+      onError,
+      onNetworkChanged: options.onNetworkChanged,
+    };
   });
 
   // Cleanup for the currently-wired foreground call's listeners. The foreground
@@ -207,14 +230,27 @@ export function useCall(options: UseCallOptions): UseCallResult {
   const setEmergencyAddress = useCallback(
     async (input: EmergencyAddressInput): Promise<EmergencyAddress> => {
       const phone = phoneRef.current;
-      if (!phone) {
-        throw new Error('Phone not connected');
-      }
-      // Updates the live phone in place + persists to localStorage. No reconnect.
+      if (!phone) throw new Error('Phone not connected');
+      // Creates + validates the address and selects it locally. Binding to the
+      // network happens on the next reconnect (authenticate handshake).
       return phone.setEmergencyAddress(input);
     },
     []
   );
+
+  const selectEmergencyAddress = useCallback((id: string) => {
+    phoneRef.current?.selectEmergencyAddress(id);
+  }, []);
+
+  const clearEmergencyAddressRegisteredIp = useCallback(async (id: string): Promise<void> => {
+    const phone = phoneRef.current;
+    if (!phone) return;
+    await phone.clearEmergencyAddressRegisteredIp(id);
+  }, []);
+
+  const reconnect = useCallback(async (): Promise<void> => {
+    await phoneRef.current?.reconnect();
+  }, []);
 
   // Construct + connect the phone for the current credentials. Reconnects when
   // any credential changes; tears down on unmount.
@@ -271,6 +307,10 @@ export function useCall(options: UseCallOptions): UseCallResult {
       'disconnected',
       guard(() => setConnection('disconnected'))
     );
+    p.on(
+      'network.changed',
+      guard(() => handlers.current.onNetworkChanged?.())
+    );
     p.on('incoming', (call) => {
       if (disposed) return;
       // Foreground-call policy: the latest inbound call becomes the one the UI
@@ -318,5 +358,14 @@ export function useCall(options: UseCallOptions): UseCallResult {
     // array literal doesn't tear down and reconnect the socket mid-registration.
   }, [token, apiBaseUrl, signalingBaseUrl, autoReconnect, autoConnect, wireCall]);
 
-  return { connection, activeCall, placeCall, listEmergencyAddresses, setEmergencyAddress };
+  return {
+    connection,
+    activeCall,
+    placeCall,
+    listEmergencyAddresses,
+    setEmergencyAddress,
+    selectEmergencyAddress,
+    clearEmergencyAddressRegisteredIp,
+    reconnect,
+  };
 }

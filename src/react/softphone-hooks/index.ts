@@ -1,6 +1,6 @@
 /**
- * Shared dialer hooks + view-model — the platform-agnostic "brain" of the SDK
- * dialer, consumed by both the web React `<Dialer>` and the React Native dialer.
+ * Shared softphone hooks + view-model — the platform-agnostic "brain" of the SDK
+ * softphone, consumed by both the web React `<Softphone>` and the React Native softphone.
  *
  * These import only the headless core (`../../webrtc`) and React, never the DOM
  * or React Native, so the call-state logic that's easy to let drift between the
@@ -8,15 +8,15 @@
  */
 
 export { useCall } from './useCall';
-export type { UseCallOptions, UseCallResult, DialerConnectionState } from './useCall';
+export type { UseCallOptions, UseCallResult, SoftphoneConnectionState } from './useCall';
 
 export { useCallActions } from './useCallActions';
 export type { UseCallActions, UseCallActionsOptions } from './useCallActions';
 
 export { useCallDuration } from './useCallDuration';
 
-export { useEmergencyAddress } from './useEmergencyAddress';
-export type { UseEmergencyAddress } from './useEmergencyAddress';
+export { useEmergencyBinding } from './useEmergencyBinding';
+export type { UseEmergencyBinding, UseEmergencyBindingDeps } from './useEmergencyBinding';
 
 export {
   isIncomingRinging,
@@ -27,5 +27,5 @@ export {
   formatCallDuration,
   formatDisplayNumber,
   callStateLabelKey,
-} from '../../components/dialer-view-model';
-export type { DialerScreen } from '../../components/dialer-view-model';
+} from '../../components/softphone-view-model';
+export type { SoftphoneScreen } from '../../components/softphone-view-model';

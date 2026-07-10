@@ -1,9 +1,9 @@
 /**
- * Shared design tokens for the DialStack Dialer.
+ * Shared design tokens for the DialStack Softphone.
  *
  * This module is intentionally framework-agnostic (no DOM, no React Native) so
- * that BOTH the web Dialer (Web Component, consumes these as CSS values) and the
- * React Native Dialer (consumes these in a StyleSheet) render from a single
+ * that BOTH the web Softphone (Web Component, consumes these as CSS values) and the
+ * React Native Softphone (consumes these in a StyleSheet) render from a single
  * source of truth — that is what makes the two look identical by default.
  *
  * Colors resolve from the same `AppearanceOptions` surface the rest of the SDK
@@ -13,8 +13,8 @@
 
 import type { AppearanceOptions, AppearanceVariables, Theme } from '../types/appearance';
 
-/** Flat color set the Dialer paints from, after appearance is resolved. */
-export interface DialerPalette {
+/** Flat color set the Softphone paints from, after appearance is resolved. */
+export interface SoftphonePalette {
   /** Component background. */
   background: string;
   /** Dial-pad key / control surface fill. */
@@ -33,13 +33,15 @@ export interface DialerPalette {
   success: string;
   /** Hang up / Decline (red) action color. */
   danger: string;
+  /** Warning / caution (amber) — used by the E911 banner. */
+  warning: string;
   /** Foreground used on top of accent/success/danger fills. */
   onAccent: string;
 }
 
 /** Numeric layout tokens (in px on web, in dp on native — same numbers). */
-export const dialerDimensions = {
-  /** The Dialer caps its width and centers, so it reads as a phone on big screens. */
+export const softphoneDimensions = {
+  /** The Softphone caps its width and centers, so it reads as a phone on big screens. */
   maxWidth: 420,
   /** Diameter of the round primary actions (Call, Hang up, Answer, Decline). */
   actionButtonSize: 68,
@@ -53,13 +55,13 @@ export const dialerDimensions = {
   space: 16,
 } as const;
 
-export type DialerDimensions = typeof dialerDimensions;
+export type SoftphoneDimensions = typeof softphoneDimensions;
 
 // Theme-aware defaults. The shared colors (background/text/secondary/border/
-// accent/success/danger) mirror the SDK's base-component defaults so the Dialer
+// accent/success/danger) mirror the SDK's base-component defaults so the Softphone
 // sits in the same visual family as CallLogs/Voicemails/etc. The surface fills
-// are Dialer-specific (keys need a touch more contrast than the table surfaces).
-const LIGHT: DialerPalette = {
+// are Softphone-specific (keys need a touch more contrast than the table surfaces).
+const LIGHT: SoftphonePalette = {
   background: '#ffffff',
   surface: 'rgba(0, 0, 0, 0.04)',
   surfaceActive: 'rgba(0, 0, 0, 0.09)',
@@ -69,10 +71,11 @@ const LIGHT: DialerPalette = {
   accent: '#6772e5',
   success: '#30a46c',
   danger: '#e5484d',
+  warning: '#f5a623',
   onAccent: '#ffffff',
 };
 
-const DARK: DialerPalette = {
+const DARK: SoftphonePalette = {
   background: '#1a1a1a',
   surface: 'rgba(255, 255, 255, 0.06)',
   surfaceActive: 'rgba(255, 255, 255, 0.12)',
@@ -82,6 +85,7 @@ const DARK: DialerPalette = {
   accent: '#828bf0',
   success: '#3dd68c',
   danger: '#ff6369',
+  warning: '#f5a623',
   onAccent: '#ffffff',
 };
 
@@ -113,7 +117,7 @@ function isDark(theme: Theme | undefined): boolean {
  * are layered on top. Unrecognized/absent variables fall back to the theme
  * default, so a bare `{ theme: 'dark' }` and a fully-specified palette both work.
  */
-export function resolveDialerPalette(appearance?: AppearanceOptions): DialerPalette {
+export function resolveSoftphonePalette(appearance?: AppearanceOptions): SoftphonePalette {
   const base = isDark(appearance?.theme) ? DARK : LIGHT;
   const v: AppearanceVariables = appearance?.variables ?? {};
   return {
@@ -126,10 +130,11 @@ export function resolveDialerPalette(appearance?: AppearanceOptions): DialerPale
     accent: v.colorPrimary ?? base.accent,
     success: v.colorSuccess ?? base.success,
     danger: v.colorDanger ?? base.danger,
+    warning: v.colorWarning ?? base.warning,
     onAccent: base.onAccent,
   };
 }
 
 /** Default font stack, shared with the rest of the SDK. */
-export const dialerFontFamily =
+export const softphoneFontFamily =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';

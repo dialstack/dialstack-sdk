@@ -141,6 +141,57 @@ describe('Call.prepareAnswerForOffer media direction', () => {
   });
 });
 
+// canSendDtmf reflects whether the platform's audio sender exposes an
+// RTCDTMFSender. Browsers do (dtmf is an object); react-native-webrtc does not
+// (dtmf is undefined → attachDtmfSender collapses it to null). The softphone UI
+// gates its in-call keypad on this.
+describe('Call.canSendDtmf', () => {
+  beforeEach(() => {
+    (globalThis as Record<string, unknown>).MediaStream = FakeMediaStream;
+    Object.defineProperty(globalThis, 'navigator', {
+      value: {
+        mediaDevices: {
+          getUserMedia: async () => {
+            const s = new FakeMediaStream();
+            s.addTrack(new FakeTrack());
+            return s;
+          },
+        },
+      },
+      configurable: true,
+    });
+  });
+
+  it('is false before negotiation (no sender attached yet)', () => {
+    (globalThis as Record<string, unknown>).RTCPeerConnection = FakeRTCPeerConnection;
+    const call = new Call(makeInit());
+    expect(call.canSendDtmf).toBe(false);
+  });
+
+  it('is true once active when the audio sender has a DTMF sender (browser)', async () => {
+    (globalThis as Record<string, unknown>).RTCPeerConnection = FakeRTCPeerConnection;
+    const call = new Call(makeInit());
+    await call.prepareAnswerForOffer('fake-offer-sdp');
+    expect(call.canSendDtmf).toBe(true);
+  });
+
+  it('is false when the audio sender exposes no .dtmf (react-native-webrtc)', async () => {
+    // Model the RN sender: addTrack returns a sender whose `.dtmf` is undefined,
+    // which attachDtmfSender's `sender?.dtmf ?? null` collapses to null.
+    class NoDtmfPeerConnection extends FakeRTCPeerConnection {
+      addTrack(track: FakeTrack): FakeSender {
+        const s = super.addTrack(track);
+        s.dtmf = undefined;
+        return s;
+      }
+    }
+    (globalThis as Record<string, unknown>).RTCPeerConnection = NoDtmfPeerConnection;
+    const call = new Call(makeInit());
+    await call.prepareAnswerForOffer('fake-offer-sdp');
+    expect(call.canSendDtmf).toBe(false);
+  });
+});
+
 // Network early media: the carrier's 183 SDP is applied as a JSEP provisional
 // answer (type:'pranswer'); the final 200 OK answer (type:'answer') replaces
 // it. The two may differ, so the final answer must NOT be blocked or skipped.
