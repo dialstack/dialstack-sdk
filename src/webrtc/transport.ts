@@ -1,4 +1,5 @@
 import { PhoneError } from './errors';
+import { logError } from './logger';
 import type { ClientMessage, ServerMessage } from './types';
 
 const BACKOFF_STEPS_MS = [1000, 2000, 4000, 8000, 16000, 30000];
@@ -47,6 +48,10 @@ export class Transport {
 
   send(msg: ClientMessage): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      logError('WebSocket send failed: socket not open', {
+        type: msg.type,
+        readyState: this.ws?.readyState ?? null,
+      });
       throw new PhoneError({ code: 'transport_closed', message: 'WebSocket is not open' });
     }
     this.ws.send(JSON.stringify(msg));
@@ -60,7 +65,9 @@ export class Transport {
    * loss, and a closed socket means the call is already tearing down.
    */
   trySend(msg: ClientMessage): void {
-    if (this.isOpen()) this.ws!.send(JSON.stringify(msg));
+    if (this.isOpen()) {
+      this.ws!.send(JSON.stringify(msg));
+    }
   }
 
   close(): void {
@@ -85,6 +92,7 @@ export class Transport {
       try {
         parsed = JSON.parse(evt.data) as ServerMessage;
       } catch {
+        logError('WebSocket received an unparseable frame');
         return;
       }
       if (parsed.type === 'error' && parsed.fatal && parsed.code === 'session_revoked') {

@@ -50,6 +50,22 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     .${scope} .ds-chip-pending { background: var(--dsd-surface); color: var(--dsd-text-secondary); }
     .${scope} .ds-chip-off { background: var(--dsd-surface); color: var(--dsd-text-secondary); }
     .${scope} .ds-chip-error { background: color-mix(in srgb, var(--dsd-danger) 16%, transparent); color: var(--dsd-danger); }
+    .${scope} .ds-call-error {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      max-width: 100%;
+      text-align: left;
+    }
+    .${scope} .ds-call-error-dismiss {
+      border: none;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      font-size: 12px;
+      line-height: 1;
+      padding: 0;
+    }
 
     .${scope} .ds-display { display: flex; align-items: center; gap: 8px; min-height: 56px; }
     .${scope} .ds-destination {
@@ -160,18 +176,34 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       text-align: center; font-size: 22px; min-height: 28px;
       font-variant-numeric: tabular-nums; letter-spacing: 0.08em;
     }
-    .${scope} .ds-transfer { display: flex; gap: 8px; }
+    .${scope} .ds-transfer { display: flex; flex-direction: column; gap: 8px; }
     .${scope} .ds-transfer-input {
       flex: 1; min-width: 0; padding: 12px 14px;
       border: 1px solid var(--dsd-border); border-radius: ${d.radius}px;
       background: var(--dsd-bg); color: var(--dsd-text); font-size: 16px; outline: none;
     }
     .${scope} .ds-transfer-input:focus { border-color: var(--dsd-accent); }
+    .${scope} .ds-transfer-actions { display: flex; gap: 8px; }
     .${scope} .ds-transfer-send {
-      border: none; border-radius: ${d.radius}px; padding: 0 18px;
+      flex: 1; border: none; border-radius: ${d.radius}px; padding: 12px 18px;
       background: var(--dsd-accent); color: var(--dsd-on-accent);
-      font-weight: 600; cursor: pointer; font-family: inherit;
+      font-weight: 600; cursor: pointer; font-family: inherit; font-size: 14px;
     }
+    .${scope} .ds-transfer-send:disabled { opacity: 0.5; cursor: not-allowed; }
+    .${scope} .ds-transfer-send-secondary {
+      background: var(--dsd-surface); color: var(--dsd-text);
+    }
+
+    /* Attended-transfer "consulting" screen: original held + consult live. */
+    .${scope} .ds-screen-consult { gap: clamp(12px, 3vw, 20px); }
+    .${scope} .ds-consult-party {
+      border: 1px solid var(--dsd-border); border-radius: ${d.radius}px;
+      padding: 12px 14px; text-align: center;
+    }
+    .${scope} .ds-consult-held { opacity: 0.7; }
+    .${scope} .ds-consult-active { border-color: var(--dsd-accent); }
+    .${scope} .ds-consult-actions { display: flex; gap: 8px; }
+    .${scope} .ds-consult-actions .ds-e911-btn { flex: 1; }
 
     .${scope} .ds-e911 {
       margin-bottom: 12px;

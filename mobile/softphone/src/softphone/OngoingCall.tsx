@@ -10,28 +10,88 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import type { CallState } from '@dialstack/sdk/webrtc';
-import { callPeerNumber, callPeerName, callStateLabelKey } from '@dialstack/sdk/react/softphone';
+import {
+  callPeerNumber,
+  callPeerName,
+  callStateLabelKey,
+  useDialInput,
+} from '@dialstack/sdk/react/softphone';
 import { dialPadKeys, softphoneDimensions as D } from '@dialstack/sdk/components/softphone-theme';
 import { softphoneGlyphs } from '@dialstack/sdk/components/softphone-icons';
 import { useSoftphone } from '../SoftphoneProvider';
-import { Glyph, ControlButton, chunk, makeStyles, STATE_LABEL } from './primitives';
+import { CallErrorChip } from './CallErrorChip';
+import { Glyph, ControlButton, chunk, makeStyles } from './primitives';
 
 export function OngoingCall(): React.JSX.Element | null {
-  const { activeCall: call, actions, duration, displayNumber, palette } = useSoftphone();
+  const {
+    activeCall: call,
+    actions,
+    duration,
+    consultCall,
+    transferOriginal,
+    startAttendedTransfer,
+    completeAttendedTransfer,
+    cancelAttendedTransfer,
+    displayNumber,
+    t,
+    palette,
+  } = useSoftphone();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   const { showKeypad, showTransfer } = actions;
   const [transferTo, setTransferTo] = useState('');
+  const { onType: onTransferType } = useDialInput(setTransferTo);
 
   const callId = call?.id ?? null;
   useEffect(() => {
     setTransferTo('');
   }, [callId]);
 
+  // Attended-transfer "consulting" screen: the original party is held while we
+  // talk to the consult target, then bridge (complete) or drop back (cancel).
+  // Checked BEFORE `if (!call)` so the consult UI stays reachable if the held
+  // original drops mid-consult.
+  if (consultCall && transferOriginal) {
+    const heldPeer = callPeerNumber(transferOriginal);
+    const heldName =
+      callPeerName(transferOriginal) || displayNumber(heldPeer) || t('unknownCaller');
+    const consultPeer = callPeerNumber(consultCall);
+    const consultName =
+      callPeerName(consultCall) || displayNumber(consultPeer) || t('unknownCaller');
+    const canComplete = consultCall.state === 'active';
+    return (
+      <>
+        <View style={[styles.consultParty, styles.consultHeld]}>
+          <Text style={styles.peerName}>{heldName}</Text>
+          <Text style={styles.callStateText}>{t('transferOriginalOnHold')}</Text>
+        </View>
+        <View style={[styles.consultParty, styles.consultActive]}>
+          <Text style={styles.peerName}>{consultName}</Text>
+          <Text style={styles.callStateText}>
+            {t(callStateLabelKey(consultCall.state as CallState))}
+          </Text>
+        </View>
+        <View style={styles.consultActions}>
+          <Pressable onPress={cancelAttendedTransfer} style={styles.e911BtnSecondary}>
+            <Text style={styles.e911BtnSecondaryText}>{t('cancel')}</Text>
+          </Pressable>
+          <Pressable
+            onPress={completeAttendedTransfer}
+            disabled={!canComplete}
+            style={[styles.e911Btn, !canComplete && styles.e911BtnDisabled]}
+          >
+            <Text style={styles.e911BtnText}>{t('transferComplete')}</Text>
+          </Pressable>
+        </View>
+      </>
+    );
+  }
+
   if (!call) return null;
 
   const peerRaw = callPeerNumber(call);
   const peerName = callPeerName(call);
   const isActive = call.state === 'active' || call.state === 'held';
+  const name = peerName || displayNumber(peerRaw) || t('unknownCaller');
   // react-native-webrtc exposes no RTCDTMFSender, so DTMF can't be sent on
   // native — hide the keypad rather than throw on each tap.
   const canSendDtmf = call.canSendDtmf;
@@ -39,15 +99,17 @@ export function OngoingCall(): React.JSX.Element | null {
   return (
     <>
       <View style={styles.peer}>
-        <Text style={styles.peerName}>{peerName || displayNumber(peerRaw) || 'Unknown'}</Text>
+        <Text style={styles.peerName}>{name}</Text>
         {!!peerName && <Text style={styles.peerNumber}>{displayNumber(peerRaw)}</Text>}
         <View style={styles.callState}>
           <Text style={styles.callStateText}>
-            {STATE_LABEL[callStateLabelKey(call.state as CallState)] ?? ''}
+            {t(callStateLabelKey(call.state as CallState))}
           </Text>
           {isActive && <Text style={styles.duration}>{duration}</Text>}
         </View>
       </View>
+
+      <CallErrorChip />
 
       {isActive && showKeypad && canSendDtmf && (
         <View style={styles.dtmfPad}>
@@ -77,28 +139,40 @@ export function OngoingCall(): React.JSX.Element | null {
           <TextInput
             style={styles.transferInput}
             value={transferTo}
-            onChangeText={setTransferTo}
-            placeholder="Transfer to…"
+            onChangeText={onTransferType}
+            placeholder={t('transferPlaceholder')}
             placeholderTextColor={palette.textSecondary}
             keyboardType="phone-pad"
             autoCorrect={false}
           />
-          <Pressable
-            onPress={() => {
-              actions.transfer(transferTo);
-              setTransferTo('');
-            }}
-            style={styles.transferSend}
-          >
-            <Text style={styles.transferSendText}>Transfer</Text>
-          </Pressable>
+          <View style={styles.transferActions}>
+            {/* Blind: hand off immediately. */}
+            <Pressable
+              disabled={!transferTo.trim()}
+              onPress={() => {
+                actions.transfer(transferTo);
+                setTransferTo('');
+              }}
+              style={[styles.transferSend, styles.transferSendSecondary]}
+            >
+              <Text style={styles.transferSendSecondaryText}>{t('transferNow')}</Text>
+            </Pressable>
+            {/* Attended: hold the caller and consult the target first. */}
+            <Pressable
+              disabled={!transferTo.trim()}
+              onPress={() => void startAttendedTransfer(transferTo)}
+              style={styles.transferSend}
+            >
+              <Text style={styles.transferSendText}>{t('transferConsult')}</Text>
+            </Pressable>
+          </View>
         </View>
       )}
 
       {isActive && (
         <View style={styles.controls}>
           <ControlButton
-            label={call.isMuted ? 'Unmute' : 'Mute'}
+            label={call.isMuted ? t('unmute') : t('mute')}
             glyph={call.isMuted ? softphoneGlyphs.micOff : softphoneGlyphs.mic}
             on={call.isMuted}
             onPress={actions.toggleMute}
@@ -106,7 +180,7 @@ export function OngoingCall(): React.JSX.Element | null {
             styles={styles}
           />
           <ControlButton
-            label={call.state === 'held' ? 'Resume' : 'Hold'}
+            label={call.state === 'held' ? t('resume') : t('hold')}
             glyph={softphoneGlyphs.pause}
             on={call.state === 'held'}
             onPress={actions.toggleHold}
@@ -115,7 +189,7 @@ export function OngoingCall(): React.JSX.Element | null {
           />
           {canSendDtmf && (
             <ControlButton
-              label="Keypad"
+              label={t('keypad')}
               glyph={softphoneGlyphs.keypad}
               on={showKeypad}
               onPress={actions.toggleKeypad}
@@ -124,7 +198,7 @@ export function OngoingCall(): React.JSX.Element | null {
             />
           )}
           <ControlButton
-            label="Transfer"
+            label={t('transfer')}
             glyph={softphoneGlyphs.transfer}
             on={showTransfer}
             onPress={actions.toggleTransfer}
@@ -137,7 +211,7 @@ export function OngoingCall(): React.JSX.Element | null {
       <View style={styles.actions}>
         <Pressable
           onPress={actions.hangup}
-          accessibilityLabel="Hang up"
+          accessibilityLabel={t('hangUp')}
           style={({ pressed }: { pressed: boolean }) => [
             styles.action,
             styles.actionDanger,

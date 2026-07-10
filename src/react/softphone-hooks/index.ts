@@ -7,8 +7,8 @@
  * two UIs is single-sourced here. Each platform builds only its own render tree.
  */
 
-export { useCall } from './useCall';
-export type { UseCallOptions, UseCallResult, SoftphoneConnectionState } from './useCall';
+export { useCalls } from './useCalls';
+export type { UseCallsOptions, UseCallsResult, SoftphoneConnectionState } from './useCalls';
 
 export { useCallActions } from './useCallActions';
 export type { UseCallActions, UseCallActionsOptions } from './useCallActions';
@@ -18,14 +18,25 @@ export { useCallDuration } from './useCallDuration';
 export { useEmergencyBinding } from './useEmergencyBinding';
 export type { UseEmergencyBinding, UseEmergencyBindingDeps } from './useEmergencyBinding';
 
+export { useLastError } from './useLastError';
+export type { UseLastError, SoftphoneError } from './useLastError';
+
+export { useDialInput } from './useDialInput';
+export type { UseDialInput } from './useDialInput';
+
 export {
   isIncomingRinging,
+  shouldRingIncoming,
   isCallActive,
   selectScreen,
   callPeerNumber,
   callPeerName,
   formatCallDuration,
   formatDisplayNumber,
+  stripToDialString,
+  sanitizeDestination,
+  DIAL_COUNTRY,
   callStateLabelKey,
+  errorMessageKey,
 } from '../../components/softphone-view-model';
 export type { SoftphoneScreen } from '../../components/softphone-view-model';

@@ -264,10 +264,15 @@ export class Call {
   }
 
   private assertTransferable(): void {
-    if (this.state !== 'active') {
+    // A transfer needs a live, connected call. A held call is still connected —
+    // hold is a media modifier (sendonly), not a different call — and the server
+    // keeps it StateActive and re-asserts hold idempotently as step 1 of the
+    // attended flow. So both 'active' and 'held' are transferable; only reject
+    // the not-yet-connected ('trying'/'ringing') and gone ('ended') states.
+    if (this.state !== 'active' && this.state !== 'held') {
       throw new PhoneError({
         code: 'invalid_message',
-        message: 'Only active calls can be transferred',
+        message: 'Only a connected call can be transferred',
         callId: this.id,
       });
     }

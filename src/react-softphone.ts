@@ -13,26 +13,42 @@
  */
 
 export {
-  useCall,
+  useCalls,
   useCallActions,
   useCallDuration,
   useEmergencyBinding,
+  useLastError,
+  useDialInput,
   isIncomingRinging,
+  shouldRingIncoming,
   isCallActive,
   selectScreen,
   callPeerNumber,
   callPeerName,
   formatCallDuration,
   formatDisplayNumber,
+  stripToDialString,
+  sanitizeDestination,
+  DIAL_COUNTRY,
   callStateLabelKey,
+  errorMessageKey,
 } from './react/softphone-hooks';
 export type {
-  UseCallOptions,
-  UseCallResult,
+  UseCallsOptions,
+  UseCallsResult,
   SoftphoneConnectionState,
   UseCallActions,
   UseCallActionsOptions,
   UseEmergencyBinding,
   UseEmergencyBindingDeps,
+  UseLastError,
+  UseDialInput,
+  SoftphoneError,
   SoftphoneScreen,
 } from './react/softphone-hooks';
+
+// The locale table + default, re-exported here so the React Native softphone can
+// resolve UI strings through the same `t()` accessor as the web softphone (this
+// RN-safe entry is the only SDK path RN imports from). Pure data — no DOM/RN dep.
+export { defaultLocale } from './locales';
+export type { Locale } from './locales';

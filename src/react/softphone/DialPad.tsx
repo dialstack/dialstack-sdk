@@ -9,10 +9,12 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useSoftphone } from '../SoftphoneProvider';
+import { useDialInput } from '../softphone-hooks';
 import { dialPadKeys } from '../../components/softphone-theme';
 import { softphoneGlyphs } from '../../components/softphone-icons';
 import { Glyph } from './Glyph';
 import { EmergencyBanner } from './EmergencyBanner';
+import { CallErrorChip } from './CallErrorChip';
 
 export interface DialPadProps {
   /**
@@ -25,6 +27,7 @@ export interface DialPadProps {
 export function DialPad({ autoFocusDestination = false }: DialPadProps): React.JSX.Element {
   const { connection, placeCall, t, scope } = useSoftphone();
   const [destination, setDestination] = useState('');
+  const { onType, onPasteText } = useDialInput(setDestination);
   const destinationRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -38,6 +41,7 @@ export function DialPad({ autoFocusDestination = false }: DialPadProps): React.J
       <div className="ds-screen ds-screen-dial">
         <EmergencyBanner />
         <StatusChip />
+        <CallErrorChip />
         <div className="ds-display">
           <input
             ref={destinationRef}
@@ -48,7 +52,11 @@ export function DialPad({ autoFocusDestination = false }: DialPadProps): React.J
             placeholder={t('destinationPlaceholder')}
             aria-label={t('destinationPlaceholder')}
             autoComplete="off"
-            onChange={(e) => setDestination(e.target.value)}
+            onChange={(e) => onType(e.target.value)}
+            onPaste={(e) => {
+              e.preventDefault();
+              onPasteText(e.clipboardData.getData('text'));
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();

@@ -14,7 +14,7 @@ import { useSoftphone, useIncomingCall } from '../SoftphoneProvider';
 import { Glyph, PulseDot, makeStyles } from './primitives';
 
 export function IncomingCall(): React.JSX.Element | null {
-  const { actions, displayNumber, palette } = useSoftphone();
+  const { actions, displayNumber, t, palette } = useSoftphone();
   const call = useIncomingCall();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   if (!call) return null;
@@ -24,16 +24,18 @@ export function IncomingCall(): React.JSX.Element | null {
 
   return (
     <>
-      <Text style={styles.incomingLabel}>INCOMING CALL</Text>
+      <Text style={styles.incomingLabel}>{t('incomingCall')}</Text>
       <View style={styles.peer}>
-        <Text style={styles.peerName}>{peerName || displayNumber(peerRaw) || 'Unknown'}</Text>
+        <Text style={styles.peerName}>
+          {peerName || displayNumber(peerRaw) || t('unknownCaller')}
+        </Text>
         {!!peerName && <Text style={styles.peerNumber}>{displayNumber(peerRaw)}</Text>}
       </View>
       <PulseDot color={palette.success} />
       <View style={[styles.actions, styles.actionsSpread]}>
         <Pressable
           onPress={actions.reject}
-          accessibilityLabel="Decline"
+          accessibilityLabel={t('decline')}
           style={({ pressed }: { pressed: boolean }) => [
             styles.action,
             styles.actionDanger,
@@ -48,7 +50,7 @@ export function IncomingCall(): React.JSX.Element | null {
         </Pressable>
         <Pressable
           onPress={actions.answer}
-          accessibilityLabel="Answer"
+          accessibilityLabel={t('answer')}
           style={({ pressed }: { pressed: boolean }) => [
             styles.action,
             styles.actionSuccess,

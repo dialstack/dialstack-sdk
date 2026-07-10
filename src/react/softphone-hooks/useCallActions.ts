@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { Call, PhoneError } from '../../webrtc';
+import { sanitizeDestination, DIAL_COUNTRY } from '../../components/softphone-view-model';
 
 export interface UseCallActionsOptions {
   /** Fired on a failed action (e.g. DTMF on a call with no sender, transfer). */
@@ -55,7 +56,7 @@ export function useCallActions(
   // Mute is client-local state the core mutates in place (call.mute() flips
   // call.isMuted with no server round-trip / event), so nothing would re-render
   // the mute control on its own. Bump a tick after toggling it. Hold, by
-  // contrast, is server-confirmed via call.on('held'/'resumed'), which useCall
+  // contrast, is server-confirmed via call.on('held'/'resumed'), which useCalls
   // already re-renders on — so it needs no local tick.
   const [, setTick] = useState(0);
   const rerender = useCallback(() => setTick((t) => t + 1), []);
@@ -155,7 +156,10 @@ export function useCallActions(
 
   const transfer = useCallback(
     (destination: string) => {
-      const target = destination.trim();
+      // Clean the dial string the same way placeCall/attended transfer do, so a
+      // pasted/formatted number ("(581) 319-5082") blind-transfers cleanly
+      // instead of being rejected by the server's dial allowlist.
+      const target = sanitizeDestination(destination, DIAL_COUNTRY);
       if (!target || !call) return;
       try {
         call.transfer(target);

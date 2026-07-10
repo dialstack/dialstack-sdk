@@ -1,6 +1,7 @@
 import { createPaginatedList, type PaginatedList } from '../shared/pagination';
 import { Call } from './call';
 import { NotImplementedError, PhoneError } from './errors';
+import { logError } from './logger';
 import { storage } from './platform';
 import type { RTCIceServer, RTCSessionDescriptionInit } from './platform';
 import { Transport } from './transport';
@@ -17,6 +18,39 @@ import type {
 } from './types';
 
 const DEFAULT_API_BASE_URL = 'https://api.dialstack.ai';
+
+// How long to wait for the server's call.trying (or an error) after sending
+// call.create before giving up on an outbound call. Generous — it covers a real
+// PSTN setup round-trip — but finite, so a wedged session surfaces as a failure
+// instead of a promise that never settles.
+const OUTBOUND_CALL_TIMEOUT_MS = 30_000;
+
+// How long to wait for the server's `authenticated` frame after the socket opens
+// before failing connect(). A dead/half-open socket otherwise leaves connect()
+// pending forever.
+const CONNECT_TIMEOUT_MS = 20_000;
+
+/**
+ * A one-shot timeout for a request awaiting a server reply. `onExpire` runs once
+ * if nothing settles within `ms`; `settle()` (called from the resolve/reject
+ * paths) cancels the timer and blocks a later expiry. Centralizes the
+ * settled-flag + setTimeout/clearTimeout bookkeeping shared by connect() and the
+ * outbound-call promise so the two can't drift.
+ */
+function armTimeout(ms: number, onExpire: () => void): { settle: () => void } {
+  let settled = false;
+  const timer = setTimeout(() => {
+    if (settled) return;
+    settled = true;
+    onExpire();
+  }, ms);
+  return {
+    settle: () => {
+      settled = true;
+      clearTimeout(timer);
+    },
+  };
+}
 
 // localStorage key prefix for the persisted emergency-address id.
 // Lets a softphone re-present the same address across reconnects/sessions so a
@@ -149,12 +183,43 @@ export class DialStackPhone {
     });
 
     return new Promise<void>((resolve, reject) => {
-      this.connectResolvers = { resolve, reject };
+      // Bound the wait for `authenticated`. A dead/half-open socket (or a server
+      // that accepts the TCP connection but never completes the handshake) would
+      // otherwise leave connect() pending forever with no rejection.
+      const timeout = armTimeout(CONNECT_TIMEOUT_MS, () => {
+        logError('Timed out connecting to the softphone', { timeoutMs: CONNECT_TIMEOUT_MS });
+        this.connectResolvers = null;
+        this.disconnect();
+        reject(
+          new PhoneError({ code: 'auth_failed', message: 'Timed out connecting to the softphone' })
+        );
+      });
+
+      this.connectResolvers = {
+        resolve: () => {
+          timeout.settle();
+          resolve();
+        },
+        reject: (err) => {
+          timeout.settle();
+          reject(err);
+        },
+      };
       transport.connect();
     });
   }
 
   disconnect(): void {
+    // Settle an in-flight outbound (awaiting call.trying) that isn't in
+    // activeCalls yet — otherwise its promise hangs forever and its timeout
+    // timer + Call leak until it fires. reject() clears the timer, disposes the
+    // Call, and nulls pendingOutbound/pendingCall.
+    this.pendingOutbound?.reject(
+      new PhoneError({
+        code: 'transport_closed',
+        message: 'Disconnected before the call connected',
+      })
+    );
     for (const call of [...this.activeCalls]) {
       try {
         call.hangup();
@@ -258,6 +323,16 @@ export class DialStackPhone {
       offer = await call.startOutbound();
     } catch (e) {
       call.dispose();
+      // A denied mic permission (getUserMedia throws NotAllowedError/SecurityError)
+      // is user-remediable and distinct from a generic call failure — give it its
+      // own code so the UI can prompt the user to grant access.
+      const name = (e as { name?: string }).name;
+      if (name === 'NotAllowedError' || name === 'SecurityError') {
+        throw new PhoneError({
+          code: 'mic_permission_denied',
+          message: 'Microphone permission is required to place a call',
+        });
+      }
       throw new PhoneError({
         code: 'call_failed',
         message: `Failed to start outbound call: ${(e as Error).message}`,
@@ -273,14 +348,39 @@ export class DialStackPhone {
     const offerSdp = offer.sdp;
 
     return new Promise<Call>((resolve, reject) => {
+      // Bound the wait for the server's call.trying (or an error) reply. Without
+      // this, a wedged/half-open session (socket open, server silent) leaves the
+      // promise pending forever — placeCall's caller never learns the dial failed
+      // and the UI silently no-ops. On expiry we reject so the failure surfaces.
+      const timeout = armTimeout(OUTBOUND_CALL_TIMEOUT_MS, () => {
+        // Only fire if THIS outbound is still the pending one (a later dial may
+        // have replaced it).
+        if (this.pendingOutbound?.reqId !== reqId) return;
+        logError('Timed out waiting for the server to accept the call', {
+          timeoutMs: OUTBOUND_CALL_TIMEOUT_MS,
+        });
+        this.pendingOutbound.reject(
+          new PhoneError({
+            code: 'call_failed',
+            message: 'Timed out waiting for the server to accept the call',
+          })
+        );
+      });
+
       this.pendingOutbound = {
         reqId,
         destination,
         resolve: (placed) => {
+          timeout.settle();
+          this.pendingOutbound = null;
+          this.pendingCall = null;
           this.activeCalls.push(placed);
           resolve(placed);
         },
         reject: (err) => {
+          timeout.settle();
+          this.pendingOutbound = null;
+          this.pendingCall = null;
           call.dispose();
           reject(err);
         },
@@ -468,6 +568,11 @@ export class DialStackPhone {
           callId: msg.call_id ?? null,
           fatal: msg.fatal ?? false,
         });
+        logError('Softphone server error', {
+          code: err.code,
+          message: err.message,
+          fatal: err.fatal,
+        });
         if (this.connectResolvers && err.fatal) {
           this.connectResolvers.reject(err);
           this.connectResolvers = null;
@@ -477,10 +582,8 @@ export class DialStackPhone {
         // consult failure), or by any fatal error — the connection is dying
         // and call.trying will never arrive.
         if (this.pendingOutbound && (msg.req_id === this.pendingOutbound.reqId || err.fatal)) {
-          const p = this.pendingOutbound;
-          this.pendingOutbound = null;
-          this.pendingCall = null;
-          p.reject(err);
+          // reject() clears the timer and nulls pendingOutbound/pendingCall.
+          this.pendingOutbound.reject(err);
         }
         this.emit('error', err);
         return;
@@ -490,11 +593,10 @@ export class DialStackPhone {
         // (call.create or the consult step of call.transfer.attended) and
         // echoes its req_id.
         if (this.pendingOutbound && msg.req_id === this.pendingOutbound.reqId && this.pendingCall) {
-          this.pendingCall.id = msg.call_id;
           const placed = this.pendingCall;
+          placed.id = msg.call_id;
+          // resolve() clears the timer and nulls pendingOutbound/pendingCall.
           this.pendingOutbound.resolve(placed);
-          this.pendingOutbound = null;
-          this.pendingCall = null;
           placed.handleServerMessage(msg);
         } else {
           this.getCall(msg.call_id)?.handleServerMessage(msg);

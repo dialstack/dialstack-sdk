@@ -468,3 +468,45 @@ describe('Call local ringback arbitration', () => {
     expect(ringback.stops).toBe(1);
   });
 });
+
+describe('Call transfer preconditions', () => {
+  beforeEach(() => {
+    (globalThis as Record<string, unknown>).MediaStream = FakeMediaStream;
+    (globalThis as Record<string, unknown>).RTCPeerConnection = FakeRTCPeerConnection;
+  });
+
+  function makeCall(): Call {
+    const send = jest.fn();
+    const startConsult = jest.fn().mockResolvedValue({} as never);
+    const call = new Call({ ...makeInit(), transport: { send } as never, startConsult });
+    return call;
+  }
+
+  // A held call is a live, connected call — hold is a media modifier, not a
+  // different lifecycle. Both active and held are transferable; the server keeps
+  // a held call StateActive and re-asserts hold as step 1 of the attended flow.
+  it('allows transfer + attendedTransfer on an active call', async () => {
+    const call = makeCall();
+    call.state = 'active';
+    expect(() => call.transfer('+15550001111')).not.toThrow();
+    await expect(call.attendedTransfer('+15550001111')).resolves.toBeDefined();
+  });
+
+  it('allows transfer + attendedTransfer on a HELD call', async () => {
+    const call = makeCall();
+    call.state = 'held';
+    expect(() => call.transfer('+15550001111')).not.toThrow();
+    await expect(call.attendedTransfer('+15550001111')).resolves.toBeDefined();
+  });
+
+  it('rejects transfer on a not-yet-connected or ended call', () => {
+    for (const state of ['trying', 'ringing', 'ended'] as const) {
+      const call = makeCall();
+      call.state = state;
+      expect(() => call.transfer('+15550001111')).toThrow(/connected call can be transferred/);
+      expect(() => call.attendedTransfer('+15550001111')).toThrow(
+        /connected call can be transferred/
+      );
+    }
+  });
+});

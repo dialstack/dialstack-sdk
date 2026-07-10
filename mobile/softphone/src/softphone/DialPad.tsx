@@ -10,8 +10,10 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { dialPadKeys, softphoneDimensions as D } from '@dialstack/sdk/components/softphone-theme';
 import { softphoneGlyphs } from '@dialstack/sdk/components/softphone-icons';
-import { useSoftphone } from '../SoftphoneProvider';
+import { useDialInput, type Locale } from '@dialstack/sdk/react/softphone';
+import { useSoftphone, type ConnectionState } from '../SoftphoneProvider';
 import { EmergencyBanner } from './EmergencyBanner';
+import { CallErrorChip } from './CallErrorChip';
 import { Glyph, chunk, makeStyles } from './primitives';
 
 export interface DialPadProps {
@@ -20,20 +22,24 @@ export interface DialPadProps {
 }
 
 export function DialPad({ autoFocusDestination = false }: DialPadProps): React.JSX.Element {
-  const { connection, placeCall, palette } = useSoftphone();
+  const { connection, placeCall, t, palette } = useSoftphone();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   const [destination, setDestination] = useState('');
+  const { onType } = useDialInput(setDestination);
 
   const canCall = connection === 'connected' && destination.length > 0;
   const rows = chunk(dialPadKeys, 3);
 
-  const chipLabel: Partial<Record<string, string>> = {
-    connecting: 'Connecting…',
-    reconnecting: 'Reconnecting…',
-    disconnected: 'Disconnected',
-    error: 'Connection error',
+  // Connection-state chip label, via the shared locale table (same keys the web
+  // StatusChip uses; `error` maps to the connectionError string).
+  const chipKey: Partial<Record<ConnectionState, keyof Locale['softphone']>> = {
+    connecting: 'connecting',
+    reconnecting: 'reconnecting',
+    disconnected: 'disconnected',
+    error: 'connectionError',
   };
-  const label = chipLabel[connection];
+  const key = chipKey[connection];
+  const label = key ? t(key) : undefined;
 
   return (
     <>
@@ -47,24 +53,25 @@ export function DialPad({ autoFocusDestination = false }: DialPadProps): React.J
       ) : (
         <View style={styles.chipSpacer} />
       )}
+      <CallErrorChip />
       <View style={styles.display}>
         <TextInput
           style={styles.destination}
           value={destination}
-          onChangeText={setDestination}
-          placeholder="Enter a number"
+          onChangeText={onType}
+          placeholder={t('destinationPlaceholder')}
           placeholderTextColor={palette.textSecondary}
           keyboardType="phone-pad"
           autoCorrect={false}
           autoFocus={autoFocusDestination}
           textAlign="center"
-          accessibilityLabel="Destination"
+          accessibilityLabel={t('destinationPlaceholder')}
         />
         {destination.length > 0 && (
           <Pressable
             onPress={() => setDestination((p) => p.slice(0, -1))}
             hitSlop={8}
-            accessibilityLabel="Delete"
+            accessibilityLabel={t('backspace')}
             style={styles.backspace}
           >
             <Text style={styles.backspaceText}>⌫</Text>
@@ -95,7 +102,7 @@ export function DialPad({ autoFocusDestination = false }: DialPadProps): React.J
         <Pressable
           onPress={() => void placeCall(destination)}
           disabled={!canCall}
-          accessibilityLabel="Call"
+          accessibilityLabel={t('call')}
           style={({ pressed }: { pressed: boolean }) => [
             styles.action,
             styles.actionSuccess,

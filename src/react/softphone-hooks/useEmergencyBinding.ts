@@ -19,7 +19,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { EmergencyAddress, EmergencyAddressInput } from '../../webrtc';
-import type { SoftphoneConnectionState } from './useCall';
+import type { SoftphoneConnectionState } from './useCalls';
 
 export interface UseEmergencyBindingDeps {
   /** Skip all E911 handling (the host supplies emergencyAddressId itself). */

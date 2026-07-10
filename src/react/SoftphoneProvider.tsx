@@ -2,7 +2,7 @@
  * SoftphoneProvider — the headless owner of the softphone connection.
  *
  * This is the piece that makes the SDK's softphone composable. It owns the
- * `DialStackPhone` (via the shared `useCall` brain), the E911 binding flow, the
+ * `DialStackPhone` (via the shared `useCalls` brain), the E911 binding flow, the
  * remote-audio `<audio>` element, and the single scoped stylesheet — and exposes
  * all of it through context. The presentational components (`<DialPad>`,
  * `<IncomingCall>`, `<OngoingCall>`) and the batteries-included `<Softphone>`
@@ -30,11 +30,13 @@ import React, {
   useState,
 } from 'react';
 import {
-  useCall,
+  useCalls,
   useCallActions,
   useCallDuration,
   useEmergencyBinding,
+  useLastError,
   isIncomingRinging,
+  shouldRingIncoming,
   formatDisplayNumber,
   type UseCallActions,
   type UseEmergencyBinding,
@@ -42,6 +44,7 @@ import {
 } from './softphone-hooks';
 import { resolveSoftphonePalette } from '../components/softphone-theme';
 import { buildSoftphoneStyles } from '../components/softphone-styles';
+import { IncomingRingtone } from './softphone/ringtone';
 import { DialstackComponentsContext } from './DialstackComponentsProvider';
 import { useAppearance } from './useAppearance';
 import { defaultLocale, type Locale } from '../locales';
@@ -111,6 +114,20 @@ export interface SoftphoneContextValue {
   actions: UseCallActions;
   /** Live call duration string (ticks while the call is active). */
   duration: string;
+  /**
+   * The consult leg of an in-progress attended transfer, or null. While set,
+   * `activeCall` is the live consult leg and `transferOriginal` is the held
+   * original party.
+   */
+  consultCall: Call | null;
+  /** The held original party during an attended transfer (opposite consultCall), or null. */
+  transferOriginal: Call | null;
+  /** Attended transfer: hold the active call and dial `destination` as a consult. */
+  startAttendedTransfer: (destination: string) => Promise<void>;
+  /** Attended transfer: bridge the held original to the consult party. */
+  completeAttendedTransfer: () => void;
+  /** Attended transfer: hang up the consult and resume the held original. */
+  cancelAttendedTransfer: () => void;
   /** Place an outbound call (used by the dial pad). */
   placeCall: (destination: string) => Promise<void>;
   /**
@@ -122,6 +139,13 @@ export interface SoftphoneContextValue {
   emergency: UseEmergencyBinding;
   /** True when the host supplies an emergencyAddressId (built-in prompt off). */
   emergencyManagedByHost: boolean;
+  /**
+   * The last call/connection error surfaced to the user, or null. The built-in
+   * UI shows this so a failed dial isn't silent; `clearError()` dismisses it.
+   */
+  lastError: { code: string; message: string } | null;
+  /** Dismiss the current `lastError`. */
+  clearError: () => void;
   /** Locale string accessor for the `softphone` namespace. */
   t: (key: keyof Locale['softphone']) => string;
   /** Format a raw number for display using the configured default country. */
@@ -170,6 +194,11 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
   children,
 }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Last error surfaced to the user (shared hook so web + RN can't drift): wraps
+  // the host onError — it still fires for the host, and the error is also stored
+  // locally so the built-in banner can show it. Cleared on a successful reconnect.
+  const { lastError, handleError, clearError } = useLastError(onError);
   const scope = `ds-softphone-${useId().replace(/[:]/g, '')}`;
 
   // Theming, following the rest of the SDK: when the softphone is rendered inside
@@ -197,8 +226,8 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
   const displayNumber = (v: string) => formatDisplayNumber(v, defaultCountry);
 
   // The phone's `network.changed` (server denied the emergency address for this
-  // network) must reach useEmergencyBinding, which is created AFTER useCall. A
-  // ref breaks the cycle: useCall calls a stable wrapper that forwards to the
+  // network) must reach useEmergencyBinding, which is created AFTER useCalls. A
+  // ref breaks the cycle: useCalls calls a stable wrapper that forwards to the
   // hook's handler once it exists.
   const onNetworkChangedRef = useRef<() => void>(() => {});
 
@@ -206,12 +235,17 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
     connection,
     activeCall,
     placeCall,
+    consultCall,
+    transferOriginal,
+    startAttendedTransfer,
+    completeAttendedTransfer,
+    cancelAttendedTransfer,
     listEmergencyAddresses,
     setEmergencyAddress,
     selectEmergencyAddress,
     clearEmergencyAddressRegisteredIp,
     reconnect,
-  } = useCall({
+  } = useCalls({
     token,
     apiBaseUrl,
     iceServers,
@@ -220,7 +254,7 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
     onIncomingCall,
     onCallStarted,
     onCallEnded,
-    onError,
+    onError: handleError,
     onNetworkChanged: () => onNetworkChangedRef.current(),
   });
 
@@ -242,13 +276,20 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
     onNetworkChangedRef.current = emergency.onNetworkChanged;
   }, [emergency.onNetworkChanged]);
 
-  const actions = useCallActions(activeCall, { onError });
+  const actions = useCallActions(activeCall, { onError: handleError });
   const duration = useCallDuration(activeCall);
 
-  // Surface connection-state changes to the host.
+  // Surface connection-state changes to the host, and clear a stale error banner
+  // once we're connected again (guarded so setState only fires on the actual
+  // error→connected edge, not on every connected render).
+  const prevConnectionRef = useRef(connection);
   useEffect(() => {
     onConnectionStateChange?.({ state: connection });
-  }, [connection, onConnectionStateChange]);
+    if (connection === 'connected' && prevConnectionRef.current !== 'connected') {
+      clearError();
+    }
+    prevConnectionRef.current = connection;
+  }, [connection, onConnectionStateChange, clearError]);
 
   // Bind remote audio to the persistent <audio> element. This lives in the
   // provider (not a swappable UI component) so audio survives the call UI
@@ -300,6 +341,22 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
     };
   }, [activeCall, onError]);
 
+  // Play the incoming-call ringtone while an inbound call is ringing (the SDK
+  // core only synthesizes outbound *ringback*; the inbound ring is the UI
+  // layer's job). Keyed on the derived ringing flag so it re-evaluates when the
+  // call transitions ringing→active (a same-identity mutation). Stops on answer,
+  // end, or unmount.
+  const ringtoneRef = useRef<IncomingRingtone | null>(null);
+  if (ringtoneRef.current === null) ringtoneRef.current = new IncomingRingtone();
+  const incomingRinging = shouldRingIncoming(activeCall);
+  useEffect(() => {
+    const ringtone = ringtoneRef.current;
+    if (!ringtone) return;
+    if (incomingRinging) ringtone.start();
+    else ringtone.stop();
+    return () => ringtone.stop();
+  }, [incomingRinging]);
+
   const styles = useMemo(
     () => buildSoftphoneStyles(resolveSoftphonePalette(effectiveAppearance), scope),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on appearance CONTENT (appearanceKey), not object identity, so an inline literal doesn't re-serialize the stylesheet every render
@@ -312,6 +369,11 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
       activeCall,
       actions,
       duration,
+      consultCall,
+      transferOriginal,
+      startAttendedTransfer,
+      completeAttendedTransfer,
+      cancelAttendedTransfer,
       placeCall,
       dial: (destination: string) => {
         const target = destination.trim();
@@ -319,6 +381,8 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
       },
       emergency,
       emergencyManagedByHost: !!emergencyAddressId,
+      lastError,
+      clearError,
       t,
       displayNumber,
       scope,
@@ -331,9 +395,16 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
       activeCall,
       actions,
       duration,
+      consultCall,
+      transferOriginal,
+      startAttendedTransfer,
+      completeAttendedTransfer,
+      cancelAttendedTransfer,
       placeCall,
       emergency,
       emergencyAddressId,
+      lastError,
+      clearError,
       scope,
       locale,
       formatting,

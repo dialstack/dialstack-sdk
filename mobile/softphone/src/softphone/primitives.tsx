@@ -9,19 +9,11 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { softphoneDimensions as D, type SoftphonePalette } from '@dialstack/sdk/components/softphone-theme';
+import {
+  softphoneDimensions as D,
+  type SoftphonePalette,
+} from '@dialstack/sdk/components/softphone-theme';
 import type { SoftphoneGlyph } from '@dialstack/sdk/components/softphone-icons';
-
-// Localized state labels. The shared `callStateLabelKey` decides WHICH key a
-// given state maps to (kept in sync with the web softphone); this map is the RN
-// copy of the strings.
-export const STATE_LABEL: Record<string, string> = {
-  stateTrying: 'Calling…',
-  stateRinging: 'Ringing…',
-  stateActive: 'In call',
-  stateHeld: 'On hold',
-  stateEnded: 'Call ended',
-};
 
 /** Renders a shared softphone glyph as an SVG path, matching the web <Glyph>. */
 export function Glyph({
@@ -149,6 +141,12 @@ export function makeStyles(p: SoftphonePalette) {
     chipText: { color: p.textSecondary, fontSize: 12, fontWeight: '600' },
     chipError: { backgroundColor: 'rgba(229,72,77,0.16)' },
     chipErrorText: { color: p.danger },
+    callError: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      maxWidth: '100%',
+    },
 
     display: { flexDirection: 'row', alignItems: 'center', minHeight: 56, gap: 8 },
     destination: { flex: 1, fontSize: 30, fontWeight: '500', color: p.text, padding: 0 },
@@ -221,7 +219,7 @@ export function makeStyles(p: SoftphonePalette) {
     controlLabel: { fontSize: 12, color: p.textSecondary },
 
     dtmfPad: { gap: D.keyGap },
-    transfer: { flexDirection: 'row', gap: 8 },
+    transfer: { flexDirection: 'column', gap: 8 },
     transferInput: {
       flex: 1,
       borderWidth: 1,
@@ -232,13 +230,31 @@ export function makeStyles(p: SoftphonePalette) {
       color: p.text,
       fontSize: 16,
     },
+    transferActions: { flexDirection: 'row', gap: 8 },
     transferSend: {
+      flex: 1,
       backgroundColor: p.accent,
       borderRadius: D.radius,
-      paddingHorizontal: 18,
+      paddingVertical: 12,
+      alignItems: 'center',
       justifyContent: 'center',
     },
     transferSendText: { color: p.onAccent, fontWeight: '600' },
+    transferSendSecondary: { backgroundColor: p.surface },
+    transferSendSecondaryText: { color: p.text, fontWeight: '600' },
+
+    // ---- Attended-transfer "consulting" screen (RN parity with ds-screen-consult) ----
+    consultParty: {
+      borderWidth: 1,
+      borderColor: p.border,
+      borderRadius: D.radius,
+      padding: 14,
+      alignItems: 'center',
+      gap: 4,
+    },
+    consultHeld: { opacity: 0.7 },
+    consultActive: { borderColor: p.accent },
+    consultActions: { flexDirection: 'row', gap: 8 },
 
     // ---- E911 banner (RN parity with the web ds-e911 banner) ----
     e911: {
@@ -301,6 +317,7 @@ export function makeStyles(p: SoftphonePalette) {
       alignItems: 'center',
     },
     e911BtnText: { color: p.onAccent, fontWeight: '600', fontSize: 14 },
+    e911BtnDisabled: { opacity: 0.4 },
     e911BtnSecondary: { backgroundColor: p.surface },
     e911BtnSecondaryText: { color: p.text, fontWeight: '600', fontSize: 14 },
     e911Actions: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end' },

@@ -49,6 +49,14 @@ class FakeCall extends Emitter {
   resume = jest.fn();
   sendDtmf = jest.fn();
   transfer = jest.fn();
+  completeTransfer = jest.fn();
+  consult: FakeCall | null = null;
+  attendedTransfer = jest.fn((destination: string) => {
+    this.state = 'held';
+    const consult = new FakeCall('outbound', '', null, destination);
+    this.consult = consult;
+    return Promise.resolve(consult);
+  });
   constructor(
     public direction: 'inbound' | 'outbound',
     public from: string,
@@ -142,6 +150,66 @@ describe('Softphone dial screen', () => {
   });
 });
 
+describe('Softphone error surfacing', () => {
+  it('shows a GENERIC error chip AND forwards the real error to onError', () => {
+    const onError = jest.fn();
+    render(<Softphone token="tok" onError={onError} />);
+    act(() => phone().emit('connected'));
+
+    act(() => {
+      phone().emit('error', {
+        code: 'call_failed',
+        message: 'destination invalid: raw server text',
+      });
+    });
+
+    // The host still receives the real, specific error...
+    expect(onError).toHaveBeenCalledWith({
+      code: 'call_failed',
+      message: 'destination invalid: raw server text',
+    });
+    // ...but the built-in UI shows a GENERIC message, never the raw server text.
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Call failed');
+    expect(alert).not.toHaveTextContent('raw server text');
+
+    // Dismiss clears it.
+    fireEvent.click(screen.getByLabelText('Dismiss'));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('shows a distinct, actionable message for a denied microphone permission', () => {
+    render(<Softphone token="tok" />);
+    act(() => phone().emit('connected'));
+
+    act(() => {
+      phone().emit('error', {
+        code: 'mic_permission_denied',
+        message: 'Microphone permission is required to place a call',
+      });
+    });
+
+    // Not the generic 'Call failed' — a specific, self-remediable message.
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent(/microphone/i);
+    expect(alert).not.toHaveTextContent('Call failed');
+  });
+
+  it('clears the error chip on a successful reconnect', () => {
+    render(<Softphone token="tok" />);
+    act(() => phone().emit('connected'));
+    act(() => {
+      phone().emit('error', { code: 'call_failed', message: 'boom' });
+    });
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+
+    // A disconnect→connected edge clears the stale banner.
+    act(() => phone().emit('disconnected'));
+    act(() => phone().emit('connected'));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
 describe('Softphone incoming screen', () => {
   it('renders the caller and answer/decline, and answers on tap', () => {
     render(<Softphone token="tok" />);
@@ -218,8 +286,46 @@ describe('Softphone in-call screen', () => {
     fireEvent.change(screen.getByLabelText('Transfer to…'), {
       target: { value: '5559999' },
     });
-    fireEvent.click(screen.getByText('Transfer', { selector: 'button.ds-transfer-send' }));
+    fireEvent.click(screen.getByText('Transfer now'));
     expect(call.transfer).toHaveBeenCalledWith('5559999');
+  });
+
+  it('starts an attended transfer and completes it', async () => {
+    const call = connectWithActiveCall();
+    fireEvent.click(screen.getByLabelText('Transfer'));
+    fireEvent.change(screen.getByLabelText('Transfer to…'), {
+      target: { value: '5559999' },
+    });
+    // "Consult first" holds the original and dials the consult leg (async).
+    await act(async () => {
+      fireEvent.click(screen.getByText('Consult first'));
+    });
+    expect(call.attendedTransfer).toHaveBeenCalledWith('5559999');
+    // Complete is disabled until the consult answers (bridging a ringing leg
+    // would drop the held caller).
+    expect(screen.getByText('Complete transfer')).toBeDisabled();
+    // Consult answers → Complete enables; clicking it bridges via the original.
+    act(() => {
+      call.consult!.state = 'active';
+      call.consult!.emit('answered');
+    });
+    fireEvent.click(screen.getByText('Complete transfer'));
+    expect(call.completeTransfer).toHaveBeenCalled();
+  });
+
+  it('cancels an attended transfer (hangs up consult, resumes original)', async () => {
+    const call = connectWithActiveCall();
+    fireEvent.click(screen.getByLabelText('Transfer'));
+    fireEvent.change(screen.getByLabelText('Transfer to…'), {
+      target: { value: '5559999' },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText('Consult first'));
+    });
+    const consult = call.consult!;
+    fireEvent.click(screen.getByText('Cancel'));
+    expect(consult.hangup).toHaveBeenCalled();
+    expect(call.resume).toHaveBeenCalled();
   });
 });
 

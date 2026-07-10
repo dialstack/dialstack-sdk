@@ -1,12 +1,16 @@
 import {
   isIncomingRinging,
+  shouldRingIncoming,
   isCallActive,
   selectScreen,
   callPeerNumber,
   callPeerName,
   formatCallDuration,
   formatDisplayNumber,
+  stripToDialString,
+  sanitizeDestination,
   callStateLabelKey,
+  errorMessageKey,
 } from '../softphone-view-model';
 import type { Call, CallDirection, CallState } from '../../webrtc';
 
@@ -35,6 +39,18 @@ describe('isIncomingRinging', () => {
 
   it('is false for an outbound call even while ringing', () => {
     expect(isIncomingRinging(fakeCall({ direction: 'outbound', state: 'ringing' }))).toBe(false);
+  });
+});
+
+describe('shouldRingIncoming', () => {
+  it('is false when there is no active call', () => {
+    expect(shouldRingIncoming(null)).toBe(false);
+  });
+
+  it('is true only when the active call is an inbound call still alerting', () => {
+    expect(shouldRingIncoming(fakeCall({ direction: 'inbound', state: 'ringing' }))).toBe(true);
+    expect(shouldRingIncoming(fakeCall({ direction: 'inbound', state: 'active' }))).toBe(false);
+    expect(shouldRingIncoming(fakeCall({ direction: 'outbound', state: 'ringing' }))).toBe(false);
   });
 });
 
@@ -107,5 +123,64 @@ describe('callStateLabelKey', () => {
     expect(callStateLabelKey('active')).toBe('stateActive');
     expect(callStateLabelKey('held')).toBe('stateHeld');
     expect(callStateLabelKey('ended')).toBe('stateEnded');
+  });
+});
+
+describe('stripToDialString', () => {
+  it('removes display separators from a formatted/pasted number', () => {
+    expect(stripToDialString('(581) 319-5082')).toBe('5813195082');
+    expect(stripToDialString('+1 581-319-5082')).toBe('+15813195082');
+    expect(stripToDialString('581.319.5082')).toBe('5813195082');
+  });
+
+  it('keeps digits, +, *, # and DTMF A-D; uppercases letters', () => {
+    expect(stripToDialString('*72')).toBe('*72');
+    expect(stripToDialString('#')).toBe('#');
+    expect(stripToDialString('1001')).toBe('1001');
+    expect(stripToDialString('16dc')).toBe('16DC');
+  });
+
+  it('drops characters the server would reject and caps length at 32', () => {
+    // Only + * # 0-9 and DTMF A-D survive; e/f/g/z etc. are dropped. Letters that
+    // do survive are the DTMF set (a-d → A-D).
+    expect(stripToDialString('5o8z2')).toBe('582'); // o, z dropped
+    expect(stripToDialString('cab')).toBe('CAB'); // DTMF letters kept + uppercased
+    expect(stripToDialString('1'.repeat(40)).length).toBe(32);
+    expect(stripToDialString('   ')).toBe('');
+  });
+});
+
+describe('sanitizeDestination', () => {
+  it('canonicalizes a valid PSTN number to E.164 (the copy-paste bug case)', () => {
+    // The exact string that failed live: a pasted, formatted US number.
+    expect(sanitizeDestination('(581) 319-5082')).toBe('+15813195082');
+    expect(sanitizeDestination('581-319-5082')).toBe('+15813195082');
+    expect(sanitizeDestination('+1 (581) 319-5082')).toBe('+15813195082');
+  });
+
+  it('leaves extensions, star codes, and DTMF as stripped symbols (not E.164)', () => {
+    expect(sanitizeDestination('1001')).toBe('1001'); // extension — not a phone number
+    expect(sanitizeDestination('*72')).toBe('*72');
+    expect(sanitizeDestination('#123')).toBe('#123');
+    expect(sanitizeDestination('16dc')).toBe('16DC');
+  });
+
+  it('always returns a value within the server allowlist (or empty)', () => {
+    const allowed = /^[+*#0-9A-D]{0,32}$/;
+    for (const input of ['(581) 319-5082', 'call bob', '*72', '', '   ', '+44 20 7946 0000']) {
+      expect(sanitizeDestination(input)).toMatch(allowed);
+    }
+  });
+});
+
+describe('errorMessageKey', () => {
+  it('maps a denied mic permission to its own actionable key', () => {
+    expect(errorMessageKey('mic_permission_denied')).toBe('micPermissionError');
+  });
+
+  it('collapses every other code to the generic callError key', () => {
+    for (const code of ['call_failed', 'transport_closed', 'rate_limited', 'invalid_message', '']) {
+      expect(errorMessageKey(code)).toBe('callError');
+    }
   });
 });

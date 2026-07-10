@@ -62,23 +62,33 @@ export type { DialPadProps } from './react/softphone/DialPad';
 // web Softphone and a React Native softphone both build on. Also exported from the
 // dedicated, RN-safe entry '@dialstack/sdk/react/softphone'.
 export {
-  useCall,
+  useCalls,
   useCallActions,
   useCallDuration,
+  useLastError,
+  useDialInput,
   isIncomingRinging,
+  shouldRingIncoming,
   isCallActive,
   selectScreen,
   callPeerNumber,
   callPeerName,
   formatCallDuration,
   formatDisplayNumber,
+  stripToDialString,
+  sanitizeDestination,
+  DIAL_COUNTRY,
   callStateLabelKey,
+  errorMessageKey,
 } from './react/softphone-hooks';
 export type {
-  UseCallOptions,
-  UseCallResult,
+  UseCallsOptions,
+  UseCallsResult,
   UseCallActions,
   UseCallActionsOptions,
+  UseLastError,
+  UseDialInput,
+  SoftphoneError,
   SoftphoneScreen,
 } from './react/softphone-hooks';
 export { buildAIAgentPrefillFaq, shouldApplyPrefillFaq } from './components/ai-agent/prefill-faq';

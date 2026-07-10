@@ -13,7 +13,8 @@ export type PhoneErrorCode =
   | 'idle_timeout'
   | 'slow_consumer'
   | 'transport_closed'
-  | 'ice_fetch_failed';
+  | 'ice_fetch_failed'
+  | 'mic_permission_denied';
 
 export class PhoneError extends Error {
   readonly code: PhoneErrorCode;

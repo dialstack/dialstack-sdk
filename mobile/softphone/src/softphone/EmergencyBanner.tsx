@@ -25,7 +25,7 @@ const EMPTY_FORM: EmergencyAddressInput = {
 };
 
 export function EmergencyBanner(): React.JSX.Element | null {
-  const { emergency, emergencyManagedByHost, palette } = useSoftphone();
+  const { emergency, emergencyManagedByHost, t, palette } = useSoftphone();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   const [expanded, setExpanded] = useState(false);
   const [addingNew, setAddingNew] = useState(false);
@@ -73,20 +73,16 @@ export function EmergencyBanner(): React.JSX.Element | null {
     <View style={styles.e911}>
       <Pressable
         onPress={() => setExpanded((v) => !v)}
-        accessibilityLabel="Set emergency location"
+        accessibilityLabel={t('emergencyPrompt')}
         style={styles.e911Toggle}
       >
         <Glyph glyph={softphoneGlyphs.location} size={16} color={palette.warning} />
-        <Text style={styles.e911ToggleText}>
-          Set your emergency location to be able to place external calls
-        </Text>
+        <Text style={styles.e911ToggleText}>{t('emergencyPrompt')}</Text>
       </Pressable>
 
       {expanded && (
         <View style={styles.e911Body}>
-          <Text style={styles.e911Hint}>
-            Confirm the address where you&apos;re calling from so emergency services can find you.
-          </Text>
+          <Text style={styles.e911Hint}>{t('emergencyHint')}</Text>
 
           {!addingNew &&
             emergency.savedAddresses.map((a) => (
@@ -108,38 +104,38 @@ export function EmergencyBanner(): React.JSX.Element | null {
                     .filter(Boolean)
                     .join(' ')}
                 </Text>
-                <Text style={styles.e911ChoiceCta}>Yes, I&apos;m here</Text>
+                <Text style={styles.e911ChoiceCta}>{t('emergencyConfirm')}</Text>
               </Pressable>
             ))}
 
           {!addingNew && (
             <Pressable onPress={() => setAddingNew(true)} style={styles.e911BtnSecondary}>
-              <Text style={styles.e911BtnSecondaryText}>Set a new location</Text>
+              <Text style={styles.e911BtnSecondaryText}>{t('emergencyNewLocation')}</Text>
             </Pressable>
           )}
 
           {addingNew && (
             <>
               <View style={styles.e911Row}>
-                {field('address_number', 'Number', { small: true })}
-                {field('street', 'Street')}
+                {field('address_number', t('emergencyNumber'), { small: true })}
+                {field('street', t('emergencyStreet'))}
               </View>
-              {field('unit', 'Unit')}
-              {field('city', 'City')}
+              {field('unit', t('emergencyUnit'))}
+              {field('city', t('emergencyCity'))}
               <View style={styles.e911Row}>
-                {field('state', 'State')}
-                {field('postal_code', 'ZIP', { small: true })}
+                {field('state', t('emergencyState'))}
+                {field('postal_code', t('emergencyPostalCode'), { small: true })}
               </View>
               {!!emergency.error && <Text style={styles.e911Error}>{emergency.error}</Text>}
               <View style={styles.e911Actions}>
                 {emergency.savedAddresses.length > 0 && (
                   <Pressable onPress={() => setAddingNew(false)} style={styles.e911BtnSecondary}>
-                    <Text style={styles.e911BtnSecondaryText}>Back</Text>
+                    <Text style={styles.e911BtnSecondaryText}>{t('emergencyBack')}</Text>
                   </Pressable>
                 )}
                 <Pressable disabled={emergency.busy} onPress={submit} style={styles.e911Btn}>
                   <Text style={styles.e911BtnText}>
-                    {emergency.busy ? 'Saving…' : 'Confirm location'}
+                    {emergency.busy ? t('emergencySaving') : t('emergencySave')}
                   </Text>
                 </Pressable>
               </View>

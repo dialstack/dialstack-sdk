@@ -2,7 +2,7 @@
  * SoftphoneProvider (React Native) — the headless owner of the softphone
  * connection, the RN sibling of the web SoftphoneProvider with the SAME API.
  *
- * It owns the DialStackPhone (via the shared `useCall` brain), the E911 binding
+ * It owns the DialStackPhone (via the shared `useCalls` brain), the E911 binding
  * flow, and the audio session (react-native-incall-manager, driven through the
  * onCallActivated/onCallEnded seam — the SDK core never depends on it), and
  * exposes all of it through context. The presentational components (DialPad /
@@ -19,12 +19,16 @@ import InCallManager from 'react-native-incall-manager';
 import { type CountryCode } from 'libphonenumber-js';
 import type { Call, CallEndReason } from '@dialstack/sdk/webrtc';
 import {
-  useCall,
+  useCalls,
   useCallActions,
   useCallDuration,
   useEmergencyBinding,
+  useLastError,
   isIncomingRinging,
+  shouldRingIncoming,
   formatDisplayNumber,
+  defaultLocale,
+  type Locale,
   type UseCallActions,
   type UseEmergencyBinding,
   type SoftphoneConnectionState,
@@ -52,6 +56,8 @@ export interface SoftphoneProviderProps {
   autoConnect?: boolean;
   /** Theming — the shared appearance surface. */
   appearance?: AppearanceOptions;
+  /** Locale for UI strings (defaults to English), same surface as the web softphone. */
+  locale?: Locale;
   /** Default country for number formatting. */
   defaultCountry?: CountryCode;
   onConnectionStateChange?: (event: { state: ConnectionState }) => void;
@@ -67,12 +73,35 @@ export interface SoftphoneContextValue {
   activeCall: Call | null;
   actions: UseCallActions;
   duration: string;
+  /**
+   * The consult leg of an in-progress attended transfer, or null. While set,
+   * `activeCall` is the live consult leg and `transferOriginal` is the held
+   * original party.
+   */
+  consultCall: Call | null;
+  /** The held original party during an attended transfer (opposite consultCall), or null. */
+  transferOriginal: Call | null;
+  /**
+   * The last call/connection error surfaced to the user, or null. The built-in
+   * UI shows this so a failed dial isn't silent; `clearError()` dismisses it.
+   */
+  lastError: { code: string; message: string } | null;
+  /** Dismiss the current `lastError`. */
+  clearError: () => void;
+  /** Attended transfer: hold the active call and dial `destination` as a consult. */
+  startAttendedTransfer: (destination: string) => Promise<void>;
+  /** Attended transfer: bridge the held original to the consult party. */
+  completeAttendedTransfer: () => void;
+  /** Attended transfer: hang up the consult and resume the held original. */
+  cancelAttendedTransfer: () => void;
   placeCall: (destination: string) => Promise<void>;
   dial: (destination: string) => void;
   emergency: UseEmergencyBinding;
   emergencyManagedByHost: boolean;
   /** Format a raw number for display using the configured default country. */
   displayNumber: (value: string) => string;
+  /** Locale string accessor for the `softphone` namespace (mirrors the web softphone). */
+  t: (key: keyof Locale['softphone']) => string;
   /** Resolved palette; RN components build their StyleSheet from it. */
   palette: SoftphonePalette;
 }
@@ -85,6 +114,7 @@ export function SoftphoneProvider({
   emergencyAddressId,
   autoConnect = true,
   appearance,
+  locale = defaultLocale,
   defaultCountry = 'US',
   onConnectionStateChange,
   onIncomingCall,
@@ -93,26 +123,36 @@ export function SoftphoneProvider({
   onError,
   children,
 }: SoftphoneProviderProps): React.JSX.Element {
+  // Last error surfaced to the user (shared hook so web + RN can't drift): wraps
+  // the host onError and stores it locally for the built-in banner. Cleared on a
+  // successful reconnect.
+  const { lastError, handleError, clearError } = useLastError(onError);
   // Memoize so the palette keeps a stable identity across renders — it flows
   // into the context value and is the dep of each child's makeStyles(palette)
   // memo, so recomputing it every render would rebuild every StyleSheet on every
   // render (e.g. once/sec during a call from the duration tick).
   const palette = useMemo(() => resolveSoftphonePalette(appearance), [appearance]);
   const displayNumber = (v: string) => formatDisplayNumber(v, defaultCountry);
+  const t = (k: keyof Locale['softphone']) => locale.softphone[k];
 
-  // network.changed must reach useEmergencyBinding, created after useCall.
+  // network.changed must reach useEmergencyBinding, created after useCalls.
   const onNetworkChangedRef = useRef<() => void>(() => {});
 
   const {
     connection,
     activeCall,
     placeCall,
+    consultCall,
+    transferOriginal,
+    startAttendedTransfer,
+    completeAttendedTransfer,
+    cancelAttendedTransfer,
     listEmergencyAddresses,
     setEmergencyAddress,
     selectEmergencyAddress,
     clearEmergencyAddressRegisteredIp,
     reconnect,
-  } = useCall({
+  } = useCalls({
     token,
     apiBaseUrl,
     emergencyAddressId,
@@ -120,7 +160,7 @@ export function SoftphoneProvider({
     onIncomingCall,
     onCallStarted,
     onCallEnded,
-    onError,
+    onError: handleError,
     onNetworkChanged: () => onNetworkChangedRef.current(),
     // RN owns the audio session for the call's duration (earpiece by default;
     // the user can flip to speaker). The SDK core never depends on this.
@@ -130,7 +170,7 @@ export function SoftphoneProvider({
   });
 
   // Release the audio session when the foreground call ends. Kept separate from
-  // useCall's onCallEnded prop so a host-supplied onCallEnded still fires too.
+  // useCalls's onCallEnded prop so a host-supplied onCallEnded still fires too.
   // The cleanup ALSO stops the session if the provider unmounts (or the call
   // changes) while a call is still live — otherwise the earpiece/proximity
   // session started in onCallActivated would leak past the call.
@@ -144,6 +184,19 @@ export function SoftphoneProvider({
       if (call.state !== 'ended') InCallManager.stop();
     };
   }, [activeCall]);
+
+  // Play the device ringtone while an inbound call is ringing. RN rings natively
+  // via InCallManager (the web softphone synthesizes its own tone); the SDK core
+  // only does outbound ringback, so the inbound ring is the provider's job.
+  // Keyed on the derived ringing flag so it re-evaluates on ringing→active.
+  const incomingRinging = shouldRingIncoming(activeCall);
+  useEffect(() => {
+    // '_DEFAULT_' ringtone, default vibrate pattern, default iOS category,
+    // -1 seconds = ring until stopped.
+    if (incomingRinging) InCallManager.startRingtone('_DEFAULT_', [0], '', -1);
+    else InCallManager.stopRingtone();
+    return () => InCallManager.stopRingtone();
+  }, [incomingRinging]);
 
   const emergency = useEmergencyBinding({
     disabled: !!emergencyAddressId,
@@ -161,12 +214,20 @@ export function SoftphoneProvider({
     onNetworkChangedRef.current = emergency.onNetworkChanged;
   }, [emergency.onNetworkChanged]);
 
-  const actions = useCallActions(activeCall, { onError });
+  const actions = useCallActions(activeCall, { onError: handleError });
   const duration = useCallDuration(activeCall);
 
+  // Surface connection-state changes to the host, and clear a stale error banner
+  // once we're connected again (guarded so clearError only fires on the actual
+  // error→connected edge, not on every connected render).
+  const prevConnectionRef = useRef(connection);
   useEffect(() => {
     onConnectionStateChange?.({ state: connection });
-  }, [connection, onConnectionStateChange]);
+    if (connection === 'connected' && prevConnectionRef.current !== 'connected') {
+      clearError();
+    }
+    prevConnectionRef.current = connection;
+  }, [connection, onConnectionStateChange, clearError]);
 
   const value = useMemo<SoftphoneContextValue>(
     () => ({
@@ -174,6 +235,13 @@ export function SoftphoneProvider({
       activeCall,
       actions,
       duration,
+      consultCall,
+      transferOriginal,
+      lastError,
+      clearError,
+      startAttendedTransfer,
+      completeAttendedTransfer,
+      cancelAttendedTransfer,
       placeCall,
       dial: (destination: string) => {
         const target = destination.trim();
@@ -182,6 +250,7 @@ export function SoftphoneProvider({
       emergency,
       emergencyManagedByHost: !!emergencyAddressId,
       displayNumber,
+      t,
       palette,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -190,11 +259,19 @@ export function SoftphoneProvider({
       activeCall,
       actions,
       duration,
+      consultCall,
+      transferOriginal,
+      lastError,
+      clearError,
+      startAttendedTransfer,
+      completeAttendedTransfer,
+      cancelAttendedTransfer,
       placeCall,
       emergency,
       emergencyAddressId,
       palette,
       defaultCountry,
+      locale,
     ]
   );
 
