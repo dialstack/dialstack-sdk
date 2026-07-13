@@ -19,6 +19,9 @@ export class Transport {
   private ws: WebSocket | null = null;
   private url: string;
   private listeners: Partial<TransportEvents> = {};
+  // Advanced on every scheduled reconnect and reset only when a session
+  // fully authenticates (see the message handler) — never on bare socket
+  // `open`, or backoff can't escalate past the first step.
   private reconnectAttempts = 0;
   private closedByUser = false;
   private autoReconnect: boolean;
@@ -83,7 +86,6 @@ export class Transport {
     this.ws = ws;
 
     ws.addEventListener('open', () => {
-      this.reconnectAttempts = 0;
       this.listeners.open?.();
     });
 
@@ -94,6 +96,16 @@ export class Transport {
       } catch {
         logError('WebSocket received an unparseable frame');
         return;
+      }
+      if (parsed.type === 'authenticated') {
+        // Reset the backoff only once the session is fully established, NOT on
+        // socket `open`. The socket opens (TCP + WS upgrade) before the auth
+        // handshake and the server-side REGISTER; a REGISTER rejected because
+        // the user's contacts are already at the cap closes the socket *after*
+        // open. Resetting on open pinned every retry at the first backoff step,
+        // so a client stuck against a full registration reconnected roughly
+        // once per second forever instead of escalating its backoff.
+        this.reconnectAttempts = 0;
       }
       if (parsed.type === 'error' && parsed.fatal && parsed.code === 'session_revoked') {
         this.terminalError = new PhoneError({
@@ -128,7 +140,13 @@ export class Transport {
   }
 
   private scheduleReconnect(): void {
-    const delay = BACKOFF_STEPS_MS[Math.min(this.reconnectAttempts, BACKOFF_STEPS_MS.length - 1)]!;
+    const step = BACKOFF_STEPS_MS[Math.min(this.reconnectAttempts, BACKOFF_STEPS_MS.length - 1)]!;
+    // Equal jitter (AWS "Exponential Backoff And Jitter"): hold half the step
+    // as a floor and randomise the other half → delay ∈ [step/2, step]. Several
+    // sessions for one user (e.g. multiple tabs) that drop in lockstep against
+    // a full registration would otherwise retry in perfect sync every cycle and
+    // keep re-colliding; jitter spreads them so they stop resynchronising.
+    const delay = Math.round(step / 2 + Math.random() * (step / 2));
     this.reconnectAttempts += 1;
     this.listeners.reconnecting?.(this.reconnectAttempts, delay);
     setTimeout(() => {
