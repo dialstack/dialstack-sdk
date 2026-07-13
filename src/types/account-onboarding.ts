@@ -138,7 +138,12 @@ export interface OnboardingUser {
   id: string;
   name?: string | null;
   email?: string | null;
-  account_role?: string | null;
+  /**
+   * The user's account-level role. The API emits `'account_admin'` for the
+   * account admin and `''` for a regular member; a literal union so a typo in
+   * the comparison fails typecheck.
+   */
+  account_role?: 'account_admin' | '' | null;
   extensions?: { data?: Array<{ number?: string }> };
   created_at: string;
   updated_at: string;

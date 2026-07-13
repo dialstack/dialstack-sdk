@@ -216,7 +216,7 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ accountEmail, onBack, 
             <tbody>
               {otherUsers.map((u) => {
                 const ext = getExtensionForUser(u.id, contextExtensions);
-                const isAdmin = u.account_role === 'admin';
+                const isAdmin = u.account_role === 'account_admin';
                 return (
                   <tr key={u.id}>
                     <td className="user-table-name">

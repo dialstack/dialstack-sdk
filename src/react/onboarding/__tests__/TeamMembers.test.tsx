@@ -333,6 +333,46 @@ describe('TeamMembers', () => {
   });
 
   // ==========================================================================
+  // Account role rendering
+  // ==========================================================================
+
+  const adminUser = {
+    id: 'user_admin',
+    name: 'Admin Andy',
+    email: 'andy@example.com',
+    account_role: 'account_admin' as const,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+  };
+
+  const plainUser = {
+    id: 'user_plain',
+    name: 'Plain Pat',
+    email: 'pat@example.com',
+    account_role: '' as const,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+  };
+
+  it('flags an account_admin user with the Admin role and no delete affordance', async () => {
+    await renderTM({ users: { list: jest.fn().mockResolvedValue([adminUser]) } });
+
+    // The admin is labelled as Admin, not User.
+    expect(screen.getByText('Admin')).toBeTruthy();
+    expect(screen.queryByText('User')).toBeNull();
+    // The account admin cannot be removed.
+    expect(screen.queryByTitle('Remove')).toBeNull();
+  });
+
+  it('shows the User role and a delete affordance for a non-admin user', async () => {
+    await renderTM({ users: { list: jest.fn().mockResolvedValue([plainUser]) } });
+
+    expect(screen.getByText('User')).toBeTruthy();
+    expect(screen.queryByText('Admin')).toBeNull();
+    expect(screen.getByTitle('Remove')).toBeTruthy();
+  });
+
+  // ==========================================================================
   // Navigation
   // ==========================================================================
 
