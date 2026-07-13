@@ -94,7 +94,6 @@ export type {
   AccountOnboardingClasses,
   OnboardingPortalClasses,
   OnboardingUser,
-  UpdateEndpointRequest,
   // Subscription-agreement (tos) types
   AccountPricing,
   TosAcceptance,

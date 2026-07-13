@@ -52,7 +52,6 @@ import type {
   DeviceUserAssignment,
   AssignDeviceUserRequest,
 } from '../types/device';
-import type { OnboardingEndpoint, UpdateEndpointRequest } from '../types/account-onboarding';
 import {
   MOCK_CALLS,
   MOCK_VOICEMAILS,
@@ -117,7 +116,6 @@ export function createMockInstance(
   const mockPortOrders = new Map<string, PortOrder>();
   for (const order of options.orders ?? []) mockOrders.set(order.id, order);
   for (const port of options.ports ?? []) mockPortOrders.set(port.id, port);
-  const mockEndpoints = new Map<string, OnboardingEndpoint[]>(); // userId → endpoints
   const mockDeviceLines = new Map<string, DeviceLine[]>(); // deviceId → lines
   const mockDECTExts = new Map<string, DECTExtension[]>(); // `${baseId}/${handsetId}` → extensions
   const mockDeviceAssignments = new Map<string, DeviceUserAssignment[]>(); // deviceId → assignments
@@ -769,20 +767,6 @@ export function createMockInstance(
           request: AssignDeviceUserRequest
         ): Promise<DeviceUserAssignment> => {
           await delay();
-          // Assigning provisions the endpoint server-side; the mock mirrors that
-          // by minting an endpoint for the user alongside the assignment.
-          const eps = mockEndpoints.get(request.user) ?? [];
-          if (eps.length === 0) {
-            mockEndpoints.set(request.user, [
-              {
-                id: 'ep_' + Math.random().toString(36).slice(2, 10),
-                user: request.user,
-                user_id: request.user,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              },
-            ]);
-          }
           const existing = mockDeviceAssignments.get(deviceId) ?? [];
           const assignment: DeviceUserAssignment = {
             user: request.user,
@@ -1021,31 +1005,6 @@ export function createMockInstance(
         await delay();
         const idx = mockUsersList.findIndex((u) => u.id === userId);
         if (idx !== -1) mockUsersList.splice(idx, 1);
-      },
-      endpoints: {
-        list: async (userId: string): Promise<OnboardingEndpoint[]> =>
-          mockEndpoints.get(userId) ?? [],
-        update: async (
-          userId: string,
-          endpointId: string,
-          request: UpdateEndpointRequest
-        ): Promise<OnboardingEndpoint> => {
-          await delay();
-          const existing = mockEndpoints.get(userId) ?? [];
-          const idx = existing.findIndex((e) => e.id === endpointId);
-          if (idx === -1) {
-            throw new Error(`endpoint not found: ${endpointId}`);
-          }
-          const updated: OnboardingEndpoint = {
-            ...existing[idx],
-            ...(request.name !== undefined ? { name: request.name } : {}),
-            updated_at: new Date().toISOString(),
-          };
-          const next = [...existing];
-          next[idx] = updated;
-          mockEndpoints.set(userId, next);
-          return updated;
-        },
       },
     },
 

@@ -234,25 +234,6 @@ export interface UpdateLocationRequest {
   config?: LocationConfig;
 }
 
-/**
- * Minimal endpoint type for onboarding device assignment.
- * Intentionally omits sip_username (not needed by the UI) and sip_password
- * (write-only in the API, never returned).
- */
-export interface OnboardingEndpoint {
-  id: string;
-  user?: string;
-  /** @deprecated Use `user`. Retained for backwards compatibility. */
-  user_id: string;
-  name?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface UpdateEndpointRequest {
-  name?: string;
-}
-
 export interface E911ValidationResult {
   adjusted: boolean;
   address?: {

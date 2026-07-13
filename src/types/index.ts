@@ -149,8 +149,6 @@ export type {
   OnboardingLocation,
   CreateLocationRequest,
   UpdateLocationRequest,
-  OnboardingEndpoint,
-  UpdateEndpointRequest,
   E911ValidationResult,
 } from './account-onboarding';
 

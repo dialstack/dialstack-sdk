@@ -76,8 +76,6 @@ import type {
   OnboardingLocation,
   CreateLocationRequest,
   UpdateLocationRequest,
-  OnboardingEndpoint,
-  UpdateEndpointRequest,
   E911ValidationResult,
 } from './account-onboarding';
 
@@ -492,17 +490,6 @@ export interface AccountResource {
   tos: AccountTosResource;
 }
 
-export interface UserEndpointsResource {
-  /** List endpoints for a user */
-  list(userId: string): Promise<OnboardingEndpoint[]>;
-  /** Update an endpoint */
-  update(
-    userId: string,
-    endpointId: string,
-    request: UpdateEndpointRequest
-  ): Promise<OnboardingEndpoint>;
-}
-
 export interface UsersResource {
   /** Create a user */
   create(request: CreateUserRequest): Promise<OnboardingUser>;
@@ -510,8 +497,6 @@ export interface UsersResource {
   list(options?: { limit?: number; expand?: string[] }): Promise<OnboardingUser[]>;
   /** Delete a user */
   del(userId: string): Promise<void>;
-  /** User endpoints sub-resource */
-  endpoints: UserEndpointsResource;
 }
 
 export interface LocationsResource {

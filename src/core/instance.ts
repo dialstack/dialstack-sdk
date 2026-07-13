@@ -75,8 +75,6 @@ import type {
   OnboardingLocation,
   CreateLocationRequest,
   UpdateLocationRequest,
-  OnboardingEndpoint,
-  UpdateEndpointRequest,
   E911ValidationResult,
   NamedResource,
 } from '../types';
@@ -1722,33 +1720,6 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         const errorText = await response.text();
         throw new Error(`Failed to delete user: ${response.status} ${errorText}`);
       }
-    },
-    endpoints: {
-      list: async (userId: string): Promise<OnboardingEndpoint[]> => {
-        const response = await this.fetchApi(`/v1/users/${userId}/endpoints`);
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Failed to list endpoints: ${response.status} ${errorText}`);
-        }
-
-        const data = await response.json();
-        return data.data ?? [];
-      },
-      update: async (
-        userId: string,
-        endpointId: string,
-        request: UpdateEndpointRequest
-      ): Promise<OnboardingEndpoint> => {
-        const response = await this.fetchApi(`/v1/users/${userId}/endpoints/${endpointId}`, {
-          method: 'POST',
-          body: JSON.stringify(request),
-        });
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Failed to update endpoint: ${response.status} ${errorText}`);
-        }
-        return response.json();
-      },
     },
   };
 
