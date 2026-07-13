@@ -37,6 +37,12 @@ export interface DIDItem {
   fax_enabled: boolean;
   config?: DIDConfig;
   caller_id_name?: string | null;
+  /**
+   * Prefix added to the inbound caller's display name shown on the answering
+   * device (e.g. `[Acme] John Smith`), for calls answered on behalf of a specific
+   * brand or business. Affects only the inbound display, not call records.
+   */
+  caller_id_prefix?: string | null;
   directory_listing_name?: string | null;
   directory_listing_type?: DirectoryListingType;
   directory_listing_location?: string | null;
@@ -98,6 +104,11 @@ export interface UpdatePhoneNumberRequest {
   /** @deprecated Use `directory_listing_location`. Retained for backwards compatibility. */
   directory_listing_location_id?: string;
   caller_id_name?: string;
+  /**
+   * Prefix added to the inbound caller's display name shown on the answering
+   * device (e.g. `[Acme] John Smith`). Send `null` to clear.
+   */
+  caller_id_prefix?: string | null;
   caller_id_visibility?: 'PUBLIC' | 'PRIVATE';
   fax_enabled?: boolean;
   /** Pass `null` to clear the per-DID config blob. */
