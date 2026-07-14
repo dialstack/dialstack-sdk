@@ -43,6 +43,16 @@ export interface AccountConfig {
   region?: string;
   extension_length?: number;
   transcription_enabled?: boolean;
+  /** Whether call audio recordings are retained. Defaults to true. */
+  recording_enabled?: boolean;
+  /**
+   * Whether sensitive information (PII) is redacted from transcripts and audio
+   * recordings. When enabled, redacted words appear as `[PII]` in transcripts,
+   * the matching audio is silenced, calls are transcribed in English only, and
+   * a recording is downloadable only after redaction completes. Defaults to
+   * false.
+   */
+  redaction_enabled?: boolean;
   timezone?: string;
   max_phone_numbers?: number;
   e911_notification?: E911NotificationConfig;

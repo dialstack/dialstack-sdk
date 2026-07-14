@@ -145,6 +145,14 @@ export interface AccountConfig {
   extension_length?: number;
   /** Whether calls are recorded and transcribed (default: true) */
   transcription_enabled?: boolean;
+  /** Whether call audio recordings are retained (default: true) */
+  recording_enabled?: boolean;
+  /**
+   * Whether sensitive information (PII) is redacted from transcripts and audio
+   * recordings; transcription is English-only and a recording is downloadable
+   * only after redaction completes (default: false)
+   */
+  redaction_enabled?: boolean;
   /** IANA timezone (default: "UTC") */
   timezone?: string;
   /**
