@@ -31,6 +31,31 @@ const OUTBOUND_CALL_TIMEOUT_MS = 30_000;
 // pending forever.
 const CONNECT_TIMEOUT_MS = 20_000;
 
+// How far ahead of the token's `exp` to fire onTokenExpiring and refresh in-band.
+// The server enforces `exp` for the whole connection; refreshing this far before
+// it leaves headroom for the consumer's re-mint round-trip and the auth.refresh
+// exchange so the swap completes before the server's expiry timer would fire. A
+// token already inside this window at connect time refreshes (near-)immediately
+// (the scheduled delay is clamped to >= 0).
+const TOKEN_REFRESH_LEAD_MS = 60_000;
+
+// Floor on the scheduled refresh delay. A token whose remaining life is already
+// within the lead window would otherwise schedule at 0, and if the consumer keeps
+// minting short-lived tokens (the mint API enforces no minimum TTL) each refresh
+// would re-arm at 0 — a tight loop hammering the consumer's mint endpoint and the
+// server. The floor bounds a misconfigured consumer to one refresh per interval
+// instead of a spin; a well-behaved (hours/days) token is unaffected.
+const TOKEN_REFRESH_MIN_DELAY_MS = 5_000;
+
+// How long to wait for `auth.refreshed` after sending `auth.refresh` before
+// treating the refresh as lost. Without this, a dropped reply on an otherwise-open
+// socket would leave the refresh pending forever and permanently stop the refresh
+// cadence — the token would then lapse to a fatal auth_expired, the exact outcome
+// this feature prevents. On expiry we surface an error and re-schedule so a single
+// lost reply can't wedge the cadence. Mirrors the bounded-wait pattern used by
+// connect() and outbound calls (armTimeout).
+const TOKEN_REFRESH_TIMEOUT_MS = 15_000;
+
 /**
  * A one-shot timeout for a request awaiting a server reply. `onExpire` runs once
  * if nothing settles within `ms`; `settle()` (called from the resolve/reject
@@ -96,6 +121,11 @@ export class DialStackPhone {
   private signalingUrl: string;
   private autoReconnect: boolean;
   private iceServersOverride: RTCIceServer[] | null;
+  // Consumer hook that mints a fresh user token (see PhoneOptions). null when
+  // not supplied — then no in-band refresh is scheduled and the token simply
+  // expires (the server evicts with a fatal auth_expired and the app must
+  // reconnect with a new token).
+  private onTokenExpiring: (() => Promise<string>) | null;
 
   private transport: Transport | null = null;
   private iceServers: RTCIceServer[] = [];
@@ -106,6 +136,13 @@ export class DialStackPhone {
     null;
   private hasConnectedOnce = false;
   private reqSeq = 0;
+  // Armed pre-`exp` refresh timer, and the in-flight refresh awaiting an
+  // auth.refreshed reply. `pendingRefresh` carries the req_id we correlate the
+  // reply against, the exact token we sent (so a success adopts that token, never
+  // a different one), and `settle` to cancel the reply-timeout once the exchange
+  // resolves (success or a correlated error). A reply for a stale req is ignored.
+  private tokenRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingRefresh: { reqId: string; token: string; settle: () => void } | null = null;
   private emergencyAddressId: string | null;
   // User id (token `sub` claim) used to namespace localStorage persistence.
   // null when the token can't be decoded — persistence is then disabled and
@@ -127,7 +164,7 @@ export class DialStackPhone {
     this.storageUserId = userIdFromToken(options.token);
     this.emergencyAddressId =
       options.emergencyAddressId ?? loadStoredEmergencyAddressId(this.storage, this.storageUserId);
-    void options.onTokenExpiring; // Reserved for a future release.
+    this.onTokenExpiring = options.onTokenExpiring ?? null;
   }
 
   on<K extends keyof PhoneEventMap>(event: K, handler: Listener<K>): void {
@@ -217,6 +254,9 @@ export class DialStackPhone {
   }
 
   disconnect(): void {
+    // Stop the refresh timer first so it can't fire against the socket we're
+    // about to tear down (or leak past it).
+    this.clearTokenRefreshTimer();
     // Settle an in-flight outbound (awaiting call.trying) that isn't in
     // activeCalls yet — otherwise its promise hangs forever and its timeout
     // timer + Call leak until it fires. reject() clears the timer, disposes the
@@ -494,6 +534,109 @@ export class DialStackPhone {
     return `req_${Date.now().toString(36)}_${this.reqSeq}`;
   }
 
+  // adoptToken makes a new token the current one: it re-derives the token-scoped
+  // local state (localStorage namespace) and re-arms the pre-`exp` refresh off the
+  // new expiry, from a SINGLE decode. Scheduling is folded in so "a new token is
+  // live" always implies "its refresh is scheduled" — the two can't drift apart.
+  private adoptToken(token: string): void {
+    this.token = token;
+    const { userId, exp } = decodeTokenClaims(token);
+    // Only overwrite the persistence namespace when the new token yields a usable
+    // user id. A consumer's refresh token could be opaque/undecodable here; nulling
+    // a previously-valid storageUserId would silently disable emergency-address
+    // persistence for the rest of an otherwise-healthy session.
+    if (userId !== null) this.storageUserId = userId;
+    this.scheduleTokenRefresh(exp);
+  }
+
+  // Arm the pre-`exp` refresh. Idempotent: clears any prior timer/pending refresh
+  // first. No-ops when onTokenExpiring is unset (back-compat) or the token has no
+  // decodable exp (nothing to schedule against). `exp` may be passed by adoptToken
+  // (which already decoded it); otherwise it's read from the current token — this
+  // is the path taken on every `authenticated`, re-arming after each (re)connect.
+  private scheduleTokenRefresh(exp: number | null = decodeTokenClaims(this.token).exp): void {
+    this.clearTokenRefreshTimer();
+    if (!this.onTokenExpiring) return;
+    if (exp === null) return;
+    // Floor the delay: a token already inside the lead window would otherwise
+    // schedule at 0 and, if the consumer keeps minting short-lived tokens, re-arm
+    // at 0 on each adoption — a spin. The floor bounds that to one refresh per
+    // interval while leaving normal (hours/days) tokens scheduled far out.
+    const delay = Math.max(
+      TOKEN_REFRESH_MIN_DELAY_MS,
+      exp * 1000 - Date.now() - TOKEN_REFRESH_LEAD_MS
+    );
+    this.tokenRefreshTimer = setTimeout(() => {
+      this.tokenRefreshTimer = null;
+      void this.fireTokenRefresh();
+    }, delay);
+  }
+
+  // Timer body: ask the consumer for a fresh token and hand it to the server via
+  // an in-band auth.refresh. The new token is NOT adopted here — only on the
+  // matching auth.refreshed (handleMessage) — so a rejected refresh never swaps
+  // the live token, and the server's original expiry timer keeps governing.
+  private async fireTokenRefresh(): Promise<void> {
+    if (!this.onTokenExpiring || !this.transport || !this.isConnected) return;
+    // Capture the transport this refresh is for. A reconnect during the await
+    // below swaps in a new transport that runs its own scheduleTokenRefresh on
+    // re-auth; sending this stale refresh on it would race that fresh cadence.
+    const transport = this.transport;
+    let fresh: string;
+    try {
+      fresh = await this.onTokenExpiring();
+    } catch (e) {
+      // The connection is still valid; do NOT tear it down. Surface the failure
+      // so the app can trigger its sign-in flow; the server's expiry timer still
+      // governs, and a later reconnect can re-mint.
+      this.emit(
+        'error',
+        new PhoneError({
+          code: 'auth_failed',
+          message: `onTokenExpiring failed; token was not refreshed: ${(e as Error).message}`,
+        })
+      );
+      return;
+    }
+    // Bail if the socket was torn down/replaced while awaiting: transport identity
+    // must still match (guards against a reconnect), and it must still be live.
+    if (this.transport !== transport || !this.isConnected) return;
+    const reqId = this.nextReqId();
+    // Bound the wait for auth.refreshed. If the server accepts the frame but the
+    // reply is lost on an otherwise-open socket, without this the pending refresh
+    // would stick forever and the cadence would stop for good. On expiry, surface
+    // an error and re-schedule off the current (still-live) token so one lost
+    // reply can't permanently defeat the refresh.
+    const timeout = armTimeout(TOKEN_REFRESH_TIMEOUT_MS, () => {
+      if (this.pendingRefresh?.reqId !== reqId) return;
+      this.pendingRefresh = null;
+      logError('Timed out waiting for auth.refreshed', { timeoutMs: TOKEN_REFRESH_TIMEOUT_MS });
+      this.emit(
+        'error',
+        new PhoneError({
+          code: 'auth_failed',
+          message: 'Timed out waiting for the server to confirm the token refresh',
+        })
+      );
+      // Re-arm off the current token so the refresh cadence resumes (the token was
+      // never swapped — a lost reply never extends the session).
+      if (this.isConnected) this.scheduleTokenRefresh();
+    });
+    this.pendingRefresh = { reqId, token: fresh, settle: timeout.settle };
+    transport.send({ type: 'auth.refresh', req_id: reqId, token: fresh });
+  }
+
+  private clearTokenRefreshTimer(): void {
+    if (this.tokenRefreshTimer !== null) {
+      clearTimeout(this.tokenRefreshTimer);
+      this.tokenRefreshTimer = null;
+    }
+    // Cancel the reply-timeout for any in-flight refresh so it can't fire after
+    // the exchange has been torn down or resolved elsewhere.
+    this.pendingRefresh?.settle();
+    this.pendingRefresh = null;
+  }
+
   // apiRequest is the shared REST helper for the /v1/me/emergency-addresses
   // surface (Bearer auth, JSON). A 422 (carrier MSAG validation failure)
   // surfaces as invalid_message carrying the server detail; 204 returns void.
@@ -551,6 +694,9 @@ export class DialStackPhone {
     switch (msg.type) {
       case 'authenticated': {
         this.isConnected = true;
+        // A session just came up (initial connect or reconnect); the current
+        // token is unchanged, so this is a bare re-arm rather than an adoptToken.
+        this.scheduleTokenRefresh();
         if (this.connectResolvers) {
           this.connectResolvers.resolve();
           this.connectResolvers = null;
@@ -558,6 +704,19 @@ export class DialStackPhone {
         if (this.hasConnectedOnce) this.emit('reconnected');
         else this.emit('connected');
         this.hasConnectedOnce = true;
+        return;
+      }
+      case 'auth.refreshed': {
+        // Correlate against the in-flight refresh, then adopt the exact token we
+        // sent for this req_id (never a mismatched one) — adoptToken re-arms the
+        // next refresh off its new exp. A reply for a stale/unknown req_id is
+        // ignored.
+        if (this.pendingRefresh && msg.req_id === this.pendingRefresh.reqId) {
+          const token = this.pendingRefresh.token;
+          this.pendingRefresh.settle(); // cancel the reply-timeout; the reply arrived
+          this.pendingRefresh = null;
+          this.adoptToken(token);
+        }
         return;
       }
       case 'network.changed': {
@@ -580,6 +739,16 @@ export class DialStackPhone {
           message: err.message,
           fatal: err.fatal,
         });
+        // A non-fatal error echoing the in-flight refresh's req_id is the server
+        // rejecting that refresh (bad/expired/cross-identity token). Clear the
+        // pending state so a late auth.refreshed can't adopt the rejected token;
+        // leave this.token and the (server's original) expiry timer untouched —
+        // a failed refresh never extends the session. The emitted `error` below
+        // surfaces it; the connection stays open.
+        if (this.pendingRefresh && msg.req_id === this.pendingRefresh.reqId) {
+          this.pendingRefresh.settle(); // cancel the reply-timeout; the reply arrived
+          this.pendingRefresh = null;
+        }
         if (this.connectResolvers && err.fatal) {
           this.connectResolvers.reject(err);
           this.connectResolvers = null;
@@ -751,11 +920,6 @@ export class DialStackPhone {
   }
 }
 
-// userIdFromToken extracts the user id (`sub` claim, a user_… id) from the
-// user-session JWT with an UNVERIFIED payload decode. This is safe here: the
-// id is used only to namespace localStorage persistence, never for trust —
-// the server independently verifies the token and scopes every address by
-// the authenticated user. Returns null for undecodable/opaque tokens.
 // Resolves the WebSocket signaling URL the phone connects to.
 //
 // Precedence: a non-empty `signalingBaseUrl` wins; otherwise the default is
@@ -801,16 +965,42 @@ function deriveDefaultSignalingBaseUrl(apiBaseUrl: string): string {
   }
 }
 
-function userIdFromToken(token: string): string | null {
+// Unverified base64url decode of a JWT's payload segment. Deliberately does NOT
+// verify the signature: the SDK never trusts these claims (the server verifies
+// the token independently), it only reads them for local bookkeeping —
+// namespacing localStorage by `sub`, and scheduling a refresh off `exp`. Returns
+// null for any token that isn't a decodable three-part JWT.
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
     const payload = token.split('.')[1];
     if (!payload) return null;
     const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
-    const sub = (JSON.parse(json) as { sub?: string }).sub;
-    return typeof sub === 'string' && sub.startsWith('user_') ? sub : null;
+    const parsed = JSON.parse(json) as unknown;
+    return typeof parsed === 'object' && parsed !== null
+      ? (parsed as Record<string, unknown>)
+      : null;
   } catch {
     return null;
   }
+}
+
+// decodeTokenClaims decodes both claims the SDK reads (`sub` → user id for the
+// localStorage namespace, `exp` → refresh scheduling) in a SINGLE unverified
+// payload decode, so adopting a token doesn't decode it twice. Each claim is null
+// when absent/ill-typed; callers treat a null `userId` as "persistence disabled"
+// and a null `exp` as "can't schedule a refresh".
+function decodeTokenClaims(token: string): { userId: string | null; exp: number | null } {
+  const payload = decodeJwtPayload(token);
+  const sub = payload?.sub;
+  const exp = payload?.exp;
+  return {
+    userId: typeof sub === 'string' && sub.startsWith('user_') ? sub : null,
+    exp: typeof exp === 'number' && Number.isFinite(exp) ? exp : null,
+  };
+}
+
+function userIdFromToken(token: string): string | null {
+  return decodeTokenClaims(token).userId;
 }
 
 // Persistence helpers for the emergency-address id, namespaced per user so

@@ -120,6 +120,7 @@ export interface IceServersResponse {
 
 export type ClientMessage =
   | { type: 'authenticate'; token: string; emergency_address_id?: string }
+  | { type: 'auth.refresh'; req_id?: string; token: string }
   | { type: 'call.create'; req_id?: string; destination: string; sdp: string }
   | { type: 'call.answer'; call_id: string }
   | { type: 'call.reject'; call_id: string; reason?: RejectReason }
@@ -150,6 +151,7 @@ export type ClientMessage =
 
 export type ServerMessage =
   | { type: 'authenticated'; user_id: string; account_id: string; reconnected?: boolean }
+  | { type: 'auth.refreshed'; req_id?: string | null }
   | { type: 'network.changed' }
   | {
       type: 'error';
