@@ -3,12 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "jsx": "react-jsx",
-    "baseUrl": ".",
-    "paths": {
-      "@dialstack/sdk": ["../../src"],
-      "@dialstack/sdk/react/softphone": ["../../src/react-softphone.ts"],
-      "@dialstack/sdk/*": ["../../src/*"]
-    }
+    "baseUrl": "."
   },
   "include": ["**/*.ts", "**/*.tsx"]
 }

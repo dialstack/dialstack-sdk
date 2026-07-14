@@ -1,53 +1,19 @@
-// Metro config for the in-repo mobile example.
+// Stock Expo Metro config.
 //
-// This example consumes the SDK's *source* (not the published dist bundle) so
-// that Metro resolves the platform seam to `platform.native.ts` (react-native-
-// webrtc) — the pre-bundled web `dist/` would have inlined the browser
-// `platform.ts` and could never be swapped. We therefore:
-//   1. watch the SDK source tree, and
-//   2. alias `@dialstack/sdk[...]` to `sdk/src` so imports resolve to source.
+// This example consumes the SDK and the RN Softphone component the way any app
+// outside this repo would: as installed packages (`@dialstack/sdk` and
+// `@dialstack/mobile-softphone`), resolved from node_modules via their
+// package.json `exports` / `react-native` fields. There are NO source aliases —
+// removing them is the whole point of this example (it must work as if it were
+// not sitting inside the SDK repo).
 //
-// node_modules resolve from THIS example's folder via `nodeModulesPaths` (so the
-// SDK source — which lives outside the project root — still finds react-native-
-// webrtc et al.), while normal hierarchical lookup stays on so Expo's own nested
-// transitive deps resolve.
+// `@dialstack/sdk/webrtc` resolves to the package's `react-native` export
+// condition (its per-file native build), so Metro's own platform-extension
+// resolution picks `platform.native.js`. `@dialstack/mobile-softphone` ships
+// TypeScript source, which Expo's Metro transpiles like any other dependency.
 
 const { getDefaultConfig } = require('expo/metro-config');
-const path = require('path');
 
-const projectRoot = __dirname;
-const sdkRoot = path.resolve(projectRoot, '../..'); // sdk/
-const sdkSrc = path.resolve(sdkRoot, 'src');
-// The RN Softphone component lives beside this example (sdk/mobile/softphone/) and is
-// imported by relative path; watch it so edits hot-reload.
-const componentSrc = path.resolve(projectRoot, '../softphone/src');
-
-const config = getDefaultConfig(projectRoot);
-
-config.watchFolders = [sdkSrc, componentSrc];
-
-config.resolver.nodeModulesPaths = [path.resolve(projectRoot, 'node_modules')];
-
-// Map the package specifier to the SDK source so subpath imports like
-// `@dialstack/sdk/webrtc` and `@dialstack/sdk/components/softphone-theme` resolve
-// to source files (and the platform seam resolves to platform.native.ts).
-config.resolver.extraNodeModules = {
-  '@dialstack/sdk': sdkSrc,
-};
-
-// `@dialstack/sdk/react/softphone` is a published package export that maps to the
-// `react-softphone.ts` bundle entry; in this source-consuming example there is no
-// `src/react/softphone` directory (the hooks live in `src/react/softphone-hooks/`), so
-// alias the public specifier to the source barrel directly.
-const defaultResolveRequest = config.resolver.resolveRequest;
-config.resolver.resolveRequest = (context, moduleName, platform) => {
-  if (moduleName === '@dialstack/sdk/react/softphone') {
-    return {
-      type: 'sourceFile',
-      filePath: path.resolve(sdkSrc, 'react-softphone.ts'),
-    };
-  }
-  return (defaultResolveRequest ?? context.resolveRequest)(context, moduleName, platform);
-};
+const config = getDefaultConfig(__dirname);
 
 module.exports = config;

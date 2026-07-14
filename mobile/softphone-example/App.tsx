@@ -29,7 +29,9 @@ import {
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { mediaDevices } from 'react-native-webrtc';
-import { Softphone, SoftphoneProvider } from '../softphone/src';
+import { Softphone, SoftphoneProvider } from '@dialstack/sdk-native';
+import { mmkvStorage } from './mmkvStorage';
+import { getCurrentEmergencyAddress } from './locationProvider';
 
 const DEFAULT_API_BASE_URL = 'https://api.dialstack.ai';
 const THEME_BG = '#1a1a1a';
@@ -45,21 +47,30 @@ try {
 }
 
 async function ensureMicPermission(): Promise<boolean> {
-  if (Platform.OS === 'android') {
-    const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO, {
-      title: 'Microphone permission',
-      message: 'DialStack needs the microphone to place and receive calls.',
-      buttonPositive: 'OK',
-    });
-    if (result !== PermissionsAndroid.RESULTS.GRANTED) return false;
-  }
-  // On iOS the system prompt is raised by the first getUserMedia; trigger it now
-  // (and immediately release) so the prompt appears before the first call.
   try {
+    if (Platform.OS === 'android') {
+      // PermissionsAndroid needs the Activity attached; on a cold start the
+      // request can fire a tick too early ("not attached to an Activity"). Wait
+      // a frame so the Activity is ready before requesting.
+      await new Promise<void>((r) => setTimeout(() => r(), 0));
+      const result = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+        {
+          title: 'Microphone permission',
+          message: 'DialStack needs the microphone to place and receive calls.',
+          buttonPositive: 'OK',
+        }
+      );
+      if (result !== PermissionsAndroid.RESULTS.GRANTED) return false;
+    }
+    // On iOS the system prompt is raised by the first getUserMedia; trigger it
+    // now (and immediately release) so the prompt appears before the first call.
     const stream = await mediaDevices.getUserMedia({ audio: true });
     stream.getTracks().forEach((t) => t.stop());
     return true;
   } catch {
+    // Any failure (permission denied, Activity not ready, no mic) resolves to
+    // false rather than leaving the app hung on the loading spinner.
     return false;
   }
 }
@@ -72,7 +83,7 @@ export default function App(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    ensureMicPermission().then(setMicReady);
+    ensureMicPermission().then(setMicReady, () => setMicReady(false));
   }, []);
 
   return (
@@ -97,6 +108,8 @@ export default function App(): React.JSX.Element {
           ) : connected ? (
             <SoftphoneProvider
               token={token}
+              storage={mmkvStorage}
+              locationProvider={getCurrentEmergencyAddress}
               apiBaseUrl={apiBaseUrl}
               appearance={{ theme: 'dark' }}
               onError={(e: { code: string; message: string }) =>

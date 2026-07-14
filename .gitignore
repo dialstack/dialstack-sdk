@@ -43,3 +43,8 @@ coverage/
 # Yalc (local package testing)
 .yalc/
 yalc.lock
+/package-lock.json
+# @dialstack/sdk-native has no standalone install/CI consumer (examples pull it
+# via file: copies with their own locks; a published lib ignores lockfiles), so
+# its lockfile is pure churn — don't track it.
+native/package-lock.json

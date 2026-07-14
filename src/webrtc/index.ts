@@ -2,6 +2,7 @@ export { DialStackPhone } from './phone';
 export { Call } from './call';
 export { PhoneError, NotImplementedError } from './errors';
 export type { PhoneErrorCode } from './errors';
+export type { PlatformStorage } from './platform';
 export type {
   PhoneOptions,
   CallOptions,

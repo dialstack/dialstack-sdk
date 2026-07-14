@@ -27,6 +27,7 @@
   "unpkg": "dist/sdk.umd.js",
   "types": "dist/index.d.ts",
   "exports": {
+    "./package.json": "./package.json",
     ".": {
       "import": "./dist/sdk.mjs",
       "require": "./dist/sdk.cjs",
@@ -48,6 +49,7 @@
       "types": "./dist/onboarding.d.ts"
     },
     "./react/softphone": {
+      "react-native": "./dist/native/react-softphone.js",
       "import": "./dist/react-softphone.mjs",
       "require": "./dist/react-softphone.cjs",
       "types": "./dist/react-softphone.d.ts"
@@ -68,6 +70,7 @@
       "types": "./dist/server/index.d.ts"
     },
     "./webrtc": {
+      "react-native": "./dist/native/webrtc/index.js",
       "import": "./dist/webrtc.mjs",
       "require": "./dist/webrtc.cjs",
       "types": "./dist/webrtc/index.d.ts"
@@ -77,7 +80,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "rollup -c",
+    "build": "rollup -c && npm run build:native",
+    "build:native": "tsc -p tsconfig.native.json",
     "dev": "rollup -c -w",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
@@ -152,6 +156,9 @@
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
     "prettier": "^3.9.5",
+    "react-native": "^0.86.0",
+    "react-native-incall-manager": "^4.2.1",
+    "react-native-webrtc": "^124.0.7",
     "rollup": "^4.62.2",
     "storybook": "^10.2.13",
     "ts-jest": "^29.4.9",

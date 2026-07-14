@@ -64,9 +64,11 @@ export const en = {
     // emergency address is bound to the current network).
     emergencyPrompt: 'Set your emergency location to be able to place external calls',
     emergencyHint:
-      'Confirm your location before placing calls — required by 911 regulations for a browser phone.',
+      'Confirm your location before placing calls — required by 911 regulations for internet calling.',
     emergencyConfirm: "Yes, I'm here",
     emergencyNewLocation: 'Set a new location',
+    emergencyUseLocation: 'Use my current location',
+    emergencyLocating: 'Getting your location…',
     emergencyNumber: 'Number',
     emergencyStreet: 'Street',
     emergencyUnit: 'Unit (optional)',

@@ -1,8 +1,7 @@
 /**
  * Platform seam (React Native) — resolved by Metro instead of `platform.ts`
  * when the call/signaling core is bundled for native. Same exported surface as
- * `platform.ts`, backed by `react-native-webrtc` + `react-native-incall-manager`
- * + AsyncStorage.
+ * `platform.ts`, backed by `react-native-webrtc` + `react-native-incall-manager`.
  *
  * Why this file exists — most browser primitives the core would otherwise reach
  * for DO NOT exist on React Native. Checklist of every web touchpoint and its
@@ -10,7 +9,16 @@
  *
  *   RTCPeerConnection / MediaStream / getUserMedia  → react-native-webrtc        ✓
  *   AudioContext (WebAudio ringback)                → NOT on RN → InCallManager   ✓
- *   localStorage                                    → NOT on RN → AsyncStorage    ✓
+ *   localStorage                                    → NOT on RN → host-injected store
+ *                                                     (the SDK takes no persistence
+ *                                                     dependency of its own; the RN
+ *                                                     softphone provider requires the
+ *                                                     app to supply `storage`, e.g. an
+ *                                                     MMKV- or AsyncStorage-backed
+ *                                                     adapter). The default below is a
+ *                                                     non-persisting in-memory store,
+ *                                                     used only if the core is driven
+ *                                                     without a provider-supplied one.
  *   WebSocket (transport.ts)                        → global exists on RN, untouched
  *   fetch (phone.ts)                                → global exists on RN
  *   RTCRtpSender.dtmf / insertDTMF                  → NOT on RN (no RTCDTMFSender in
@@ -28,7 +36,6 @@
  * consuming React Native app's Metro bundler.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import InCallManager from 'react-native-incall-manager';
 import {
   MediaStream as RNMediaStream,
@@ -119,14 +126,22 @@ export class Ringback {
   }
 }
 
-// --- Persistence shim ------------------------------------------------------
-// AsyncStorage is async, but the core reads the persisted E911 id synchronously
-// in the DialStackPhone constructor. Bridge the two with a synchronous in-memory
-// cache that hydrates from AsyncStorage at module load (fire-and-forget) and
-// writes through on every set. On a cold first launch the value may not be
-// hydrated in time for the very first synchronous read — which is fine: on
-// native the address id is normally supplied via PhoneOptions.emergencyAddressId,
-// and persistence is a best-effort convenience for subsequent launches.
+// --- Persistence -----------------------------------------------------------
+// The SDK takes NO persistence dependency on React Native. There is no single
+// safe default: react-native-mmkv splits across major versions (v3/v4 require
+// the New Architecture; the constructor changed `new MMKV()` → `createMMKV()`;
+// `.delete` → `.remove`), and AsyncStorage is async where the core reads sync —
+// so the SDK cannot pick one for every app. Instead the host injects a
+// `PlatformStorage` adapter via `PhoneOptions.storage` (the React Native
+// softphone provider requires it), pinning whichever store + version fits their
+// app. See the example apps for MMKV- and AsyncStorage-backed reference adapters.
+//
+// The store below is a fallback that is never meant to be reached: the React
+// Native softphone provider REQUIRES the host to pass `storage`, so a real app
+// always injects one (even a trivial in-memory adapter is theirs to pass). It is
+// only hit if the core is driven directly without a store — so rather than
+// silently swallow the E911 id into a map that vanishes on restart, it throws to
+// surface the missing wiring. There is deliberately no default persistence.
 
 export interface PlatformStorage {
   getItem(key: string): string | null;
@@ -134,39 +149,19 @@ export interface PlatformStorage {
   removeItem(key: string): void;
 }
 
-const STORAGE_NAMESPACE = 'dialstack.webrtc.';
-const cache = new Map<string, string>();
-// Keys written locally (set/remove) since module load. Async hydration must not
-// stomp a value the app has already written: if setItem/removeItem lands before
-// the multiGet resolves, the disk value it read is stale for that key.
-const dirtyKeys = new Set<string>();
-
-void (async () => {
-  try {
-    const keys = await AsyncStorage.getAllKeys();
-    const ours = keys.filter((k: string) => k.startsWith(STORAGE_NAMESPACE));
-    if (ours.length === 0) return;
-    const entries = await AsyncStorage.multiGet(ours);
-    for (const [key, value] of entries) {
-      if (value != null && !dirtyKeys.has(key)) cache.set(key, value);
-    }
-  } catch {
-    // Best-effort hydration.
-  }
-})();
+const NO_STORAGE =
+  'No storage was provided to the DialStack softphone. Pass a `storage` adapter ' +
+  'to <SoftphoneProvider> (or PhoneOptions.storage) — e.g. an MMKV- or ' +
+  'AsyncStorage-backed PlatformStorage. See the example apps for reference adapters.';
 
 export const storage: PlatformStorage = {
-  getItem(key) {
-    return cache.get(key) ?? null;
+  getItem() {
+    throw new Error(NO_STORAGE);
   },
-  setItem(key, value) {
-    dirtyKeys.add(key);
-    cache.set(key, value);
-    void AsyncStorage.setItem(key, value).catch(() => undefined);
+  setItem() {
+    throw new Error(NO_STORAGE);
   },
-  removeItem(key) {
-    dirtyKeys.add(key);
-    cache.delete(key);
-    void AsyncStorage.removeItem(key).catch(() => undefined);
+  removeItem() {
+    throw new Error(NO_STORAGE);
   },
 };

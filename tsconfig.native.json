@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2020", "DOM"],
+    "jsx": "react-jsx",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist/native",
+    "rootDir": "./src",
+    "removeComments": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "types": []
+  },
+  "include": [
+    "src/react-softphone.ts",
+    "src/react/softphone-hooks/**/*",
+    "src/webrtc/**/*",
+    "src/components/softphone-view-model.ts",
+    "src/components/softphone-theme.ts",
+    "src/components/softphone-icons.ts",
+    "src/locales/**/*",
+    "src/shared/**/*",
+    "src/types/appearance.ts"
+  ],
+  "exclude": [
+    "**/__tests__/**",
+    "**/__mocks__/**",
+    "**/__stories__/**",
+    "**/*.test.ts",
+    "**/*.test.tsx"
+  ]
+}

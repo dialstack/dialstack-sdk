@@ -65,6 +65,49 @@ export interface UseEmergencyBinding {
   create: (input: EmergencyAddressInput) => Promise<void>;
 }
 
+// The rebind after save/confirm waits for the socket to re-authenticate and the
+// server to bind the address. Cap that wait so a stuck reconnect surfaces an
+// error instead of leaving the form spinning on "Saving…" forever.
+const REBIND_TIMEOUT_MS = 8000;
+
+const REBIND_TIMEOUT_MESSAGE = 'Timed out confirming your location. Please try again.';
+
+// Run `reconnect()` but reject after REBIND_TIMEOUT_MS so the form doesn't spin
+// forever on a stuck socket. `reconnect` has no cancellation, so a timed-out call
+// keeps running — on a slow-but-not-stuck network it can succeed a moment after we
+// already surfaced the timeout error. Don't abandon it: `onLateSettle` reconciles
+// once it finally settles (clear the false error on late success; surface the real
+// one on late failure). The caller guards the callback against a stale/unmounted
+// reconcile. The detached promise always has a handler, so no unhandled rejection.
+async function withRebindTimeout(
+  reconnect: () => Promise<void>,
+  onLateSettle: (error: Error | null) => void
+): Promise<void> {
+  const pending = reconnect();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      reject(new Error(REBIND_TIMEOUT_MESSAGE));
+    }, REBIND_TIMEOUT_MS);
+  });
+  // When the timeout wins, wire the still-pending reconnect to reconcile later.
+  pending.then(
+    () => {
+      if (timedOut) onLateSettle(null);
+    },
+    (e: unknown) => {
+      if (timedOut) onLateSettle(e instanceof Error ? e : new Error('Failed to confirm'));
+    }
+  );
+  try {
+    await Promise.race([pending, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergencyBinding {
   const { disabled, connection, identityKey, list, save, select, clearRegisteredIp, reconnect } =
     deps;
@@ -74,6 +117,30 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
   const [savedAddresses, setSavedAddresses] = useState<EmergencyAddress[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // A timed-out rebind keeps running and may settle after the form already showed
+  // the timeout error. `submitGenRef` bumps on each submit so a late reconcile from
+  // an older attempt can't clobber a newer one; `mountedRef` drops late reconciles
+  // after unmount. See withRebindTimeout.
+  const submitGenRef = useRef(0);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // Builds the reconcile callback for one submit attempt. Applies only if the hook
+  // is still mounted and no newer submit has started (gen still current): a late
+  // success clears the false timeout error (bound already flipped via the connect
+  // effect); a late failure keeps a real error in front of the user.
+  const lateSettle = useCallback(
+    (gen: number, failureMessage: string) => (error: Error | null) => {
+      if (!mountedRef.current || submitGenRef.current !== gen) return;
+      setError(error ? error.message || failureMessage : null);
+    },
+    []
+  );
 
   // Latest deps via refs so the connect effect doesn't churn on identity changes.
   const fns = useRef({ list, select, reconnect });
@@ -173,6 +240,7 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
 
   const confirm = useCallback(
     async (id: string) => {
+      const gen = ++submitGenRef.current;
       setSubmitting(true);
       setError(null);
       try {
@@ -184,7 +252,7 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
         // address is idempotent: cleared then immediately re-bound to the same IP.)
         await clearRegisteredIp(id);
         select(id);
-        await reconnect();
+        await withRebindTimeout(reconnect, lateSettle(gen, 'Failed to confirm emergency address'));
       } catch (e) {
         // Surface the error AND rethrow: a failed confirm leaves outbound PSTN
         // gated, so the caller (the banner) must NOT treat this as success and
@@ -196,11 +264,12 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
         setSubmitting(false);
       }
     },
-    [clearRegisteredIp, select, reconnect]
+    [clearRegisteredIp, select, reconnect, lateSettle]
   );
 
   const create = useCallback(
     async (input: EmergencyAddressInput) => {
+      const gen = ++submitGenRef.current;
       setSubmitting(true);
       setError(null);
       try {
@@ -212,7 +281,7 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
         // clears even though the address was created.
         const created = await save(input);
         select(created.id);
-        await reconnect();
+        await withRebindTimeout(reconnect, lateSettle(gen, 'Failed to save emergency address'));
       } catch (e) {
         // See confirm(): surface + rethrow so a failed create doesn't collapse
         // the form as if the address were bound.
@@ -222,7 +291,7 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
         setSubmitting(false);
       }
     },
-    [save, select, reconnect]
+    [save, select, reconnect, lateSettle]
   );
 
   return { loading, bound, savedAddresses, submitting, error, onNetworkChanged, confirm, create };

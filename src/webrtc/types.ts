@@ -1,3 +1,5 @@
+import type { PlatformStorage } from './platform';
+
 export type CallState = 'trying' | 'ringing' | 'active' | 'held' | 'ended';
 export type CallDirection = 'inbound' | 'outbound';
 export type CallEndReason = 'hangup' | 'no-answer' | 'busy' | 'failed' | 'transferred' | 'rejected';
@@ -30,9 +32,18 @@ export interface PhoneOptions {
    * The emergency-address resource id (emerg_…) this softphone uses for E911.
    * Presented on the authenticate handshake so the server can bind
    * it to the current network. When omitted, a previously persisted id (see
-   * `setEmergencyAddress`) is loaded from localStorage if available.
+   * `setEmergencyAddress`) is loaded from `storage` if available.
    */
   emergencyAddressId?: string;
+  /**
+   * Synchronous key/value store used to persist the selected E911 address id
+   * across launches. Optional at this layer: it defaults to the platform seam's
+   * store — `localStorage` on web, an in-memory (non-persisting) store on React
+   * Native. On React Native the softphone provider requires the host to supply a
+   * real store (e.g. an AsyncStorage- or MMKV-backed adapter), because the SDK
+   * takes no persistence dependency of its own.
+   */
+  storage?: PlatformStorage;
 }
 
 /**

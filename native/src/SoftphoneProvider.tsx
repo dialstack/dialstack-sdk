@@ -17,7 +17,12 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef } from 'react';
 import InCallManager from 'react-native-incall-manager';
 import { type CountryCode } from 'libphonenumber-js';
-import type { Call, CallEndReason } from '@dialstack/sdk/webrtc';
+import type {
+  Call,
+  CallEndReason,
+  EmergencyAddressInput,
+  PlatformStorage,
+} from '@dialstack/sdk/webrtc';
 import {
   useCalls,
   useCallActions,
@@ -33,10 +38,7 @@ import {
   type UseEmergencyBinding,
   type SoftphoneConnectionState,
 } from '@dialstack/sdk/react/softphone';
-import {
-  resolveSoftphonePalette,
-  type SoftphonePalette,
-} from '@dialstack/sdk/components/softphone-theme';
+import { resolveSoftphonePalette, type SoftphonePalette } from '@dialstack/sdk/components/softphone-theme';
 
 // Derive the appearance type from the theme resolver rather than importing it
 // from the SDK root (which would pull the web component graph into RN).
@@ -47,11 +49,30 @@ export type ConnectionState = SoftphoneConnectionState;
 export interface SoftphoneProviderProps {
   /** WebRTC user session token. */
   token: string;
+  /**
+   * Persistence for the selected E911 address id, so it survives app restarts.
+   * REQUIRED on React Native: the SDK takes no persistence dependency of its own
+   * (react-native-mmkv and AsyncStorage vary by version/architecture and can't be
+   * defaulted safely), so the host supplies a small `PlatformStorage` adapter —
+   * typically MMKV- or AsyncStorage-backed. See the example apps for reference
+   * adapters; a synchronous in-memory adapter is also valid if you don't need
+   * persistence. It only stores the E911 id, nothing sensitive.
+   */
+  storage: PlatformStorage;
   /** API base URL (defaults to the SDK's production endpoint). */
   apiBaseUrl?: string;
   /** Emergency (E911) address id to present on connect; when supplied the host
    *  manages E911 and the built-in prompt is disabled. */
   emergencyAddressId?: string;
+  /**
+   * Optional device-location source for the E911 form. When provided, the
+   * built-in emergency-address form shows a "Use my current location" action
+   * that calls this to prefill the address fields; the host owns the location
+   * permission prompt, geolocation, and reverse-geocoding (e.g. expo-location or
+   * @react-native-community/geolocation). The SDK takes no geolocation
+   * dependency of its own. Omit it for manual entry only.
+   */
+  locationProvider?: () => Promise<EmergencyAddressInput>;
   /** Connect automatically once mounted (default: true). */
   autoConnect?: boolean;
   /** Theming — the shared appearance surface. */
@@ -124,6 +145,8 @@ export interface SoftphoneContextValue {
   dial: (destination: string) => void;
   emergency: UseEmergencyBinding;
   emergencyManagedByHost: boolean;
+  /** Host-supplied device-location source for the E911 form, or undefined. */
+  locationProvider: (() => Promise<EmergencyAddressInput>) | undefined;
   /** Format a raw number for display using the configured default country. */
   displayNumber: (value: string) => string;
   /** Locale string accessor for the `softphone` namespace (mirrors the web softphone). */
@@ -136,8 +159,10 @@ const SoftphoneContext = createContext<SoftphoneContextValue | null>(null);
 
 export function SoftphoneProvider({
   token,
+  storage,
   apiBaseUrl,
   emergencyAddressId,
+  locationProvider,
   autoConnect = true,
   appearance,
   locale = defaultLocale,
@@ -185,6 +210,7 @@ export function SoftphoneProvider({
     reconnect,
   } = useCalls({
     token,
+    storage,
     apiBaseUrl,
     emergencyAddressId,
     autoConnect,
@@ -284,6 +310,7 @@ export function SoftphoneProvider({
       },
       emergency,
       emergencyManagedByHost: !!emergencyAddressId,
+      locationProvider,
       displayNumber,
       t,
       palette,
@@ -309,6 +336,7 @@ export function SoftphoneProvider({
       placeCall,
       emergency,
       emergencyAddressId,
+      locationProvider,
       palette,
       defaultCountry,
       locale,

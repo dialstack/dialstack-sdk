@@ -2,7 +2,8 @@ import { createPaginatedList, type PaginatedList } from '../shared/pagination';
 import { Call } from './call';
 import { NotImplementedError, PhoneError } from './errors';
 import { logError } from './logger';
-import { storage } from './platform';
+import { storage as defaultStorage } from './platform';
+import type { PlatformStorage } from './platform';
 import type { RTCIceServer, RTCSessionDescriptionInit } from './platform';
 import { Transport } from './transport';
 import type {
@@ -110,6 +111,11 @@ export class DialStackPhone {
   // null when the token can't be decoded — persistence is then disabled and
   // the app must supply PhoneOptions.emergencyAddressId itself.
   private storageUserId: string | null;
+  // Persistence for the E911 address id. Defaults to the platform seam's store
+  // (localStorage on web; a non-persisting in-memory store on native — the SDK
+  // takes no persistence dependency), overridable via PhoneOptions.storage. The
+  // React Native softphone provider requires the host to inject a real store.
+  private storage: PlatformStorage;
 
   constructor(options: PhoneOptions) {
     this.token = options.token;
@@ -117,9 +123,10 @@ export class DialStackPhone {
     this.signalingUrl = resolveSignalingUrl(options.signalingBaseUrl, this.apiBaseUrl);
     this.autoReconnect = options.autoReconnect ?? true;
     this.iceServersOverride = options.iceServers ?? null;
+    this.storage = options.storage ?? defaultStorage;
     this.storageUserId = userIdFromToken(options.token);
     this.emergencyAddressId =
-      options.emergencyAddressId ?? loadStoredEmergencyAddressId(this.storageUserId);
+      options.emergencyAddressId ?? loadStoredEmergencyAddressId(this.storage, this.storageUserId);
     void options.onTokenExpiring; // Reserved for a future release.
   }
 
@@ -421,7 +428,7 @@ export class DialStackPhone {
       address
     );
     this.emergencyAddressId = created.id;
-    persistEmergencyAddressId(this.storageUserId, created.id);
+    persistEmergencyAddressId(this.storage, this.storageUserId, created.id);
     return created;
   }
 
@@ -432,7 +439,7 @@ export class DialStackPhone {
    */
   selectEmergencyAddress(id: string): void {
     this.emergencyAddressId = id;
-    persistEmergencyAddressId(this.storageUserId, id);
+    persistEmergencyAddressId(this.storage, this.storageUserId, id);
   }
 
   /** Fetch a saved emergency address (defaults to the one this phone uses). */
@@ -466,7 +473,7 @@ export class DialStackPhone {
     await this.apiRequest<void>('DELETE', `/v1/me/emergency-addresses/${encodeURIComponent(id)}`);
     if (this.emergencyAddressId === id) {
       this.emergencyAddressId = null;
-      persistEmergencyAddressId(this.storageUserId, null);
+      persistEmergencyAddressId(this.storage, this.storageUserId, null);
     }
   }
 
@@ -812,12 +819,19 @@ function userIdFromToken(token: string): string | null {
 // cache on native), which is itself guarded so the SDK works in non-browser
 // hosts where storage is absent — there (or when the token can't be decoded)
 // the id must be supplied via PhoneOptions.emergencyAddressId.
-function loadStoredEmergencyAddressId(userId: string | null): string | null {
+function loadStoredEmergencyAddressId(
+  storage: PlatformStorage,
+  userId: string | null
+): string | null {
   if (!userId) return null;
   return storage.getItem(EMERGENCY_ADDRESS_STORAGE_KEY_PREFIX + userId);
 }
 
-function persistEmergencyAddressId(userId: string | null, id: string | null): void {
+function persistEmergencyAddressId(
+  storage: PlatformStorage,
+  userId: string | null,
+  id: string | null
+): void {
   if (!userId) return;
   const key = EMERGENCY_ADDRESS_STORAGE_KEY_PREFIX + userId;
   if (id) storage.setItem(key, id);

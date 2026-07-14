@@ -881,8 +881,15 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
 
   // Construct + connect the phone for the current credentials. Reconnects when
   // any credential changes; tears down on unmount.
-  const { token, apiBaseUrl, signalingBaseUrl, emergencyAddressId, iceServers, autoReconnect } =
-    options;
+  const {
+    token,
+    apiBaseUrl,
+    signalingBaseUrl,
+    emergencyAddressId,
+    iceServers,
+    autoReconnect,
+    storage,
+  } = options;
   // The emergency-address id is a per-outbound-PSTN-call concern, NOT a
   // connection credential — the phone loads it from localStorage on construct
   // and `setEmergencyAddress` updates the live instance in place. It must NEVER
@@ -902,6 +909,14 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
   useEffect(() => {
     iceServersRef.current = iceServers;
   }, [iceServers]);
+  // `storage` is the host-supplied persistence adapter (localStorage on web; on
+  // React Native the provider requires an MMKV/AsyncStorage-backed one). Read at
+  // construct time through a ref, like the other non-credential options, so a new
+  // adapter identity can't retrigger the connect effect and drop the socket.
+  const storageRef = useRef(storage);
+  useEffect(() => {
+    storageRef.current = storage;
+  }, [storage]);
   useEffect(() => {
     if (!token) return;
     let disposed = false;
@@ -911,6 +926,7 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
       signalingBaseUrl,
       emergencyAddressId: emergencyAddressIdRef.current,
       iceServers: iceServersRef.current,
+      storage: storageRef.current,
       autoReconnect,
     });
     phoneRef.current = p;

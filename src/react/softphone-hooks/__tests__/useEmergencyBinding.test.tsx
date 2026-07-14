@@ -178,3 +178,96 @@ describe('useEmergencyBinding identity reset', () => {
     expect(result.current.error).toBe('carrier rejected');
   });
 });
+
+describe('useEmergencyBinding rebind timeout', () => {
+  const REBIND_TIMEOUT_MS = 8000;
+
+  // `waitFor` polls on real timers, so under fake timers we drive the hook
+  // deterministically: `flush` runs microtasks (promise continuations like the
+  // connect effect's list()/setLoading and the late-settle reconcile) inside act.
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => {
+    jest.runOnlyPendingTimers();
+    jest.useRealTimers();
+  });
+
+  const flush = () =>
+    act(async () => {
+      await Promise.resolve();
+    });
+
+  it('surfaces the timeout error, then clears it when the slow reconnect later succeeds', async () => {
+    // reconnect resolves only when we release it — simulating a slow-but-not-stuck
+    // network where the rebind actually succeeds after the timeout has fired.
+    let releaseReconnect: () => void = () => undefined;
+    const reconnect = jest.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseReconnect = resolve;
+        })
+    );
+    const { deps } = makeDeps({ reconnect, list: jest.fn().mockResolvedValue([]) });
+    const { result } = renderHook(() => useEmergencyBinding(deps));
+    await flush(); // connect effect resolves list() → loading false
+    expect(result.current.loading).toBe(false);
+
+    // Kick off confirm; hold the promise so we can assert its rejection.
+    let confirmErr: unknown = null;
+    await act(async () => {
+      result.current.confirm('ea_1').catch((e) => {
+        confirmErr = e;
+      });
+      await Promise.resolve();
+    });
+
+    // Fire the 8s timeout — confirm rejects with the timeout message.
+    await act(async () => {
+      jest.advanceTimersByTime(REBIND_TIMEOUT_MS);
+      await Promise.resolve();
+    });
+    await flush();
+    expect((confirmErr as Error).message).toMatch(/Timed out confirming your location/);
+    expect(result.current.error).toMatch(/Timed out confirming your location/);
+
+    // The slow reconnect now finally succeeds — the false timeout error clears.
+    await act(async () => {
+      releaseReconnect();
+      await Promise.resolve();
+    });
+    await flush();
+    expect(result.current.error).toBeNull();
+  });
+
+  it('keeps an error when the slow reconnect later fails', async () => {
+    let rejectReconnect: (e: Error) => void = () => undefined;
+    const reconnect = jest.fn(
+      () =>
+        new Promise<void>((_, reject) => {
+          rejectReconnect = reject;
+        })
+    );
+    const { deps } = makeDeps({ reconnect, list: jest.fn().mockResolvedValue([]) });
+    const { result } = renderHook(() => useEmergencyBinding(deps));
+    await flush();
+    expect(result.current.loading).toBe(false);
+
+    await act(async () => {
+      result.current.confirm('ea_1').catch(() => undefined);
+      await Promise.resolve();
+    });
+    await act(async () => {
+      jest.advanceTimersByTime(REBIND_TIMEOUT_MS);
+      await Promise.resolve();
+    });
+    await flush();
+    expect(result.current.error).toMatch(/Timed out/);
+
+    // Late failure keeps a real error in front of the user (not cleared).
+    await act(async () => {
+      rejectReconnect(new Error('bind failed late'));
+      await Promise.resolve();
+    });
+    await flush();
+    expect(result.current.error).toBe('bind failed late');
+  });
+});

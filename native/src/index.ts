@@ -1,17 +1,28 @@
 /**
- * @dialstack/mobile-softphone — the React Native softphone components.
+ * `@dialstack/sdk-native` — the React Native softphone components.
+ *
+ * A separate package from `@dialstack/sdk` on purpose: it carries the React
+ * Native peer dependencies, so the web SDK's dependency graph stays structurally
+ * free of anything React Native (a web app installing `@dialstack/sdk` can never
+ * pull an RN library). It depends on `@dialstack/sdk` for the shared headless
+ * core + call-state hooks, consumed through that package's `react-native` export
+ * condition.
  *
  * The mobile siblings of the web softphone, with the SAME API: a headless
  * SoftphoneProvider that owns the connection, a batteries-included <Softphone>,
  * and the composable pieces (<DialPad> / <IncomingCall> / <OngoingCall>) for
- * building a bespoke experience. Built on the SDK's shared headless core +
- * call-state hooks (`@dialstack/sdk/react/softphone`).
+ * building a bespoke experience.
  *
- * Bring your own `react-native-webrtc` / `react-native-incall-manager` (peer
- * deps) and pass a WebRTC token.
+ * Bring your own `react-native-webrtc` / `react-native-incall-manager` /
+ * `react-native-svg` (peer deps), supply a `storage` adapter to
+ * `<SoftphoneProvider>` (the SDK takes no persistence dependency — back it with
+ * MMKV, AsyncStorage, or anything that implements `PlatformStorage`), and pass a
+ * WebRTC token.
  *
  * @example
  * ```tsx
+ * import { Softphone, SoftphoneProvider } from '@dialstack/sdk-native';
+ *
  * // The provider owns the connection + token (the single entry point); the UI
  * // components are pure consumers under it and can mount/unmount freely.
  * <SoftphoneProvider token={webrtcToken}>
@@ -40,3 +51,7 @@ export type { DialPadProps } from './softphone/DialPad';
 export { IncomingCall } from './softphone/IncomingCall';
 export { OngoingCall } from './softphone/OngoingCall';
 export { EmergencyBanner } from './softphone/EmergencyBanner';
+
+// The persistence adapter interface the host implements for the required
+// `storage` prop (an MMKV- or AsyncStorage-backed store; see the example apps).
+export type { PlatformStorage, EmergencyAddressInput } from '@dialstack/sdk/webrtc';

@@ -9,10 +9,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import {
-  softphoneDimensions as D,
-  type SoftphonePalette,
-} from '@dialstack/sdk/components/softphone-theme';
+import { softphoneDimensions as D, type SoftphonePalette } from '@dialstack/sdk/components/softphone-theme';
 import type { SoftphoneGlyph } from '@dialstack/sdk/components/softphone-icons';
 
 /** Renders a shared softphone glyph as an SVG path, matching the web <Glyph>. */
@@ -297,7 +294,7 @@ export function makeStyles(p: SoftphonePalette) {
     peerNameCompact: { fontSize: 15, fontWeight: '600', color: p.text },
     peerNumberCompact: { fontSize: 12, color: p.textSecondary },
 
-    // ---- E911 banner (RN parity with the web ds-e911 banner) ----
+    // ---- E911: compact banner trigger + a mobile Modal form ----
     e911: {
       borderWidth: 1,
       borderColor: p.border,
@@ -310,7 +307,7 @@ export function makeStyles(p: SoftphonePalette) {
       alignItems: 'center',
       justifyContent: 'center',
       gap: 8,
-      paddingVertical: 10,
+      paddingVertical: 12,
       paddingHorizontal: 12,
     },
     e911ToggleText: {
@@ -318,49 +315,114 @@ export function makeStyles(p: SoftphonePalette) {
       fontSize: 13,
       fontWeight: '600',
       textAlign: 'center',
+      flexShrink: 1,
     },
-    e911Body: {
-      borderTopWidth: 1,
-      borderTopColor: p.border,
-      padding: 12,
-      gap: 8,
+
+    // Modal: OPAQUE backdrop (solid palette background — no translucency, so the
+    // dial pad never bleeds through), sheet pinned to the bottom, keyboard-aware.
+    e911Backdrop: {
+      flex: 1,
+      backgroundColor: p.background,
+      justifyContent: 'flex-end',
     },
-    e911Hint: { fontSize: 12, color: p.textSecondary },
+    e911ModalWrap: { width: '100%' },
+    e911Sheet: {
+      backgroundColor: p.surface,
+      borderTopLeftRadius: 16,
+      borderTopRightRadius: 16,
+      maxHeight: '92%',
+      paddingBottom: 8,
+    },
+    e911Header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+      paddingHorizontal: 20,
+      paddingTop: 18,
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: p.border,
+    },
+    e911Title: { flex: 1, fontSize: 17, fontWeight: '700', color: p.text },
+    e911Close: { fontSize: 20, color: p.textSecondary, paddingHorizontal: 4 },
+    e911Scroll: { flexGrow: 0 },
+    e911ScrollContent: { padding: 20, gap: 14 },
+    e911Hint: { fontSize: 14, lineHeight: 20, color: p.textSecondary },
     e911Choice: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
-      padding: 10,
-      borderRadius: 8,
+      gap: 10,
+      padding: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: p.border,
       backgroundColor: p.background,
     },
-    e911ChoiceAddr: { flex: 1, fontSize: 13, color: p.text },
-    e911ChoiceCta: { fontSize: 12, fontWeight: '600', color: p.accent },
-    e911Row: { flexDirection: 'row', gap: 8 },
-    e911Field: { flex: 1, gap: 3 },
-    e911FieldSm: { flex: 0, width: 96 },
-    e911Label: { fontSize: 11, color: p.textSecondary },
+    e911ChoiceAddr: { flex: 1, fontSize: 15, color: p.text },
+    e911ChoiceCta: { fontSize: 13, fontWeight: '600', color: p.accent },
+
+    e911LocateBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      paddingVertical: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: p.accent,
+    },
+    e911LocateBtnText: { color: p.accent, fontWeight: '600', fontSize: 15 },
+
+    // Full-width stacked fields (no cramped two-column rows).
+    e911Field: { gap: 6 },
+    e911Label: { fontSize: 13, color: p.textSecondary },
     e911Input: {
       borderWidth: 1,
       borderColor: p.border,
-      borderRadius: 8,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
       color: p.text,
-      fontSize: 14,
+      fontSize: 16,
       backgroundColor: p.background,
     },
-    e911Error: { fontSize: 12, color: p.danger },
+    e911Error: {
+      fontSize: 14,
+      lineHeight: 20,
+      color: p.danger,
+      alignSelf: 'stretch',
+      textAlign: 'left',
+    },
+
+    e911Footer: {
+      flexDirection: 'column',
+      alignItems: 'stretch',
+      gap: 10,
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      paddingBottom: 8,
+      borderTopWidth: 1,
+      borderTopColor: p.border,
+    },
+    e911FooterBtns: { flexDirection: 'row', gap: 12 },
+    e911FooterBtn: { flex: 1 },
     e911Btn: {
       backgroundColor: p.accent,
-      borderRadius: 8,
-      paddingVertical: 10,
+      borderRadius: 12,
+      paddingVertical: 14,
       alignItems: 'center',
     },
-    e911BtnText: { color: p.onAccent, fontWeight: '600', fontSize: 14 },
+    e911BtnText: { color: p.onAccent, fontWeight: '600', fontSize: 16 },
     e911BtnDisabled: { opacity: 0.4 },
-    e911BtnSecondary: { backgroundColor: p.surface },
-    e911BtnSecondaryText: { color: p.text, fontWeight: '600', fontSize: 14 },
-    e911Actions: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end' },
+    e911BtnSecondary: {
+      backgroundColor: p.surface,
+      borderWidth: 1,
+      borderColor: p.border,
+      borderRadius: 12,
+      paddingVertical: 14,
+      alignItems: 'center',
+    },
+    e911BtnSecondaryText: { color: p.text, fontWeight: '600', fontSize: 16 },
   });
 }

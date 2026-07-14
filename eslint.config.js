@@ -43,6 +43,24 @@ export default tseslint.config(
     },
   },
   {
+    // React Native entry (`@dialstack/sdk/native`). Same TS/React rules, but it
+    // targets React Native, not the browser: drop the browser globals, and relax
+    // two of the newest react-hooks rules that flag idiomatic RN patterns —
+    // `useRef(new Animated.Value(…)).current` (the standard Animated idiom) trips
+    // `react-hooks/refs`, and resetting local input state when the active call
+    // changes trips `react-hooks/set-state-in-effect`. Neither is a defect here.
+    files: ['src/react-native/**/*.{ts,tsx}'],
+    languageOptions: {
+      globals: {
+        ...globals['shared-node-browser'],
+      },
+    },
+    rules: {
+      'react-hooks/refs': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
+  {
     ignores: ['dist/**', 'node_modules/**', '*.config.js'],
   }
 );

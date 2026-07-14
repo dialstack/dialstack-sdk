@@ -1,20 +1,16 @@
 # DialStack Mobile Softphone example (Expo + react-native-webrtc)
 
-A launchable [Expo](https://expo.dev) app that wraps the **`<Softphone>`**
-component (in `../softphone/`) so you can run it on a device/simulator. The
-components are the React Native siblings of the SDK's web softphone: they reuse
-the SDK's **headless calling core** (`DialStackPhone` / `Call`) plus the shared
-call-state hooks (`@dialstack/sdk/react/softphone`), so the only thing that differs
-from the web softphone is the rendering layer (React Native views instead of
-DOM). Like the web SDK, the connection lives in `<SoftphoneProvider>` and the UI
-(`<Softphone>`, or the composable `<DialPad>` / `<IncomingCall>` /
-`<OngoingCall>`) subscribes to it.
+A launchable [Expo](https://expo.dev) app that renders the SDK's **`<Softphone>`**
+from `@dialstack/sdk/native` so you can run it on a device/simulator. The React
+Native softphone lives inside the SDK (the RN sibling of the web softphone): it
+reuses the SDK's **headless calling core** (`DialStackPhone` / `Call`) plus the
+shared call-state hooks, so the only thing that differs from the web softphone is
+the rendering layer (React Native views instead of DOM). Like the web SDK, the
+connection lives in `<SoftphoneProvider>` and the UI (`<Softphone>`, or the
+composable `<DialPad>` / `<IncomingCall>` / `<OngoingCall>`) subscribes to it.
 
-Layout:
-
-- `sdk/mobile/softphone/` — the reusable softphone components.
-- `sdk/mobile/softphone-example/` — this app: the Expo shell that imports it and
-  makes it launchable.
+This app is just the Expo shell that imports `@dialstack/sdk/native` and makes it
+launchable — see [How it consumes the SDK](#how-it-consumes-the-sdk).
 
 > **Foreground calling only.** This example covers placing, receiving, and
 > controlling calls while the app is in the foreground. Backgrounded /
@@ -41,13 +37,19 @@ config plugin, wired up in `app.json`.
 ## Setup
 
 ```bash
+# 1. Build the SDK first. The example installs @dialstack/sdk from the built
+#    package (dist/), NOT its source — so dist/ must exist and be current.
+npm run build --prefix ../../   # from sdk/mobile/softphone-example
+
+# 2. Install the example's dependencies (pulls in @dialstack/sdk via a file:
+#    specifier, plus the RN peer deps).
 cd sdk/mobile/softphone-example
 npm install
 
-# Generate the native projects (ios/ + android/) with the WebRTC plugin applied.
+# 3. Generate the native projects (ios/ + android/) with the WebRTC plugin applied.
 npm run prebuild
 
-# Build + run a dev client on a simulator/emulator or connected device:
+# 4. Build + run a dev client on a simulator/emulator or connected device:
 npm run ios       # or: npm run android
 ```
 
@@ -61,23 +63,48 @@ screen and tap **Connect**.
 
 ## How it consumes the SDK
 
-This app imports the `<Softphone>` component by relative path (`../softphone/src`),
-and the component in turn imports the SDK's **source** (not the published `dist/`
-bundle) via Metro aliases in `metro.config.js`:
+This app depends on a **single package** — `@dialstack/sdk` — and imports the
+React Native softphone from its mobile entry point:
 
-- `@dialstack/sdk/webrtc` → `../../src/webrtc`
-- `@dialstack/sdk/react/softphone` → `../../src/react-softphone.ts` (shared call hooks)
+```tsx
+import { Softphone, SoftphoneProvider } from '@dialstack/sdk/native';
+```
 
-That matters because the calling core hides its platform primitives behind a
-seam (`sdk/src/webrtc/platform.ts`). Metro's platform-extension resolution picks
-**`platform.native.ts`** (backed by `react-native-webrtc`,
-`react-native-incall-manager`, and AsyncStorage) instead of the browser
-`platform.ts`. The pre-bundled web `dist/` has the browser primitives inlined and
-could not be swapped, which is why the example points at source.
+There are **no source aliases** in `metro.config.js` or `tsconfig.json`; the app
+resolves the SDK exactly as an app outside this repo would. `@dialstack/sdk` is
+pinned with a `file:../../` specifier and installed as a **copy** (via
+`install-links` in `.npmrc`), just like an `npm install @dialstack/sdk` would
+land it in `node_modules`.
 
-A published app outside this monorepo would instead depend on the
-`@dialstack/sdk` package; shipping a React-Native-resolvable entry for the core
-is a packaging follow-up.
+The calling core hides its platform primitives behind a seam (`platform.ts` on
+web, `platform.native.ts` on RN). The SDK exposes a **`react-native` export
+condition** on `@dialstack/sdk/native` (and `/webrtc`, `/react/softphone`) that
+points at a per-file native build (`dist/native/`), compiled with `tsc` so
+`platform.native.js` survives as a separate file — Metro's platform-extension
+resolution then picks the React Native primitives (`react-native-webrtc`,
+`react-native-incall-manager`) instead of the browser ones. Persistence is not
+one of them: the SDK takes no storage dependency and the host injects it (see
+[Storage](#storage-required)). That's why this example works without reaching
+into SDK source, and why the SDK must be built (step 1) before installing.
+
+## Storage (required)
+
+`<SoftphoneProvider>` requires a `storage` prop — a small `PlatformStorage`
+adapter used to persist the selected E911 address id across launches. The SDK
+takes **no** persistence dependency of its own (react-native-mmkv and
+AsyncStorage vary across versions/architectures and can't be defaulted safely),
+so the host brings one. This example ships an MMKV-backed reference adapter,
+[`mmkvStorage.ts`](./mmkvStorage.ts) (`react-native-mmkv` v4 — synchronous, so no
+cache needed; it's a Nitro module, hence `react-native-nitro-modules` and the New
+Architecture, enabled in `app.json`). The bare example ships an AsyncStorage one;
+any store implementing `getItem`/`setItem`/`removeItem` works.
+
+```tsx
+import { mmkvStorage } from './mmkvStorage';
+<SoftphoneProvider token={token} storage={mmkvStorage}>
+  …
+</SoftphoneProvider>;
+```
 
 ## Audio & permissions
 
