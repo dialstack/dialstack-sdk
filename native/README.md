@@ -57,8 +57,8 @@ const storage: PlatformStorage = {
 </SoftphoneProvider>;
 ```
 
-The Expo `../mobile/softphone-example` app ships this MMKV adapter; the bare
-`../mobile/softphone-example-bare` app ships an AsyncStorage one. Either works —
+The Expo `../examples/mobile/expo` app ships this MMKV adapter; the bare
+`../examples/mobile/bare` app ships an AsyncStorage one. Either works —
 `storage` just needs `getItem`/`setItem`/`removeItem`.
 
 ## Scope

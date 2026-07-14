@@ -39,11 +39,11 @@ config plugin, wired up in `app.json`.
 ```bash
 # 1. Build the SDK first. The example installs @dialstack/sdk from the built
 #    package (dist/), NOT its source — so dist/ must exist and be current.
-npm run build --prefix ../../   # from sdk/mobile/softphone-example
+npm run build --prefix ../../../   # from sdk/examples/mobile/expo
 
 # 2. Install the example's dependencies (pulls in @dialstack/sdk via a file:
 #    specifier, plus the RN peer deps).
-cd sdk/mobile/softphone-example
+cd sdk/examples/mobile/expo
 npm install
 
 # 3. Generate the native projects (ios/ + android/) with the WebRTC plugin applied.
