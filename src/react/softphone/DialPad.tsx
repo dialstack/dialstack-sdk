@@ -9,7 +9,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useSoftphone } from '../SoftphoneProvider';
-import { useDialInput } from '../softphone-hooks';
+import { useDialInput, canPlaceCall } from '../softphone-hooks';
 import { dialPadKeys } from '../../components/softphone-theme';
 import { softphoneGlyphs } from '../../components/softphone-icons';
 import { Glyph } from './Glyph';
@@ -25,7 +25,7 @@ export interface DialPadProps {
 }
 
 export function DialPad({ autoFocusDestination = false }: DialPadProps): React.JSX.Element {
-  const { connection, placeCall, t, scope } = useSoftphone();
+  const { connection, placeCall, emergency, t, scope } = useSoftphone();
   const [destination, setDestination] = useState('');
   const { onType, onPasteText } = useDialInput(setDestination);
   const destinationRef = useRef<HTMLInputElement | null>(null);
@@ -34,7 +34,7 @@ export function DialPad({ autoFocusDestination = false }: DialPadProps): React.J
     if (autoFocusDestination) destinationRef.current?.focus();
   }, [autoFocusDestination]);
 
-  const canCall = connection === 'connected' && destination.length > 0;
+  const canCall = canPlaceCall(connection, destination, emergency.submitting);
 
   return (
     <div className={`${scope} ds-softphone`}>

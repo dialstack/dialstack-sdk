@@ -10,7 +10,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { useSoftphone } from '../SoftphoneProvider';
-import { callPeerNumber, callPeerName, callStateLabelKey, useDialInput } from '../softphone-hooks';
+import {
+  callPeerNumber,
+  callPeerName,
+  callStateLabelKey,
+  isCallActive,
+  useDialInput,
+} from '../softphone-hooks';
 import { dialPadKeys } from '../../components/softphone-theme';
 import { softphoneGlyphs } from '../../components/softphone-icons';
 import { Glyph } from './Glyph';
@@ -23,6 +29,9 @@ export function OngoingCall(): React.JSX.Element | null {
     duration,
     consultCall,
     transferOriginal,
+    heldCalls,
+    incomingCalls,
+    switchToCall,
     startAttendedTransfer,
     completeAttendedTransfer,
     cancelAttendedTransfer,
@@ -44,60 +53,11 @@ export function OngoingCall(): React.JSX.Element | null {
     setTransferTo('');
   }, [callId]);
 
-  // Attended-transfer "consulting" screen: the original party is held while we
-  // talk to the consult target, then bridge (complete) or drop back (cancel).
-  // Checked BEFORE `if (!call)` so the consult UI stays reachable even if the
-  // held original drops mid-consult (the surviving consult is then the active
-  // call and this screen falls through to the normal in-call view below).
-  if (consultCall && transferOriginal) {
-    const heldPeer = callPeerNumber(transferOriginal);
-    const heldName =
-      callPeerName(transferOriginal) || displayNumber(heldPeer) || t('unknownCaller');
-    const consultPeer = callPeerNumber(consultCall);
-    const consultName =
-      callPeerName(consultCall) || displayNumber(consultPeer) || t('unknownCaller');
-    // Only bridge once the consult target has actually answered.
-    const canComplete = consultCall.state === 'active';
-    return (
-      <div className={`${scope} ds-softphone`}>
-        <div className="ds-screen ds-screen-consult">
-          <div className="ds-consult-party ds-consult-held">
-            <div className="ds-peer-name">{heldName}</div>
-            <div className="ds-callstate-text">{t('transferOriginalOnHold')}</div>
-          </div>
-          <div className="ds-consult-party ds-consult-active">
-            <div className="ds-peer-name">{consultName}</div>
-            <div className="ds-callstate">
-              <span className="ds-callstate-text">{t(callStateLabelKey(consultCall.state))}</span>
-            </div>
-          </div>
-          <div className="ds-consult-actions">
-            <button
-              type="button"
-              className="ds-e911-btn ds-e911-btn-secondary"
-              onClick={cancelAttendedTransfer}
-            >
-              {t('cancel')}
-            </button>
-            <button
-              type="button"
-              className="ds-e911-btn"
-              disabled={!canComplete}
-              onClick={completeAttendedTransfer}
-            >
-              {t('transferComplete')}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   if (!call) return null;
 
   const peer = callPeerNumber(call);
   const peerName = callPeerName(call);
-  const isActive = call.state === 'active' || call.state === 'held';
+  const isActive = isCallActive(call);
   const name = peerName || displayNumber(peer) || t('unknownCaller');
   // Hide the DTMF keypad where the platform can't send DTMF (react-native-webrtc
   // has no RTCDTMFSender) — otherwise the taps would each throw. Web browsers
@@ -109,19 +69,118 @@ export function OngoingCall(): React.JSX.Element | null {
     setDtmfEntered((prev) => prev + digit);
   };
 
+  // An attended transfer is just two switchable calls + a transfer flag, so it
+  // renders the normal in-call view (controls + switch cards). On top we show a
+  // banner for the OTHER transfer leg (the one not currently focused) plus the
+  // Complete/Cancel actions. Its card is excluded from the plain held-calls list
+  // below so it isn't shown twice.
+  const inTransfer = consultCall !== null && transferOriginal !== null;
+  // The banner + Complete belong ONLY when the FOCUSED call is one of the two
+  // transfer legs. With switchable focus the active call can be a third unrelated
+  // call — showing the banner then would name the wrong "other leg" and Complete
+  // would bridge legs the user isn't looking at. When focused elsewhere the two
+  // transfer legs just appear as ordinary switch cards below.
+  const focusInTransfer = inTransfer && (call === consultCall || call === transferOriginal);
+  const transferOther = focusInTransfer
+    ? call === consultCall
+      ? transferOriginal
+      : consultCall
+    : null;
+  // Bridge only once the consult target is answered — active OR held (the user
+  // may have switched focus, holding the consult). Not while it's still ringing.
+  // Only offer Complete when focused on a transfer leg.
+  const canComplete = focusInTransfer && consultCall !== null && consultCall.isConnected;
+  const switchableHeld = heldCalls.filter((c) => c !== transferOther);
+
+  // Transfer is disabled while a transfer is already in progress OR more than one
+  // call is live (held/ringing besides the active one). A new transfer in either
+  // situation is ambiguous (which call? on top of the existing consult?), so the
+  // control is shown greyed rather than allowing an invalid/confusing action.
+  const otherLiveCalls = heldCalls.length + incomingCalls.length;
+  const canStartTransfer = !inTransfer && otherLiveCalls === 0;
+
   return (
     <div className={`${scope} ds-softphone`}>
       <div className="ds-screen ds-screen-incall">
+        {/* Attended-transfer banner: the OTHER leg (tap to switch to it) plus
+            Cancel / Complete. The normal in-call view (controls, etc.) renders
+            below, so mute/hold/keypad stay available while transferring. */}
+        {focusInTransfer && transferOther && (
+          <div className="ds-transfer-banner">
+            {(() => {
+              const otherPeer = callPeerNumber(transferOther);
+              const otherName =
+                callPeerName(transferOther) || displayNumber(otherPeer) || t('unknownCaller');
+              return (
+                <button
+                  type="button"
+                  className="ds-held-call ds-consult-held"
+                  aria-label={`${t('switchToCall')}: ${otherName}`}
+                  onClick={() => switchToCall(transferOther)}
+                >
+                  <div className="ds-peer-name">{otherName}</div>
+                  <div className="ds-callstate-text">{t('transferOriginalOnHold')}</div>
+                </button>
+              );
+            })()}
+            <div className="ds-consult-actions">
+              <button
+                type="button"
+                className="ds-e911-btn ds-e911-btn-secondary"
+                onClick={cancelAttendedTransfer}
+              >
+                {t('cancel')}
+              </button>
+              <button
+                type="button"
+                className="ds-e911-btn"
+                disabled={!canComplete}
+                onClick={completeAttendedTransfer}
+              >
+                {t('transferComplete')}
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="ds-peer">
           <div className="ds-peer-name">{name}</div>
           {peerName && <div className="ds-peer-number">{displayNumber(peer)}</div>}
           <div className="ds-callstate">
             <span className="ds-callstate-text">{t(callStateLabelKey(call.state))}</span>
-            {isActive && <span className="ds-duration">{duration}</span>}
+            {/* Duration ticks only while truly live. A held foreground call (e.g.
+                promoted when the active call ended, or held during a switch) shows
+                its "On hold" state + the Resume control below, never a running
+                timer implying live audio. */}
+            {call.state === 'active' && <span className="ds-duration">{duration}</span>}
           </div>
         </div>
 
         <CallErrorChip />
+
+        {/* Other backgrounded calls the user can switch to — click a card to
+            hold the current call and resume that one. Excludes the transfer
+            leg shown in the banner above (so it isn't listed twice). */}
+        {switchableHeld.length > 0 && (
+          <div className="ds-held-calls" role="group" aria-label={t('heldCallsLabel')}>
+            {switchableHeld.map((held) => {
+              const heldPeer = callPeerNumber(held);
+              const heldName = callPeerName(held) || displayNumber(heldPeer) || t('unknownCaller');
+              return (
+                <button
+                  type="button"
+                  key={held.id}
+                  className="ds-held-call ds-consult-held"
+                  aria-label={`${t('switchToCall')}: ${heldName}`}
+                  onClick={() => switchToCall(held)}
+                >
+                  <div className="ds-peer-name">{heldName}</div>
+                  <div className="ds-callstate-text">{t('heldCallsLabel')}</div>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {isActive && showKeypad && canSendDtmf && (
           <div className="ds-dtmf">
@@ -142,7 +201,7 @@ export function OngoingCall(): React.JSX.Element | null {
           </div>
         )}
 
-        {isActive && showTransfer && (
+        {isActive && showTransfer && canStartTransfer && (
           <div className="ds-transfer">
             <input
               className="ds-transfer-input"
@@ -231,6 +290,7 @@ export function OngoingCall(): React.JSX.Element | null {
               className={`ds-control ${showTransfer ? 'ds-control-on' : ''}`}
               aria-pressed={showTransfer}
               aria-label={t('transfer')}
+              disabled={!canStartTransfer}
               onClick={actions.toggleTransfer}
             >
               <span className="ds-control-glyph">

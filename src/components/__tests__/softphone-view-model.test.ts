@@ -2,7 +2,9 @@ import {
   isIncomingRinging,
   shouldRingIncoming,
   isCallActive,
+  canPlaceCall,
   selectScreen,
+  selectLayout,
   callPeerNumber,
   callPeerName,
   formatCallDuration,
@@ -16,14 +18,18 @@ import type { Call, CallDirection, CallState } from '../../webrtc';
 
 // A minimal Call-shaped stub — the view-model only reads these fields.
 function fakeCall(partial: Partial<Call> = {}): Call {
+  const state = (partial.state ?? 'active') as CallState;
   return {
     direction: 'outbound' as CallDirection,
-    state: 'active' as CallState,
+    state,
     from: '',
     fromName: null,
     to: '',
     duration: 0,
     ...partial,
+    // Mirror the real Call.isConnected (active OR held) that isCallActive now
+    // delegates to. A plain value (not a getter) so it can't drift on `this`.
+    isConnected: state === 'active' || state === 'held',
   } as Call;
 }
 
@@ -47,10 +53,22 @@ describe('shouldRingIncoming', () => {
     expect(shouldRingIncoming(null)).toBe(false);
   });
 
-  it('is true only when the active call is an inbound call still alerting', () => {
+  it('is true only when the (single) active call is an inbound call still alerting', () => {
     expect(shouldRingIncoming(fakeCall({ direction: 'inbound', state: 'ringing' }))).toBe(true);
     expect(shouldRingIncoming(fakeCall({ direction: 'inbound', state: 'active' }))).toBe(false);
     expect(shouldRingIncoming(fakeCall({ direction: 'outbound', state: 'ringing' }))).toBe(false);
+  });
+
+  it('rings while ANY call in the list is an alerting inbound (call-waiting)', () => {
+    const activeOutbound = fakeCall({ direction: 'outbound', state: 'active' });
+    const ringingInbound = fakeCall({ direction: 'inbound', state: 'ringing' });
+    // A call-waiting interrupt during an active call rings too.
+    expect(shouldRingIncoming([activeOutbound, ringingInbound])).toBe(true);
+    // No inbound alerting → silent, even with several live calls.
+    expect(
+      shouldRingIncoming([activeOutbound, fakeCall({ direction: 'inbound', state: 'held' })])
+    ).toBe(false);
+    expect(shouldRingIncoming([])).toBe(false);
   });
 });
 
@@ -64,6 +82,19 @@ describe('isCallActive', () => {
   });
 });
 
+describe('canPlaceCall', () => {
+  it('requires connected + a destination + no binding in progress', () => {
+    expect(canPlaceCall('connected', '5551234', false)).toBe(true);
+    // Not connected.
+    expect(canPlaceCall('connecting', '5551234', false)).toBe(false);
+    expect(canPlaceCall('reconnecting', '5551234', false)).toBe(false);
+    // Empty destination.
+    expect(canPlaceCall('connected', '', false)).toBe(false);
+    // E911 binding in progress blocks dialing even when otherwise ready.
+    expect(canPlaceCall('connected', '5551234', true)).toBe(false);
+  });
+});
+
 describe('selectScreen', () => {
   it('returns dial when there is no call', () => {
     expect(selectScreen(null)).toBe('dial');
@@ -74,6 +105,63 @@ describe('selectScreen', () => {
   it('returns in-call for an answered or outbound call', () => {
     expect(selectScreen(fakeCall({ direction: 'inbound', state: 'active' }))).toBe('in-call');
     expect(selectScreen(fakeCall({ direction: 'outbound', state: 'ringing' }))).toBe('in-call');
+  });
+});
+
+describe('selectLayout', () => {
+  const ringingInbound = () => fakeCall({ direction: 'inbound', state: 'ringing' });
+  const answeredCall = () => fakeCall({ direction: 'outbound', state: 'active' });
+  const heldCall = () => fakeCall({ direction: 'outbound', state: 'held' });
+
+  it('idle: dial base, no incoming', () => {
+    expect(selectLayout([])).toEqual({
+      base: 'dial',
+      incoming: [],
+      overlay: false,
+      compact: false,
+    });
+  });
+
+  it('single idle inbound: dial base, one full-size incoming card (not an overlay)', () => {
+    const call = ringingInbound();
+    const layout = selectLayout([call]);
+    expect(layout.base).toBe('dial');
+    expect(layout.incoming).toEqual([call]);
+    expect(layout.overlay).toBe(false);
+    expect(layout.compact).toBe(false);
+  });
+
+  it('multiple idle inbound: dial base, compact stacked cards', () => {
+    const a = ringingInbound();
+    const b = ringingInbound();
+    const layout = selectLayout([a, b]);
+    expect(layout.base).toBe('dial');
+    expect(layout.incoming).toEqual([a, b]);
+    expect(layout.overlay).toBe(false);
+    expect(layout.compact).toBe(true);
+  });
+
+  it('answered call only: in-call base, no incoming', () => {
+    expect(selectLayout([answeredCall()])).toEqual({
+      base: 'in-call',
+      incoming: [],
+      overlay: false,
+      compact: false,
+    });
+  });
+
+  it('call-waiting: an interrupt during an active call is a compact overlay on the in-call base', () => {
+    const active = answeredCall();
+    const interrupt = ringingInbound();
+    const layout = selectLayout([active, interrupt]);
+    expect(layout.base).toBe('in-call');
+    expect(layout.incoming).toEqual([interrupt]);
+    expect(layout.overlay).toBe(true);
+    expect(layout.compact).toBe(true);
+  });
+
+  it('a held call (no active) still makes the base in-call', () => {
+    expect(selectLayout([heldCall()]).base).toBe('in-call');
   });
 });
 

@@ -12,12 +12,11 @@
  *
  * @example
  * ```tsx
- * // Batteries-included
- * <Softphone token={webrtcToken} />
- *
- * // Build-your-own: the phone stays connected while the UI mounts/unmounts
+ * // The provider owns the connection + token (the single entry point); the UI
+ * // components are pure consumers under it and can mount/unmount freely.
  * <SoftphoneProvider token={webrtcToken}>
- *   {incoming ? <IncomingCall /> : <DialPad />}
+ *   <Softphone />                          // batteries-included UI
+ *   // ...or build-your-own: {incoming ? <IncomingCall /> : <DialPad />}
  * </SoftphoneProvider>
  * ```
  */

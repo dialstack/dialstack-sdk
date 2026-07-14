@@ -509,4 +509,75 @@ describe('Call transfer preconditions', () => {
       );
     }
   });
+
+  // completeTransfer() is called on the ORIGINAL leg. It's usually held (you're
+  // talking to the consult), but with switchable focus the user can switch BACK
+  // to the original — making it active and the consult held — and still Complete.
+  function makeCallCapturingSend() {
+    const send = jest.fn();
+    const call = new Call({
+      ...makeInit(),
+      transport: { send } as never,
+      startConsult: jest.fn().mockResolvedValue({} as never),
+    });
+    return { call, send };
+  }
+
+  it('completeTransfer sends the complete frame when the original is HELD', () => {
+    const { call, send } = makeCallCapturingSend();
+    call.state = 'held';
+    expect(() => call.completeTransfer()).not.toThrow();
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'call.transfer.attended', step: 'complete' })
+    );
+  });
+
+  it('completeTransfer sends the complete frame when the original is ACTIVE (user switched back to it)', () => {
+    const { call, send } = makeCallCapturingSend();
+    call.state = 'active';
+    expect(() => call.completeTransfer()).not.toThrow();
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'call.transfer.attended', step: 'complete' })
+    );
+  });
+
+  it('completeTransfer rejects on a not-connected call', () => {
+    for (const state of ['trying', 'ringing', 'ended'] as const) {
+      const { call } = makeCallCapturingSend();
+      call.state = state;
+      expect(() => call.completeTransfer()).toThrow(/connected call/);
+    }
+  });
+
+  // hold()/resume() are state-guarded so the multi-call auto-hold (which holds
+  // the current call when the user answers a second one) can't send a frame for a
+  // still-ringing outbound — the server would reject that with
+  // `invalid_message: call is not active`, surfacing as a spurious "Call failed".
+  it('hold() sends only when the call is active', () => {
+    const { call, send } = makeCallCapturingSend();
+    for (const state of ['trying', 'ringing', 'held', 'ended'] as const) {
+      call.state = state;
+      call.hold();
+    }
+    expect(send).not.toHaveBeenCalled();
+
+    call.state = 'active';
+    call.hold();
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'call.hold' }));
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('resume() sends only when the call is held', () => {
+    const { call, send } = makeCallCapturingSend();
+    for (const state of ['trying', 'ringing', 'active', 'ended'] as const) {
+      call.state = state;
+      call.resume();
+    }
+    expect(send).not.toHaveBeenCalled();
+
+    call.state = 'held';
+    call.resume();
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'call.resume' }));
+    expect(send).toHaveBeenCalledTimes(1);
+  });
 });

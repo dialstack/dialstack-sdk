@@ -1,69 +1,43 @@
 /**
- * IncomingCall (RN) — the ringing screen: caller name/number, a pulse, and
- * decline/answer. Renders nothing when there is no ringing inbound call.
+ * IncomingCall / IncomingStack (RN) — the ringing inbound UI.
  *
- * Must be rendered inside a <SoftphoneProvider>.
+ * `IncomingCall` is the single full-screen incoming screen (idle, one caller);
+ * it renders the first ringing call as a full-size card, nothing when none is
+ * ringing. `IncomingStack` renders ALL ringing calls, compact when >1 — what the
+ * RN <Softphone> layers over the base for call-waiting / multiple inbound.
+ *
+ * Both read from context and must be rendered inside a <SoftphoneProvider>.
  */
 
 import React, { useMemo } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { softphoneDimensions as D } from '@dialstack/sdk/components/softphone-theme';
-import { softphoneGlyphs } from '@dialstack/sdk/components/softphone-icons';
-import { callPeerName, callPeerNumber } from '@dialstack/sdk/react/softphone';
-import { useSoftphone, useIncomingCall } from '../SoftphoneProvider';
-import { Glyph, PulseDot, makeStyles } from './primitives';
+import { View } from 'react-native';
+import { useSoftphone } from '../SoftphoneProvider';
+import { IncomingCallCard } from './IncomingCallCard';
+import { makeStyles } from './primitives';
 
 export function IncomingCall(): React.JSX.Element | null {
-  const { actions, displayNumber, t, palette } = useSoftphone();
-  const call = useIncomingCall();
-  const styles = useMemo(() => makeStyles(palette), [palette]);
+  const { incomingCalls } = useSoftphone();
+  const call = incomingCalls[0];
   if (!call) return null;
+  return <IncomingCallCard call={call} />;
+}
 
-  const peerRaw = callPeerNumber(call);
-  const peerName = callPeerName(call);
+/**
+ * All ringing inbound calls, stacked. Compact when >1 (or when the caller forces
+ * it for the overlay case) so a burst of calls stays small and non-intrusive.
+ * Renders nothing when none is ringing.
+ */
+export function IncomingStack({ compact }: { compact?: boolean }): React.JSX.Element | null {
+  const { incomingCalls, palette } = useSoftphone();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
+  if (incomingCalls.length === 0) return null;
+  const isCompact = compact ?? incomingCalls.length > 1;
 
   return (
-    <>
-      <Text style={styles.incomingLabel}>{t('incomingCall')}</Text>
-      <View style={styles.peer}>
-        <Text style={styles.peerName}>
-          {peerName || displayNumber(peerRaw) || t('unknownCaller')}
-        </Text>
-        {!!peerName && <Text style={styles.peerNumber}>{displayNumber(peerRaw)}</Text>}
-      </View>
-      <PulseDot color={palette.success} />
-      <View style={[styles.actions, styles.actionsSpread]}>
-        <Pressable
-          onPress={actions.reject}
-          accessibilityLabel={t('decline')}
-          style={({ pressed }: { pressed: boolean }) => [
-            styles.action,
-            styles.actionDanger,
-            pressed && styles.actionPressed,
-          ]}
-        >
-          <Glyph
-            glyph={softphoneGlyphs.hangup}
-            size={D.actionButtonSize * 0.46}
-            color={palette.onAccent}
-          />
-        </Pressable>
-        <Pressable
-          onPress={actions.answer}
-          accessibilityLabel={t('answer')}
-          style={({ pressed }: { pressed: boolean }) => [
-            styles.action,
-            styles.actionSuccess,
-            pressed && styles.actionPressed,
-          ]}
-        >
-          <Glyph
-            glyph={softphoneGlyphs.phone}
-            size={D.actionButtonSize * 0.46}
-            color={palette.onAccent}
-          />
-        </Pressable>
-      </View>
-    </>
+    <View style={styles.incomingStack}>
+      {incomingCalls.map((call) => (
+        <IncomingCallCard key={call.id} call={call} compact={isCompact} />
+      ))}
+    </View>
   );
 }

@@ -37,7 +37,8 @@ export {
 } from './react/SoftphoneProvider';
 export { Softphone } from './react/softphone/Softphone';
 export { DialPad } from './react/softphone/DialPad';
-export { IncomingCall } from './react/softphone/IncomingCall';
+export { IncomingCall, IncomingStack } from './react/softphone/IncomingCall';
+export { IncomingCallCard } from './react/softphone/IncomingCallCard';
 export { OngoingCall } from './react/softphone/OngoingCall';
 
 // React prop types

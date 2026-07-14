@@ -53,8 +53,8 @@ export interface UseEmergencyBinding {
   bound: boolean;
   /** Saved addresses to offer as "Are you here?" choices. */
   savedAddresses: EmergencyAddress[];
-  /** True while a confirm/create (+ reconnect) is in flight. */
-  busy: boolean;
+  /** True while an address submit (confirm/create, which forces a reconnect) is in flight. */
+  submitting: boolean;
   /** Last error (e.g. a carrier rejection). */
   error: string | null;
   /** Called from the Softphone when the phone emits `network.changed` (denied). */
@@ -72,7 +72,7 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
   const [bound, setBound] = useState(false);
   const [denied, setDenied] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<EmergencyAddress[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Latest deps via refs so the connect effect doesn't churn on identity changes.
@@ -173,7 +173,7 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
 
   const confirm = useCallback(
     async (id: string) => {
-      setBusy(true);
+      setSubmitting(true);
       setError(null);
       try {
         setDenied(false);
@@ -193,7 +193,7 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
         setError(e instanceof Error ? e.message : 'Failed to confirm emergency address');
         throw e;
       } finally {
-        setBusy(false);
+        setSubmitting(false);
       }
     },
     [clearRegisteredIp, select, reconnect]
@@ -201,7 +201,7 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
 
   const create = useCallback(
     async (input: EmergencyAddressInput) => {
-      setBusy(true);
+      setSubmitting(true);
       setError(null);
       try {
         setDenied(false);
@@ -219,11 +219,11 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
         setError(e instanceof Error ? e.message : 'Failed to save emergency address');
         throw e;
       } finally {
-        setBusy(false);
+        setSubmitting(false);
       }
     },
     [save, select, reconnect]
   );
 
-  return { loading, bound, savedAddresses, busy, error, onNetworkChanged, confirm, create };
+  return { loading, bound, savedAddresses, submitting, error, onNetworkChanged, confirm, create };
 }

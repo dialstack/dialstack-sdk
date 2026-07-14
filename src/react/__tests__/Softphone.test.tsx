@@ -1,14 +1,29 @@
 /**
  * Render/interaction tests for the composable Softphone over a faked phone
  * stream. These cover the web render tree wiring (screens, controls, audio
- * binding) via the batteries-included <Softphone token=...> form (which mounts
- * its own SoftphoneProvider); the call-state logic itself is covered by the
- * shared softphone-hooks tests.
+ * binding). `<Softphone>` is a pure consumer, so it's rendered under a
+ * `<SoftphoneProvider>` (which owns the token/connection) via `renderSoftphone`;
+ * the call-state logic itself is covered by the shared softphone-hooks tests.
  */
 
 import React from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { Softphone } from '../softphone/Softphone';
+import { SoftphoneProvider, type SoftphoneProviderProps } from '../SoftphoneProvider';
+
+// Render <Softphone> under a provider (the only supported form). Provider props
+// (token, onError, onConnectionStateChange, …) go on the provider; the softphone
+// takes only its own UI props.
+function renderSoftphone(
+  providerProps: Partial<SoftphoneProviderProps> = {},
+  softphoneProps: { autoFocusDestination?: boolean } = {}
+) {
+  return render(
+    <SoftphoneProvider token="tok" {...providerProps}>
+      <Softphone {...softphoneProps} />
+    </SoftphoneProvider>
+  );
+}
 
 // ---- fake core -------------------------------------------------------------
 
@@ -32,6 +47,11 @@ class FakeCall extends Emitter {
   state = 'trying';
   isMuted = false;
   duration = 0;
+  // Mirror the real Call.isConnected getter (active OR held) — the UI's
+  // isCallActive gate reads it.
+  get isConnected(): boolean {
+    return this.state === 'active' || this.state === 'held';
+  }
   // Browser default: the audio sender exposes an RTCDTMFSender. RN sets this
   // false (no .dtmf), which hides the keypad.
   canSendDtmf = true;
@@ -109,7 +129,7 @@ beforeEach(() => {
 
 describe('Softphone dial screen', () => {
   it('shows the connecting chip, then enables Call once connected + a number is typed', () => {
-    render(<Softphone token="tok" />);
+    renderSoftphone();
     expect(screen.getByText('Connecting…')).toBeInTheDocument();
 
     act(() => phone().emit('connected'));
@@ -124,7 +144,7 @@ describe('Softphone dial screen', () => {
   });
 
   it('keypad taps append to the destination and backspace removes', () => {
-    render(<Softphone token="tok" />);
+    renderSoftphone();
     act(() => phone().emit('connected'));
 
     fireEvent.click(screen.getByLabelText('1'));
@@ -137,7 +157,7 @@ describe('Softphone dial screen', () => {
   });
 
   it('places a call to the typed destination', async () => {
-    render(<Softphone token="tok" />);
+    renderSoftphone();
     act(() => phone().emit('connected'));
     fireEvent.change(screen.getByLabelText('Enter a number'), {
       target: { value: '5551234' },
@@ -153,7 +173,7 @@ describe('Softphone dial screen', () => {
 describe('Softphone error surfacing', () => {
   it('shows a GENERIC error chip AND forwards the real error to onError', () => {
     const onError = jest.fn();
-    render(<Softphone token="tok" onError={onError} />);
+    renderSoftphone({ onError });
     act(() => phone().emit('connected'));
 
     act(() => {
@@ -179,7 +199,7 @@ describe('Softphone error surfacing', () => {
   });
 
   it('shows a distinct, actionable message for a denied microphone permission', () => {
-    render(<Softphone token="tok" />);
+    renderSoftphone();
     act(() => phone().emit('connected'));
 
     act(() => {
@@ -196,7 +216,7 @@ describe('Softphone error surfacing', () => {
   });
 
   it('clears the error chip on a successful reconnect', () => {
-    render(<Softphone token="tok" />);
+    renderSoftphone();
     act(() => phone().emit('connected'));
     act(() => {
       phone().emit('error', { code: 'call_failed', message: 'boom' });
@@ -211,8 +231,8 @@ describe('Softphone error surfacing', () => {
 });
 
 describe('Softphone incoming screen', () => {
-  it('renders the caller and answer/decline, and answers on tap', () => {
-    render(<Softphone token="tok" />);
+  it('renders the caller and answers on tap', () => {
+    renderSoftphone();
     act(() => phone().emit('connected'));
 
     const inbound = new FakeCall('inbound', '+14155552671', 'Alice', 'me');
@@ -223,6 +243,17 @@ describe('Softphone incoming screen', () => {
 
     fireEvent.click(screen.getByLabelText('Answer'));
     expect(inbound.answer).toHaveBeenCalled();
+    // Answering leaves the incoming screen (it's now the in-call panel) — the
+    // just-answered call is NOT still shown as a declinable incoming card.
+    expect(screen.queryByLabelText('Decline')).not.toBeInTheDocument();
+  });
+
+  it('declines a ringing inbound on tap', () => {
+    renderSoftphone();
+    act(() => phone().emit('connected'));
+
+    const inbound = new FakeCall('inbound', '+14155552671', 'Alice', 'me');
+    act(() => phone().emit('incoming', inbound));
 
     fireEvent.click(screen.getByLabelText('Decline'));
     expect(inbound.reject).toHaveBeenCalled();
@@ -231,7 +262,7 @@ describe('Softphone incoming screen', () => {
 
 describe('Softphone in-call screen', () => {
   function connectWithActiveCall(): FakeCall {
-    render(<Softphone token="tok" />);
+    renderSoftphone();
     act(() => phone().emit('connected'));
     const inbound = new FakeCall('inbound', '+14155552671', 'Alice', 'me');
     act(() => phone().emit('incoming', inbound));
@@ -265,7 +296,7 @@ describe('Softphone in-call screen', () => {
   });
 
   it('hides the keypad control when the call cannot send DTMF (e.g. RN)', () => {
-    render(<Softphone token="tok" />);
+    renderSoftphone();
     act(() => phone().emit('connected'));
     const inbound = new FakeCall('inbound', '+14155552671', 'Alice', 'me');
     inbound.canSendDtmf = false;
@@ -309,6 +340,13 @@ describe('Softphone in-call screen', () => {
       call.consult!.state = 'active';
       call.consult!.emit('answered');
     });
+    // The transfer renders the normal in-call view + a Complete/Cancel banner —
+    // NOT a bespoke screen that drops the controls. With the consult answered
+    // (active), Mute/Hold/Hang up stay available alongside the banner
+    // (regression: they used to disappear during a transfer).
+    expect(screen.getByLabelText('Mute')).toBeInTheDocument();
+    expect(screen.getByLabelText('Hold')).toBeInTheDocument();
+    expect(screen.getByLabelText('Hang up')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Complete transfer'));
     expect(call.completeTransfer).toHaveBeenCalled();
   });
@@ -329,10 +367,167 @@ describe('Softphone in-call screen', () => {
   });
 });
 
+describe('Softphone multi-call', () => {
+  // Bring up a connected softphone with one active (answered inbound) call.
+  function connectWithActiveCall(name: string, from: string): FakeCall {
+    const call = new FakeCall('inbound', from, name, 'me');
+    act(() => phone().emit('incoming', call));
+    act(() => {
+      call.state = 'active';
+      call.emit('answered');
+    });
+    return call;
+  }
+
+  it('shows a call-waiting card over the in-call screen without hiding its controls', () => {
+    renderSoftphone();
+    act(() => phone().emit('connected'));
+    const active = connectWithActiveCall('Alice', '+14155550001');
+
+    // A 2nd inbound arrives while Alice is active — surfaced as call-waiting.
+    const interrupt = new FakeCall('inbound', '+14155550002', 'Bob', 'me');
+    act(() => phone().emit('incoming', interrupt));
+
+    // The in-call controls for the active call are still present (non-intrusive).
+    expect(screen.getByLabelText('Hang up')).toBeInTheDocument();
+    // The interrupt is shown as an answer/decline card on top.
+    expect(screen.getByText('Bob')).toBeInTheDocument();
+    expect(screen.getByLabelText('Answer')).toBeInTheDocument();
+
+    // Answering the interrupt holds the active call and answers the interrupt.
+    fireEvent.click(screen.getByLabelText('Answer'));
+    expect(active.hold).toHaveBeenCalled();
+    expect(interrupt.answer).toHaveBeenCalled();
+  });
+
+  it('disables the Transfer control while more than one call is live', () => {
+    renderSoftphone();
+    act(() => phone().emit('connected'));
+    connectWithActiveCall('Alice', '+14155550001');
+
+    // One call → Transfer is available.
+    expect(screen.getByLabelText('Transfer')).toBeEnabled();
+
+    // A 2nd call arrives (call-waiting) → starting a new transfer is ambiguous,
+    // so the Transfer control is disabled (shown, not hidden).
+    act(() => phone().emit('incoming', new FakeCall('inbound', '+14155550002', 'Bob', 'me')));
+    expect(screen.getByLabelText('Transfer')).toBeDisabled();
+  });
+
+  it('stacks multiple idle inbound calls (both shown, none active)', () => {
+    renderSoftphone();
+    act(() => phone().emit('connected'));
+
+    const a = new FakeCall('inbound', '+14155550001', 'Alice', 'me');
+    const b = new FakeCall('inbound', '+14155550002', 'Bob', 'me');
+    act(() => phone().emit('incoming', a));
+    act(() => phone().emit('incoming', b));
+
+    // Both callers are shown; neither is answered.
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+    expect(screen.getByText('Bob')).toBeInTheDocument();
+    expect(a.answer).not.toHaveBeenCalled();
+    expect(b.answer).not.toHaveBeenCalled();
+    // Two answer buttons (one per card).
+    expect(screen.getAllByLabelText('Answer')).toHaveLength(2);
+    // The incoming stack is the whole screen — no dial pad behind it (you're
+    // being called, not dialing). The dial pad's number field must be absent.
+    expect(screen.queryByLabelText('Enter a number')).not.toBeInTheDocument();
+  });
+
+  it('switches to a held call from the in-call held-call list', () => {
+    renderSoftphone();
+    act(() => phone().emit('connected'));
+    const alice = connectWithActiveCall('Alice', '+14155550001');
+
+    // A 2nd inbound arrives and is answered → Alice is held, Bob active.
+    const bob = new FakeCall('inbound', '+14155550002', 'Bob', 'me');
+    act(() => phone().emit('incoming', bob));
+    fireEvent.click(screen.getByLabelText('Answer'));
+    act(() => {
+      bob.state = 'active';
+      alice.state = 'held';
+      bob.emit('answered');
+    });
+
+    // Alice now shows in the switchable held-call list; clicking resumes her
+    // (and holds Bob).
+    const switchToAlice = screen.getByLabelText('Switch to this call: Alice');
+    fireEvent.click(switchToAlice);
+    expect(bob.hold).toHaveBeenCalled();
+    expect(alice.resume).toHaveBeenCalled();
+  });
+
+  it('does not render a just-answered call as both incoming card and in-call panel', () => {
+    renderSoftphone();
+    act(() => phone().emit('connected'));
+
+    // A single inbound rings, then the user answers — but the server echo hasn't
+    // landed, so the call is `active` (flag) while its `state` is still 'ringing'.
+    const inbound = new FakeCall('inbound', '+14155550001', 'Alice', 'me');
+    act(() => phone().emit('incoming', inbound));
+    fireEvent.click(screen.getByLabelText('Answer'));
+    // No emit('answered') — reproduce the pre-echo window (state stays 'ringing').
+
+    // It must render ONLY as the in-call panel, never also as an incoming card.
+    expect(screen.getByLabelText('Hang up')).toBeInTheDocument();
+    expect(screen.queryByText('Incoming call')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Answer')).not.toBeInTheDocument();
+  });
+
+  it('hides the transfer banner when a third unrelated call is focused', async () => {
+    renderSoftphone();
+    act(() => phone().emit('connected'));
+    const alice = connectWithActiveCall('Alice', '+14155550001');
+
+    // Start an attended transfer from Alice → consult leg is active, Alice held.
+    fireEvent.click(screen.getByLabelText('Transfer'));
+    fireEvent.change(screen.getByLabelText('Transfer to…'), { target: { value: '5559999' } });
+    await act(async () => {
+      fireEvent.click(screen.getByText('Consult first'));
+    });
+    act(() => {
+      alice.consult!.state = 'active';
+      alice.consult!.emit('answered');
+    });
+    expect(screen.getByText('Complete transfer')).toBeInTheDocument();
+
+    // A third, unrelated inbound arrives and is answered → it's the focused call,
+    // and it is NOT part of the transfer. The banner + Complete must disappear.
+    const carol = new FakeCall('inbound', '+14155550003', 'Carol', 'me');
+    act(() => phone().emit('incoming', carol));
+    fireEvent.click(screen.getByLabelText('Answer'));
+    act(() => {
+      carol.state = 'active';
+      carol.emit('answered');
+    });
+    expect(screen.queryByText('Complete transfer')).not.toBeInTheDocument();
+  });
+
+  it('a held foreground call shows no running duration and reads Resume', () => {
+    renderSoftphone();
+    act(() => phone().emit('connected'));
+    const alice = connectWithActiveCall('Alice', '+14155550001');
+
+    // Alice is active + live: the Hold control (labeled Hold) is present.
+    expect(screen.getByLabelText('Hold')).toBeInTheDocument();
+
+    // Alice goes held while still the foreground call (e.g. promoted after another
+    // call ended, or held during a switch): the control reads Resume and no live
+    // duration timer is shown — the UI reflects the real held state.
+    act(() => {
+      alice.state = 'held';
+      alice.emit('held');
+    });
+    expect(screen.getByLabelText('Resume')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Hold')).not.toBeInTheDocument();
+  });
+});
+
 describe('Softphone callbacks', () => {
   it('reports connection-state changes', () => {
     const onConnectionStateChange = jest.fn();
-    render(<Softphone token="tok" onConnectionStateChange={onConnectionStateChange} />);
+    renderSoftphone({ onConnectionStateChange });
     act(() => phone().emit('connected'));
     expect(onConnectionStateChange).toHaveBeenCalledWith({ state: 'connected' });
   });
@@ -346,7 +541,7 @@ describe('Softphone callbacks', () => {
     play.mockRejectedValue(new DOMException('blocked', 'NotAllowedError'));
     const onError = jest.fn();
 
-    render(<Softphone token="tok" onError={onError} />);
+    renderSoftphone({ onError });
     act(() => phone().emit('connected'));
     const inbound = new FakeCall('inbound', '+14155552671', 'Alice', 'me');
     act(() => phone().emit('incoming', inbound));

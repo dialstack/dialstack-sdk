@@ -18,7 +18,25 @@ export interface UseCallActionsOptions {
   onError?: (e: { code: string; message: string }) => void;
 }
 
-export interface UseCallActions {
+/**
+ * The imperative actions for one specific call, with core throws contained via
+ * `onError`. This is the per-call subset shared by every call surface (the
+ * foreground in-call controls AND an incoming/held card): each card binds these
+ * to a specific `Call` rather than only the foreground one. The overlay flags and
+ * `transfer` (which depend on foreground UI state) live on `UseCallActions`, not
+ * here.
+ */
+export interface CallActions {
+  answer: () => void;
+  reject: () => void;
+  hangup: () => void;
+  toggleMute: () => void;
+  toggleHold: () => void;
+  /** Send a DTMF digit (no-op when no call). */
+  sendDtmf: (digit: string) => void;
+}
+
+export interface UseCallActions extends CallActions {
   /** Whether the in-call DTMF keypad overlay is showing. */
   showKeypad: boolean;
   /** Whether the in-call transfer input overlay is showing. */
@@ -30,15 +48,81 @@ export interface UseCallActions {
   /** Reset both overlays (e.g. when the foreground call changes or ends). */
   resetOverlays: () => void;
 
-  answer: () => void;
-  reject: () => void;
-  hangup: () => void;
-  toggleMute: () => void;
-  toggleHold: () => void;
-  /** Send a DTMF digit on the active call (no-op when no call). */
-  sendDtmf: (digit: string) => void;
   /** Blind-transfer the active call to `destination`; closes the overlay on success. */
   transfer: (destination: string) => void;
+
+  /**
+   * Build the per-call action subset for a SPECIFIC call — used by the
+   * incoming/held cards, which act on a call that isn't the foreground one. The
+   * foreground actions above are exactly `callActionsFor(activeCall)`.
+   */
+  callActionsFor: (call: Call | null) => CallActions;
+}
+
+/**
+ * The raw per-call actions for `call`, with core throws routed through `fail`.
+ * Pure (not a hook): both the foreground `useCallActions` and any per-card
+ * binding go through this one implementation so answer/reject/hangup/mute/hold/
+ * dtmf can never diverge between surfaces.
+ */
+function makeCallActions(
+  call: Call | null,
+  fail: (err: unknown, fallbackCode: string) => void,
+  rerender: () => void
+): CallActions {
+  return {
+    answer: () => {
+      if (!call) return;
+      try {
+        call.answer();
+      } catch (err) {
+        fail(err, 'call_failed');
+      }
+    },
+    reject: () => {
+      if (!call) return;
+      try {
+        call.reject();
+      } catch (err) {
+        fail(err, 'call_failed');
+      }
+    },
+    hangup: () => {
+      if (!call) return;
+      try {
+        call.hangup();
+      } catch (err) {
+        fail(err, 'call_failed');
+      }
+    },
+    toggleMute: () => {
+      if (!call) return;
+      try {
+        if (call.isMuted) call.unmute();
+        else call.mute();
+        rerender();
+      } catch (err) {
+        fail(err, 'call_failed');
+      }
+    },
+    toggleHold: () => {
+      if (!call) return;
+      try {
+        if (call.state === 'held') call.resume();
+        else call.hold();
+      } catch (err) {
+        fail(err, 'call_failed');
+      }
+    },
+    sendDtmf: (digit: string) => {
+      if (!digit || !call) return;
+      try {
+        call.sendDtmf(digit);
+      } catch (err) {
+        fail(err, 'call_failed');
+      }
+    },
+  };
 }
 
 /**
@@ -92,67 +176,19 @@ export function useCallActions(
     setShowTransfer(false);
   }, [call]);
 
-  // answer/reject/hangup/mute/hold call into the transport and can throw
-  // (e.g. transport closed mid-action); contain those through `onError` like
-  // sendDtmf/transfer do, so a throw never escapes into the UI event handler
-  // (see the file header contract).
-  const answer = useCallback(() => {
-    if (!call) return;
-    try {
-      call.answer();
-    } catch (err) {
-      fail(err, 'call_failed');
-    }
-  }, [call, fail]);
-  const reject = useCallback(() => {
-    if (!call) return;
-    try {
-      call.reject();
-    } catch (err) {
-      fail(err, 'call_failed');
-    }
-  }, [call, fail]);
-  const hangup = useCallback(() => {
-    if (!call) return;
-    try {
-      call.hangup();
-    } catch (err) {
-      fail(err, 'call_failed');
-    }
-  }, [call, fail]);
-
-  const toggleMute = useCallback(() => {
-    if (!call) return;
-    try {
-      if (call.isMuted) call.unmute();
-      else call.mute();
-      rerender();
-    } catch (err) {
-      fail(err, 'call_failed');
-    }
-  }, [call, rerender, fail]);
-
-  const toggleHold = useCallback(() => {
-    if (!call) return;
-    try {
-      if (call.state === 'held') call.resume();
-      else call.hold();
-    } catch (err) {
-      fail(err, 'call_failed');
-    }
-  }, [call, fail]);
-
-  const sendDtmf = useCallback(
-    (digit: string) => {
-      if (!digit || !call) return;
-      try {
-        call.sendDtmf(digit);
-      } catch (err) {
-        fail(err, 'call_failed');
-      }
-    },
-    [call, fail]
+  // Per-call action subset for a SPECIFIC call — the incoming/held cards act on
+  // a call that isn't the foreground one. `makeCallActions` is the one shared
+  // implementation so no surface can diverge. The build is cheap and the closures
+  // are transient (rebound each render), so it isn't memoized.
+  const callActionsFor = useCallback(
+    (target: Call | null): CallActions => makeCallActions(target, fail, rerender),
+    [fail, rerender]
   );
+
+  // The foreground actions ARE the per-call actions bound to `call` — built via
+  // the same callActionsFor path so there's a single code path (no second
+  // makeCallActions call to drift from it).
+  const { answer, reject, hangup, toggleMute, toggleHold, sendDtmf } = callActionsFor(call);
 
   const transfer = useCallback(
     (destination: string) => {
@@ -184,5 +220,6 @@ export function useCallActions(
     toggleHold,
     sendDtmf,
     transfer,
+    callActionsFor,
   };
 }

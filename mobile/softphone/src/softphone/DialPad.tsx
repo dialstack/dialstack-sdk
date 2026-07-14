@@ -10,7 +10,7 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { dialPadKeys, softphoneDimensions as D } from '@dialstack/sdk/components/softphone-theme';
 import { softphoneGlyphs } from '@dialstack/sdk/components/softphone-icons';
-import { useDialInput, type Locale } from '@dialstack/sdk/react/softphone';
+import { useDialInput, canPlaceCall, type Locale } from '@dialstack/sdk/react/softphone';
 import { useSoftphone, type ConnectionState } from '../SoftphoneProvider';
 import { EmergencyBanner } from './EmergencyBanner';
 import { CallErrorChip } from './CallErrorChip';
@@ -22,12 +22,12 @@ export interface DialPadProps {
 }
 
 export function DialPad({ autoFocusDestination = false }: DialPadProps): React.JSX.Element {
-  const { connection, placeCall, t, palette } = useSoftphone();
+  const { connection, placeCall, emergency, t, palette } = useSoftphone();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   const [destination, setDestination] = useState('');
   const { onType } = useDialInput(setDestination);
 
-  const canCall = connection === 'connected' && destination.length > 0;
+  const canCall = canPlaceCall(connection, destination, emergency.submitting);
   const rows = chunk(dialPadKeys, 3);
 
   // Connection-state chip label, via the shared locale table (same keys the web

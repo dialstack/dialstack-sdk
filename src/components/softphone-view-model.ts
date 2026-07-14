@@ -22,26 +22,89 @@ export function isIncomingRinging(call: Call): boolean {
 }
 
 /**
- * Whether the softphone should be playing the incoming-call ring right now, given
- * the current active call (null → nothing ringing). Both the web and RN providers
- * drive their ringtone off this one predicate so the "are we ringing?" rule has a
- * single home and can't drift between platforms. Today that's simply "the active
- * call is an inbound call still alerting"; when call-waiting lands (a second inbound
- * as a non-active entry) this is the one place to widen to the full call list.
+ * Whether the softphone should be playing the incoming-call ring right now. Both
+ * the web and RN providers drive their ringtone off this one predicate so the
+ * "are we ringing?" rule has a single home and can't drift between platforms.
+ *
+ * Accepts either the single foreground call (back-compat) or the full call list:
+ * ring while ANY inbound call is still alerting — a call-waiting interrupt during
+ * an active call rings just like an idle inbound one.
  */
-export function shouldRingIncoming(activeCall: Call | null): boolean {
-  return !!activeCall && isIncomingRinging(activeCall);
+export function shouldRingIncoming(calls: Call | Call[] | null): boolean {
+  if (!calls) return false;
+  if (Array.isArray(calls)) return calls.some(isIncomingRinging);
+  return isIncomingRinging(calls);
 }
 
-/** A call that has been answered (active or held) — controls/duration apply. */
+/** A call that has been answered (active or held) — controls/duration apply.
+ *  Delegates to `Call.isConnected`, the single source of truth for the rule. */
 export function isCallActive(call: Call): boolean {
-  return call.state === 'active' || call.state === 'held';
+  return call.isConnected;
+}
+
+/**
+ * Whether the dial pad may place an outbound call right now. The single home for
+ * the rule so web and RN can't drift: the socket must be connected and there must
+ * be a destination. It also blocks while an E911 binding is in progress
+ * (`emergencySubmitting`) — submitting an address (confirm/create) forces a reconnect,
+ * which tears down the socket and any live call, so starting a call in that
+ * window would immediately lose it. This applies to EVERY destination (911,
+ * extensions, PSTN) because the reconnect drops them all, not just PSTN.
+ */
+export function canPlaceCall(
+  connection: string,
+  destination: string,
+  emergencySubmitting: boolean
+): boolean {
+  return connection === 'connected' && destination.length > 0 && !emergencySubmitting;
 }
 
 /** Pick the screen for the current foreground call (null → the dial pad). */
 export function selectScreen(call: Call | null): SoftphoneScreen {
   if (!call) return 'dial';
   return isIncomingRinging(call) ? 'incoming' : 'in-call';
+}
+
+/**
+ * The composite multi-call layout the softphone renders: a single base screen
+ * with any ringing inbound calls layered on top. This is `selectScreen` widened
+ * to the full call list — it's what lets a call-waiting interrupt show as a card
+ * *over* the in-call UI, and multiple idle inbound calls stack together.
+ *
+ * - `base` — the screen underneath: `in-call` whenever there's an answered call
+ *   (active OR held), otherwise `dial`. Note the base ignores ringing calls: an
+ *   inbound call while idle leaves the dial pad as the base with the incoming
+ *   card on top; once answered it becomes the in-call base.
+ * - `incoming` — the ringing inbound calls to render as answer/decline cards,
+ *   layered over `base`.
+ * - `overlay` — whether the incoming cards sit *on top of* the base (there's an
+ *   answered call behind them → the non-intrusive call-waiting presentation) vs.
+ *   being the only thing on an idle dial base.
+ * - `compact` — render the incoming cards smaller/stacked (they're an overlay,
+ *   or there's more than one — either way they should take less space than the
+ *   single full-screen incoming design).
+ */
+export interface SoftphoneLayout {
+  base: 'dial' | 'in-call';
+  incoming: Call[];
+  overlay: boolean;
+  compact: boolean;
+}
+
+export function selectLayout(calls: Call[], activeCall: Call | null = null): SoftphoneLayout {
+  // A just-answered call flips to the foreground (active) before its `state`
+  // leaves 'ringing' (the server echo lags), so exclude the active call from the
+  // incoming set — otherwise it renders as BOTH the in-call panel and an incoming
+  // card during that window. It also counts as "answered" for the base so a lone
+  // just-answered call shows the in-call screen (no dial-pad flash).
+  const incoming = calls.filter((c) => c !== activeCall && isIncomingRinging(c));
+  const hasAnswered = calls.some((c) => c === activeCall || !isIncomingRinging(c));
+  return {
+    base: hasAnswered ? 'in-call' : 'dial',
+    incoming,
+    overlay: hasAnswered && incoming.length > 0,
+    compact: hasAnswered ? incoming.length > 0 : incoming.length > 1,
+  };
 }
 
 /** The remote party's raw number/address for a call, by direction. */

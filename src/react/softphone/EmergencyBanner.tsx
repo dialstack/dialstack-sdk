@@ -2,10 +2,12 @@
  * EmergencyBanner — the built-in "set your emergency location" (E911) prompt
  * shown above the dial pad while the session's emergency address is unbound.
  *
- * Non-blocking by design: it never disables the keypad. The user confirms a
- * location when they need outbound PSTN (the server gates PSTN; internal/inbound
- * are unaffected). Hidden when the host manages E911 (emergencyAddressId
- * supplied), while the binding is loading, or once bound.
+ * Shown only on the idle dialer: the user sets a location before dialing (the
+ * server is the authority on outbound PSTN). Hidden when the host manages E911
+ * (emergencyAddressId supplied), while binding is loading, once bound, or while
+ * a call is active. Submitting an address forces a reconnect, so the dial pad
+ * disables placing calls (`canPlaceCall` reads `emergency.submitting`) until it
+ * settles — otherwise a call started mid-reconnect would be dropped.
  *
  * Reads the E911 flow (`emergency`) from the softphone context; owns only its own
  * expand/form UI state.
@@ -27,12 +29,14 @@ const EMPTY_FORM: EmergencyAddressInput = {
 };
 
 export function EmergencyBanner(): React.JSX.Element | null {
-  const { emergency, emergencyManagedByHost, t, scope } = useSoftphone();
+  const { emergency, emergencyManagedByHost, activeCall, t, scope } = useSoftphone();
   const [expanded, setExpanded] = useState(false);
   const [addingNew, setAddingNew] = useState(false);
   const [form, setForm] = useState<EmergencyAddressInput>(EMPTY_FORM);
 
-  if (emergencyManagedByHost || emergency.loading || emergency.bound) return null;
+  // Only prompt on the idle dialer — never over an active call (the prompt is
+  // for setting up outbound PSTN before dialing, not mid-conversation).
+  if (emergencyManagedByHost || emergency.loading || emergency.bound || activeCall) return null;
 
   const setField = (k: keyof EmergencyAddressInput) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -85,7 +89,7 @@ export function EmergencyBanner(): React.JSX.Element | null {
                 key={a.id}
                 type="button"
                 className="ds-e911-choice"
-                disabled={emergency.busy}
+                disabled={emergency.submitting}
                 onClick={() => confirm(a.id)}
               >
                 <Glyph glyph={softphoneGlyphs.location} />
@@ -193,8 +197,8 @@ export function EmergencyBanner(): React.JSX.Element | null {
                     {t('emergencyBack')}
                   </button>
                 )}
-                <button type="submit" className="ds-e911-btn" disabled={emergency.busy}>
-                  {emergency.busy ? t('emergencySaving') : t('emergencySave')}
+                <button type="submit" className="ds-e911-btn" disabled={emergency.submitting}>
+                  {emergency.submitting ? t('emergencySaving') : t('emergencySave')}
                 </button>
               </div>
             </form>

@@ -3,7 +3,15 @@ import { useCallDuration } from '../useCallDuration';
 import type { Call } from '../../../webrtc';
 
 function fakeCall(state: string, duration: number): Call {
-  return { state, duration } as unknown as Call;
+  // `isConnected` mirrors the real Call getter (active OR held) that
+  // isCallActive — used by the duration hook — now delegates to.
+  return {
+    state,
+    duration,
+    get isConnected() {
+      return this.state === 'active' || this.state === 'held';
+    },
+  } as unknown as Call;
 }
 
 describe('useCallDuration', () => {

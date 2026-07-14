@@ -9,11 +9,12 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
-import type { CallState } from '@dialstack/sdk/webrtc';
+import type { Call, CallState } from '@dialstack/sdk/webrtc';
 import {
   callPeerNumber,
   callPeerName,
   callStateLabelKey,
+  isCallActive,
   useDialInput,
 } from '@dialstack/sdk/react/softphone';
 import { dialPadKeys, softphoneDimensions as D } from '@dialstack/sdk/components/softphone-theme';
@@ -29,6 +30,9 @@ export function OngoingCall(): React.JSX.Element | null {
     duration,
     consultCall,
     transferOriginal,
+    heldCalls,
+    incomingCalls,
+    switchToCall,
     startAttendedTransfer,
     completeAttendedTransfer,
     cancelAttendedTransfer,
@@ -46,58 +50,75 @@ export function OngoingCall(): React.JSX.Element | null {
     setTransferTo('');
   }, [callId]);
 
-  // Attended-transfer "consulting" screen: the original party is held while we
-  // talk to the consult target, then bridge (complete) or drop back (cancel).
-  // Checked BEFORE `if (!call)` so the consult UI stays reachable if the held
-  // original drops mid-consult.
-  if (consultCall && transferOriginal) {
-    const heldPeer = callPeerNumber(transferOriginal);
-    const heldName =
-      callPeerName(transferOriginal) || displayNumber(heldPeer) || t('unknownCaller');
-    const consultPeer = callPeerNumber(consultCall);
-    const consultName =
-      callPeerName(consultCall) || displayNumber(consultPeer) || t('unknownCaller');
-    const canComplete = consultCall.state === 'active';
-    return (
-      <>
-        <View style={[styles.consultParty, styles.consultHeld]}>
-          <Text style={styles.peerName}>{heldName}</Text>
-          <Text style={styles.callStateText}>{t('transferOriginalOnHold')}</Text>
-        </View>
-        <View style={[styles.consultParty, styles.consultActive]}>
-          <Text style={styles.peerName}>{consultName}</Text>
-          <Text style={styles.callStateText}>
-            {t(callStateLabelKey(consultCall.state as CallState))}
-          </Text>
-        </View>
-        <View style={styles.consultActions}>
-          <Pressable onPress={cancelAttendedTransfer} style={styles.e911BtnSecondary}>
-            <Text style={styles.e911BtnSecondaryText}>{t('cancel')}</Text>
-          </Pressable>
-          <Pressable
-            onPress={completeAttendedTransfer}
-            disabled={!canComplete}
-            style={[styles.e911Btn, !canComplete && styles.e911BtnDisabled]}
-          >
-            <Text style={styles.e911BtnText}>{t('transferComplete')}</Text>
-          </Pressable>
-        </View>
-      </>
-    );
-  }
-
   if (!call) return null;
 
   const peerRaw = callPeerNumber(call);
   const peerName = callPeerName(call);
-  const isActive = call.state === 'active' || call.state === 'held';
+  const isActive = isCallActive(call);
   const name = peerName || displayNumber(peerRaw) || t('unknownCaller');
   // react-native-webrtc exposes no RTCDTMFSender, so DTMF can't be sent on
   // native — hide the keypad rather than throw on each tap.
   const canSendDtmf = call.canSendDtmf;
 
+  // An attended transfer is just two switchable calls + a transfer flag, so it
+  // renders the normal in-call view (controls + switch cards). On top we show a
+  // banner for the OTHER transfer leg (tap to switch to it) plus Complete/Cancel.
+  // That leg is excluded from the plain held-calls list so it isn't shown twice.
+  const inTransfer = consultCall !== null && transferOriginal !== null;
+  // Banner + Complete belong ONLY when the FOCUSED call is one of the two transfer
+  // legs (parity with web). With switchable focus the active call can be a third
+  // unrelated call — the banner would then name the wrong leg and Complete would
+  // bridge legs the user isn't looking at.
+  const focusInTransfer = inTransfer && (call === consultCall || call === transferOriginal);
+  const transferOther = focusInTransfer
+    ? call === consultCall
+      ? transferOriginal
+      : consultCall
+    : null;
+  const canComplete = focusInTransfer && consultCall !== null && consultCall.isConnected;
+  const switchableHeld = heldCalls.filter((c: Call) => c !== transferOther);
+  // Disable Transfer while a transfer is already in progress OR more than one
+  // call is live (parity with web) — a new transfer in either case is ambiguous.
+  const canStartTransfer = !inTransfer && heldCalls.length + incomingCalls.length === 0;
+
   return (
     <>
+      {/* Attended-transfer banner: the OTHER leg (tap to switch to it) + Cancel /
+          Complete. The normal in-call view (controls, etc.) renders below, so
+          mute/hold stay available while transferring. */}
+      {focusInTransfer && transferOther && (
+        <>
+          {(() => {
+            const otherName =
+              callPeerName(transferOther) ||
+              displayNumber(callPeerNumber(transferOther)) ||
+              t('unknownCaller');
+            return (
+              <Pressable
+                accessibilityLabel={`${t('switchToCall')}: ${otherName}`}
+                onPress={() => switchToCall(transferOther)}
+                style={[styles.heldCall, styles.consultHeld]}
+              >
+                <Text style={styles.peerName}>{otherName}</Text>
+                <Text style={styles.callStateText}>{t('transferOriginalOnHold')}</Text>
+              </Pressable>
+            );
+          })()}
+          <View style={styles.consultActions}>
+            <Pressable onPress={cancelAttendedTransfer} style={styles.e911BtnSecondary}>
+              <Text style={styles.e911BtnSecondaryText}>{t('cancel')}</Text>
+            </Pressable>
+            <Pressable
+              onPress={completeAttendedTransfer}
+              disabled={!canComplete}
+              style={[styles.e911Btn, !canComplete && styles.e911BtnDisabled]}
+            >
+              <Text style={styles.e911BtnText}>{t('transferComplete')}</Text>
+            </Pressable>
+          </View>
+        </>
+      )}
+
       <View style={styles.peer}>
         <Text style={styles.peerName}>{name}</Text>
         {!!peerName && <Text style={styles.peerNumber}>{displayNumber(peerRaw)}</Text>}
@@ -105,11 +126,40 @@ export function OngoingCall(): React.JSX.Element | null {
           <Text style={styles.callStateText}>
             {t(callStateLabelKey(call.state as CallState))}
           </Text>
-          {isActive && <Text style={styles.duration}>{duration}</Text>}
+          {/* Duration ticks only while truly live; a held foreground call shows
+              its "On hold" state + Resume control, never a running timer. */}
+          {call.state === 'active' && <Text style={styles.duration}>{duration}</Text>}
         </View>
       </View>
 
       <CallErrorChip />
+
+      {/* Other backgrounded calls the user can switch to — tap a card to hold
+          the current call and resume that one. Excludes the transfer leg shown
+          in the banner above (so it isn't listed twice). */}
+      {switchableHeld.length > 0 && (
+        <View style={styles.heldCalls}>
+          {switchableHeld.map((held: Call) => {
+            const hp = callPeerNumber(held);
+            const hn = callPeerName(held) || displayNumber(hp) || t('unknownCaller');
+            return (
+              <Pressable
+                key={held.id}
+                onPress={() => switchToCall(held)}
+                accessibilityLabel={`${t('switchToCall')}: ${hn}`}
+                style={({ pressed }: { pressed: boolean }) => [
+                  styles.heldCall,
+                  styles.consultHeld,
+                  pressed && styles.keyPressed,
+                ]}
+              >
+                <Text style={styles.peerName}>{hn}</Text>
+                <Text style={styles.callStateText}>{t('heldCallsLabel')}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
 
       {isActive && showKeypad && canSendDtmf && (
         <View style={styles.dtmfPad}>
@@ -134,7 +184,7 @@ export function OngoingCall(): React.JSX.Element | null {
         </View>
       )}
 
-      {isActive && showTransfer && (
+      {isActive && showTransfer && canStartTransfer && (
         <View style={styles.transfer}>
           <TextInput
             style={styles.transferInput}
@@ -204,6 +254,7 @@ export function OngoingCall(): React.JSX.Element | null {
             onPress={actions.toggleTransfer}
             palette={palette}
             styles={styles}
+            disabled={!canStartTransfer}
           />
         </View>
       )}

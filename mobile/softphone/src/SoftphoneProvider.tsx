@@ -3,9 +3,9 @@
  * connection, the RN sibling of the web SoftphoneProvider with the SAME API.
  *
  * It owns the DialStackPhone (via the shared `useCalls` brain), the E911 binding
- * flow, and the audio session (react-native-incall-manager, driven through the
- * onCallActivated/onCallEnded seam — the SDK core never depends on it), and
- * exposes all of it through context. The presentational components (DialPad /
+ * flow, and the audio session (react-native-incall-manager, held while any call
+ * is connected — the SDK core never depends on it), and exposes all of it through
+ * context. The presentational components (DialPad /
  * IncomingCall / OngoingCall) and the batteries-included Softphone read from that
  * context and own no connection themselves.
  *
@@ -70,7 +70,33 @@ export interface SoftphoneProviderProps {
 
 export interface SoftphoneContextValue {
   connection: ConnectionState;
+  /**
+   * Every live call leg — active, held, and ringing inbound. Feed to
+   * `selectLayout` for the composite multi-call view.
+   */
+  calls: Call[];
   activeCall: Call | null;
+  /**
+   * Ringing inbound calls not yet answered — a call-waiting interrupt during an
+   * active call, or one or more concurrent inbound calls while idle. Shown as
+   * (compact when >1) answer/decline cards; answering holds the active call.
+   */
+  incomingCalls: Call[];
+  /**
+   * Held (backgrounded) answered calls the user can switch back to — excludes
+   * ringing inbound calls. Rendered as a switchable list during an active call.
+   */
+  heldCalls: Call[];
+  /**
+   * Answer a specific ringing inbound call: holds the current active call and
+   * makes the answered call active. Route incoming-card answers through this.
+   */
+  answerCall: (call: Call) => void;
+  /**
+   * Switch the active call to an already-answered held call: holds the current
+   * active call and resumes the target. No-op if it's already active.
+   */
+  switchToCall: (call: Call) => void;
   actions: UseCallActions;
   duration: string;
   /**
@@ -140,7 +166,12 @@ export function SoftphoneProvider({
 
   const {
     connection,
+    calls: callEntries,
     activeCall,
+    incomingCalls,
+    heldCalls,
+    answerCall,
+    switchToCall,
     placeCall,
     consultCall,
     transferOriginal,
@@ -162,34 +193,30 @@ export function SoftphoneProvider({
     onCallEnded,
     onError: handleError,
     onNetworkChanged: () => onNetworkChangedRef.current(),
-    // RN owns the audio session for the call's duration (earpiece by default;
-    // the user can flip to speaker). The SDK core never depends on this.
-    onCallActivated: () => {
-      InCallManager.start({ media: 'audio' });
-    },
   });
 
-  // Release the audio session when the foreground call ends. Kept separate from
-  // useCalls's onCallEnded prop so a host-supplied onCallEnded still fires too.
-  // The cleanup ALSO stops the session if the provider unmounts (or the call
-  // changes) while a call is still live — otherwise the earpiece/proximity
-  // session started in onCallActivated would leak past the call.
+  // RN owns the audio session (earpiece by default; the user can flip to
+  // speaker) for as long as ANY call is connected — not just the foreground one.
+  // Keying this on "a connected call exists" rather than on `activeCall` identity
+  // is what makes multi-call safe: switching between calls, or promoting a held
+  // call after a hangup, keeps the session up (the old per-activeCall effect ran
+  // its cleanup on every switch, killing the route since resume() emits no
+  // `activated`). Start when the first connected call appears, stop only when the
+  // last one goes away (incl. provider unmount). The SDK core never depends on this.
+  const hasConnectedCall = callEntries.some((e) => e.call.isConnected);
   useEffect(() => {
-    if (!activeCall) return;
-    const call = activeCall;
-    const stop = () => InCallManager.stop();
-    call.on('ended', stop);
-    return () => {
-      call.off('ended', stop);
-      if (call.state !== 'ended') InCallManager.stop();
-    };
-  }, [activeCall]);
+    if (!hasConnectedCall) return;
+    InCallManager.start({ media: 'audio' });
+    return () => InCallManager.stop();
+  }, [hasConnectedCall]);
 
   // Play the device ringtone while an inbound call is ringing. RN rings natively
   // via InCallManager (the web softphone synthesizes its own tone); the SDK core
   // only does outbound ringback, so the inbound ring is the provider's job.
   // Keyed on the derived ringing flag so it re-evaluates on ringing→active.
-  const incomingRinging = shouldRingIncoming(activeCall);
+  // Ring while ANY inbound call is alerting (idle inbound OR a call-waiting
+  // interrupt during an active call). `incomingCalls` is the ringing subset.
+  const incomingRinging = shouldRingIncoming(incomingCalls);
   useEffect(() => {
     // '_DEFAULT_' ringtone, default vibrate pattern, default iOS category,
     // -1 seconds = ring until stopped.
@@ -217,6 +244,9 @@ export function SoftphoneProvider({
   const actions = useCallActions(activeCall, { onError: handleError });
   const duration = useCallDuration(activeCall);
 
+  // Flatten the hook's CallEntry[] to the plain Call[] the context exposes.
+  const calls = useMemo(() => callEntries.map((e) => e.call), [callEntries]);
+
   // Surface connection-state changes to the host, and clear a stale error banner
   // once we're connected again (guarded so clearError only fires on the actual
   // error→connected edge, not on every connected render).
@@ -232,7 +262,12 @@ export function SoftphoneProvider({
   const value = useMemo<SoftphoneContextValue>(
     () => ({
       connection,
+      calls,
       activeCall,
+      incomingCalls,
+      heldCalls,
+      answerCall,
+      switchToCall,
       actions,
       duration,
       consultCall,
@@ -256,7 +291,12 @@ export function SoftphoneProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       connection,
+      calls,
       activeCall,
+      incomingCalls,
+      heldCalls,
+      answerCall,
+      switchToCall,
       actions,
       duration,
       consultCall,
@@ -297,8 +337,10 @@ export function useActiveCall(): { activeCall: Call | null; actions: UseCallActi
 
 /** The currently-ringing inbound call, or null. */
 export function useIncomingCall(): Call | null {
-  const { activeCall } = useSoftphone();
-  return activeCall && isIncomingRinging(activeCall) ? activeCall : null;
+  const { incomingCalls } = useSoftphone();
+  // A ringing inbound never lives in `activeCall` (the multi-call model keeps
+  // alerting calls in `incomingCalls` until answered), so read the list.
+  return incomingCalls.find(isIncomingRinging) ?? null;
 }
 
 export { SoftphoneContext };

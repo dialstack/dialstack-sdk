@@ -62,6 +62,19 @@ export class Call {
   }
 
   /**
+   * Whether the call is a live, connected conversation — answered and not ended.
+   * Hold is a media modifier, not a separate lifecycle, so BOTH `active` and
+   * `held` count as connected; `trying`/`ringing` (not yet up) and `ended` do
+   * not. This is the single source of truth for "is this call
+   * transferable / bridgeable / controllable" — every such gate (transfer,
+   * completeTransfer, the in-call control row, isCallActive) reads it so the
+   * rule can't drift between call sites.
+   */
+  get isConnected(): boolean {
+    return this.state === 'active' || this.state === 'held';
+  }
+
+  /**
    * Whether DTMF can be sent on this call. False on platforms whose WebRTC
    * senders expose no `.dtmf` (react-native-webrtc has no RTCDTMFSender), which
    * is why the softphone UI gates its in-call keypad on this. Only meaningful
@@ -194,10 +207,17 @@ export class Call {
   }
 
   hold(): void {
+    // Only an active call can be held. A no-op otherwise (e.g. a still-ringing
+    // outbound the multi-call layer auto-holds when the user answers a second
+    // call) — sending call.hold for a non-active call draws a server
+    // `invalid_message: call is not active` that surfaces as a spurious error.
+    if (this.state !== 'active') return;
     this.transport.send({ type: 'call.hold', call_id: this.id });
   }
 
   resume(): void {
+    // Symmetric to hold(): only a held call can be resumed.
+    if (this.state !== 'held') return;
     this.transport.send({ type: 'call.resume', call_id: this.id });
   }
 
@@ -253,10 +273,17 @@ export class Call {
    * with reason 'transferred'.
    */
   completeTransfer(): void {
-    if (this.state !== 'held') {
+    // Called on the ORIGINAL leg (the server REFERs it to the consult, Replacing
+    // the consult dialog). The original just has to be a live, connected call —
+    // it's usually held (the consult is what you're talking to), but with
+    // switchable focus the user may have switched TO the original, making it
+    // active and the consult held. Either way the server keeps it StateActive and
+    // the complete REFER is valid, so accept active OR held; only reject the
+    // not-connected states.
+    if (!this.isConnected) {
       throw new PhoneError({
         code: 'invalid_message',
-        message: 'completeTransfer requires a held call with an active consult leg',
+        message: 'completeTransfer requires a connected call with an answered consult leg',
         callId: this.id,
       });
     }
@@ -264,12 +291,8 @@ export class Call {
   }
 
   private assertTransferable(): void {
-    // A transfer needs a live, connected call. A held call is still connected —
-    // hold is a media modifier (sendonly), not a different call — and the server
-    // keeps it StateActive and re-asserts hold idempotently as step 1 of the
-    // attended flow. So both 'active' and 'held' are transferable; only reject
-    // the not-yet-connected ('trying'/'ringing') and gone ('ended') states.
-    if (this.state !== 'active' && this.state !== 'held') {
+    // A transfer needs a live, connected call (active OR held — see isConnected).
+    if (!this.isConnected) {
       throw new PhoneError({
         code: 'invalid_message',
         message: 'Only a connected call can be transferred',

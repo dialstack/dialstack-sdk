@@ -87,6 +87,7 @@ export function ControlButton({
   onPress,
   palette,
   styles,
+  disabled = false,
 }: {
   label: string;
   glyph: SoftphoneGlyph;
@@ -94,9 +95,16 @@ export function ControlButton({
   onPress: () => void;
   palette: SoftphonePalette;
   styles: ReturnType<typeof makeStyles>;
+  disabled?: boolean;
 }): React.JSX.Element {
   return (
-    <Pressable onPress={onPress} accessibilityLabel={label} style={styles.control}>
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      style={[styles.control, disabled && styles.controlDisabled]}
+    >
       <View style={[styles.controlGlyphWrap, on && styles.controlGlyphOn]}>
         <Glyph
           glyph={glyph}
@@ -207,6 +215,7 @@ export function makeStyles(p: SoftphonePalette) {
 
     controls: { flexDirection: 'row', justifyContent: 'space-between' },
     control: { alignItems: 'center', gap: 6, flex: 1 },
+    controlDisabled: { opacity: 0.4 },
     controlGlyphWrap: {
       width: D.controlButtonSize,
       height: D.controlButtonSize,
@@ -243,18 +252,50 @@ export function makeStyles(p: SoftphonePalette) {
     transferSendSecondary: { backgroundColor: p.surface },
     transferSendSecondaryText: { color: p.text, fontWeight: '600' },
 
-    // ---- Attended-transfer "consulting" screen (RN parity with ds-screen-consult) ----
-    consultParty: {
+    // ---- Attended-transfer banner (RN parity with .ds-transfer-banner) ----
+    consultHeld: { opacity: 0.7 },
+    consultActions: { flexDirection: 'row', gap: 8 },
+
+    // ---- Multi-call + transfer: switchable held-call cards (parity with the web
+    // ds-held-call). Tap to switch focus to that call. ----
+    heldCalls: { gap: 8 },
+    heldCall: {
       borderWidth: 1,
       borderColor: p.border,
       borderRadius: D.radius,
       padding: 14,
       alignItems: 'center',
       gap: 4,
+      backgroundColor: p.surface,
     },
-    consultHeld: { opacity: 0.7 },
-    consultActive: { borderColor: p.accent },
-    consultActions: { flexDirection: 'row', gap: 8 },
+
+    // Composite layout: idle inbound is its own screen; an interrupt during a
+    // call shows the compact card(s) as a banner ABOVE the in-call screen (in
+    // normal flow, so it never overlaps the peer / controls below).
+    incomingStack: { gap: 8 },
+    layoutWithBanner: { gap: D.space },
+
+    // One ringing call's card. Full-size (column, centered) for the dedicated
+    // incoming screen; compact (row, bordered surface with a shadow) for the
+    // stacked / call-waiting overlay presentations.
+    incomingCard: { gap: D.space, alignItems: 'center' },
+    incomingCardInfo: { flex: 1, gap: 2 },
+    incomingCardCompact: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: p.border,
+      borderRadius: D.radius,
+      backgroundColor: p.surface,
+    },
+    actionsCompact: { gap: 8, flex: 0 },
+    actionCompact: { width: D.actionButtonSize * 0.72, height: D.actionButtonSize * 0.72 },
+    // Shrunk peer name/number for the compact card — the full-size peerName (26px)
+    // overflows the small banner card. Truncated to one line (numberOfLines).
+    peerNameCompact: { fontSize: 15, fontWeight: '600', color: p.text },
+    peerNumberCompact: { fontSize: 12, color: p.textSecondary },
 
     // ---- E911 banner (RN parity with the web ds-e911 banner) ----
     e911: {

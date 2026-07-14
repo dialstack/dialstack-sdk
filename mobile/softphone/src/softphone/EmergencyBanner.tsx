@@ -25,13 +25,14 @@ const EMPTY_FORM: EmergencyAddressInput = {
 };
 
 export function EmergencyBanner(): React.JSX.Element | null {
-  const { emergency, emergencyManagedByHost, t, palette } = useSoftphone();
+  const { emergency, emergencyManagedByHost, activeCall, t, palette } = useSoftphone();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   const [expanded, setExpanded] = useState(false);
   const [addingNew, setAddingNew] = useState(false);
   const [form, setForm] = useState<EmergencyAddressInput>(EMPTY_FORM);
 
-  if (emergencyManagedByHost || emergency.loading || emergency.bound) return null;
+  // Only prompt on the idle dialer — never over an active call (parity with web).
+  if (emergencyManagedByHost || emergency.loading || emergency.bound || activeCall) return null;
 
   const setField = (k: keyof EmergencyAddressInput) => (value: string) =>
     setForm((f) => ({ ...f, [k]: value }));
@@ -88,7 +89,7 @@ export function EmergencyBanner(): React.JSX.Element | null {
             emergency.savedAddresses.map((a) => (
               <Pressable
                 key={a.id}
-                disabled={emergency.busy}
+                disabled={emergency.submitting}
                 onPress={() => confirm(a.id)}
                 style={styles.e911Choice}
               >
@@ -133,9 +134,9 @@ export function EmergencyBanner(): React.JSX.Element | null {
                     <Text style={styles.e911BtnSecondaryText}>{t('emergencyBack')}</Text>
                   </Pressable>
                 )}
-                <Pressable disabled={emergency.busy} onPress={submit} style={styles.e911Btn}>
+                <Pressable disabled={emergency.submitting} onPress={submit} style={styles.e911Btn}>
                   <Text style={styles.e911BtnText}>
-                    {emergency.busy ? t('emergencySaving') : t('emergencySave')}
+                    {emergency.submitting ? t('emergencySaving') : t('emergencySave')}
                   </Text>
                 </Pressable>
               </View>

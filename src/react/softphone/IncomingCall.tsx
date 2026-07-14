@@ -1,51 +1,50 @@
 /**
- * IncomingCall — the ringing screen: caller name/number, a pulse, and
- * decline/answer buttons. Renders nothing when there is no ringing inbound call.
+ * IncomingCall / IncomingStack — the ringing inbound UI.
  *
- * Reads the ringing call + actions from the softphone context. Must be rendered
- * inside a `<SoftphoneProvider>`.
+ * `IncomingCall` is the single full-screen incoming screen (the idle,
+ * one-caller case) — it renders the first ringing call as a full-size card, and
+ * nothing when none is ringing. `IncomingStack` renders ALL ringing calls as
+ * stacked cards, compact when there's more than one; it's what `<Softphone>`
+ * layers over the base screen for call-waiting and multiple concurrent inbound.
+ *
+ * Both read from the softphone context and must be rendered inside a
+ * `<SoftphoneProvider>`.
  */
 
 import React from 'react';
-import { useSoftphone, useIncomingCall } from '../SoftphoneProvider';
-import { softphoneGlyphs } from '../../components/softphone-icons';
-import { Glyph } from './Glyph';
+import { useSoftphone } from '../SoftphoneProvider';
+import { IncomingCallCard } from './IncomingCallCard';
 
 export function IncomingCall(): React.JSX.Element | null {
-  const { actions, t, displayNumber, scope } = useSoftphone();
-  const call = useIncomingCall();
+  const { incomingCalls, scope } = useSoftphone();
+  const call = incomingCalls[0];
   if (!call) return null;
-
-  const name = call.fromName || displayNumber(call.from) || t('unknownCaller');
 
   return (
     <div className={`${scope} ds-softphone`}>
       <div className="ds-screen ds-screen-incoming">
-        <div className="ds-incoming-label">{t('incomingCall')}</div>
-        <div className="ds-peer">
-          <div className="ds-peer-name">{name}</div>
-          {call.fromName && <div className="ds-peer-number">{displayNumber(call.from)}</div>}
-        </div>
-        <div className="ds-incoming-pulse" aria-hidden="true" />
-        <div className="ds-actions ds-actions-incoming">
-          <button
-            type="button"
-            className="ds-action ds-decline"
-            aria-label={t('decline')}
-            onClick={actions.reject}
-          >
-            <Glyph glyph={softphoneGlyphs.hangup} />
-          </button>
-          <button
-            type="button"
-            className="ds-action ds-answer"
-            aria-label={t('answer')}
-            onClick={actions.answer}
-          >
-            <Glyph glyph={softphoneGlyphs.phone} />
-          </button>
-        </div>
+        <IncomingCallCard call={call} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * All ringing inbound calls, stacked. Compact when >1 so a burst of calls (or a
+ * call-waiting interrupt over an active call) stays small and non-intrusive.
+ * Renders nothing when none is ringing.
+ */
+export function IncomingStack({ compact }: { compact?: boolean }): React.JSX.Element | null {
+  const { incomingCalls } = useSoftphone();
+  if (incomingCalls.length === 0) return null;
+  // Compact whenever the caller asks (overlay case) or there's more than one.
+  const isCompact = compact ?? incomingCalls.length > 1;
+
+  return (
+    <div className="ds-incoming-stack">
+      {incomingCalls.map((call) => (
+        <IncomingCallCard key={call.id} call={call} compact={isCompact} />
+      ))}
     </div>
   );
 }

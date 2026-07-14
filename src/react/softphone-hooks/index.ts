@@ -11,7 +11,7 @@ export { useCalls } from './useCalls';
 export type { UseCallsOptions, UseCallsResult, SoftphoneConnectionState } from './useCalls';
 
 export { useCallActions } from './useCallActions';
-export type { UseCallActions, UseCallActionsOptions } from './useCallActions';
+export type { UseCallActions, UseCallActionsOptions, CallActions } from './useCallActions';
 
 export { useCallDuration } from './useCallDuration';
 
@@ -28,7 +28,9 @@ export {
   isIncomingRinging,
   shouldRingIncoming,
   isCallActive,
+  canPlaceCall,
   selectScreen,
+  selectLayout,
   callPeerNumber,
   callPeerName,
   formatCallDuration,
@@ -39,4 +41,4 @@ export {
   callStateLabelKey,
   errorMessageKey,
 } from '../../components/softphone-view-model';
-export type { SoftphoneScreen } from '../../components/softphone-view-model';
+export type { SoftphoneScreen, SoftphoneLayout } from '../../components/softphone-view-model';

@@ -56,6 +56,10 @@ export const en = {
     stateHeld: 'On hold',
     stateEnded: 'Call ended',
     done: 'Done',
+    // Multi-call: switching between concurrent calls + the on-hold list.
+    switchToCall: 'Switch to this call',
+    heldCallsLabel: 'On hold',
+    callWaiting: 'Call waiting',
     // E911 "Are you here?" location confirmation (shown until the session's
     // emergency address is bound to the current network).
     emergencyPrompt: 'Set your emergency location to be able to place external calls',

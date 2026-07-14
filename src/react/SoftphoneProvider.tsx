@@ -108,8 +108,37 @@ export interface SoftphoneProviderProps {
 export interface SoftphoneContextValue {
   /** Connection lifecycle state. */
   connection: SoftphoneConnectionState;
-  /** The single foreground call the UI represents, or null when idle. */
+  /**
+   * Every live call leg — the active call, any held calls, and any ringing
+   * inbound calls. Feed this to `selectLayout` for the composite multi-call view;
+   * `activeCall`/`incomingCalls`/`heldCalls` are conveniences derived from it.
+   */
+  calls: Call[];
+  /** The single foreground (active) call the UI represents, or null when idle. */
   activeCall: Call | null;
+  /**
+   * Ringing inbound calls not yet answered — a call-waiting interrupt during an
+   * active call, or one or more concurrent inbound calls while idle. The UI shows
+   * these as (compact when >1) answer/decline cards; answering holds the active
+   * call and makes the answered one active.
+   */
+  incomingCalls: Call[];
+  /**
+   * Held (backgrounded) answered calls the user can switch back to — excludes
+   * ringing inbound calls. Rendered as a switchable list during an active call.
+   */
+  heldCalls: Call[];
+  /**
+   * Answer a specific ringing inbound call: holds the current active call (if any)
+   * and makes the answered call active. Route incoming-card answers through this,
+   * not `actions.answer`, so the auto-hold happens.
+   */
+  answerCall: (call: Call) => void;
+  /**
+   * Switch the active call to an already-answered held call: holds the current
+   * active call and resumes the target. No-op if it's already active.
+   */
+  switchToCall: (call: Call) => void;
   /** Per-call actions (answer/hangup/hold/mute/dtmf/transfer + overlay flags). */
   actions: UseCallActions;
   /** Live call duration string (ticks while the call is active). */
@@ -233,7 +262,12 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
 
   const {
     connection,
+    calls: callEntries,
     activeCall,
+    incomingCalls,
+    heldCalls,
+    answerCall,
+    switchToCall,
     placeCall,
     consultCall,
     transferOriginal,
@@ -348,7 +382,10 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
   // end, or unmount.
   const ringtoneRef = useRef<IncomingRingtone | null>(null);
   if (ringtoneRef.current === null) ringtoneRef.current = new IncomingRingtone();
-  const incomingRinging = shouldRingIncoming(activeCall);
+  // Ring while ANY inbound call is alerting — a call-waiting interrupt during an
+  // active call rings too, not just an idle inbound one. `incomingCalls` is
+  // exactly the ringing subset (see useCalls).
+  const incomingRinging = shouldRingIncoming(incomingCalls);
   useEffect(() => {
     const ringtone = ringtoneRef.current;
     if (!ringtone) return;
@@ -356,6 +393,11 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
     else ringtone.stop();
     return () => ringtone.stop();
   }, [incomingRinging]);
+
+  // Flatten the hook's CallEntry[] to the plain Call[] the context exposes (the
+  // layout input). Memoized on the entry list so its identity is stable across
+  // renders that don't change the call set.
+  const calls = useMemo(() => callEntries.map((e) => e.call), [callEntries]);
 
   const styles = useMemo(
     () => buildSoftphoneStyles(resolveSoftphonePalette(effectiveAppearance), scope),
@@ -366,7 +408,12 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
   const value = useMemo<SoftphoneContextValue>(
     () => ({
       connection,
+      calls,
       activeCall,
+      incomingCalls,
+      heldCalls,
+      answerCall,
+      switchToCall,
       actions,
       duration,
       consultCall,
@@ -392,7 +439,12 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       connection,
+      calls,
       activeCall,
+      incomingCalls,
+      heldCalls,
+      answerCall,
+      switchToCall,
       actions,
       duration,
       consultCall,
@@ -482,6 +534,8 @@ export const useActiveCall = (): { activeCall: Call | null; actions: UseCallActi
  * @throws {Error} If used outside of `<SoftphoneProvider>`.
  */
 export const useIncomingCall = (): Call | null => {
-  const { activeCall } = useSoftphone();
-  return activeCall && isIncomingRinging(activeCall) ? activeCall : null;
+  const { incomingCalls } = useSoftphone();
+  // A ringing inbound never lives in `activeCall` (the multi-call model keeps
+  // alerting calls in `incomingCalls` until answered), so read the list.
+  return incomingCalls.find(isIncomingRinging) ?? null;
 };

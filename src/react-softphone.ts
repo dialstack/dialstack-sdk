@@ -22,7 +22,9 @@ export {
   isIncomingRinging,
   shouldRingIncoming,
   isCallActive,
+  canPlaceCall,
   selectScreen,
+  selectLayout,
   callPeerNumber,
   callPeerName,
   formatCallDuration,
@@ -39,12 +41,14 @@ export type {
   SoftphoneConnectionState,
   UseCallActions,
   UseCallActionsOptions,
+  CallActions,
   UseEmergencyBinding,
   UseEmergencyBindingDeps,
   UseLastError,
   UseDialInput,
   SoftphoneError,
   SoftphoneScreen,
+  SoftphoneLayout,
 } from './react/softphone-hooks';
 
 // The locale table + default, re-exported here so the React Native softphone can

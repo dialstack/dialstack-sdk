@@ -29,7 +29,7 @@ import {
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { mediaDevices } from 'react-native-webrtc';
-import { Softphone } from '../softphone/src';
+import { Softphone, SoftphoneProvider } from '../softphone/src';
 
 const DEFAULT_API_BASE_URL = 'https://api.dialstack.ai';
 const THEME_BG = '#1a1a1a';
@@ -95,14 +95,16 @@ export default function App(): React.JSX.Element {
               </Text>
             </View>
           ) : connected ? (
-            <Softphone
+            <SoftphoneProvider
               token={token}
               apiBaseUrl={apiBaseUrl}
               appearance={{ theme: 'dark' }}
               onError={(e: { code: string; message: string }) =>
                 setError(`${e.code} — ${e.message}`)
               }
-            />
+            >
+              <Softphone />
+            </SoftphoneProvider>
           ) : (
             <View style={styles.setup}>
               <Text style={styles.title}>DialStack Softphone</Text>

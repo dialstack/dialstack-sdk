@@ -166,10 +166,11 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       transition: background-color 0.12s ease;
     }
     .${scope} .ds-control-glyph svg { width: 42%; height: 42%; }
-    .${scope} .ds-control:hover .ds-control-glyph { background: var(--dsd-surface-active); }
+    .${scope} .ds-control:hover:not(:disabled) .ds-control-glyph { background: var(--dsd-surface-active); }
     .${scope} .ds-control-on .ds-control-glyph { background: var(--dsd-accent); color: var(--dsd-on-accent); }
     .${scope} .ds-control-label { font-size: 12px; color: var(--dsd-text-secondary); }
     .${scope} .ds-control-on .ds-control-label { color: var(--dsd-text); }
+    .${scope} .ds-control:disabled { cursor: not-allowed; opacity: 0.4; }
 
     .${scope} .ds-dtmf { display: flex; flex-direction: column; gap: 10px; }
     .${scope} .ds-dtmf-readout {
@@ -194,16 +195,65 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       background: var(--dsd-surface); color: var(--dsd-text);
     }
 
-    /* Attended-transfer "consulting" screen: original held + consult live. */
-    .${scope} .ds-screen-consult { gap: clamp(12px, 3vw, 20px); }
-    .${scope} .ds-consult-party {
-      border: 1px solid var(--dsd-border); border-radius: ${d.radius}px;
-      padding: 12px 14px; text-align: center;
-    }
+    /* Attended-transfer banner (layered over the normal in-call view): the other
+       transfer leg as a switch card + the Cancel/Complete actions. */
+    .${scope} .ds-transfer-banner { display: flex; flex-direction: column; gap: 8px; }
     .${scope} .ds-consult-held { opacity: 0.7; }
-    .${scope} .ds-consult-active { border-color: var(--dsd-accent); }
     .${scope} .ds-consult-actions { display: flex; gap: 8px; }
     .${scope} .ds-consult-actions .ds-e911-btn { flex: 1; }
+
+    /* Multi-call + transfer: switchable held-call cards. Clickable (button reset)
+       to switch focus to that call; the cursor + hover signal it's actionable. */
+    .${scope} .ds-held-calls { display: flex; flex-direction: column; gap: 8px; }
+    .${scope} .ds-held-call {
+      display: block; width: 100%; cursor: pointer; text-align: center;
+      border: 1px solid var(--dsd-border); border-radius: ${d.radius}px;
+      padding: 12px 14px;
+      background: var(--dsd-surface); color: var(--dsd-text);
+      font-family: inherit;
+    }
+    .${scope} .ds-held-call:hover { opacity: 1; border-color: var(--dsd-accent); }
+
+    /* Multi-call: composite layout — the in-call screen with the ringing
+       call-waiting card(s) as a compact banner ABOVE it. The banner is in normal
+       flow (not absolutely positioned) so it reserves its own space and never
+       overlaps the in-call peer/controls below. (Idle inbound is a dedicated
+       screen, not this banner.) */
+    .${scope}.ds-softphone-layout {
+      display: flex; flex-direction: column; gap: 12px;
+      padding: clamp(12px, 4vw, 24px); background: var(--dsd-bg);
+    }
+    .${scope} .ds-softphone-layout > .ds-softphone { padding: 0; background: none; }
+    .${scope} .ds-incoming-overlay { flex: none; }
+    .${scope} .ds-incoming-stack { display: flex; flex-direction: column; gap: 8px; }
+
+    /* One ringing call's card. Full-size inside the dedicated incoming screen;
+       the compact variant (stacked / call-waiting overlay) shrinks it and puts
+       the answer/decline buttons inline so it takes less space. */
+    .${scope} .ds-incoming-card {
+      display: flex; flex-direction: column; gap: clamp(12px, 3vw, 20px);
+      align-items: center; text-align: center;
+    }
+    .${scope} .ds-incoming-card-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .${scope} .ds-incoming-card-compact {
+      flex-direction: row; gap: 12px; align-items: center; text-align: left;
+      padding: 10px 12px; border: 1px solid var(--dsd-border); border-radius: ${d.radius}px;
+      background: var(--dsd-surface); box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+    }
+    .${scope} .ds-incoming-card-compact .ds-incoming-card-info { flex: 1; min-width: 0; }
+    .${scope} .ds-incoming-card-compact .ds-incoming-label { font-size: 11px; }
+    /* Shrink the peer name/number in a compact card — otherwise they inherit the
+       full-screen in-call sizes (clamp up to 28px) and overflow the small overlay
+       card, colliding with the call behind it. Truncate rather than wrap. */
+    .${scope} .ds-incoming-card-compact .ds-peer-name {
+      font-size: 15px; font-weight: 600; line-height: 1.2;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .${scope} .ds-incoming-card-compact .ds-peer-number {
+      font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .${scope} .ds-incoming-card-compact .ds-actions-incoming { margin: 0; gap: 8px; flex: none; }
+    .${scope} .ds-incoming-card-compact .ds-action { width: 44px; height: 44px; }
 
     .${scope} .ds-e911 {
       margin-bottom: 12px;

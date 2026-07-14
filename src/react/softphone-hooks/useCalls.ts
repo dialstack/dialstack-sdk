@@ -14,9 +14,13 @@
  * `onCallActivated` / `onCallEnded` rather than baked in here.
  */
 
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { DialStackPhone } from '../../webrtc';
-import { sanitizeDestination, DIAL_COUNTRY } from '../../components/softphone-view-model';
+import {
+  sanitizeDestination,
+  DIAL_COUNTRY,
+  isIncomingRinging,
+} from '../../components/softphone-view-model';
 import type {
   Call,
   CallEndReason,
@@ -25,6 +29,18 @@ import type {
   PhoneError,
   PhoneOptions,
 } from '../../webrtc';
+
+// Phone construction goes through this factory so tests and Storybook can inject
+// an in-memory phone without a live WebSocket. It defaults to the real phone and
+// is NOT re-exported from the public `react.ts` barrel — `__setPhoneFactory` is
+// an internal test/story seam, never part of the SDK's public API.
+type PhoneFactory = (opts: PhoneOptions) => DialStackPhone;
+let phoneFactory: PhoneFactory = (opts) => new DialStackPhone(opts);
+
+/** @internal test/story seam — pass a factory to inject a mock phone, or null to restore the default. */
+export function __setPhoneFactory(factory: PhoneFactory | null): void {
+  phoneFactory = factory ?? ((opts) => new DialStackPhone(opts));
+}
 
 /** Connection lifecycle surfaced to the softphone UI. */
 export type SoftphoneConnectionState =
@@ -76,10 +92,13 @@ export interface UseCallsOptions extends PhoneOptions {
 export interface CallEntry {
   call: Call;
   /**
-   * Whether this is the call the user is currently on-screen with. Exactly one
-   * entry is active at a time; the others are backgrounded (held). This is a
-   * UI-focus fact the hook owns — distinct from `call.state` (a held call is
-   * still a live call), so it isn't derived from state.
+   * Whether this is the call the user is currently on-screen with. Whenever any
+   * ANSWERED call is in the list, exactly one entry is active; the others are
+   * backgrounded (held). A list of only ringing inbound calls has none active
+   * (they show as incoming cards until answered). This is a UI-focus fact the
+   * hook owns — distinct from `call.state` (a held call is still a live call),
+   * so it isn't derived from state. The `withActiveCall` invariant enforces it
+   * on every transition.
    */
   active: boolean;
   /**
@@ -89,22 +108,52 @@ export interface CallEntry {
    * for a plain standalone call.
    */
   transferPeer: Call | null;
+  /**
+   * This leg's STABLE role in an attended transfer, or null when not part of one.
+   * A transfer is just two ordinary calls with this metadata layered on top, so
+   * either leg can be the active/on-screen call (freely switchable like any other
+   * call) — the role, NOT which call is active, is what tells the UI which leg to
+   * Complete-bridge (the 'original') and which is the consult target. Set once at
+   * `consultStarted` and preserved across `switchActive`; cleared when the
+   * transfer ends (cancel, complete, or either leg dropping).
+   */
+  transferRole: 'original' | 'consult' | null;
 }
 
 export interface UseCallsResult {
   /** Connection lifecycle state. */
   connection: SoftphoneConnectionState;
   /**
-   * Every live call leg. Today this holds at most the active call plus, during
-   * an attended transfer, the held original + the consult leg.
-   * `activeCall`/`consultCall`/`heldCalls` below are conveniences derived from this.
+   * Every live call leg — the active call, any held calls, and any ringing
+   * inbound calls (call-waiting). `activeCall`/`consultCall`/`heldCalls`/
+   * `incomingCalls` below are conveniences derived from this.
    */
   calls: CallEntry[];
   /** The single call the user is talking to (rendered by the UI), or null. */
   activeCall: Call | null;
   /**
-   * Place an outbound call to `destination`. No-ops unless connected and the
-   * destination is non-empty. Errors surface via `onError`.
+   * Ringing inbound calls not yet answered — a call-waiting interrupt during an
+   * active call, or (while idle) one or more concurrent inbound calls. The UI
+   * shows these as answer/decline cards; answering one holds the active call and
+   * makes the answered call active.
+   */
+  incomingCalls: Call[];
+  /**
+   * Switch the active call to `call` (must be an already-answered held call):
+   * holds the current active call and resumes `call`. No-op if it's already
+   * active or not a held call.
+   */
+  switchToCall: (call: Call) => void;
+  /**
+   * Answer a specific ringing inbound call. Holds the current active call (if
+   * any) and makes the answered call active.
+   */
+  answerCall: (call: Call) => void;
+  /**
+   * Place an outbound call to `destination`. When a call is already active it is
+   * held and the new outbound becomes active. No-ops unless connected and the
+   * destination is non-empty (up to the concurrent-call cap). Errors surface via
+   * `onError`.
    */
   placeCall: (destination: string) => Promise<void>;
 
@@ -117,9 +166,8 @@ export interface UseCallsResult {
   consultCall: Call | null;
 
   /**
-   * All currently-held (backgrounded) calls. Today at most one — the original
-   * party during an attended transfer — but plural so multi-call/parking can add
-   * more without another reshape.
+   * All currently-held (backgrounded) answered calls — the calls the user can
+   * switch back to. Excludes ringing inbound calls (see `incomingCalls`).
    */
   heldCalls: Call[];
 
@@ -207,8 +255,26 @@ type CallsAction =
   | { type: 'reconnecting' }
   | { type: 'disconnected' }
   | { type: 'error' }
-  // A new inbound/outbound call becomes the active call (replacing any prior one).
+  // A new outbound call (or the sole idle call) becomes active; any prior active
+  // call is held (multi-call: entries accumulate, they aren't replaced).
   | { type: 'active'; call: Call }
+  // A ringing inbound call arrives — added to the list WITHOUT stealing active
+  // (the user answers it explicitly). While idle it's the only entry; during a
+  // call it's a call-waiting interrupt shown alongside the active call.
+  | { type: 'incomingAdded'; call: Call }
+  // An inbound call was answered BY THE USER (explicit accept): it becomes active,
+  // the prior active call is held. (hold()/resume() side-effects run in the
+  // dispatcher.)
+  | { type: 'answered'; call: Call }
+  // A call reported 'answered' by the CORE (a remote leg picked up, or answered on
+  // another device) — promote it to active ONLY if nothing is currently focused
+  // (it's the sole/first live call). If another call is already active, do nothing:
+  // a backgrounded leg answering must not steal focus (the far end is alone and
+  // will hang up). Never holds anything.
+  | { type: 'answeredInPlace'; call: Call }
+  // Switch the active call: `call` becomes active, the previously-active call is
+  // held. (The hold()/resume() side-effects run in the dispatcher.)
+  | { type: 'switchActive'; call: Call }
   // A consult leg was dialed (attended transfer step 1): the active original
   // becomes `held`, the consult is added and becomes active.
   | { type: 'consultStarted'; call: Call }
@@ -221,7 +287,56 @@ type CallsAction =
 
 const IDLE: CallsState = { connection: 'idle', calls: [] };
 
+// Max concurrent live calls (active + held + ringing). Beyond this a new inbound
+// is rejected busy — keeps the stacked-card UI readable and matches real softphone
+// limits. A soft cap, not a protocol constraint.
+const MAX_CALLS = 4;
+
+/**
+ * Enforce the core invariant: whenever any ANSWERED call is in the list, exactly
+ * one entry is `active` — the on-screen call. There must never be an answered
+ * call in the list with no active entry (the in-call screen renders the active
+ * call, so that would leave it blank while a held call is stranded). A ringing
+ * inbound is deliberately NOT active until the user answers it, so a list of
+ * only-ringing calls correctly has no active entry (the incoming card shows).
+ *
+ * If a transition left an answered call but none active, promote the most-recent
+ * answered (held) call. If more than one ended up active, keep only the last.
+ * Idempotent — a state already satisfying the invariant is returned unchanged.
+ */
+function withActiveCall(calls: CallEntry[]): CallEntry[] {
+  const activeCount = calls.filter((e) => e.active).length;
+  if (activeCount === 0) {
+    // Promote the most-recent answered call, if any. Never promote a ringing
+    // inbound — the user answers those explicitly.
+    const target = [...calls].reverse().find((e) => !isIncomingRinging(e.call));
+    if (!target) return calls;
+    return calls.map((e) => (e.call === target.call ? { ...e, active: true } : e));
+  }
+  if (activeCount === 1) return calls;
+  // >1 active — collapse to the last active entry (walking from the end).
+  let kept = false;
+  return [...calls]
+    .reverse()
+    .map((e) => {
+      if (!e.active) return e;
+      if (!kept) {
+        kept = true;
+        return e;
+      }
+      return { ...e, active: false };
+    })
+    .reverse();
+}
+
 function callsReducer(state: CallsState, action: CallsAction): CallsState {
+  const next = callsReducerInner(state, action);
+  if (next === state) return state;
+  const calls = withActiveCall(next.calls);
+  return calls === next.calls ? next : { ...next, calls };
+}
+
+function callsReducerInner(state: CallsState, action: CallsAction): CallsState {
   switch (action.type) {
     case 'connecting':
       return state.connection === 'connecting' ? state : { ...state, connection: 'connecting' };
@@ -234,41 +349,88 @@ function callsReducer(state: CallsState, action: CallsAction): CallsState {
     case 'error':
       return state.connection === 'error' ? state : { ...state, connection: 'error' };
     case 'active': {
-      // A new call becomes THE active call. Single-active scope: the dispatcher
-      // rejects a 2nd inbound before we get here, so outside a transfer there's
-      // exactly one entry. Any prior entries are dropped (there are none today).
-      if (state.calls.length === 1 && state.calls[0]?.call === action.call) return state;
-      return { ...state, calls: [{ call: action.call, active: true, transferPeer: null }] };
+      // A new call joins the list and becomes active; any prior active call is
+      // held (multi-call). Already-present same call → just ensure it's the sole
+      // active one (idempotent for a re-dispatch).
+      const already = state.calls.find((e) => e.call === action.call);
+      const others = state.calls
+        .filter((e) => e.call !== action.call)
+        .map((e) => ({ ...e, active: false }));
+      const entry: CallEntry = already
+        ? { ...already, active: true }
+        : { call: action.call, active: true, transferPeer: null, transferRole: null };
+      return { ...state, calls: [...others, entry] };
+    }
+    case 'incomingAdded': {
+      // A ringing inbound joins the list without stealing active — the user
+      // answers it explicitly. Idempotent if already present.
+      if (state.calls.some((e) => e.call === action.call)) return state;
+      return {
+        ...state,
+        calls: [
+          ...state.calls,
+          { call: action.call, active: false, transferPeer: null, transferRole: null },
+        ],
+      };
+    }
+    case 'answered':
+    case 'switchActive': {
+      // Make `call` the active entry, hold the rest. No structural change if it's
+      // not present. (An answered inbound is already in the list from
+      // `incomingAdded`; this just promotes it to active.)
+      if (!state.calls.some((e) => e.call === action.call)) return state;
+      return {
+        ...state,
+        calls: state.calls.map((e) => ({ ...e, active: e.call === action.call })),
+      };
+    }
+    case 'answeredInPlace': {
+      // Core-reported answer. Promote ONLY when nothing is focused — a lone/first
+      // call becoming live. If another leg is already active, no-op: this event
+      // must never steal focus from the call the user is on.
+      const entry = state.calls.find((e) => e.call === action.call);
+      if (!entry) return state;
+      if (state.calls.some((e) => e.active)) return state;
+      return {
+        ...state,
+        calls: state.calls.map((e) => ({ ...e, active: e.call === action.call })),
+      };
     }
     case 'consultStarted': {
       // The prior active call becomes the (held) original; the consult leg is
       // added and becomes active. The two legs point at each other via
-      // `transferPeer` so either can find the other.
+      // `transferPeer`, and each carries a STABLE `transferRole` so the
+      // original/consult roles survive the user switching focus between them.
       const original = state.calls.find((e) => e.active)?.call ?? null;
       const others = state.calls
         .filter((e) => e.call !== original)
         .map((e) => ({ ...e, active: false }));
       const originalEntry: CallEntry[] = original
-        ? [{ call: original, active: false, transferPeer: action.call }]
+        ? [{ call: original, active: false, transferPeer: action.call, transferRole: 'original' }]
         : [];
       return {
         ...state,
         calls: [
           ...others,
           ...originalEntry,
-          { call: action.call, active: true, transferPeer: original },
+          { call: action.call, active: true, transferPeer: original, transferRole: 'consult' },
         ],
       };
     }
     case 'cancelConsult': {
-      // Drop the consult leg; the held original of the pair becomes active again.
-      const consult = state.calls.find((e) => e.active && e.transferPeer);
-      const original = consult?.transferPeer ?? null;
+      // Drop the consult leg; the original of the pair becomes active again and
+      // its transfer metadata is cleared. Found by stable role, not by which call
+      // is active — the user may have switched focus away from the consult pair.
+      const consult = state.calls.find((e) => e.transferRole === 'consult');
+      const original = state.calls.find((e) => e.transferRole === 'original');
       if (!consult || !original) return state;
-      const rest = state.calls.filter((e) => e.call !== consult.call && e.call !== original);
+      const rest = state.calls.filter((e) => e.call !== consult.call && e.call !== original.call);
       return {
         ...state,
-        calls: [...rest, { call: original, active: true, transferPeer: null }],
+        calls: [
+          ...rest,
+          { call: original.call, active: true, transferPeer: null, transferRole: null },
+        ],
       };
     }
     case 'callEnded': {
@@ -283,9 +445,14 @@ function callsReducer(state: CallsState, action: CallsAction): CallsState {
       // One rule covers cancel, remote-consult-end, and original-drop.
       if (ended.transferPeer) {
         calls = calls.map((e) =>
-          e.call === ended.transferPeer ? { call: e.call, active: true, transferPeer: null } : e
+          e.call === ended.transferPeer
+            ? { call: e.call, active: true, transferPeer: null, transferRole: null }
+            : e
         );
       }
+      // Any other case where the active call left the list (a plain active call
+      // ended with held calls remaining) is repaired by the active-call invariant
+      // applied to every transition below.
       return { ...state, calls };
     }
     case 'reset':
@@ -323,9 +490,28 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
   // (it carries a `transferPeer` back to the held original).
   const activeEntry = calls.find((e) => e.active) ?? null;
   const activeCall = activeEntry?.call ?? null;
-  const heldCalls = calls.filter((e) => !e.active).map((e) => e.call);
-  const consultCall = activeEntry?.transferPeer ? activeEntry.call : null;
-  const transferOriginal = consultCall ? (activeEntry?.transferPeer ?? null) : null;
+  // Ringing inbound legs (call-waiting) vs. answered-but-held legs the user can
+  // switch back to — split so the UI shows incoming as answer/decline cards and
+  // held as switchable call cards. `incomingCalls` also excludes the active entry:
+  // answering flips `active` immediately but `call.state` stays 'ringing' until
+  // the server echo, and without the guard that just-answered call would render
+  // BOTH as the in-call panel and as an incoming card during the echo window.
+  // Memoized so a per-render tick (duration) doesn't hand consumers new array
+  // identities every second.
+  const incomingCalls = useMemo(
+    () => calls.filter((e) => !e.active && isIncomingRinging(e.call)).map((e) => e.call),
+    [calls]
+  );
+  const heldCalls = useMemo(
+    () => calls.filter((e) => !e.active && !isIncomingRinging(e.call)).map((e) => e.call),
+    [calls]
+  );
+  // Transfer legs are identified by STABLE role, not by which is active — a
+  // transfer is just two ordinary (switchable) calls with role metadata on top.
+  // So `consultCall`/`transferOriginal` stay pinned to the right legs no matter
+  // which one the user is currently focused on.
+  const consultCall = calls.find((e) => e.transferRole === 'consult')?.call ?? null;
+  const transferOriginal = calls.find((e) => e.transferRole === 'original')?.call ?? null;
   // Mirror of `connection` read by the otherwise-stable `placeCall` callback, so
   // it doesn't get a new identity on every connection-lifecycle transition (the
   // same ref pattern the handlers/emergencyAddressId/iceServers use — synced in
@@ -342,16 +528,25 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
 
   // Read `activeCall`/`consultCall` through refs inside stable callbacks + the
   // phone event handlers (so they don't get re-created — or capture a stale
-  // value — on every call-state tick).
+  // value — on every call-state tick). `activeCallRef` is written DURING render
+  // (not in an effect) so it reflects the latest committed state synchronously —
+  // an effect write lags a render, which raced: a rapid answer/switch right after
+  // a new call became active would hold the already-replaced leg, leaving two
+  // live audio legs. `activeCall` is derived from `calls` above, so this is the
+  // standard "ref mirrors the latest rendered value" idiom.
+  // Latest-value ref: mirror the just-derived `activeCall` synchronously so a
+  // dispatcher reads the TRUE active leg. An effect write lags a render, which
+  // raced (the double-hold: a rapid answer/switch held the already-replaced leg).
+  // The written value is a pure function of the rendered state; the ref is only
+  // read later (in callbacks/handlers), never during this render.
   const activeCallRef = useRef<Call | null>(null);
+  // eslint-disable-next-line react-hooks/refs
+  activeCallRef.current = activeCall;
   const consultCallRef = useRef<Call | null>(null);
   // The held original of an in-flight transfer — completeAttendedTransfer /
   // cancelAttendedTransfer act on THIS, not on `activeCall` (which during a
   // transfer is the consult leg).
   const transferOriginalRef = useRef<Call | null>(null);
-  useEffect(() => {
-    activeCallRef.current = activeCall;
-  }, [activeCall]);
   useEffect(() => {
     consultCallRef.current = consultCall;
   }, [consultCall]);
@@ -428,6 +623,14 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
           handlers.current.onCallStarted?.({ direction: 'inbound', peer: call.from });
         }
         handlers.current.onCallActivated?.(call);
+        // The core 'answered' event (a remote leg picked up, or answered on
+        // another device). Promote this call to the foreground ONLY if nothing is
+        // currently focused — i.e. it's the sole/first live call, which should
+        // become active (a ringing inbound isn't active until it answers, and the
+        // withActiveCall invariant only re-runs on a dispatch, so this is that
+        // dispatch). If another call is already active, `answeredInPlace` no-ops:
+        // a backgrounded leg answering must not steal focus.
+        dispatch({ type: 'answeredInPlace', call });
         rerender();
       };
       const onEnded = (reason: CallEndReason) => {
@@ -438,7 +641,10 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
           notifiedCalls.current.delete(call);
           handlers.current.onCallEnded?.({ reason });
         }
-        // Clear whichever slot this call occupied (atomic in the reducer).
+        // Clear whichever slot this call occupied (atomic in the reducer). When
+        // the active call ends and a held call remains, the reducer promotes that
+        // held call to the active (on-screen) entry so the in-call screen isn't
+        // left blank — it stays HELD, though; the user chooses when to resume it.
         dispatch({ type: 'callEnded', call });
         unwireCall(call);
       };
@@ -486,29 +692,92 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
         });
         return;
       }
-      // Single-active scope: don't place a call over an existing one. Refusing
-      // here (rather than dropping the current call) keeps dial() from orphaning
-      // a live leg — during a transfer the reducer's `active` action would
-      // discard BOTH transfer legs while we only unwire one.
-      if (activeCallRef.current) {
-        handlers.current.onError?.({
-          code: 'rate_limited',
-          message: 'Already on a call',
-        });
+      // Multi-call: a new outbound is allowed over existing calls (up to the cap);
+      // the reducer's `active` action holds the others. Refuse only at the cap.
+      if (unwireByCall.current.size >= MAX_CALLS) {
+        handlers.current.onError?.({ code: 'rate_limited', message: 'Too many active calls' });
         return;
       }
+      // Hold the current active call before the new outbound becomes active, so
+      // the switch is a real hold/resume (not two live audio legs). If the dial
+      // then fails, we put that call on hold for nothing — so resume it in the
+      // catch. `hold()` only sends the message (state flips to 'held' on the
+      // server echo, not synchronously), so we resume the same call we held
+      // rather than gating on its (still-'active') state.
+      const previouslyActive = activeCallRef.current;
       try {
+        previouslyActive?.hold();
         const call = await phone.call(target);
         dispatch({ type: 'active', call });
         notifiedCalls.current.add(call);
         handlers.current.onCallStarted?.({ direction: 'outbound', peer: call.to });
         wireCall(call);
       } catch (err) {
+        // The second call failed after we held the previous one — un-hold it so
+        // the user's live conversation isn't silently stuck on hold. Guarded
+        // like holdThenActivate's rollback: a bare resume() re-throws
+        // transport_closed when the socket is down, which would escape this async
+        // callback as an unhandled rejection AND swallow the original dial error.
+        if (previouslyActive && previouslyActive.state !== 'ended') {
+          try {
+            previouslyActive.resume();
+          } catch {
+            // Best-effort — the held call may itself have ended.
+          }
+        }
         const e = err as PhoneError;
         handlers.current.onError?.({ code: e.code ?? 'call_failed', message: e.message });
       }
     },
     [wireCall]
+  );
+
+  // Hold the current active call, then bring `target` to the foreground via
+  // `activate` (resume for a held call, answer for a ringing one) and `dispatch`
+  // the reducer action. Shared by switchToCall + answerCall — the only difference
+  // between them is the activate call and the action. Optimistic: the reducer
+  // flips `active` immediately and the server `held`/`resumed`/`answered` echoes
+  // settle each call's state on the rerender tick. On failure it rolls the held
+  // call back (best-effort resume, unless it already ended) so a failed
+  // activate() never strands the live conversation on hold.
+  const holdThenActivate = useCallback((activate: () => void, action: CallsAction) => {
+    const current = activeCallRef.current;
+    try {
+      current?.hold();
+      activate();
+      dispatch(action);
+    } catch (err) {
+      if (current && current.state !== 'ended') {
+        try {
+          current.resume();
+        } catch {
+          // Best-effort — current may itself have ended.
+        }
+      }
+      const e = err as PhoneError;
+      handlers.current.onError?.({ code: e.code ?? 'call_failed', message: e.message });
+    }
+  }, []);
+
+  // Switch the active call to an already-answered held call: hold the current
+  // active call, resume the target. No-op if the target is already active.
+  const switchToCall = useCallback(
+    (call: Call) => {
+      if (activeCallRef.current === call) return;
+      holdThenActivate(() => call.resume(), { type: 'switchActive', call });
+    },
+    [holdThenActivate]
+  );
+
+  // Answer a ringing inbound call: hold the current active call (call-waiting →
+  // auto-hold), answer the target, and promote it to active. Distinct from the
+  // core `answered` server event (which just fires host callbacks + rerender);
+  // this is the user's explicit accept, which owns the auto-hold + promotion.
+  const answerCall = useCallback(
+    (call: Call) => {
+      holdThenActivate(() => call.answer(), { type: 'answered', call });
+    },
+    [holdThenActivate]
   );
 
   const startAttendedTransfer = useCallback(
@@ -544,14 +813,15 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
   );
 
   const completeAttendedTransfer = useCallback(() => {
-    // completeTransfer() is called on the HELD ORIGINAL (it bridges its held leg
-    // to the consult), not on the active call — which during a transfer is the
-    // consult leg the user is talking to. No-op until the consult has actually
-    // been ANSWERED — bridging to a still-ringing leg drops the held caller into
-    // a dead transfer. (The UI also disables the button until then.)
+    // completeTransfer() is called on the ORIGINAL (it bridges it to the consult).
+    // No-op until the consult has actually been ANSWERED — bridging to a still-
+    // ringing leg drops the held caller into a dead transfer. "Answered" is
+    // active OR held: once the user has switched focus away, the consult is held
+    // but still connected and perfectly bridgeable, so gate on connected, not on
+    // it being the currently-focused call. (The UI also gates the button.)
     const original = transferOriginalRef.current;
     const consult = consultCallRef.current;
-    if (!original || !consult || consult.state !== 'active') return;
+    if (!original || !consult || !consult.isConnected) return;
     try {
       original.completeTransfer();
     } catch (err) {
@@ -635,7 +905,7 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
   useEffect(() => {
     if (!token) return;
     let disposed = false;
-    const p = new DialStackPhone({
+    const p = phoneFactory({
       token,
       apiBaseUrl,
       signalingBaseUrl,
@@ -670,19 +940,18 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
     );
     p.on('incoming', (call) => {
       if (disposed) return;
-      // Single-active scope: the user handles one call at a time. If any call is
-      // already live (active, held, or an in-flight consult), reject the new
-      // inbound as busy — call-waiting is a future capability. We gate on the
-      // wired-call map rather than `activeCallRef`: the ref is synced in a
-      // post-commit effect (one render behind), so two inbound INVITEs arriving
-      // within a single commit cycle would both read a stale-null ref and both
-      // be accepted. `unwireByCall` is updated synchronously by wireCall below,
-      // so the second INVITE sees the first immediately.
-      if (unwireByCall.current.size > 0) {
+      // Multi-call: accept a 2nd+ inbound as call-waiting, up to a soft cap on
+      // concurrent live calls. Reject busy only past the cap. We gate on the
+      // wired-call map (updated synchronously by wireCall) rather than
+      // `activeCallRef` (synced a render late), so INVITEs arriving in one commit
+      // cycle each see the ones before them.
+      if (unwireByCall.current.size >= MAX_CALLS) {
         call.reject('busy');
         return;
       }
-      dispatch({ type: 'active', call });
+      // Added as a ringing entry — NOT active. It becomes active only when the
+      // user answers it (which then holds the current call).
+      dispatch({ type: 'incomingAdded', call });
       notifiedCalls.current.add(call);
       handlers.current.onIncomingCall?.({ from: call.from, fromName: call.fromName });
       wireCall(call);
@@ -730,6 +999,9 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
     connection,
     calls,
     activeCall,
+    incomingCalls,
+    switchToCall,
+    answerCall,
     placeCall,
     consultCall,
     heldCalls,

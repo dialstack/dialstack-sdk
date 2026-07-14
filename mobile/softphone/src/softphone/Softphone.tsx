@@ -1,55 +1,78 @@
 /**
  * Softphone (RN) — the batteries-included softphone: dial pad, incoming-call
  * answer/decline, and in-call controls, switching between them based on call
- * state. The RN sibling of the web <Softphone>, with the same two forms:
+ * state. The RN sibling of the web <Softphone>: a pure consumer of
+ * <SoftphoneProvider>, which owns the connection and the `token` (the single
+ * credential/connection entry point). Render it under a provider:
  *
- * 1. Self-contained — pass a `token` (+ options); it mounts its own
- *    <SoftphoneProvider>.
- * 2. Inside a provider — omit `token` and render under a <SoftphoneProvider> you
- *    manage (so the phone stays connected while the UI mounts/unmounts).
+ * ```tsx
+ * <SoftphoneProvider token={webrtcToken} apiBaseUrl={apiBaseUrl}>
+ *   <Softphone />
+ * </SoftphoneProvider>
+ * ```
  *
- * For a bespoke experience, compose <DialPad> / <IncomingCall> / <OngoingCall>
- * yourself inside a <SoftphoneProvider>.
+ * For a bespoke UI, compose <DialPad> / <IncomingCall> / <OngoingCall> yourself
+ * under the same provider.
  */
 
 import React, { useContext, useMemo } from 'react';
 import { useWindowDimensions, View } from 'react-native';
-import { selectScreen } from '@dialstack/sdk/react/softphone';
-import {
-  SoftphoneProvider,
-  SoftphoneContext,
-  useSoftphone,
-  type SoftphoneProviderProps,
-} from '../SoftphoneProvider';
+import { selectLayout } from '@dialstack/sdk/react/softphone';
+import { SoftphoneContext, useSoftphone } from '../SoftphoneProvider';
 import { DialPad } from './DialPad';
-import { IncomingCall } from './IncomingCall';
+import { IncomingCall, IncomingStack } from './IncomingCall';
 import { OngoingCall } from './OngoingCall';
 import { makeStyles } from './primitives';
 
-export interface SoftphoneProps extends Partial<Omit<SoftphoneProviderProps, 'children'>> {
+export interface SoftphoneProps {
   autoFocusDestination?: boolean;
 }
 
-/** The screen switcher inside the centered card. */
+/**
+ * The composite multi-call view inside the centered card: a base screen with any
+ * ringing inbound calls layered on top. `selectLayout` decides the base + how the
+ * incoming cards present (RN mirror of the web SoftphoneScreens):
+ * - idle, one inbound → single full-screen incoming card;
+ * - idle, several → the compact incoming stack as its own screen (no dial pad);
+ * - during a call → in-call screen with a small compact call-waiting overlay.
+ */
 function SoftphoneScreens({
   autoFocusDestination,
 }: {
   autoFocusDestination?: boolean;
 }): React.JSX.Element {
-  const { activeCall, palette } = useSoftphone();
+  const { calls, palette } = useSoftphone();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   const { width, height } = useWindowDimensions();
   const landscape = width > height;
+  const layout = selectLayout(calls);
 
-  const screen = selectScreen(activeCall);
-  const body =
-    screen === 'incoming' ? (
-      <IncomingCall />
-    ) : screen === 'in-call' ? (
+  const base =
+    layout.base === 'in-call' ? (
       <OngoingCall />
     ) : (
       <DialPad autoFocusDestination={autoFocusDestination} />
     );
+
+  let body: React.JSX.Element;
+  if (layout.base === 'dial' && layout.incoming.length > 0) {
+    // Idle (no answered call) with ringing inbound: the incoming UI IS the whole
+    // screen — no dial pad behind it (you're being called, not dialing). One
+    // caller → the full-screen card; several → the compact stack.
+    body = layout.incoming.length === 1 ? <IncomingCall /> : <IncomingStack compact />;
+  } else if (layout.incoming.length === 0) {
+    body = base;
+  } else {
+    // An interrupt DURING a call → the compact call-waiting card(s) as a banner
+    // ABOVE the in-call screen (in normal flow, so it never overlaps the peer /
+    // controls below).
+    body = (
+      <View style={styles.layoutWithBanner}>
+        <IncomingStack compact={layout.compact} />
+        {base}
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.outer, landscape && styles.outerLandscape]}>
@@ -58,23 +81,15 @@ function SoftphoneScreens({
   );
 }
 
-export function Softphone({
-  autoFocusDestination,
-  ...providerProps
-}: SoftphoneProps): React.JSX.Element {
-  const hasProvider = useContext(SoftphoneContext) !== null;
-  const screens = <SoftphoneScreens autoFocusDestination={autoFocusDestination} />;
-
-  if (hasProvider) return screens;
-
-  if (!providerProps.token) {
+export function Softphone({ autoFocusDestination }: SoftphoneProps): React.JSX.Element {
+  // Pure consumer: the connection + token live in <SoftphoneProvider>, the single
+  // credential/connection entry point. Requiring an ancestor provider keeps one
+  // way to wire the softphone and one place the token enters.
+  if (useContext(SoftphoneContext) === null) {
     throw new Error(
-      '<Softphone> requires either a `token` prop (to manage its own connection) ' +
-        'or an ancestor <SoftphoneProvider>.'
+      '<Softphone> must be rendered inside a <SoftphoneProvider>. The provider owns ' +
+        'the connection and the token.'
     );
   }
-
-  return (
-    <SoftphoneProvider {...(providerProps as SoftphoneProviderProps)}>{screens}</SoftphoneProvider>
-  );
+  return <SoftphoneScreens autoFocusDestination={autoFocusDestination} />;
 }
