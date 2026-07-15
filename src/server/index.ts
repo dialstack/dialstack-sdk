@@ -134,6 +134,16 @@ export interface Account {
   config: AccountConfig;
   hold_music_clip_id: string | null;
   main_location_id: string | null;
+  /**
+   * Subscription-agreement (SSA/TOS) coverage status. `signed` — a live account
+   * whose acceptance matches the current agreement version; `unsigned` — a live
+   * account not yet accepted (or accepted against a superseded version);
+   * `not_required` — a non-live account, never prompted. Filter the list with
+   * `tos_status`. The full agreement + evidence is on the account tos resource.
+   */
+  tos_status?: 'signed' | 'unsigned' | 'not_required';
+  /** When the current agreement was accepted; null unless `tos_status` is `signed`. */
+  tos_accepted_at?: string | null;
   created_at: string;
   updated_at: string;
 }
