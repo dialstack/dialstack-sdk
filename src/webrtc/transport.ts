@@ -1,5 +1,6 @@
 import { PhoneError } from './errors';
 import { logError } from './logger';
+import { createSignalingSocket } from './platform';
 import type { ClientMessage, ServerMessage } from './types';
 
 const BACKOFF_STEPS_MS = [1000, 2000, 4000, 8000, 16000, 30000];
@@ -82,7 +83,7 @@ export class Transport {
   }
 
   private openSocket(): void {
-    const ws = new WebSocket(this.url, ['dialstack.webrtc.v1']);
+    const ws = createSignalingSocket(this.url, ['dialstack.webrtc.v1']);
     this.ws = ws;
 
     ws.addEventListener('open', () => {

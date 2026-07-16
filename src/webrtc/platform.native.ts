@@ -19,7 +19,8 @@
  *                                                     non-persisting in-memory store,
  *                                                     used only if the core is driven
  *                                                     without a provider-supplied one.
- *   WebSocket (transport.ts)                        → global exists on RN, untouched
+ *   WebSocket (transport.ts)                        → global exists on RN → wrapped by
+ *                                                     createSignalingSocket (adds a UA)
  *   fetch (phone.ts)                                → global exists on RN
  *   RTCRtpSender.dtmf / insertDTMF                  → NOT on RN (no RTCDTMFSender in
  *                                                     react-native-webrtc 124.x) → the
@@ -90,6 +91,24 @@ export function createMediaStream(): MediaStream {
 
 export function getUserMedia(constraints: MediaStreamConstraints): Promise<MediaStream> {
   return mediaDevices.getUserMedia(constraints) as unknown as Promise<MediaStream>;
+}
+
+// --- Signaling socket ------------------------------------------------------
+
+// The signaling ingress 403s a handshake with no `User-Agent`. iOS's WebSocket
+// (SocketRocket) sends none by default, so we set one explicitly. RN's WebSocket
+// takes a third `options` arg the DOM type doesn't declare; hence the cast.
+const NATIVE_USER_AGENT = 'dialstack-sdk (react-native)';
+
+export function createSignalingSocket(url: string, protocols: string[]): WebSocket {
+  const RNWebSocket = globalThis.WebSocket as unknown as new (
+    url: string,
+    protocols: string[],
+    options: { headers: Record<string, string> }
+  ) => WebSocket;
+  return new RNWebSocket(url, protocols, {
+    headers: { 'User-Agent': NATIVE_USER_AGENT },
+  });
 }
 
 /**

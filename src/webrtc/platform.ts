@@ -49,6 +49,14 @@ export function getUserMedia(constraints: MediaStreamConstraints): Promise<Media
  */
 export { RingbackTone as Ringback } from './ringback';
 
+// --- Signaling socket ------------------------------------------------------
+
+// The native seam (platform.native.ts) attaches a User-Agent here; the browser
+// sends its own and forbids overriding it, so web opens a bare socket.
+export function createSignalingSocket(url: string, protocols: string[]): WebSocket {
+  return new globalThis.WebSocket(url, protocols);
+}
+
 // --- Persistence shim ------------------------------------------------------
 
 /**
