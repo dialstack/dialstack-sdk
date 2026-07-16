@@ -207,6 +207,9 @@ export const SsaAcceptanceGate: React.FC<SsaAcceptanceGateProps> = ({
     setSubmitting(true);
     setError(null);
     try {
+      // The agreement variant is resolved server-side from the platform; the
+      // client only echoes back the version it rendered so the server can reject
+      // acceptance of stale text (409).
       await dialstack.account.tos.accept(currentTos.version);
       onAccepted();
     } catch (err) {

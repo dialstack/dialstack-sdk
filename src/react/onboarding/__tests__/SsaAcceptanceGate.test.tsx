@@ -108,7 +108,11 @@ describe('SsaAcceptanceGate', () => {
   });
 
   it('refreshes to the current version after a 409 and accepts the fresh one', async () => {
-    const freshTos: Tos = { ...(mockTos as Tos), version: '1-final', content: 'Updated terms.' };
+    const freshTos: Tos = {
+      ...(mockTos as Tos),
+      version: '1-final',
+      content: 'Updated terms.',
+    };
     const accept = jest
       .fn()
       .mockRejectedValueOnce(new ApiError('stale', 409, 'tos_version_stale'))

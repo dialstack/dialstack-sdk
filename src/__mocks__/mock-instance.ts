@@ -970,7 +970,6 @@ export function createMockInstance(
         accept: async (version: string): Promise<Tos> => {
           await delay();
           mockTos.acceptance = {
-            version,
             accepted_at: new Date().toISOString(),
             pricing: mockTos.pricing ?? {
               per_user_rate: null,

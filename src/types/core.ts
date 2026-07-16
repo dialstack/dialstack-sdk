@@ -477,7 +477,10 @@ export interface AccountTosResource {
    * state. Pass `expand: ['pricing']` to include the agreed pricing.
    */
   retrieve(options?: { expand?: string[] }): Promise<Tos>;
-  /** Record acceptance of the agreement at `version` for this account. */
+  /**
+   * Record acceptance of the agreement at `version`. The variant is resolved
+   * server-side from the account's platform.
+   */
   accept(version: string): Promise<Tos>;
 }
 
