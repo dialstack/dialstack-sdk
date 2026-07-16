@@ -14,10 +14,11 @@
  * integration. This example handles foreground calling only.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Modal,
   PermissionsAndroid,
   Platform,
   Pressable,
@@ -81,9 +82,53 @@ export default function App(): React.JSX.Element {
   const [apiBaseUrl, setApiBaseUrl] = useState(devSession.apiBaseUrl ?? DEFAULT_API_BASE_URL);
   const [connected, setConnected] = useState(!!devSession.autoConnect && !!devSession.token);
   const [error, setError] = useState<string | null>(null);
+  // Set while the SDK is awaiting a fresh token (onTokenExpiring). We prompt for
+  // a new paste with an overlay ON TOP of the still-mounted provider — the phone
+  // never disconnects, so submitting the token lets the SDK swap it in-band.
+  const [refreshToken, setRefreshToken] = useState('');
+  const refreshPromiseRef = useRef<{
+    resolve: (token: string) => void;
+    reject: (err: Error) => void;
+  } | null>(null);
+  const [awaitingRefresh, setAwaitingRefresh] = useState(false);
 
   useEffect(() => {
     ensureMicPermission().then(setMicReady, () => setMicReady(false));
+  }, []);
+
+  // The SDK calls this ~60s before the token expires. A real app fetches a fresh
+  // token from its backend here; this paste-a-token demo has none, so it prompts
+  // for a new one without tearing down the connection.
+  const onTokenExpiring = useCallback(
+    () =>
+      new Promise<string>((resolve, reject) => {
+        setRefreshToken('');
+        setAwaitingRefresh(true);
+        refreshPromiseRef.current = { resolve, reject };
+      }),
+    []
+  );
+
+  const submitRefreshToken = useCallback(() => {
+    const pending = refreshPromiseRef.current;
+    if (!pending || !refreshToken) return;
+    refreshPromiseRef.current = null;
+    setAwaitingRefresh(false);
+    // Hand the token straight to the SDK, which adopts it over the live
+    // connection. Do NOT setToken(refreshToken): `token` is the provider's
+    // connect credential, and changing it would tear the socket down and
+    // reconnect — the opposite of the in-band swap we're demonstrating.
+    pending.resolve(refreshToken);
+  }, [refreshToken]);
+
+  // Dismiss without a token: reject so the SDK surfaces the failure (it keeps the
+  // still-valid connection up rather than hanging on a promise that never settles).
+  const cancelRefresh = useCallback(() => {
+    const pending = refreshPromiseRef.current;
+    if (!pending) return;
+    refreshPromiseRef.current = null;
+    setAwaitingRefresh(false);
+    pending.reject(new Error('Token refresh dismissed'));
   }, []);
 
   return (
@@ -112,11 +157,47 @@ export default function App(): React.JSX.Element {
               locationProvider={getCurrentEmergencyAddress}
               apiBaseUrl={apiBaseUrl}
               appearance={{ theme: 'dark' }}
+              onTokenExpiring={onTokenExpiring}
               onError={(e: { code: string; message: string }) =>
                 setError(`${e.code} — ${e.message}`)
               }
             >
               <Softphone />
+              <Modal
+                visible={awaitingRefresh}
+                transparent
+                animationType="fade"
+                onRequestClose={cancelRefresh}
+              >
+                <View style={styles.refreshBackdrop}>
+                  <View style={styles.refreshCard}>
+                    <Text style={styles.title}>Session expiring</Text>
+                    <Text style={styles.hint}>
+                      Paste a fresh WebRTC token to keep the call connected.
+                    </Text>
+                    <TextInput
+                      style={styles.input}
+                      value={refreshToken}
+                      onChangeText={setRefreshToken}
+                      placeholder="WebRTC token"
+                      placeholderTextColor="#888"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      multiline
+                    />
+                    <Pressable
+                      style={[styles.connect, !refreshToken && styles.connectDisabled]}
+                      disabled={!refreshToken}
+                      onPress={submitRefreshToken}
+                    >
+                      <Text style={styles.connectText}>Refresh token</Text>
+                    </Pressable>
+                    <Pressable onPress={cancelRefresh}>
+                      <Text style={styles.dismiss}>Dismiss</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </Modal>
             </SoftphoneProvider>
           ) : (
             <View style={styles.setup}>
@@ -182,4 +263,12 @@ const styles = StyleSheet.create({
   connectDisabled: { opacity: 0.4 },
   connectText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   error: { color: '#ff6369', textAlign: 'center', fontSize: 13 },
+  refreshBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  refreshCard: { backgroundColor: THEME_BG, borderRadius: 16, padding: 24, gap: 12 },
+  dismiss: { color: 'rgba(255,255,255,0.6)', textAlign: 'center', fontSize: 14 },
 });

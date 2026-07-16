@@ -24,28 +24,48 @@ npm run setup
 
 cd sdk/examples/softphone
 cp .env.example .env.local
-# Edit .env.local: paste an sk_live_ key and an existing user_*** id.
+# Edit .env.local: paste your sk_live_ key (and optionally an API base URL).
 npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>, click **Connect**, then dial an extension or
-E.164 number. The browser will prompt for microphone access on the first call.
+Open <http://localhost:3000>, pick a user from the **Connect as** list, click
+**Connect**, then dial an extension or E.164 number. The browser will prompt for
+microphone access on the first call.
 
 ## Configuration
 
-| Env var                  | Required | Purpose                                                                         |
-| ------------------------ | -------- | ------------------------------------------------------------------------------- |
-| `DIALSTACK_API_BASE_URL` | No       | API base URL. Defaults to `https://api.dialstack.ai`.                           |
-| `DIALSTACK_SECRET_KEY`   | Yes      | Platform secret key (`sk_live_…`). Used server-side only.                       |
-| `DIALSTACK_USER_ID`      | Yes      | The user ID this softphone signs in as. Must belong to your platform's account. |
+| Env var                  | Required | Purpose                                                   |
+| ------------------------ | -------- | --------------------------------------------------------- |
+| `DIALSTACK_API_BASE_URL` | No       | API base URL. Defaults to `https://api.dialstack.ai`.     |
+| `DIALSTACK_SECRET_KEY`   | Yes      | Platform secret key (`sk_live_…`). Used server-side only. |
 
-## How it gets a session token
+> The `sk_live_…` key is a **live secret**. It is read only in the server-side
+> route handlers (`app/api/**`) and never sent to the browser — the browser only
+> ever receives a short-lived, per-user session token. This example lists the
+> account's users and lets you choose one purely so it's usable without
+> hardcoding an id; a real product authenticates its own end-user and mints a
+> session for exactly that person on its own backend, never exposing the account
+> user list.
 
-`POST /api/session` (Next.js route handler) calls
-`POST $DIALSTACK_API_BASE_URL/v1/user_sessions` with the secret key, gets back a
-short-lived `client_secret`, and hands it to the browser. The browser passes
-it to `new DialStackPhone({ token, apiBaseUrl })`.
+## How it picks a user and gets a session token
+
+1. On load, the app calls `GET /api/users` (a route handler that lists
+   `GET /v1/users` with the secret key) and shows a picker. A single-user account
+   is auto-selected.
+2. On **Connect**, `POST /api/session` (with the chosen user id in the body)
+   calls `POST $DIALSTACK_API_BASE_URL/v1/user_sessions` with the secret key,
+   gets back a short-lived `client_secret`, and hands it to the browser as
+   `token`.
+3. The browser passes it to `new DialStackPhone({ token, apiBaseUrl, … })`.
+
+### Token refresh
+
+User session tokens are short-lived. The phone is constructed with an
+`onTokenExpiring` callback that, shortly before the token expires, re-mints a
+session for the selected user via the same `POST /api/session` route and returns
+the fresh token. The SDK applies it **in-band over the existing connection** — no
+reconnect and no call disruption.
 
 ## E911 / emergency calling
 

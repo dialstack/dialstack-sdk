@@ -21,6 +21,12 @@ const EMPTY_E911_FORM: EmergencyAddressInput = {
 
 type Status = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
 
+type UserOption = { id: string; name: string | null; email: string | null };
+
+function userLabel(u: UserOption): string {
+  return u.name || u.email || u.id;
+}
+
 type CallView = {
   id: string;
   direction: 'inbound' | 'outbound';
@@ -50,6 +56,12 @@ export default function Page() {
   // builds a fresh phone and needs the latest id synchronously, before React
   // state has flushed.
   const emergencyIdRef = useRef<string | null>(null);
+  // The user the softphone connects as. Mirrored in a ref because the
+  // onTokenExpiring callback (below) re-mints for the same user and needs the
+  // latest selection synchronously, without being rebuilt on every render.
+  const [users, setUsers] = useState<UserOption[] | null>(null);
+  const [selectedUser, setSelectedUser] = useState<string>('');
+  const selectedUserRef = useRef<string>('');
   const [status, setStatus] = useState<Status>('idle');
   const [message, setMessage] = useState<string>('');
   const [destination, setDestination] = useState<string>('');
@@ -72,6 +84,27 @@ export default function Page() {
       phoneRef.current?.disconnect();
     };
   }, []);
+
+  // Load the account's users for the "connect as" picker. Auto-select when
+  // there's exactly one so a single-user account connects without a choice.
+  useEffect(() => {
+    void (async () => {
+      try {
+        const resp = await fetch('/api/users');
+        if (!resp.ok) throw new Error(await resp.text());
+        const { users } = (await resp.json()) as { users: UserOption[] };
+        setUsers(users);
+        if (users.length === 1) setSelectedUser(users[0].id);
+      } catch (e) {
+        setUsers([]);
+        setMessage(`Could not load users: ${(e as Error).message}`);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    selectedUserRef.current = selectedUser;
+  }, [selectedUser]);
 
   const upsertCall = (call: Call, parentId?: string) => {
     setCalls((prev) => ({ ...prev, [call.id]: { view: snapshot(call, parentId), call } }));
@@ -113,20 +146,39 @@ export default function Page() {
     upsertCall(call, parentId);
   };
 
+  // Mint a fresh user session for the currently-selected user. Shared by the
+  // initial connect and the onTokenExpiring refresh so both hit the same route
+  // with the same user id.
+  const mintSession = async (): Promise<{ token: string; apiBaseUrl: string }> => {
+    const resp = await fetch('/api/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user: selectedUserRef.current }),
+    });
+    if (!resp.ok) {
+      const body = await resp.text();
+      throw new Error(`session mint failed: ${body}`);
+    }
+    return (await resp.json()) as { token: string; apiBaseUrl: string };
+  };
+
   const connect = async () => {
     setStatus('connecting');
     setMessage('Minting user session …');
     try {
-      const resp = await fetch('/api/session', { method: 'POST' });
-      if (!resp.ok) {
-        const body = await resp.text();
-        throw new Error(`session mint failed: ${body}`);
-      }
-      const { token, apiBaseUrl } = (await resp.json()) as { token: string; apiBaseUrl: string };
+      const { token, apiBaseUrl } = await mintSession();
 
       const phone = new DialStackPhone({
         token,
         apiBaseUrl,
+        // Refresh the token in-band shortly before it expires (no reconnect). The
+        // SDK calls this ~60s ahead of exp; we re-mint for the same user and hand
+        // back the fresh token. A real product would mint per its own authenticated
+        // end-user here.
+        onTokenExpiring: async () => {
+          const { token } = await mintSession();
+          return token;
+        },
         // Present the selected emergency address so the server binds it to this
         // network during the authenticate handshake. Without a bound address,
         // outbound calls to phone numbers are blocked (internal/inbound still work).
@@ -345,21 +397,47 @@ export default function Page() {
         <div className={styles.message}>{message}</div>
 
         <section className={styles.panel}>
-          <div className={styles.row}>
-            {status !== 'connected' ? (
-              <button
-                onClick={connect}
-                disabled={status === 'connecting'}
-                className={`${styles.button} ${styles.buttonPrimary}`}
-              >
-                Connect
-              </button>
+          <h2 className={styles.panelTitle}>Connect as</h2>
+          {status !== 'connected' ? (
+            users === null ? (
+              <p className={styles.empty}>Loading users …</p>
+            ) : users.length === 0 ? (
+              <p className={styles.empty}>
+                No users in this account. Create a user first, then reload.
+              </p>
             ) : (
+              <div className={styles.row}>
+                <select
+                  value={selectedUser}
+                  onChange={(e) => setSelectedUser(e.target.value)}
+                  disabled={status === 'connecting'}
+                  className={styles.input}
+                >
+                  <option value="" disabled>
+                    Select a user …
+                  </option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {userLabel(u)}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={connect}
+                  disabled={status === 'connecting' || !selectedUser}
+                  className={`${styles.button} ${styles.buttonPrimary}`}
+                >
+                  Connect
+                </button>
+              </div>
+            )
+          ) : (
+            <div className={styles.row}>
               <button onClick={disconnect} className={styles.button}>
                 Disconnect
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </section>
 
         <section className={styles.panel}>

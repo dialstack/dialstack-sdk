@@ -61,6 +61,13 @@ export interface SoftphoneProviderProps {
   storage: PlatformStorage;
   /** API base URL (defaults to the SDK's production endpoint). */
   apiBaseUrl?: string;
+  /**
+   * Called shortly before the session token expires (about 60 seconds ahead).
+   * Return a fresh token minted by your backend; the SDK delivers it in-band over
+   * the existing connection — no reconnect and no call disruption. If it rejects,
+   * the SDK keeps the (still-valid) connection open and surfaces an `error`.
+   */
+  onTokenExpiring?: () => Promise<string>;
   /** Emergency (E911) address id to present on connect; when supplied the host
    *  manages E911 and the built-in prompt is disabled. */
   emergencyAddressId?: string;
@@ -161,6 +168,7 @@ export function SoftphoneProvider({
   token,
   storage,
   apiBaseUrl,
+  onTokenExpiring,
   emergencyAddressId,
   locationProvider,
   autoConnect = true,
@@ -212,6 +220,7 @@ export function SoftphoneProvider({
     token,
     storage,
     apiBaseUrl,
+    onTokenExpiring,
     emergencyAddressId,
     autoConnect,
     onIncomingCall,

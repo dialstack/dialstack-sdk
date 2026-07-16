@@ -917,6 +917,16 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
   useEffect(() => {
     storageRef.current = storage;
   }, [storage]);
+  // `onTokenExpiring` is a host callback the phone invokes shortly before the
+  // token's exp to refresh it in-band (no reconnect). Passed inline its identity
+  // changes each render, so like the other non-credential options it must NOT be a
+  // connect-effect dep — a new identity would tear down and reconnect the socket.
+  // Read the latest through a ref and hand the phone a stable wrapper that always
+  // calls the freshest callback.
+  const onTokenExpiringRef = useRef(options.onTokenExpiring);
+  useEffect(() => {
+    onTokenExpiringRef.current = options.onTokenExpiring;
+  }, [options.onTokenExpiring]);
   useEffect(() => {
     if (!token) return;
     let disposed = false;
@@ -928,6 +938,13 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
       iceServers: iceServersRef.current,
       storage: storageRef.current,
       autoReconnect,
+      onTokenExpiring: onTokenExpiringRef.current
+        ? () => {
+            const cb = onTokenExpiringRef.current;
+            if (!cb) return Promise.reject(new Error('onTokenExpiring not set'));
+            return cb();
+          }
+        : undefined,
     });
     phoneRef.current = p;
 

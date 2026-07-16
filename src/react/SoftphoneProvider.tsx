@@ -63,6 +63,14 @@ export interface SoftphoneProviderProps {
   /** API base URL (defaults to the SDK's production endpoint). */
   apiBaseUrl?: string;
 
+  /**
+   * Called shortly before the session token expires (about 60 seconds ahead).
+   * Return a fresh token minted by your backend; the SDK delivers it in-band over
+   * the existing connection — no reconnect and no call disruption. If it rejects,
+   * the SDK keeps the (still-valid) connection open and surfaces an `error`.
+   */
+  onTokenExpiring?: () => Promise<string>;
+
   /** Override the ICE servers instead of fetching them from the API. */
   iceServers?: RTCIceServer[];
 
@@ -209,6 +217,7 @@ export const SoftphoneContext = createContext<SoftphoneContextValue | null>(null
 export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
   token,
   apiBaseUrl,
+  onTokenExpiring,
   iceServers,
   emergencyAddressId,
   autoConnect = true,
@@ -282,6 +291,7 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
   } = useCalls({
     token,
     apiBaseUrl,
+    onTokenExpiring,
     iceServers,
     emergencyAddressId,
     autoConnect,

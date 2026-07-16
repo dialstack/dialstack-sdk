@@ -1,16 +1,14 @@
 import { NextResponse } from 'next/server';
 
-export async function POST() {
+export async function POST(req: Request) {
   const apiBase = process.env.DIALSTACK_API_BASE_URL ?? 'https://api.dialstack.ai';
   const secretKey = process.env.DIALSTACK_SECRET_KEY;
-  const userId = process.env.DIALSTACK_USER_ID;
 
-  if (!secretKey || !userId) {
-    return NextResponse.json(
-      { error: 'Missing DIALSTACK_SECRET_KEY / DIALSTACK_USER_ID' },
-      { status: 500 },
-    );
+  if (!secretKey) {
+    return NextResponse.json({ error: 'Missing DIALSTACK_SECRET_KEY' }, { status: 500 });
   }
+
+  const { user } = (await req.json()) as { user?: string };
 
   const resp = await fetch(`${apiBase}/v1/user_sessions`, {
     method: 'POST',
@@ -18,7 +16,7 @@ export async function POST() {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${secretKey}`,
     },
-    body: JSON.stringify({ user: userId }),
+    body: JSON.stringify({ user }),
   });
 
   if (!resp.ok) {
@@ -26,10 +24,9 @@ export async function POST() {
     return NextResponse.json({ error: body }, { status: resp.status });
   }
 
-  const body = (await resp.json()) as { client_secret: string; expires_at: string };
+  const body = (await resp.json()) as { client_secret: string };
   return NextResponse.json({
     token: body.client_secret,
-    expiresAt: body.expires_at,
     apiBaseUrl: apiBase,
   });
 }
