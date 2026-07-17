@@ -211,6 +211,14 @@ export interface UseCallsResult {
   /** Select an already-saved address to present on the next (re)connect. */
   selectEmergencyAddress: (id: string) => void;
 
+  /**
+   * The emergency-address id the phone presents on authenticate (null if none).
+   * Distinguishes "this session bound the address" from "a saved address has a
+   * registered_ip from a past session" — the E911 gate is only satisfied for the
+   * former.
+   */
+  getPresentedEmergencyAddressId: () => string | null;
+
   /** Clear an address's network binding (registered_ip) so a reconnect re-binds. */
   clearEmergencyAddressRegisteredIp: (id: string) => Promise<void>;
 
@@ -869,6 +877,16 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
     phoneRef.current?.selectEmergencyAddress(id);
   }, []);
 
+  // The emergency-address id the phone presents in its authenticate frame. Used
+  // by useEmergencyBinding to distinguish "this session actually bound the
+  // address" from "a saved address merely has a registered_ip from a past
+  // session" — the two are not the same, and treating them as equal shows the
+  // E911 gate as satisfied while the server has bound nothing.
+  const getPresentedEmergencyAddressId = useCallback(
+    (): string | null => phoneRef.current?.presentedEmergencyAddressId ?? null,
+    []
+  );
+
   const clearEmergencyAddressRegisteredIp = useCallback(async (id: string): Promise<void> => {
     const phone = phoneRef.current;
     if (!phone) return;
@@ -1045,6 +1063,7 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
     listEmergencyAddresses,
     setEmergencyAddress,
     selectEmergencyAddress,
+    getPresentedEmergencyAddressId,
     clearEmergencyAddressRegisteredIp,
     reconnect,
   };

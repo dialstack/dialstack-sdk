@@ -78,7 +78,7 @@ land it in `node_modules`.
 
 The calling core hides its platform primitives behind a seam (`platform.ts` on
 web, `platform.native.ts` on RN). The SDK exposes a **`react-native` export
-condition** on `@dialstack/sdk/native` (and `/webrtc`, `/react/softphone`) that
+condition** on `@dialstack/sdk/native` (and `/webrtc`, `/react/core`) that
 points at a per-file native build (`dist/native/`), compiled with `tsc` so
 `platform.native.js` survives as a separate file — Metro's platform-extension
 resolution then picks the React Native primitives (`react-native-webrtc`,

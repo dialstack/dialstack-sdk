@@ -8,9 +8,8 @@
 
 import React, { useMemo, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
-import { dialPadKeys, softphoneDimensions as D } from '@dialstack/sdk/components/softphone-theme';
-import { softphoneGlyphs } from '@dialstack/sdk/components/softphone-icons';
-import { useDialInput, canPlaceCall, type Locale } from '@dialstack/sdk/react/softphone';
+import { dialPadKeys, softphoneDimensions as D, softphoneGlyphs } from '@dialstack/sdk/react/core';
+import { useDialInput, canPlaceCall, type Locale } from '@dialstack/sdk/react/core';
 import { useSoftphone, type ConnectionState } from '../SoftphoneProvider';
 import { EmergencyBanner } from './EmergencyBanner';
 import { CallErrorChip } from './CallErrorChip';

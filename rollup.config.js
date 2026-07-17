@@ -152,21 +152,22 @@ export default [
     ],
     plugins: browserPlugins({ bundleNodeModulesCss: true }),
   },
-  // Softphone hooks entry (shared web ↔ RN call-state brain — React + headless
-  // core only, NO web component graph, so it's safe to import from React
-  // Native). React is external: the consuming app (web or RN) provides it.
+  // Headless React core entry (`@dialstack/sdk/react/core`) — the shared web ↔ RN
+  // call-state brain: React + headless core only, NO web component graph, so it's
+  // safe to import from React Native. React is external: the consuming app
+  // (web or RN) provides it.
   {
-    input: 'src/react-softphone.ts',
+    input: 'src/react/core/index.ts',
     external: (id) => /^react(-dom)?$/.test(id),
     output: [
       {
-        file: 'dist/react-softphone.cjs',
+        file: 'dist/react-core.cjs',
         format: 'cjs',
         sourcemap: true,
         exports: 'named',
       },
       {
-        file: 'dist/react-softphone.mjs',
+        file: 'dist/react-core.mjs',
         format: 'esm',
         sourcemap: true,
       },

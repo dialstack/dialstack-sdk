@@ -23,8 +23,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { softphoneGlyphs } from '@dialstack/sdk/components/softphone-icons';
-import type { EmergencyAddressInput } from '@dialstack/sdk/webrtc';
+import {
+  softphoneGlyphs,
+  normalizeStateCode,
+  type EmergencyAddressInput,
+} from '@dialstack/sdk/react/core';
 import { useSoftphone } from '../SoftphoneProvider';
 import { Glyph, makeStyles } from './primitives';
 
@@ -80,7 +83,7 @@ export function EmergencyBanner(): React.JSX.Element | null {
 
   const submit = () => {
     void emergency
-      .create({ ...form, unit: form.unit || undefined })
+      .create({ ...form, state: normalizeStateCode(form.state), unit: form.unit || undefined })
       .then(closeModal)
       .catch(() => undefined);
   };

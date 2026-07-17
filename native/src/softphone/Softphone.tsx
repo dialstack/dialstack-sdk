@@ -17,7 +17,7 @@
 
 import React, { useContext, useMemo } from 'react';
 import { useWindowDimensions, View } from 'react-native';
-import { selectLayout } from '@dialstack/sdk/react/softphone';
+import { selectLayout } from '@dialstack/sdk/react/core';
 import { SoftphoneContext, useSoftphone } from '../SoftphoneProvider';
 import { DialPad } from './DialPad';
 import { IncomingCall, IncomingStack } from './IncomingCall';

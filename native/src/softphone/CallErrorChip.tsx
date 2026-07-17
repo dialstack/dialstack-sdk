@@ -8,7 +8,7 @@
 
 import React, { useMemo } from 'react';
 import { Pressable, Text } from 'react-native';
-import { errorMessageKey } from '@dialstack/sdk/react/softphone';
+import { errorMessageKey } from '@dialstack/sdk/react/core';
 import { useSoftphone } from '../SoftphoneProvider';
 import { makeStyles } from './primitives';
 

@@ -144,6 +144,11 @@ export class DialStackPhone {
   private tokenRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingRefresh: { reqId: string; token: string; settle: () => void } | null = null;
   private emergencyAddressId: string | null;
+  // The emergency-address id actually sent in the CURRENT socket's authenticate
+  // frame — latched in transport.on('open'), NOT the mutable selection above.
+  // The E911 gate keys off this so "presented this session" means what the live
+  // socket carried, not what happens to be selected right now.
+  private presentedEmergencyAddressId_: string | null = null;
   // User id (token `sub` claim) used to namespace localStorage persistence.
   // null when the token can't be decoded — persistence is then disabled and
   // the app must supply PhoneOptions.emergencyAddressId itself.
@@ -202,6 +207,9 @@ export class DialStackPhone {
 
     transport.on('open', () => {
       if (!isCurrent()) return;
+      // Snapshot the id we actually present, so presentedEmergencyAddressId
+      // reflects this socket's frame rather than a later selection change.
+      this.presentedEmergencyAddressId_ = this.emergencyAddressId;
       transport.send({
         type: 'authenticate',
         token: this.token,
@@ -480,6 +488,16 @@ export class DialStackPhone {
   selectEmergencyAddress(id: string): void {
     this.emergencyAddressId = id;
     persistEmergencyAddressId(this.storage, this.storageUserId, id);
+  }
+
+  /**
+   * The emergency-address id actually sent in the CURRENT socket's authenticate
+   * frame (latched at send time), or null. This is what the E911 gate keys off —
+   * a saved address's `registered_ip`, or a selection made without a reconnect,
+   * does NOT mean this session bound it.
+   */
+  get presentedEmergencyAddressId(): string | null {
+    return this.presentedEmergencyAddressId_;
   }
 
   /** Fetch a saved emergency address (defaults to the one this phone uses). */

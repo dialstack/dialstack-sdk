@@ -9,8 +9,11 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { softphoneDimensions as D, type SoftphonePalette } from '@dialstack/sdk/components/softphone-theme';
-import type { SoftphoneGlyph } from '@dialstack/sdk/components/softphone-icons';
+import {
+  softphoneDimensions as D,
+  type SoftphonePalette,
+  type SoftphoneGlyph,
+} from '@dialstack/sdk/react/core';
 
 /** Renders a shared softphone glyph as an SVG path, matching the web <Glyph>. */
 export function Glyph({

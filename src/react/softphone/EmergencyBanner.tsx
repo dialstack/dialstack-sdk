@@ -16,6 +16,7 @@
 import React, { useState } from 'react';
 import { useSoftphone } from '../SoftphoneProvider';
 import { softphoneGlyphs } from '../../components/softphone-icons';
+import { normalizeStateCode } from '../../components/emergency-address-form';
 import { Glyph } from './Glyph';
 import type { EmergencyAddressInput } from '../../webrtc';
 
@@ -55,7 +56,7 @@ export function EmergencyBanner(): React.JSX.Element | null {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     void emergency
-      .create({ ...form, unit: form.unit || undefined })
+      .create({ ...form, state: normalizeStateCode(form.state), unit: form.unit || undefined })
       .then(() => {
         setExpanded(false);
         setAddingNew(false);

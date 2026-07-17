@@ -2,8 +2,10 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { useEmergencyBinding, type UseEmergencyBindingDeps } from '../useEmergencyBinding';
 import type { EmergencyAddress } from '../../../webrtc';
 
-// `registered_ip` null = never anchored (present + reconnect); non-null =
-// already bound this network (short-circuit to bound).
+// `registered_ip` null = never anchored (present + reconnect); non-null = anchored
+// in some session. The short-circuit-to-bound also requires that THIS session
+// presented the id (getPresentedAddressId matches) — registered_ip alone is not
+// proof this connection is bound.
 function addr(id: string, registered_ip: string | null = null): EmergencyAddress {
   return { id, registered_ip } as unknown as EmergencyAddress;
 }
@@ -16,6 +18,7 @@ function makeDeps(over: Partial<UseEmergencyBindingDeps> = {}): {
     list: jest.Mock;
     save: jest.Mock;
     select: jest.Mock;
+    getPresentedAddressId: jest.Mock;
     clearRegisteredIp: jest.Mock;
     reconnect: jest.Mock;
   };
@@ -24,6 +27,10 @@ function makeDeps(over: Partial<UseEmergencyBindingDeps> = {}): {
     list: jest.fn().mockResolvedValue([addr('ea_1')]),
     save: jest.fn().mockResolvedValue(addr('ea_new')),
     select: jest.fn(),
+    // Default: the phone presented nothing this session (fresh install / pasted
+    // token). Tests exercising the same-network short-circuit override this to
+    // return the anchored address id.
+    getPresentedAddressId: jest.fn().mockReturnValue(null),
     clearRegisteredIp: jest.fn().mockResolvedValue(undefined),
     reconnect: jest.fn().mockResolvedValue(undefined),
   };
@@ -86,19 +93,73 @@ describe('useEmergencyBinding identity reset', () => {
     expect(spies.select).not.toHaveBeenCalledWith('ea_1');
   });
 
-  it('short-circuits to bound for an already-anchored address (no reconnect)', async () => {
-    // An address with a non-null registered_ip is already bound for this network
-    // (the phone re-presented its persisted id at authenticate on connect). It
-    // must be treated as bound WITHOUT a reconnect — reconnecting an already-bound
-    // address comes back denied and the banner would never clear (the regression).
+  it('short-circuits to bound for an anchored address the phone presented this session (no reconnect)', async () => {
+    // Anchored (registered_ip set) AND presented on this socket's authenticate →
+    // the server has re-bound it. Treat as bound WITHOUT a reconnect —
+    // reconnecting an already-bound address comes back denied and the banner
+    // would never clear (the original regression this short-circuit guards).
     const { deps, spies } = makeDeps({
       list: jest.fn().mockResolvedValue([addr('ea_1', '203.0.113.7')]),
+      getPresentedAddressId: jest.fn().mockReturnValue('ea_1'),
     });
     const { result } = renderHook(() => useEmergencyBinding(deps));
 
     await waitFor(() => expect(result.current.bound).toBe(true));
     expect(spies.reconnect).not.toHaveBeenCalled();
     expect(spies.select).not.toHaveBeenCalled();
+  });
+
+  it('short-circuits to bound off the PRESENTED address, not addrs[0], for a multi-address user', async () => {
+    // A user with several saved addresses whose presented id is NOT the first in
+    // the list. Pinning the "bound this session?" check to addrs[0] would ignore
+    // the actually-presented (anchored) address and force-reconnect onto addrs[0]
+    // — the wrong address. Match on the presented id wherever it sits in the list.
+    const { deps, spies } = makeDeps({
+      list: jest.fn().mockResolvedValue([addr('ea_first'), addr('ea_2', '203.0.113.7')]),
+      getPresentedAddressId: jest.fn().mockReturnValue('ea_2'),
+    });
+    const { result } = renderHook(() => useEmergencyBinding(deps));
+
+    await waitFor(() => expect(result.current.bound).toBe(true));
+    expect(spies.reconnect).not.toHaveBeenCalled();
+    expect(spies.select).not.toHaveBeenCalled();
+  });
+
+  it('does not clobber a bound older selection with addrs[0] when it is unanchored', async () => {
+    // addrs is newest-first: addrs[0] is a newly-saved office address (unanchored),
+    // but the persisted/presented selection is the older, genuinely-bound home
+    // address. Resolving `active` off addrs[0] would select()+reconnect onto the
+    // office address, dropping the working home binding. Resolve off the presented
+    // id instead: home is presented AND anchored → stay bound, no reconnect.
+    const { deps, spies } = makeDeps({
+      list: jest.fn().mockResolvedValue([addr('ea_office'), addr('ea_home', '203.0.113.7')]),
+      getPresentedAddressId: jest.fn().mockReturnValue('ea_home'),
+    });
+    const { result } = renderHook(() => useEmergencyBinding(deps));
+
+    await waitFor(() => expect(result.current.bound).toBe(true));
+    expect(spies.reconnect).not.toHaveBeenCalled();
+    expect(spies.select).not.toHaveBeenCalled();
+  });
+
+  it('does NOT trust registered_ip when the phone presented no address this session', async () => {
+    // The bug: a saved address has registered_ip from a PAST session, but this
+    // session presented nothing (fresh install / pasted token / no persisted id),
+    // so the server bound nothing. Trusting registered_ip alone would mark the
+    // gate satisfied while outbound PSTN is silently blocked server-side. Instead
+    // the hook must present the address (select + reconnect) so the server binds
+    // it to THIS connection — and must not report bound off the stale anchor.
+    const { deps, spies } = makeDeps({
+      list: jest.fn().mockResolvedValue([addr('ea_1', '203.0.113.7')]),
+      getPresentedAddressId: jest.fn().mockReturnValue(null), // presented nothing
+    });
+    const { result } = renderHook(() => useEmergencyBinding(deps));
+
+    // It presents the saved address to bind it to this session, rather than
+    // short-circuiting to bound off the stale registered_ip.
+    await waitFor(() => expect(spies.select).toHaveBeenCalledWith('ea_1'));
+    expect(spies.reconnect).toHaveBeenCalled();
+    expect(result.current.bound).toBe(false);
   });
 
   it('does not mark bound optimistically on create — the server decides', async () => {

@@ -11,10 +11,9 @@
 
 import React, { useMemo } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { softphoneDimensions as D } from '@dialstack/sdk/components/softphone-theme';
-import { softphoneGlyphs } from '@dialstack/sdk/components/softphone-icons';
-import { callPeerName, callPeerNumber } from '@dialstack/sdk/react/softphone';
-import type { Call } from '@dialstack/sdk/webrtc';
+import { softphoneDimensions as D, softphoneGlyphs } from '@dialstack/sdk/react/core';
+import { callPeerName, callPeerNumber } from '@dialstack/sdk/react/core';
+import type { Call } from '@dialstack/sdk/react/core';
 import { useSoftphone } from '../SoftphoneProvider';
 import { Glyph, makeStyles } from './primitives';
 

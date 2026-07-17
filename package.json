@@ -48,11 +48,11 @@
       "require": "./dist/onboarding.cjs",
       "types": "./dist/onboarding.d.ts"
     },
-    "./react/softphone": {
-      "react-native": "./dist/native/react-softphone.js",
-      "import": "./dist/react-softphone.mjs",
-      "require": "./dist/react-softphone.cjs",
-      "types": "./dist/react-softphone.d.ts"
+    "./react/core": {
+      "react-native": "./dist/native/react/core/index.js",
+      "import": "./dist/react-core.mjs",
+      "require": "./dist/react-core.cjs",
+      "types": "./dist/react/core/index.d.ts"
     },
     "./components/softphone-theme": {
       "import": "./dist/softphone-theme.mjs",

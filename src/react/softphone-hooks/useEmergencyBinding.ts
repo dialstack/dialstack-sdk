@@ -38,6 +38,13 @@ export interface UseEmergencyBindingDeps {
   list: () => Promise<EmergencyAddress[]>;
   save: (input: EmergencyAddressInput) => Promise<EmergencyAddress>;
   select: (id: string) => void;
+  /**
+   * The emergency-address id the phone presented on the CURRENT socket's
+   * authenticate (null if none). A saved address's `registered_ip` proves it was
+   * bound in *some* session, not this one — only a match here means the server
+   * bound it for the live connection.
+   */
+  getPresentedAddressId: () => string | null;
   clearRegisteredIp: (id: string) => Promise<void>;
   reconnect: () => Promise<void>;
 }
@@ -109,8 +116,17 @@ async function withRebindTimeout(
 }
 
 export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergencyBinding {
-  const { disabled, connection, identityKey, list, save, select, clearRegisteredIp, reconnect } =
-    deps;
+  const {
+    disabled,
+    connection,
+    identityKey,
+    list,
+    save,
+    select,
+    getPresentedAddressId,
+    clearRegisteredIp,
+    reconnect,
+  } = deps;
   const [loading, setLoading] = useState(!disabled);
   const [bound, setBound] = useState(false);
   const [denied, setDenied] = useState(false);
@@ -143,9 +159,9 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
   );
 
   // Latest deps via refs so the connect effect doesn't churn on identity changes.
-  const fns = useRef({ list, select, reconnect });
+  const fns = useRef({ list, select, reconnect, getPresentedAddressId });
   useEffect(() => {
-    fns.current = { list, select, reconnect };
+    fns.current = { list, select, reconnect, getPresentedAddressId };
   });
   // Guard so we auto-adopt at most once per connected session (no reconnect loop).
   const autoAdoptedRef = useRef(false);
@@ -199,7 +215,14 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
         const addrs = await fns.current.list();
         if (cancelled) return;
         setSavedAddresses(addrs);
-        const active = addrs[0] ?? null;
+        // Resolve the "active" address by the id the phone actually presented this
+        // session, NOT addrs[0]. addrs is ORDER BY id DESC (newest first), but the
+        // presented/persisted id is often an older one; pinning to addrs[0] would
+        // both mis-judge boundness and, on reconnect, clobber the user's selection
+        // with a different address. Fall back to addrs[0] only when nothing was
+        // presented (fresh install / pasted token / no persisted id).
+        const presentedId = fns.current.getPresentedAddressId();
+        const active = addrs.find((a) => a.id === presentedId) ?? addrs[0] ?? null;
         if (!active) {
           // Nothing saved → must collect an address.
           setBound(false);
@@ -207,18 +230,32 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
         }
         if (!autoAdoptedRef.current && !denied) {
           autoAdoptedRef.current = true;
-          if (active.registered_ip != null) {
-            // Already anchored to a network. The phone persists the emergency
-            // address id and presents it in the authenticate frame on THIS
-            // socket's connect, so a same-network (re)connect has already re-bound
-            // it server-side — treat it as bound without a redundant reconnect
-            // (which would drop the registration and, for an already-bound
-            // address, come back denied → the banner would never clear). A moved
-            // network arrives as network.changed → denied instead.
+          // This shortcut has oscillated — do NOT "simplify" it to either extreme
+          // without reading both prior regressions; the two failure modes oppose:
+          //   - Always present+reconnect: an address genuinely bound this session
+          //     gets its registration dropped by the reconnect and comes back
+          //     denied → banner never clears (the "already-anchored → bound"
+          //     regression).
+          //   - Trust `registered_ip` alone → bound: an address bound in a PAST
+          //     session (registered_ip set) but NOT presented on THIS socket means
+          //     the server bound nothing this session, yet the gate shows green
+          //     while outbound PSTN is silently blocked (the stale-anchor bug).
+          // `registered_ip` alone can't tell these apart. The discriminator is
+          // whether the phone actually presented THIS id in the CURRENT socket's
+          // authenticate frame — that's when the server (re)binds.
+          const presentedThisSession = presentedId != null && presentedId === active.id;
+          if (presentedThisSession && active.registered_ip != null) {
+            // Presented on this socket AND anchored → server has re-bound it (same
+            // network); treat as bound without a redundant reconnect (which would
+            // drop the registration and come back denied). A moved network arrives
+            // as network.changed → denied instead.
             setBound(true);
           } else {
-            // Never anchored: present the saved address and let the server decide
-            // (same-network → bound; moved → network.changed → denied). One-shot.
+            // Nothing bound for this session: present the selected/default address
+            // so the server binds it to THIS connection, then let it decide
+            // (same-network → bound; moved → network.changed → denied). select()
+            // persists the id so the reconnect's authenticate carries it; the
+            // autoAdoptedRef one-shot prevents a loop.
             fns.current.select(active.id);
             await fns.current.reconnect();
             return; // the reconnect drives a fresh 'connected' → effect re-runs

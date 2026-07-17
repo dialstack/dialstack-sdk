@@ -20,8 +20,9 @@
     "types": []
   },
   "include": [
-    "src/react-softphone.ts",
+    "src/react/core/**/*",
     "src/react/softphone-hooks/**/*",
+    "src/react/softphone-provider/**/*",
     "src/webrtc/**/*",
     "src/components/softphone-view-model.ts",
     "src/components/softphone-theme.ts",

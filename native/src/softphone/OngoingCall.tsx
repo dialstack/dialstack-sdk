@@ -9,16 +9,15 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
-import type { Call, CallState } from '@dialstack/sdk/webrtc';
+import type { Call, CallState } from '@dialstack/sdk/react/core';
 import {
   callPeerNumber,
   callPeerName,
   callStateLabelKey,
   isCallActive,
   useDialInput,
-} from '@dialstack/sdk/react/softphone';
-import { dialPadKeys, softphoneDimensions as D } from '@dialstack/sdk/components/softphone-theme';
-import { softphoneGlyphs } from '@dialstack/sdk/components/softphone-icons';
+} from '@dialstack/sdk/react/core';
+import { dialPadKeys, softphoneDimensions as D, softphoneGlyphs } from '@dialstack/sdk/react/core';
 import { useSoftphone } from '../SoftphoneProvider';
 import { CallErrorChip } from './CallErrorChip';
 import { Glyph, ControlButton, chunk, makeStyles } from './primitives';
