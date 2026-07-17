@@ -216,6 +216,12 @@ export interface AccountPricing {
  * events from live accounts; one created with a test key only receives events
  * from sandbox accounts. The signing `secret` is returned only when the
  * endpoint is created.
+ *
+ * Endpoints are platform-global by default (they receive every account's events
+ * for their mode). To manage a single account's scoped endpoints instead, set
+ * `dialstackAccount` (the `DialStack-Account` header) on the client or request;
+ * that account's events are then delivered to its scoped endpoints in addition
+ * to the platform-global ones.
  */
 export interface WebhookEndpoint {
   id: string;
