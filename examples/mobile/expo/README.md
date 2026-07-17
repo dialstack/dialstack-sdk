@@ -76,16 +76,17 @@ pinned with a `file:../../` specifier and installed as a **copy** (via
 `install-links` in `.npmrc`), just like an `npm install @dialstack/sdk` would
 land it in `node_modules`.
 
-The calling core hides its platform primitives behind a seam (`platform.ts` on
-web, `platform.native.ts` on RN). The SDK exposes a **`react-native` export
-condition** on `@dialstack/sdk/native` (and `/webrtc`, `/react/core`) that
-points at a per-file native build (`dist/native/`), compiled with `tsc` so
-`platform.native.js` survives as a separate file — Metro's platform-extension
-resolution then picks the React Native primitives (`react-native-webrtc`,
-`react-native-incall-manager`) instead of the browser ones. Persistence is not
-one of them: the SDK takes no storage dependency and the host injects it (see
-[Storage](#storage-required)). That's why this example works without reaching
-into SDK source, and why the SDK must be built (step 1) before installing.
+The calling core is written to the **standard browser WebRTC surface**
+(`RTCPeerConnection`, `MediaStream`, `navigator.mediaDevices`). On React Native
+those globals don't exist until `registerGlobals()` from react-native-webrtc runs
+— this example calls it in `index.js`, before anything imports the SDK, so the
+core's WebRTC calls resolve to the RN implementations. The two RN-only gaps are
+injected by the softphone provider, not baked into the core: outbound **ringback**
+(an InCallManager-backed tone, since WebAudio's `AudioContext` doesn't exist on
+RN) and **persistence** (the SDK takes no storage dependency; the host supplies a
+`storage` adapter — see [Storage](#storage-required)). That's why this example
+works without reaching into SDK source, and why the SDK must be built (step 1)
+before installing.
 
 ## Storage (required)
 

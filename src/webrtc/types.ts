@@ -1,4 +1,6 @@
 import type { PlatformStorage } from './platform';
+import type { Ringback } from './ringback';
+import type { SignalingSocketFactory } from './transport';
 
 export type CallState = 'trying' | 'ringing' | 'active' | 'held' | 'ended';
 export type CallDirection = 'inbound' | 'outbound';
@@ -44,6 +46,21 @@ export interface PhoneOptions {
    * takes no persistence dependency of its own.
    */
   storage?: PlatformStorage;
+  /**
+   * Outbound ringback tone. Defaults to the WebAudio `RingbackTone`. React Native
+   * has no `AudioContext`, so the RN softphone provider supplies an
+   * `InCallManager`-backed implementation here. One instance is shared across
+   * calls (outbound ringback plays one call at a time).
+   */
+  ringback?: Ringback;
+  /**
+   * Opens the signaling WebSocket. Defaults to a bare `new WebSocket(url,
+   * protocols)`. React Native supplies a variant that attaches a `User-Agent`
+   * header (the signaling ingress 403s a handshake without one, and iOS's
+   * WebSocket sends none by default); browsers forbid overriding it, so web uses
+   * the default.
+   */
+  createSignalingSocket?: SignalingSocketFactory;
 }
 
 /**

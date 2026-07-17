@@ -49,7 +49,6 @@
       "types": "./dist/onboarding.d.ts"
     },
     "./react/core": {
-      "react-native": "./dist/native/react/core/index.js",
       "import": "./dist/react-core.mjs",
       "require": "./dist/react-core.cjs",
       "types": "./dist/react/core/index.d.ts"
@@ -70,7 +69,6 @@
       "types": "./dist/server/index.d.ts"
     },
     "./webrtc": {
-      "react-native": "./dist/native/webrtc/index.js",
       "import": "./dist/webrtc.mjs",
       "require": "./dist/webrtc.cjs",
       "types": "./dist/webrtc/index.d.ts"
@@ -80,8 +78,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "rollup -c && npm run build:native",
-    "build:native": "tsc -p tsconfig.native.json",
+    "build": "rollup -c",
     "dev": "rollup -c -w",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
@@ -156,9 +153,6 @@
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
     "prettier": "^3.9.5",
-    "react-native": "^0.86.0",
-    "react-native-incall-manager": "^4.2.1",
-    "react-native-webrtc": "^124.0.7",
     "rollup": "^4.62.2",
     "storybook": "^10.2.13",
     "ts-jest": "^29.4.9",

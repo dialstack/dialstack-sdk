@@ -907,6 +907,8 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
     iceServers,
     autoReconnect,
     storage,
+    ringback,
+    createSignalingSocket,
   } = options;
   // The emergency-address id is a per-outbound-PSTN-call concern, NOT a
   // connection credential — the phone loads it from localStorage on construct
@@ -935,6 +937,20 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
   useEffect(() => {
     storageRef.current = storage;
   }, [storage]);
+  // `ringback` is the platform's outbound-ringback tone (WebAudio default on web;
+  // InCallManager-backed on React Native). Non-credential, so read at construct
+  // time through a ref like `storage`, keeping it out of the connect deps.
+  const ringbackRef = useRef(ringback);
+  useEffect(() => {
+    ringbackRef.current = ringback;
+  }, [ringback]);
+  // `createSignalingSocket` is the platform's WebSocket opener (bare on web; a
+  // User-Agent-attaching variant on React Native). Non-credential, read through a
+  // ref at construct time like `storage`/`ringback`, out of the connect deps.
+  const createSignalingSocketRef = useRef(createSignalingSocket);
+  useEffect(() => {
+    createSignalingSocketRef.current = createSignalingSocket;
+  }, [createSignalingSocket]);
   // `onTokenExpiring` is a host callback the phone invokes shortly before the
   // token's exp to refresh it in-band (no reconnect). Passed inline its identity
   // changes each render, so like the other non-credential options it must NOT be a
@@ -955,6 +971,8 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
       emergencyAddressId: emergencyAddressIdRef.current,
       iceServers: iceServersRef.current,
       storage: storageRef.current,
+      ringback: ringbackRef.current,
+      createSignalingSocket: createSignalingSocketRef.current,
       autoReconnect,
       onTokenExpiring: onTokenExpiringRef.current
         ? () => {

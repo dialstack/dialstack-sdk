@@ -19,7 +19,20 @@ function resolveAudioContext(): AudioContextConstructor | null {
   return (Ctor as AudioContextConstructor | undefined) ?? null;
 }
 
-export class RingbackTone {
+/**
+ * Outbound ringback contract the call core drives. The core never guards the
+ * call site, so implementations must be idempotent and no-op silently when their
+ * audio backend is unavailable. Web is `RingbackTone` (WebAudio); React Native
+ * supplies its own (InCallManager-backed) via `PhoneOptions.ringback`, because
+ * WebAudio's `AudioContext` doesn't exist there.
+ */
+export interface Ringback {
+  readonly isPlaying: boolean;
+  start(): void;
+  stop(): void;
+}
+
+export class RingbackTone implements Ringback {
   private ctx: AudioContext | null = null;
   private gain: GainNode | null = null;
   private oscillators: OscillatorNode[] = [];

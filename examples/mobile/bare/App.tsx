@@ -3,10 +3,12 @@
  *
  * This is the sibling of the Expo example. Its whole purpose is to prove that
  * `@dialstack/sdk-native` works in a plain, bare React Native app — where Metro
- * does NOT transpile `node_modules` — using the pre-compiled native builds of
- * both `@dialstack/sdk-native` and the `@dialstack/sdk` core it depends on. It
- * wires nothing special in Metro or tsconfig; the packages resolve exactly as
- * they would after `npm install` from npm.
+ * does NOT transpile `node_modules` — using the pre-compiled builds of both
+ * `@dialstack/sdk-native` and the `@dialstack/sdk` core it depends on. The core
+ * is written to the standard WebRTC surface; `registerGlobals()` (called in
+ * `index.js`) installs react-native-webrtc's globals so that surface exists at
+ * runtime. It wires nothing special in Metro or tsconfig; the packages resolve
+ * exactly as they would after `npm install` from npm.
  *
  * Foreground calling only (same scope as the Expo example): backgrounded /
  * locked-screen incoming calls need native call UI + a push wake-up path

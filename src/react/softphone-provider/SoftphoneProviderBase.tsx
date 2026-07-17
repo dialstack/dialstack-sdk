@@ -67,6 +67,8 @@ export interface SoftphoneCoreProps {
   onTokenExpiring?: () => Promise<string>;
   iceServers?: UseCallsOptions['iceServers'];
   storage?: PlatformStorage;
+  ringback?: UseCallsOptions['ringback'];
+  createSignalingSocket?: UseCallsOptions['createSignalingSocket'];
   emergencyAddressId?: string;
   autoConnect?: boolean;
   appearance?: AppearanceOptions;
@@ -108,6 +110,8 @@ export function SoftphoneProviderBase<Extra extends object>({
   onTokenExpiring,
   iceServers,
   storage,
+  ringback,
+  createSignalingSocket,
   emergencyAddressId,
   autoConnect = true,
   appearance,
@@ -163,6 +167,8 @@ export function SoftphoneProviderBase<Extra extends object>({
     onTokenExpiring,
     iceServers,
     storage,
+    ringback,
+    createSignalingSocket,
     emergencyAddressId,
     autoConnect,
     onIncomingCall,

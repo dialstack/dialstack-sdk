@@ -1,7 +1,18 @@
 import { PhoneError } from './errors';
 import { logError } from './logger';
-import { createSignalingSocket } from './platform';
 import type { ClientMessage, ServerMessage } from './types';
+
+/**
+ * Opens the signaling WebSocket. Defaults to a bare `new WebSocket(url,
+ * protocols)` (web). React Native needs a variant that attaches a `User-Agent`
+ * header — the signaling ingress 403s a handshake without one, and iOS's
+ * WebSocket sends none by default — so the RN softphone provider supplies its
+ * own factory here. Browsers forbid overriding `User-Agent`, so web never does.
+ */
+export type SignalingSocketFactory = (url: string, protocols: string[]) => WebSocket;
+
+const defaultSignalingSocket: SignalingSocketFactory = (url, protocols) =>
+  new WebSocket(url, protocols);
 
 const BACKOFF_STEPS_MS = [1000, 2000, 4000, 8000, 16000, 30000];
 
@@ -26,14 +37,16 @@ export class Transport {
   private reconnectAttempts = 0;
   private closedByUser = false;
   private autoReconnect: boolean;
+  private createSocket: SignalingSocketFactory;
   // Set when the server sends a terminal fatal error (session_revoked):
   // the token is dead server-side, so reconnecting with it can only
   // fail. Suppresses auto-reconnect on the subsequent close.
   private terminalError: PhoneError | null = null;
 
-  constructor(url: string, autoReconnect: boolean) {
+  constructor(url: string, autoReconnect: boolean, createSocket?: SignalingSocketFactory) {
     this.url = url;
     this.autoReconnect = autoReconnect;
+    this.createSocket = createSocket ?? defaultSignalingSocket;
   }
 
   on<E extends keyof TransportEvents>(event: E, handler: TransportEvents[E]): void {
@@ -83,7 +96,7 @@ export class Transport {
   }
 
   private openSocket(): void {
-    const ws = createSignalingSocket(this.url, ['dialstack.webrtc.v1']);
+    const ws = this.createSocket(this.url, ['dialstack.webrtc.v1']);
     this.ws = ws;
 
     ws.addEventListener('open', () => {

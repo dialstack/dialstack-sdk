@@ -84,12 +84,18 @@ export type { SoftphoneGlyph } from '../../components/softphone-icons';
 // Shared emergency-address form helpers (pure — no DOM/RN).
 export { normalizeStateCode } from '../../components/emergency-address-form';
 
-// Headless WebRTC-core types the softphone UI needs. `PlatformStorage` and
-// `EmergencyAddressInput` are also needed by the native provider/host adapters.
+// Headless WebRTC-core types the softphone UI needs. `PlatformStorage`,
+// `EmergencyAddressInput`, `Ringback`, and `SignalingSocketFactory` are also
+// needed by the native provider/host adapters (the RN provider supplies an
+// InCallManager-backed `Ringback` and a User-Agent-attaching signaling socket,
+// because WebAudio's `AudioContext` doesn't exist on RN and iOS's WebSocket
+// sends no `User-Agent`).
 export type {
   Call,
   CallState,
   CallEndReason,
   EmergencyAddressInput,
   PlatformStorage,
+  Ringback,
+  SignalingSocketFactory,
 } from '../../webrtc';

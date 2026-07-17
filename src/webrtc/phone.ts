@@ -5,7 +5,8 @@ import { logError } from './logger';
 import { storage as defaultStorage } from './platform';
 import type { PlatformStorage } from './platform';
 import type { RTCIceServer, RTCSessionDescriptionInit } from './platform';
-import { Transport } from './transport';
+import type { Ringback } from './ringback';
+import { Transport, type SignalingSocketFactory } from './transport';
 import type {
   EmergencyAddress,
   EmergencyAddressInput,
@@ -126,6 +127,12 @@ export class DialStackPhone {
   // expires (the server evicts with a fatal auth_expired and the app must
   // reconnect with a new token).
   private onTokenExpiring: (() => Promise<string>) | null;
+  // Shared outbound ringback threaded into each Call (see PhoneOptions.ringback).
+  // null → Call falls back to its default WebAudio RingbackTone.
+  private ringback: Ringback | null;
+  // Signaling-socket factory passed to Transport (see
+  // PhoneOptions.createSignalingSocket). null → Transport opens a bare WebSocket.
+  private createSignalingSocket: SignalingSocketFactory | null;
 
   private transport: Transport | null = null;
   private iceServers: RTCIceServer[] = [];
@@ -170,6 +177,8 @@ export class DialStackPhone {
     this.emergencyAddressId =
       options.emergencyAddressId ?? loadStoredEmergencyAddressId(this.storage, this.storageUserId);
     this.onTokenExpiring = options.onTokenExpiring ?? null;
+    this.ringback = options.ringback ?? null;
+    this.createSignalingSocket = options.createSignalingSocket ?? null;
   }
 
   on<K extends keyof PhoneEventMap>(event: K, handler: Listener<K>): void {
@@ -195,7 +204,11 @@ export class DialStackPhone {
 
     this.iceServers = this.iceServersOverride ?? (await this.fetchIceServers());
 
-    const transport = new Transport(this.signalingUrl, this.autoReconnect);
+    const transport = new Transport(
+      this.signalingUrl,
+      this.autoReconnect,
+      this.createSignalingSocket ?? undefined
+    );
     this.transport = transport;
 
     // A superseded transport (after disconnect()/reconnect() swapped in a new
@@ -368,6 +381,7 @@ export class DialStackPhone {
       transport: this.transport,
       iceServers: this.iceServers,
       startConsult: (p, d) => this.startConsult(p, d),
+      ringback: this.ringback ?? undefined,
     });
 
     // startOutbound acquires the mic (getUserMedia) internally and gathers ICE
@@ -909,6 +923,7 @@ export class DialStackPhone {
       transport: this.transport!,
       iceServers: this.iceServers,
       startConsult: (p, d) => this.startConsult(p, d),
+      ringback: this.ringback ?? undefined,
     });
     // Register the Call synchronously so the sdp.offer + ICE the server sends
     // immediately after call.incoming are routed to it, not dropped via

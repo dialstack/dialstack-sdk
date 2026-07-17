@@ -25,11 +25,69 @@ import {
   type CallEndReason,
   type EmergencyAddressInput,
   type PlatformStorage,
+  type Ringback,
+  type SignalingSocketFactory,
 } from '@dialstack/sdk/react/core';
 
 // Derive the appearance type from the theme resolver rather than importing it
 // from the SDK root (which would pull the web component graph into RN).
 type AppearanceOptions = Parameters<typeof resolveSoftphonePalette>[0];
+
+/**
+ * Outbound ringback for React Native. WebAudio's `AudioContext` (the web core's
+ * default `RingbackTone`) doesn't exist on RN, so the synthetic tone is produced
+ * by react-native-incall-manager instead. Supplied to the core via
+ * `PhoneOptions.ringback`. Every call is guarded so a missing/older InCallManager
+ * degrades to a silent no-op rather than throwing — the core (call.ts) never
+ * guards the call site. Stateless beyond `playing`, so one shared instance backs
+ * every call (outbound ringback plays one call at a time).
+ */
+class InCallManagerRingback implements Ringback {
+  private playing = false;
+
+  get isPlaying(): boolean {
+    return this.playing;
+  }
+
+  start(): void {
+    if (this.playing) return;
+    try {
+      InCallManager.startRingback('_DTMF_');
+      this.playing = true;
+    } catch {
+      // No InCallManager / unsupported — ringback is best-effort.
+    }
+  }
+
+  stop(): void {
+    if (!this.playing) return;
+    this.playing = false;
+    try {
+      InCallManager.stopRingback();
+    } catch {
+      // Best-effort.
+    }
+  }
+}
+
+// One shared instance backs every call — see the class doc above.
+const nativeRingback: Ringback = new InCallManagerRingback();
+
+// The signaling ingress 403s a handshake with no `User-Agent`. iOS's WebSocket
+// (SocketRocket) sends none by default, so we set one explicitly. RN's WebSocket
+// takes a third `options` arg the DOM type doesn't declare; hence the cast.
+const NATIVE_USER_AGENT = 'dialstack-sdk (react-native)';
+
+const nativeSignalingSocket: SignalingSocketFactory = (url, protocols) => {
+  const RNWebSocket = globalThis.WebSocket as unknown as new (
+    url: string,
+    protocols: string[],
+    options: { headers: Record<string, string> }
+  ) => WebSocket;
+  return new RNWebSocket(url, protocols, {
+    headers: { 'User-Agent': NATIVE_USER_AGENT },
+  });
+};
 
 export type ConnectionState = SoftphoneConnectionState;
 
@@ -135,6 +193,8 @@ export function SoftphoneProvider({
     <SoftphoneProviderBase
       token={token}
       storage={storage}
+      ringback={nativeRingback}
+      createSignalingSocket={nativeSignalingSocket}
       apiBaseUrl={apiBaseUrl}
       onTokenExpiring={onTokenExpiring}
       emergencyAddressId={emergencyAddressId}

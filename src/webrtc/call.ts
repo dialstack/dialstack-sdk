@@ -1,5 +1,6 @@
 import { PhoneError } from './errors';
-import { Ringback, createMediaStream, createPeerConnection, getUserMedia } from './platform';
+import { createMediaStream, createPeerConnection, getUserMedia } from './platform';
+import { RingbackTone, type Ringback } from './ringback';
 import type {
   MediaStream,
   RTCDTMFSender,
@@ -42,6 +43,10 @@ export interface CallInit {
   // (the Call can't construct sibling Calls itself — registration, ICE
   // servers, and pending-call resolution live on DialStackPhone).
   startConsult: (parent: Call, destination: string) => Promise<Call>;
+  // Outbound ringback tone. Defaults to the WebAudio `RingbackTone`; React Native
+  // supplies an InCallManager-backed one (WebAudio's `AudioContext` doesn't exist
+  // there). Threaded from `PhoneOptions.ringback`.
+  ringback?: Ringback;
 }
 
 export class Call {
@@ -112,7 +117,7 @@ export class Call {
   // setRemoteDescription resolves) — applied once the description is in place.
   private pendingRemoteCandidates: RTCIceCandidateInit[] = [];
   private remoteDescriptionSet = false;
-  private readonly ringback = new Ringback();
+  private readonly ringback: Ringback;
   // Suppression keys on REAL received audio, not SDP negotiation. A remote track
   // arriving (or an sdp.pranswer being applied) only means early media was
   // negotiated — the carrier may negotiate it and never send a packet, which
@@ -130,6 +135,7 @@ export class Call {
     this.state = init.initialState;
     this.transport = init.transport;
     this.startConsult = init.startConsult;
+    this.ringback = init.ringback ?? new RingbackTone();
     this.localStream = createMediaStream();
     this.remoteStream = createMediaStream();
 

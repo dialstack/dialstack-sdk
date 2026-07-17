@@ -11,12 +11,13 @@ import { Softphone, SoftphoneProvider } from '@dialstack/sdk/native';
 ## Why this example exists
 
 It's the sibling of the Expo example (`../expo`), and its job is to
-prove `@dialstack/sdk/native` works in a **bare** React Native app. Bare Metro
-does **not** transpile `node_modules` the way Expo's does, so this app can only
-work because the SDK ships a **pre-compiled** native build (`dist/native/`,
-compiled per-file by `tsc` so `platform.native.js` stays a separate file that
-Metro resolves). There are no Metro/tsconfig source aliases — the SDK resolves
-exactly as it would for an app that ran `npm install @dialstack/sdk`.
+prove `@dialstack/sdk-native` works in a **bare** React Native app. Bare Metro
+does **not** transpile `node_modules` the way Expo's does, so this app relies on
+the SDK's **pre-compiled** builds. The `@dialstack/sdk` core is written to the
+standard WebRTC surface; `registerGlobals()` from react-native-webrtc (called in
+`index.js`) installs those globals so the core works on RN. There are no
+Metro/tsconfig source aliases — the SDK resolves exactly as it would for an app
+that ran `npm install @dialstack/sdk`.
 
 > **Foreground calling only** — same scope as the Expo example. Backgrounded /
 > locked-screen incoming calls (iOS PushKit + CallKit, Android FCM +
@@ -33,7 +34,7 @@ exactly as it would for an app that ran `npm install @dialstack/sdk`.
 
 ```bash
 # 1. Build the SDK first — this example installs @dialstack/sdk from the built
-#    package (dist/, including the native build), not its source.
+#    package (dist/), not its source.
 npm run build --prefix ../../../          # from sdk/examples/mobile/bare
 
 # 2. Install JS deps (@dialstack/sdk is installed as a copy via install-links;
@@ -117,8 +118,9 @@ token:
 
 ## How it consumes the SDK
 
-Identical model to the Expo example: one dependency (`@dialstack/sdk`, pinned
-`file:../../` and installed as a copy via `install-links` in `.npmrc`), imported
-from `@dialstack/sdk/native`. Metro applies the package's `react-native` export
-condition and resolves the pre-compiled native build; nothing app-specific is
-wired into `metro.config.js` or `tsconfig.json`.
+Identical model to the Expo example: `@dialstack/sdk-native` (and its
+`@dialstack/sdk` core dependency) pinned `file:` and installed as copies via
+`install-links` in `.npmrc`. The core resolves through the package's standard
+`exports`; `registerGlobals()` (in `index.js`) installs react-native-webrtc's
+globals so the core's WebRTC calls work. Nothing app-specific is wired into
+`metro.config.js` or `tsconfig.json`.

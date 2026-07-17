@@ -17,9 +17,18 @@ graph is _structurally_ free of anything React Native — a web app that install
 and there's no `optional: true` peer flag to remember or accidentally drop.
 
 `@dialstack/sdk-native` depends on `@dialstack/sdk` for the shared headless
-calling core and call-state hooks, consumed through that package's `react-native`
-export condition (its per-file native build, where the platform seam resolves to
-`platform.native.js`).
+calling core and call-state hooks. The core is written to the standard browser
+WebRTC surface (`RTCPeerConnection`, `MediaStream`, `navigator.mediaDevices`);
+call `registerGlobals()` from `react-native-webrtc` at your app's entry point so
+that surface exists on React Native before the SDK runs. The two RN-only gaps —
+outbound ringback audio and E911 persistence — are supplied by the softphone
+provider (an InCallManager-backed ringback and your `storage` adapter).
+
+```js
+// index.js — before anything imports the SDK
+import { registerGlobals } from 'react-native-webrtc';
+registerGlobals();
+```
 
 ## Install
 
