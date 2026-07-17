@@ -385,6 +385,8 @@ export const en = {
         emailLabel: 'Primary Contact Email',
         emailPlaceholder: 'admin@company.com',
         emailRequired: 'Primary contact email is required',
+        emailLockedHint:
+          'This is the account owner and can only be changed by reassigning the owner.',
         phoneLabel: 'Primary Contact Phone Number',
         phonePlaceholder: '(555) 123-4567',
         phoneRequired: 'Primary contact phone number is required',

@@ -681,12 +681,14 @@ export const ValidationErrors: Story = {
       expect(nameInput).not.toBeNull();
       await userEvent.clear(nameInput);
 
-      // Clear Email
+      // The owner contact email is locked once an owner exists (changing it is a
+      // reassignment), so it renders read-only and is not part of the editable
+      // required-field validation here.
       const emailInput = canvasElement.querySelector(
         'input[value="admin@acme.com"]'
       ) as HTMLInputElement;
       expect(emailInput).not.toBeNull();
-      await userEvent.clear(emailInput);
+      expect(emailInput.readOnly).toBe(true);
 
       // Clear Primary Contact
       const contactInput = canvasElement.querySelector(
@@ -703,7 +705,6 @@ export const ValidationErrors: Story = {
       await waitFor(() => {
         expect(canvas.getByText('Company name is required')).toBeInTheDocument();
       });
-      expect(canvas.getByText('Primary contact email is required')).toBeInTheDocument();
       expect(canvas.getByText('Primary contact is required')).toBeInTheDocument();
     });
 
@@ -718,7 +719,7 @@ export const ValidationErrors: Story = {
       await clickButton(canvas, canvasElement, /Next →/, { last: true });
 
       await waitFor(() => {
-        expect(canvas.getByText('Primary contact email is required')).toBeInTheDocument();
+        expect(canvas.getByText('Primary contact is required')).toBeInTheDocument();
       });
 
       // Company name error should be gone
@@ -1625,42 +1626,21 @@ export const ComprehensiveValidation: Story = {
     });
 
     await step(
-      'Fix company name, clear email -> Next -> "Primary contact email is required"',
+      'Fix company name, clear phone -> Next -> "Primary contact phone number is required"',
       async () => {
         const nameInput = canvasElement.querySelector(
           'input[placeholder="Acme Corp"]'
         ) as HTMLInputElement;
         await userEvent.type(nameInput, 'Fixed Corp');
 
+        // The owner contact email is locked once an owner exists (changing it is
+        // a reassignment), so it is read-only and cannot be cleared — exercise
+        // the remaining editable required fields instead.
         const emailInput = canvasElement.querySelector(
           'input[value="admin@acme.com"]'
         ) as HTMLInputElement;
-        await userEvent.clear(emailInput);
+        expect(emailInput.readOnly).toBe(true);
 
-        await clickButton(canvas, canvasElement, /Next →/, { last: true });
-
-        await waitFor(() => {
-          expect(canvas.getByText('Primary contact email is required')).toBeInTheDocument();
-        });
-
-        // Company name error should be gone
-        const formErrors = canvasElement.querySelectorAll('.form-error');
-        const companyError = Array.from(formErrors).find((el) =>
-          el.textContent?.includes('Company name is required')
-        );
-        expect(companyError).toBeUndefined();
-      }
-    );
-
-    await step(
-      'Fix email, clear phone -> Next -> "Primary contact phone number is required"',
-      async () => {
-        const emailInput = canvasElement.querySelector(
-          'input[placeholder="admin@company.com"]'
-        ) as HTMLInputElement;
-        await userEvent.type(emailInput, 'admin@acme.com');
-
-        // Find and clear the phone input
         const phoneInput = canvasElement.querySelector('input[type="tel"]') as HTMLInputElement;
         await userEvent.clear(phoneInput);
 
@@ -1669,6 +1649,13 @@ export const ComprehensiveValidation: Story = {
         await waitFor(() => {
           expect(canvas.getByText('Primary contact phone number is required')).toBeInTheDocument();
         });
+
+        // Company name error should be gone
+        const formErrors = canvasElement.querySelectorAll('.form-error');
+        const companyError = Array.from(formErrors).find((el) =>
+          el.textContent?.includes('Company name is required')
+        );
+        expect(companyError).toBeUndefined();
       }
     );
 

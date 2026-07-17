@@ -57,6 +57,11 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
+  // The contact email is the account owner's identity once one exists. Changing
+  // it is a reassignment (rejected by the API), so lock the field when the
+  // account already carries an email — an ownerless account leaves it editable
+  // so the first save seeds the owner.
+  const [ownerEmailLocked, setOwnerEmailLocked] = useState(false);
 
   // Hydrate form fields from pre-fetched context data (runs once on mount).
   const [hydrated, setHydrated] = useState(false);
@@ -68,6 +73,7 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
       const phoneParsed = phoneRaw ? parsePhoneNumberFromString(phoneRaw, 'US') : null;
       setAccountName(account.name ?? '');
       setAccountEmail(account.email ?? '');
+      setOwnerEmailLocked(Boolean(account.email));
       setAccountPhone(phoneParsed ? phoneParsed.formatNational() : phoneRaw);
       setPrimaryContact(account.primary_contact_name ?? '');
       setTimezone(account.config?.timezone ?? accountConfig?.timezone ?? '');
@@ -298,7 +304,10 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
               value={accountEmail}
               placeholder={t.details.emailPlaceholder}
               onChange={(e) => setAccountEmail(e.target.value)}
+              readOnly={ownerEmailLocked}
+              aria-readonly={ownerEmailLocked}
             />
+            {ownerEmailLocked && <div className="form-hint">{t.details.emailLockedHint}</div>}
             {validationErrors.email && <div className="form-error">{validationErrors.email}</div>}
           </div>
           <div className="form-group">

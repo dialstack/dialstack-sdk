@@ -354,6 +354,17 @@ describe('TeamMembers', () => {
     updated_at: '2026-01-01T00:00:00Z',
   };
 
+  // A person who is both the account owner and a telephony user. The owner role
+  // is a superset of account_admin, so this must render like an admin.
+  const ownerUser = {
+    id: 'user_owner',
+    name: 'Owner Olivia',
+    email: 'olivia@example.com',
+    account_role: 'owner' as const,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+  };
+
   it('flags an account_admin user with the Admin role and no delete affordance', async () => {
     await renderTM({ users: { list: jest.fn().mockResolvedValue([adminUser]) } });
 
@@ -361,6 +372,14 @@ describe('TeamMembers', () => {
     expect(screen.getByText('Admin')).toBeTruthy();
     expect(screen.queryByText('User')).toBeNull();
     // The account admin cannot be removed.
+    expect(screen.queryByTitle('Remove')).toBeNull();
+  });
+
+  it('flags an owner user (owner ⊇ admin) with the Admin role and no delete affordance', async () => {
+    await renderTM({ users: { list: jest.fn().mockResolvedValue([ownerUser]) } });
+
+    expect(screen.getByText('Admin')).toBeTruthy();
+    expect(screen.queryByText('User')).toBeNull();
     expect(screen.queryByTitle('Remove')).toBeNull();
   });
 

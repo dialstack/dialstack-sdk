@@ -216,7 +216,10 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ accountEmail, onBack, 
             <tbody>
               {otherUsers.map((u) => {
                 const ext = getExtensionForUser(u.id, contextExtensions);
-                const isAdmin = u.account_role === 'account_admin';
+                // The owner is an admin too (a superset of account_admin), so a
+                // person who is both the owner and a telephony user renders as
+                // admin here — with the admin badge and no delete affordance.
+                const isAdmin = u.account_role === 'account_admin' || u.account_role === 'owner';
                 return (
                   <tr key={u.id}>
                     <td className="user-table-name">

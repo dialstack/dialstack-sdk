@@ -159,6 +159,36 @@ describe('deriveOnboardingState', () => {
     ).toBe(true);
   });
 
+  it('does not double-count an owner who is also a telephony user', () => {
+    // The overlap case: the owner is also a telephony user (account_role
+    // 'owner', email === account.email). team-members is email-based and
+    // role-agnostic, so the overlap owner never counts as a teammate.
+    const base = {
+      ...emptySnapshot,
+      account: mkAccount({ email: 'owner@acme.test' }),
+      locations: [mkLocation()],
+    };
+
+    // Overlap owner alone → not a team.
+    expect(
+      deriveOnboardingState({
+        ...base,
+        users: [{ ...mkUser('u1'), email: 'owner@acme.test', account_role: 'owner' }],
+      }).completed.account.has('team-members')
+    ).toBe(false);
+
+    // Overlap owner + 1 employee → complete.
+    expect(
+      deriveOnboardingState({
+        ...base,
+        users: [
+          { ...mkUser('u1'), email: 'owner@acme.test', account_role: 'owner' },
+          { ...mkUser('u2'), email: 'employee@acme.test' },
+        ],
+      }).completed.account.has('team-members')
+    ).toBe(true);
+  });
+
   describe('numbers — unexpired DIDs count, expired ones drop out', () => {
     const future = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     const past = new Date(Date.now() - 60 * 60 * 1000).toISOString();
