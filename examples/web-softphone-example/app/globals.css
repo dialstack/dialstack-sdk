@@ -1,0 +1,62 @@
+:root {
+  /* DialStack — Electric Plum palette (mirrors docs/src/css/custom.css) */
+  --primary: #6b2cff;
+  --primary-dark: #5a25d9;
+  --primary-darker: #4e20bd;
+  --primary-darkest: #3d199a;
+  --primary-light: #8151ff;
+  --primary-lighter: #9670ff;
+  --primary-lightest: #b89fff;
+  --primary-foreground: #ffffff;
+
+  --background: #f8f8ff; /* DialStack White */
+  --surface: #ffffff;
+  --surface-muted: #f0f0ff; /* Lavender tint, matches code-bg in docs */
+  --foreground: #1c1247; /* Midnight (used as deep ink) */
+  --muted-foreground: #5b528a;
+  --border: #e3daff;
+
+  --destructive: #c1372f;
+  --destructive-foreground: #ffffff;
+  --success: #1f8a4b;
+
+  --radius: 0.5rem;
+  --shadow-sm: 0 1px 2px rgba(28, 18, 71, 0.1);
+  --shadow-md: 0 4px 16px rgba(28, 18, 71, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family:
+    var(--font-sans, 'Poppins'),
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+a {
+  color: var(--primary);
+}
+
+button {
+  font-family: inherit;
+}

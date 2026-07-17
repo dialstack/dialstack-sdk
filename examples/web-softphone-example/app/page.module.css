@@ -1,0 +1,126 @@
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  background: #1c1247; /* Midnight */
+  color: #ffffff;
+  padding: 18px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 2px rgba(28, 18, 71, 0.2);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  color: #ffffff;
+}
+
+.logo svg {
+  height: 28px;
+  width: auto;
+}
+
+.tagline {
+  margin-left: 16px;
+  font-size: 13px;
+  color: var(--primary-lightest);
+  letter-spacing: 0.02em;
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--primary-lightest);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6b7280;
+  display: inline-block;
+}
+
+.dotConnected {
+  background: var(--success);
+  box-shadow: 0 0 0 3px rgba(31, 138, 75, 0.18);
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 32px 16px;
+}
+
+.message {
+  max-width: 420px;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  color: var(--muted-foreground);
+  font-size: 13px;
+  text-align: center;
+}
+
+.connect {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-top: 48px;
+  text-align: center;
+}
+
+.hint {
+  color: var(--muted-foreground);
+  font-size: 14px;
+  margin: 0;
+}
+
+.phone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.button {
+  border: none;
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 12px 28px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.linkButton {
+  border: none;
+  background: none;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+}
