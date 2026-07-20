@@ -236,6 +236,24 @@ export function callStateLabelKey(state: CallState): keyof Locale['softphone'] {
  * Resolved to display text by the UIs (web via the locale table, RN via its map),
  * same pattern as callStateLabelKey.
  */
+// Connection/session-class error codes — failures of the socket or session, not
+// of a call attempt. These must map to `connectionError` ("Connection error"),
+// not `callError` ("Call failed"), which would otherwise mislabel e.g. a token
+// refresh that fails while the user is idle as a failed call.
+const CONNECTION_ERROR_CODES = new Set([
+  'auth_failed',
+  'auth_expired',
+  'session_limit',
+  'session_revoked',
+  'going_away',
+  'idle_timeout',
+  'slow_consumer',
+  'transport_closed',
+  'ice_fetch_failed',
+]);
+
 export function errorMessageKey(code: string): keyof Locale['softphone'] {
-  return code === 'mic_permission_denied' ? 'micPermissionError' : 'callError';
+  if (code === 'mic_permission_denied') return 'micPermissionError';
+  if (CONNECTION_ERROR_CODES.has(code)) return 'connectionError';
+  return 'callError';
 }

@@ -63,8 +63,16 @@ async function connectAuthenticated(phone: DialStackPhone): Promise<FakeWebSocke
   await Promise.resolve();
   const ws = FakeWebSocket.instances[FakeWebSocket.instances.length - 1]!;
   ws.fire('open', {});
+  // Echo the authenticate req_id, as the real server does — the phone correlates
+  // the reply against it.
+  const authReqId = ws.lastOfType('authenticate')?.req_id as string | undefined;
   ws.fire('message', {
-    data: JSON.stringify({ type: 'authenticated', user_id: 'user_test', account_id: 'acct_test' }),
+    data: JSON.stringify({
+      type: 'authenticated',
+      req_id: authReqId,
+      user_id: 'user_test',
+      account_id: 'acct_test',
+    }),
   });
   await connectPromise;
   return ws;
@@ -284,6 +292,7 @@ describe('DialStackPhone in-band token refresh', () => {
     ws2.fire('message', {
       data: JSON.stringify({
         type: 'authenticated',
+        req_id: ws2.lastOfType('authenticate')?.req_id as string | undefined,
         user_id: 'user_test',
         account_id: 'acct_test',
       }),

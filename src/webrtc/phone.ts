@@ -1,5 +1,6 @@
 import { createPaginatedList, type PaginatedList } from '../shared/pagination';
 import { Call } from './call';
+import { ConnectHandshake } from './connect-handshake';
 import { NotImplementedError, PhoneError } from './errors';
 import { logError } from './logger';
 import { storage as defaultStorage } from './platform';
@@ -31,6 +32,12 @@ const OUTBOUND_CALL_TIMEOUT_MS = 30_000;
 // before failing connect(). A dead/half-open socket otherwise leaves connect()
 // pending forever.
 const CONNECT_TIMEOUT_MS = 20_000;
+
+// How long to wait for the ICE-servers HTTP fetch before failing connect(). This
+// runs before the socket opens, so CONNECT_TIMEOUT_MS (which only arms after) does
+// not cover it — a stalled/half-open fetch would otherwise leave connect() (and a
+// rebind awaiting it) pending forever with no error.
+const ICE_FETCH_TIMEOUT_MS = 10_000;
 
 // How far ahead of the token's `exp` to fire onTokenExpiring and refresh in-band.
 // The server enforces `exp` for the whole connection; refreshing this far before
@@ -77,6 +84,18 @@ function armTimeout(ms: number, onExpire: () => void): { settle: () => void } {
       clearTimeout(timer);
     },
   };
+}
+
+// AbortSignal that fires after `ms`. Falls back to AbortController + setTimeout
+// because AbortSignal.timeout is absent on some React Native runtimes and throws
+// synchronously there — which would fail every connect() at the ICE fetch.
+function timeoutSignal(ms: number): AbortSignal {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(ms);
+  }
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
 }
 
 // localStorage key prefix for the persisted emergency-address id.
@@ -142,12 +161,13 @@ export class DialStackPhone {
   private onAppResume: AppResumeSubscribe | null;
 
   private transport: Transport | null = null;
+  // All state for the connect() currently in flight (ICE-window token, the
+  // authenticate req_id, and the promise waiter). See ConnectHandshake.
+  private readonly handshake = new ConnectHandshake();
   private iceServers: RTCIceServer[] = [];
   private listeners: { [K in keyof PhoneEventMap]?: Set<Listener<K>> } = {};
   private pendingOutbound: PendingOutbound | null = null;
   private pendingCall: Call | null = null;
-  private connectResolvers: { resolve: () => void; reject: (err: PhoneError) => void } | null =
-    null;
   private hasConnectedOnce = false;
   private reqSeq = 0;
   // Armed pre-`exp` refresh timer, and the in-flight refresh awaiting an
@@ -209,8 +229,28 @@ export class DialStackPhone {
   async connect(): Promise<void> {
     if (this.transport)
       throw new PhoneError({ code: 'invalid_message', message: 'Phone is already connected' });
+    if (this.handshake.inFlight)
+      throw new PhoneError({ code: 'invalid_message', message: 'Phone is already connecting' });
 
-    this.iceServers = this.iceServersOverride ?? (await this.fetchIceServers());
+    // Claim the in-flight slot with a fresh token. A disconnect() during the ICE
+    // fetch below clears it (no socket exists yet to cancel), so on resume we bail.
+    const token = this.handshake.begin();
+
+    let iceServers: RTCIceServer[];
+    try {
+      iceServers = this.iceServersOverride ?? (await this.fetchIceServers());
+    } catch (e) {
+      this.handshake.releaseToken(token);
+      throw e;
+    }
+
+    if (!this.handshake.isTokenCurrent(token)) {
+      throw new PhoneError({
+        code: 'transport_closed',
+        message: 'Disconnected before the softphone finished connecting',
+      });
+    }
+    this.iceServers = iceServers;
 
     const transport = new Transport(
       this.signalingUrl,
@@ -229,11 +269,15 @@ export class DialStackPhone {
 
     transport.on('open', () => {
       if (!isCurrent()) return;
-      // Snapshot the id we actually present, so presentedEmergencyAddressId
-      // reflects this socket's frame rather than a later selection change.
+      // Fresh req_id per authenticate (fires on initial connect and every
+      // auto-reconnect); the `authenticated` echoing it is ours. Snapshot the
+      // presented id so presentedEmergencyAddressId reflects this frame.
+      const reqId = this.nextReqId();
+      this.handshake.stampAuth(reqId);
       this.presentedEmergencyAddressId_ = this.emergencyAddressId;
       transport.send({
         type: 'authenticate',
+        req_id: reqId,
         token: this.token,
         ...(this.emergencyAddressId ? { emergency_address_id: this.emergencyAddressId } : {}),
       });
@@ -265,28 +309,28 @@ export class DialStackPhone {
       // otherwise leave connect() pending forever with no rejection.
       const timeout = armTimeout(CONNECT_TIMEOUT_MS, () => {
         logError('Timed out connecting to the softphone', { timeoutMs: CONNECT_TIMEOUT_MS });
-        this.connectResolvers = null;
-        this.disconnect();
-        reject(
+        // Settle through the handshake waiter (which nulls it), so a racing
+        // disconnect() can't also reject with transport_closed regardless of order.
+        this.handshake.reject(
           new PhoneError({ code: 'auth_failed', message: 'Timed out connecting to the softphone' })
         );
+        this.disconnect();
       });
 
-      this.connectResolvers = {
-        resolve: () => {
-          timeout.settle();
-          resolve();
-        },
-        reject: (err) => {
-          timeout.settle();
-          reject(err);
-        },
-      };
+      this.handshake.awaitAuth(resolve, reject, () => {
+        timeout.settle();
+        this.handshake.releaseToken(token);
+      });
       transport.connect();
     });
   }
 
   disconnect(): void {
+    // Abort any in-flight connect(): clears the ICE-window token (a resumed
+    // connect() bails), clears the outstanding authenticate id (no late frame
+    // matches), and rejects the promise waiter with transport_closed now (else it
+    // hangs until CONNECT_TIMEOUT ~20s later with a misleading auth_failed).
+    this.handshake.abort();
     // Stop the refresh timer first so it can't fire against the socket we're
     // about to tear down (or leak past it).
     this.clearTokenRefreshTimer();
@@ -332,7 +376,25 @@ export class DialStackPhone {
     this.emit('reconnecting', 0, 0);
     this.isConnected = false;
     this.disconnect();
-    await this.connect();
+    try {
+      await this.connect();
+    } catch (e) {
+      // connect() can reject before a transport exists (ICE-fetch failure), so no
+      // `closed` fires to move the state off 'reconnecting' — emit it here.
+      this.emit('disconnected');
+      throw e;
+    }
+  }
+
+  /**
+   * Re-present a chosen `emergencyAddressId` on a fresh authenticate handshake, in
+   * one call. Rebinding requires a fresh socket (the server binds E911 once per
+   * connection, after REGISTER), so this tears down and reconnects like
+   * `reconnect()`; resolves once the server confirms the new binding.
+   */
+  reconnectWithEmergency(emergencyAddressId: string): Promise<void> {
+    this.selectEmergencyAddress(emergencyAddressId);
+    return this.reconnect();
   }
 
   call(destination: string): Promise<Call> {
@@ -720,8 +782,11 @@ export class DialStackPhone {
 
   private async fetchIceServers(): Promise<RTCIceServer[]> {
     try {
+      // Bound the fetch: it runs before the socket opens, so connect()'s
+      // authenticate timeout doesn't cover it — a stalled fetch would hang forever.
       const resp = await fetch(`${this.apiBaseUrl}/v1/webrtc/ice-servers`, {
         headers: { Authorization: `Bearer ${this.token}` },
+        signal: timeoutSignal(ICE_FETCH_TIMEOUT_MS),
       });
       if (!resp.ok) throw new Error(`status ${resp.status}`);
       const body = (await resp.json()) as IceServersResponse;
@@ -737,13 +802,24 @@ export class DialStackPhone {
   private handleMessage(msg: ServerMessage): void {
     switch (msg.type) {
       case 'authenticated': {
+        // Ignore only a frame that echoes a DIFFERENT id than our outstanding
+        // authenticate — a stale reply from a superseded socket. A frame that omits
+        // req_id is accepted (the server may not echo it), so an unattributed
+        // authenticated can't hang connect() to its timeout.
+        if (this.handshake.isStaleEcho(msg.req_id)) return;
+        // Whether this frame answers an authenticate we actually sent (id stamped in
+        // on('open')). No outstanding id means no authenticate is pending, so don't
+        // treat the frame as our handshake reply.
+        const isOurHandshake = this.handshake.isAuthOutstanding;
+        this.handshake.clearAuth();
         this.isConnected = true;
         // A session just came up (initial connect or reconnect); the current
         // token is unchanged, so this is a bare re-arm rather than an adoptToken.
         this.scheduleTokenRefresh();
-        if (this.connectResolvers) {
-          this.connectResolvers.resolve();
-          this.connectResolvers = null;
+        // Resolve the in-flight connect() when its authenticate is answered. A frame
+        // with no waiting connect is an auto-reconnect re-auth.
+        if (isOurHandshake && this.handshake.hasWaiter) {
+          this.handshake.resolve();
         }
         if (this.hasConnectedOnce) this.emit('reconnected');
         else this.emit('connected');
@@ -793,9 +869,16 @@ export class DialStackPhone {
           this.pendingRefresh.settle(); // cancel the reply-timeout; the reply arrived
           this.pendingRefresh = null;
         }
-        if (this.connectResolvers && err.fatal) {
-          this.connectResolvers.reject(err);
-          this.connectResolvers = null;
+        // Reject the in-flight connect() on a fatal error, or on one echoing our
+        // outstanding authenticate's req_id (the server rejecting it). Either way
+        // the socket is unusable, so tear it down — otherwise a stray later
+        // `authenticated` for this dead handshake could still flip isConnected.
+        // Detach the waiter first so disconnect()'s transport_closed doesn't win
+        // over the server's specific error we want the caller to see.
+        if (this.handshake.hasWaiter && (err.fatal || this.handshake.matches(msg.req_id))) {
+          const waiter = this.handshake.takeWaiter();
+          this.disconnect();
+          waiter?.reject(err);
         }
         // A pending outbound is rejected by an error echoing the creating
         // frame's req_id (the server echoes it on every immediate create /

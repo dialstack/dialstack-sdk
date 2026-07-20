@@ -159,10 +159,9 @@ export function SoftphoneProviderBase<Extra extends object>({
     cancelAttendedTransfer,
     listEmergencyAddresses,
     setEmergencyAddress,
-    selectEmergencyAddress,
     getPresentedEmergencyAddressId,
     clearEmergencyAddressRegisteredIp,
-    reconnect,
+    reconnectWithEmergency,
   } = useCalls({
     token,
     apiBaseUrl,
@@ -188,10 +187,9 @@ export function SoftphoneProviderBase<Extra extends object>({
     identityKey: token,
     list: listEmergencyAddresses,
     save: setEmergencyAddress,
-    select: selectEmergencyAddress,
     getPresentedAddressId: getPresentedEmergencyAddressId,
     clearRegisteredIp: clearEmergencyAddressRegisteredIp,
-    reconnect,
+    reconnectWithEmergency,
   });
   useEffect(() => {
     onNetworkChangedRef.current = emergency.onNetworkChanged;

@@ -208,9 +208,6 @@ export interface UseCallsResult {
   /** Create + validate a new emergency address (does not bind until reconnect). */
   setEmergencyAddress: (input: EmergencyAddressInput) => Promise<EmergencyAddress>;
 
-  /** Select an already-saved address to present on the next (re)connect. */
-  selectEmergencyAddress: (id: string) => void;
-
   /**
    * The emergency-address id the phone presents on authenticate (null if none).
    * Distinguishes "this session bound the address" from "a saved address has a
@@ -228,6 +225,12 @@ export interface UseCallsResult {
    * effect, and how a moved session re-binds.
    */
   reconnect: () => Promise<void>;
+
+  /**
+   * Select `id` and reconnect in one step, so the fresh authenticate presents it
+   * and the server binds it to this network. Resolves once the binding confirms.
+   */
+  reconnectWithEmergency: (id: string) => Promise<void>;
 }
 
 /**
@@ -873,10 +876,6 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
     []
   );
 
-  const selectEmergencyAddress = useCallback((id: string) => {
-    phoneRef.current?.selectEmergencyAddress(id);
-  }, []);
-
   // The emergency-address id the phone presents in its authenticate frame. Used
   // by useEmergencyBinding to distinguish "this session actually bound the
   // address" from "a saved address merely has a registered_ip from a past
@@ -895,6 +894,10 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
 
   const reconnect = useCallback(async (): Promise<void> => {
     await phoneRef.current?.reconnect();
+  }, []);
+
+  const reconnectWithEmergency = useCallback(async (id: string): Promise<void> => {
+    await phoneRef.current?.reconnectWithEmergency(id);
   }, []);
 
   // Construct + connect the phone for the current credentials. Reconnects when
@@ -1048,6 +1051,10 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
       // the effect re-runs against a fresh phone and the prior state must reset.
       dispatch({ type: 'connecting' });
       p.connect().catch((err: PhoneError) => {
+        // transport_closed is the phone aborting its own connect (our disconnect
+        // during teardown / reconnect); expected, swallow it. Other codes are real
+        // failures and must surface even at teardown.
+        if (err?.code === 'transport_closed') return;
         handlers.current.onError?.({
           code: err?.code ?? 'internal_error',
           message: err?.message ?? String(err),
@@ -1089,9 +1096,9 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
     cancelAttendedTransfer,
     listEmergencyAddresses,
     setEmergencyAddress,
-    selectEmergencyAddress,
     getPresentedEmergencyAddressId,
     clearEmergencyAddressRegisteredIp,
     reconnect,
+    reconnectWithEmergency,
   };
 }

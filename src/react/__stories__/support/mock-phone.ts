@@ -136,6 +136,9 @@ export class MockPhone extends Emitter {
     queueMicrotask(() => this.emit('connected'));
     return Promise.resolve();
   }
+  reconnectWithEmergency(_id: string): Promise<void> {
+    return this.reconnect();
+  }
   call(to: string): Promise<Call> {
     const c = new MockCall(`out-${++this.seq}`, 'outbound', '', null, to);
     // An outbound goes active once the far end answers; keep it simple for the
@@ -153,6 +156,9 @@ export class MockPhone extends Emitter {
     return Promise.reject(new Error('not used in stories'));
   }
   selectEmergencyAddress(): void {}
+  get presentedEmergencyAddressId(): string | null {
+    return null;
+  }
   clearEmergencyAddressRegisteredIp(): Promise<void> {
     return Promise.resolve();
   }

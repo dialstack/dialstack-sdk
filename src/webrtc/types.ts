@@ -145,7 +145,7 @@ export interface IceServersResponse {
 }
 
 export type ClientMessage =
-  | { type: 'authenticate'; token: string; emergency_address_id?: string }
+  | { type: 'authenticate'; req_id?: string; token: string; emergency_address_id?: string }
   | { type: 'auth.refresh'; req_id?: string; token: string }
   // Application-layer liveness probe. Sent by the client to confirm the socket
   // is still alive after the environment resumes from a background throttle —
@@ -182,7 +182,13 @@ export type ClientMessage =
   | { type: 'ice.done'; call_id: string };
 
 export type ServerMessage =
-  | { type: 'authenticated'; user_id: string; account_id: string; reconnected?: boolean }
+  | {
+      type: 'authenticated';
+      req_id?: string | null;
+      user_id: string;
+      account_id: string;
+      reconnected?: boolean;
+    }
   | { type: 'auth.refreshed'; req_id?: string | null }
   // Reply to a client `ping`; echoes its req_id. Proof the socket is alive.
   | { type: 'pong'; req_id?: string | null }

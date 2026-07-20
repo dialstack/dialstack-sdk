@@ -564,4 +564,63 @@ describe('Softphone callbacks', () => {
     play.mockReset();
     play.mockResolvedValue(undefined);
   });
+
+  it('does NOT surface an error when play() is aborted by call teardown', async () => {
+    // On hangup the stream's srcObject is cleared, which rejects any pending
+    // play() with AbortError ("interrupted by a new load request") — normal
+    // teardown, not an autoplay block. It must NOT surface audio_playback_blocked,
+    // or a spurious banner appears after every call ends.
+    const play = HTMLMediaElement.prototype.play as jest.Mock;
+    play.mockReset();
+    play.mockRejectedValue(
+      new DOMException('The play() request was interrupted by a new load request.', 'AbortError')
+    );
+    const onError = jest.fn();
+
+    renderSoftphone({ onError });
+    act(() => phone().emit('connected'));
+    const inbound = new FakeCall('inbound', '+14155552671', 'Alice', 'me');
+    act(() => phone().emit('incoming', inbound));
+    await act(async () => {
+      inbound.state = 'active';
+      inbound.emit('answered');
+    });
+    await act(async () => {});
+
+    // AbortError is teardown noise — never surfaced.
+    expect(onError).not.toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'audio_playback_blocked' })
+    );
+
+    play.mockReset();
+    play.mockResolvedValue(undefined);
+  });
+
+  it('surfaces a non-AbortError play() rejection (e.g. unsupported source)', async () => {
+    // Not every real playback failure is NotAllowedError — a decode/unsupported-
+    // source failure rejects with a different name. Only AbortError (teardown) is
+    // benign; any other rejection on the answered retry must surface so an answered
+    // call isn't silently without audio.
+    const play = HTMLMediaElement.prototype.play as jest.Mock;
+    play.mockReset();
+    play.mockRejectedValue(new DOMException('cannot decode', 'NotSupportedError'));
+    const onError = jest.fn();
+
+    renderSoftphone({ onError });
+    act(() => phone().emit('connected'));
+    const inbound = new FakeCall('inbound', '+14155552671', 'Alice', 'me');
+    act(() => phone().emit('incoming', inbound));
+    await act(async () => {
+      inbound.state = 'active';
+      inbound.emit('answered');
+    });
+    await act(async () => {});
+
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'audio_playback_blocked' })
+    );
+
+    play.mockReset();
+    play.mockResolvedValue(undefined);
+  });
 });

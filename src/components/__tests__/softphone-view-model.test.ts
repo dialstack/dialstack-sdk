@@ -266,8 +266,26 @@ describe('errorMessageKey', () => {
     expect(errorMessageKey('mic_permission_denied')).toBe('micPermissionError');
   });
 
-  it('collapses every other code to the generic callError key', () => {
-    for (const code of ['call_failed', 'transport_closed', 'rate_limited', 'invalid_message', '']) {
+  it('maps connection/session-class codes to connectionError, not callError', () => {
+    // These are socket/session failures, not call failures — showing "Call
+    // failed" for e.g. an idle token-refresh failure (auth_failed) mislabels it.
+    for (const code of [
+      'auth_failed',
+      'auth_expired',
+      'session_limit',
+      'session_revoked',
+      'going_away',
+      'idle_timeout',
+      'slow_consumer',
+      'transport_closed',
+      'ice_fetch_failed',
+    ]) {
+      expect(errorMessageKey(code)).toBe('connectionError');
+    }
+  });
+
+  it('collapses genuine call-attempt and unknown codes to the generic callError key', () => {
+    for (const code of ['call_failed', 'call_not_found', 'rate_limited', 'invalid_message', '']) {
       expect(errorMessageKey(code)).toBe('callError');
     }
   });

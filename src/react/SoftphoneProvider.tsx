@@ -197,8 +197,14 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
           () => {
             done = true;
           },
-          () => {
-            if (reportOnFail && !done) {
+          (err: unknown) => {
+            // Surface any real playback failure, EXCEPT AbortError — that's the
+            // benign teardown (srcObject cleared on hangup / new call), and reporting
+            // it would flash a spurious "tap to enable sound" after every call. We
+            // report all other names (not just NotAllowedError) so a decode/
+            // unsupported-source failure on a non-standard WebView isn't swallowed.
+            const name = (err as { name?: string })?.name;
+            if (reportOnFail && !done && name !== 'AbortError') {
               reportError?.({
                 code: 'audio_playback_blocked',
                 message: 'Could not play call audio — tap the call to enable sound.',

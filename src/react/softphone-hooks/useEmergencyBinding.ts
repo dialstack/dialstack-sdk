@@ -37,7 +37,6 @@ export interface UseEmergencyBindingDeps {
   identityKey: string;
   list: () => Promise<EmergencyAddress[]>;
   save: (input: EmergencyAddressInput) => Promise<EmergencyAddress>;
-  select: (id: string) => void;
   /**
    * The emergency-address id the phone presented on the CURRENT socket's
    * authenticate (null if none). A saved address's `registered_ip` proves it was
@@ -46,7 +45,8 @@ export interface UseEmergencyBindingDeps {
    */
   getPresentedAddressId: () => string | null;
   clearRegisteredIp: (id: string) => Promise<void>;
-  reconnect: () => Promise<void>;
+  /** Select `id` and reconnect in one step; resolves once the server binds it. */
+  reconnectWithEmergency: (id: string) => Promise<void>;
 }
 
 export interface UseEmergencyBinding {
@@ -72,47 +72,49 @@ export interface UseEmergencyBinding {
   create: (input: EmergencyAddressInput) => Promise<void>;
 }
 
-// The rebind after save/confirm waits for the socket to re-authenticate and the
-// server to bind the address. Cap that wait so a stuck reconnect surfaces an
-// error instead of leaving the form spinning on "Saving…" forever.
-const REBIND_TIMEOUT_MS = 8000;
+// Shown when a rebind's reconnect was interrupted (transport_closed from a
+// concurrent teardown) rather than failing — not a rebind failure, so a neutral
+// retry beats the phone's internal abort string. The connect effect drives the
+// next state and this hook re-runs off it.
+const INTERRUPTED_MESSAGE = 'Connection interrupted. Please try again.';
 
+// Fail the "Saving…" form well before the phone's own ~30s connect timeout (ICE
+// + authenticate) so a stuck rebind doesn't spin the confirm button that long.
+const REBIND_SPINNER_TIMEOUT_MS = 8000;
 const REBIND_TIMEOUT_MESSAGE = 'Timed out confirming your location. Please try again.';
 
-// Run `reconnect()` but reject after REBIND_TIMEOUT_MS so the form doesn't spin
-// forever on a stuck socket. `reconnect` has no cancellation, so a timed-out call
-// keeps running — on a slow-but-not-stuck network it can succeed a moment after we
-// already surfaced the timeout error. Don't abandon it: `onLateSettle` reconciles
-// once it finally settles (clear the false error on late success; surface the real
-// one on late failure). The caller guards the callback against a stale/unmounted
-// reconcile. The detached promise always has a handler, so no unhandled rejection.
-async function withRebindTimeout(
-  reconnect: () => Promise<void>,
+function isBenignInterruption(e: unknown): boolean {
+  return (e as { code?: string } | null)?.code === 'transport_closed';
+}
+
+// Reject when the cap elapses so the form stops spinning (rejecting, not resolving,
+// keeps the banner open). The rebind keeps running; `onLateSettle` fires only when
+// the cap already won and the rebind then settles — clearing the false timeout on
+// late success, surfacing the real reason on late failure.
+function withSpinnerTimeout(
+  rebind: Promise<void>,
   onLateSettle: (error: Error | null) => void
 ): Promise<void> {
-  const pending = reconnect();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let timedOut = false;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      timedOut = true;
+  let capFired = false;
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      capFired = true;
       reject(new Error(REBIND_TIMEOUT_MESSAGE));
-    }, REBIND_TIMEOUT_MS);
+    }, REBIND_SPINNER_TIMEOUT_MS);
+    rebind.then(
+      () => {
+        clearTimeout(timer);
+        if (capFired) onLateSettle(null);
+        else resolve();
+      },
+      (e: unknown) => {
+        clearTimeout(timer);
+        const err = e instanceof Error ? e : new Error(REBIND_TIMEOUT_MESSAGE);
+        if (capFired) onLateSettle(err);
+        else reject(err);
+      }
+    );
   });
-  // When the timeout wins, wire the still-pending reconnect to reconcile later.
-  pending.then(
-    () => {
-      if (timedOut) onLateSettle(null);
-    },
-    (e: unknown) => {
-      if (timedOut) onLateSettle(e instanceof Error ? e : new Error('Failed to confirm'));
-    }
-  );
-  try {
-    await Promise.race([pending, timeout]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
 }
 
 export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergencyBinding {
@@ -122,10 +124,9 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
     identityKey,
     list,
     save,
-    select,
     getPresentedAddressId,
     clearRegisteredIp,
-    reconnect,
+    reconnectWithEmergency,
   } = deps;
   const [loading, setLoading] = useState(!disabled);
   const [bound, setBound] = useState(false);
@@ -134,51 +135,29 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // A timed-out rebind keeps running and may settle after the form already showed
-  // the timeout error. `submitGenRef` bumps on each submit so a late reconcile from
-  // an older attempt can't clobber a newer one; `mountedRef` drops late reconciles
-  // after unmount. See withRebindTimeout.
-  const submitGenRef = useRef(0);
-  const mountedRef = useRef(true);
+  // Latest deps in a ref so the connect effect can call them without listing them
+  // as deps (which would re-run the rebind on every render). Synced in an effect,
+  // not during render — writing a ref mid-render is disallowed (react-hooks/refs).
+  const fns = useRef({ list, reconnectWithEmergency, getPresentedAddressId });
   useEffect(() => {
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  // Builds the reconcile callback for one submit attempt. Applies only if the hook
-  // is still mounted and no newer submit has started (gen still current): a late
-  // success clears the false timeout error (bound already flipped via the connect
-  // effect); a late failure keeps a real error in front of the user.
-  const lateSettle = useCallback(
-    (gen: number, failureMessage: string) => (error: Error | null) => {
-      if (!mountedRef.current || submitGenRef.current !== gen) return;
-      setError(error ? error.message || failureMessage : null);
-    },
-    []
-  );
-
-  // Latest deps via refs so the connect effect doesn't churn on identity changes.
-  const fns = useRef({ list, select, reconnect, getPresentedAddressId });
-  useEffect(() => {
-    fns.current = { list, select, reconnect, getPresentedAddressId };
+    fns.current = { list, reconnectWithEmergency, getPresentedAddressId };
   });
   // Guard so we auto-adopt at most once per connected session (no reconnect loop).
   const autoAdoptedRef = useRef(false);
+  // Bumped per submit so a late-settle reconcile can't clobber a newer submit's
+  // state. (A post-unmount setError is a React no-op, so no mounted guard needed.)
+  const submitGen = useRef(0);
 
-  // Reset ALL session-scoped state when the identity (token) changes — a
-  // different user is now on this (possibly shared) client. Without this the
-  // prior user's `bound`/`savedAddresses` and the one-shot auto-adopt guard
-  // persist, so the new user's session skips presenting its own address and
-  // inherits the previous unlock. Re-arm `loading` so the banner stays hidden
-  // until the new user's status resolves. Skipped on the initial mount (the
-  // useState initializers already hold these values) to avoid a redundant pass.
+  // Reset ALL session-scoped state when the identity (token) changes — a different
+  // user is now on this (possibly shared) client. Without this the prior user's
+  // bound/addresses/auto-adopt guard persist and the new user inherits the previous
+  // unlock (a safety-relevant gate lying). Skipped on initial mount (useState
+  // initializers already hold these).
   const prevIdentityRef = useRef(identityKey);
   useEffect(() => {
     if (prevIdentityRef.current === identityKey) return;
     prevIdentityRef.current = identityKey;
     autoAdoptedRef.current = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset binding state on identity (user) change
     setBound(false);
     setDenied(false);
     setSavedAddresses([]);
@@ -250,19 +229,29 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
             // drop the registration and come back denied). A moved network arrives
             // as network.changed → denied instead.
             setBound(true);
+            // Clear a stale cap-timeout error now this session is bound — but not
+            // mid-submit, whose own cap error must stay until its late-settle clears it.
+            if (!submitting) setError(null);
           } else {
-            // Nothing bound for this session: present the selected/default address
-            // so the server binds it to THIS connection, then let it decide
-            // (same-network → bound; moved → network.changed → denied). select()
-            // persists the id so the reconnect's authenticate carries it; the
-            // autoAdoptedRef one-shot prevents a loop.
-            fns.current.select(active.id);
-            await fns.current.reconnect();
-            return; // the reconnect drives a fresh 'connected' → effect re-runs
+            // Nothing bound this session: present the address so the server binds it.
+            // Do NOT set bound here — the rebind drives a fresh 'connected' that
+            // re-runs this effect and decides boundness off a FRESH list() + current
+            // `denied`; setting it here risks a wrong-green flash. autoAdoptedRef
+            // prevents a re-present loop on that re-run. The cap bounds `loading` so a
+            // socket that never authenticates can't hide the banner for the full ~20s
+            // CONNECT_TIMEOUT (no late-settle reconcile needed — the re-run decides).
+            await withSpinnerTimeout(fns.current.reconnectWithEmergency(active.id), () => {}).catch(
+              () => {}
+            );
+            return;
           }
-        } else {
-          // Presented; bound unless the server denied it for this network.
+        } else if (!submitting) {
+          // Presented; bound unless denied. Skipped mid-submit: that submit clears
+          // `denied` synchronously and re-runs this effect while the socket is still
+          // the OLD 'connected' one, so flipping bound=true here would be a wrong-green
+          // flash before the rebind actually re-binds. Its reconnect drives the truth.
           setBound(!denied);
+          if (!denied) setError(null);
         }
       } catch {
         if (!cancelled) setBound(false);
@@ -273,62 +262,67 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
     return () => {
       cancelled = true;
     };
-  }, [disabled, connection, denied]);
+  }, [disabled, connection, denied, submitting]);
 
-  const confirm = useCallback(
-    async (id: string) => {
-      const gen = ++submitGenRef.current;
+  // Shared submit protocol for confirm/create: block the form, mark this an
+  // explicit choice (so auto-adopt doesn't fire over it), run the caller's `prep`
+  // (un-capped: it resolves the address id to rebind), then the rebind under the
+  // spinner cap. On failure surface a message + rethrow (a failed rebind leaves
+  // outbound PSTN gated, so the banner must not collapse its form). If the rebind
+  // outlives the cap, `onLateSettle` reconciles its eventual result.
+  const runRebind = useCallback(
+    async (fallbackMessage: string, prep: () => Promise<string>): Promise<void> => {
+      const gen = ++submitGen.current;
+      const errorFor = (e: unknown): string =>
+        isBenignInterruption(e)
+          ? INTERRUPTED_MESSAGE
+          : e instanceof Error
+            ? e.message
+            : fallbackMessage;
+      // Fires only when the cap already rejected and the rebind then settles: clear
+      // the false timeout on late success, show the real reason on late failure.
+      // Skipped if a newer submit superseded this one.
+      const onLateSettle = (lateError: Error | null) => {
+        if (submitGen.current !== gen) return;
+        setError(lateError ? errorFor(lateError) : null);
+      };
       setSubmitting(true);
       setError(null);
+      setDenied(false);
+      autoAdoptedRef.current = true;
       try {
-        setDenied(false);
-        autoAdoptedRef.current = true; // explicit choice; don't auto-adopt over it
-        // The address may be anchored to a PRIOR network (registered_ip set) — the
-        // server only (re)binds a NULL anchor, so clear it first, then reconnect
-        // so authenticate re-binds it to THIS network. (Confirming a same-network
-        // address is idempotent: cleared then immediately re-bound to the same IP.)
-        await clearRegisteredIp(id);
-        select(id);
-        await withRebindTimeout(reconnect, lateSettle(gen, 'Failed to confirm emergency address'));
+        const id = await prep();
+        await withSpinnerTimeout(reconnectWithEmergency(id), onLateSettle);
       } catch (e) {
-        // Surface the error AND rethrow: a failed confirm leaves outbound PSTN
-        // gated, so the caller (the banner) must NOT treat this as success and
-        // collapse its form. Rethrowing lets the UI keep the prompt open and the
-        // host onError fire, instead of a silent failure that looks bound.
-        setError(e instanceof Error ? e.message : 'Failed to confirm emergency address');
+        setError(errorFor(e));
         throw e;
       } finally {
+        // Always clear the blocking flag once the rebind settles, whichever way.
         setSubmitting(false);
       }
     },
-    [clearRegisteredIp, select, reconnect, lateSettle]
+    [reconnectWithEmergency]
+  );
+
+  const confirm = useCallback(
+    (id: string) =>
+      runRebind('Failed to confirm emergency address', async () => {
+        // The address may be anchored to a PRIOR network (registered_ip set) — the
+        // server only (re)binds a NULL anchor, so clear it first, then present it so
+        // the fresh authenticate re-binds it to THIS network. reconnectWithEmergency
+        // resolves once the server confirms; bound then flips via the effect re-run.
+        await clearRegisteredIp(id);
+        return id;
+      }),
+    [runRebind, clearRegisteredIp]
   );
 
   const create = useCallback(
-    async (input: EmergencyAddressInput) => {
-      const gen = ++submitGenRef.current;
-      setSubmitting(true);
-      setError(null);
-      try {
-        setDenied(false);
-        autoAdoptedRef.current = true;
-        // Present the NEW address on the reconnect (and persist its id), same as
-        // confirm() does — otherwise the socket re-authenticates without carrying
-        // it, so the server never binds it to this session and the banner never
-        // clears even though the address was created.
-        const created = await save(input);
-        select(created.id);
-        await withRebindTimeout(reconnect, lateSettle(gen, 'Failed to save emergency address'));
-      } catch (e) {
-        // See confirm(): surface + rethrow so a failed create doesn't collapse
-        // the form as if the address were bound.
-        setError(e instanceof Error ? e.message : 'Failed to save emergency address');
-        throw e;
-      } finally {
-        setSubmitting(false);
-      }
-    },
-    [save, select, reconnect, lateSettle]
+    (input: EmergencyAddressInput) =>
+      // Create the address, then present it in one step — otherwise the socket
+      // re-authenticates without carrying it and the server binds nothing.
+      runRebind('Failed to save emergency address', async () => (await save(input)).id),
+    [runRebind, save]
   );
 
   return { loading, bound, savedAddresses, submitting, error, onNetworkChanged, confirm, create };
