@@ -97,6 +97,9 @@ export async function loadDialstackAndInitialize(
     resolveRoutingTarget: (target) => {
       return instance.resolveRoutingTarget(target);
     },
+    routingTargets: () => {
+      return instance.routingTargets();
+    },
     fetchAllPages: (fetchFn) => {
       return instance.fetchAllPages(fetchFn);
     },

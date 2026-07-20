@@ -77,7 +77,13 @@ import type {
   UpdateLocationRequest,
   E911ValidationResult,
   NamedResource,
+  RoutingTarget,
+  RoutingTargetType,
 } from '../types';
+
+// Re-exported for back-compat: these historically lived in this module.
+export type { RoutingTargetType } from '../types';
+export { ROUTING_TARGET_TYPE_ORDER } from '../types';
 import type { DialPlan as DialPlanData } from '../types/dial-plan';
 import type { AIAgent, UpdateAIAgentRequest } from '../types/ai-agent';
 
@@ -130,9 +136,6 @@ const SESSION_RETRY_INTERVAL_MS = 1 * 60 * 1000; // 1 minute retry on error
 // rejected secret means the session is dead, not that the connection blipped;
 // retrying with the same secret just loops one failed request per attempt.
 const MAX_STREAM_AUTH_FAILURES = 3;
-
-export type RoutingTargetType =
-  'user' | 'dial_plan' | 'voice_app' | 'ring_group' | 'queue' | 'shared_voicemail';
 
 /** Canonical mapping from TypeID prefix to API path and routing target type. */
 export const ROUTING_TARGET_TYPES: Record<string, { path: string; type: RoutingTargetType }> = {
@@ -1860,6 +1863,71 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * List all selectable inbound-routing targets for the current account.
+   *
+   * "Routing target" is not a first-class resource — this fans out over the
+   * underlying resource lists and merges them into one flat list whose `id`
+   * values are exactly what `phoneNumbers.updateRoute` accepts. A list that
+   * fails (e.g. a resource the session isn't scoped for) is skipped rather
+   * than failing the whole aggregation.
+   */
+  async routingTargets(): Promise<RoutingTarget[]> {
+    const sources: Array<{
+      type: RoutingTargetType;
+      list: () => Promise<
+        Array<{ id: string; name?: string | null; extension_number?: string | null }>
+      >;
+    }> = [
+      // Pass limit explicitly on every source: the underlying list methods
+      // otherwise fall back to the API's default page size (10), which would
+      // silently drop the 11th+ target of any type from the picker.
+      {
+        type: 'user',
+        list: () =>
+          this.users.list({ limit: 100, expand: ['extensions'] }).then((users) =>
+            users.map((u) => ({
+              id: u.id,
+              name: u.name,
+              extension_number: u.extensions?.data?.[0]?.number ?? null,
+            }))
+          ),
+      },
+      {
+        type: 'dial_plan',
+        list: () => this.dialPlans.list({ limit: 100, expand: ['extensions'] }),
+      },
+      {
+        type: 'voice_app',
+        list: () => this.voiceApps.list({ limit: 100, expand: ['extensions'] }),
+      },
+      {
+        type: 'ring_group',
+        list: () => this.ringGroups.list({ limit: 100, expand: ['extensions'] }),
+      },
+      { type: 'queue', list: () => this.queues.list({ limit: 100, expand: ['extensions'] }) },
+      { type: 'shared_voicemail', list: () => this.sharedVoicemailBoxes.list({ limit: 100 }) },
+    ];
+
+    const results = await Promise.all(
+      sources.map(async ({ type, list }) => {
+        try {
+          const items = await list();
+          return items.map((item): RoutingTarget => ({
+            id: item.id,
+            name: item.name ?? '',
+            type,
+            extension_number: item.extension_number ?? null,
+          }));
+        } catch {
+          return [];
+        }
+      })
+    );
+
+    return results.flat();
   }
 
   /**

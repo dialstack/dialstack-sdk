@@ -1130,6 +1130,21 @@ export function createMockInstance(
       type: (target.startsWith('rg_') ? 'ring_group' : 'user') as 'ring_group' | 'user',
       extension_number: '1001',
     }),
+
+    routingTargets: async () =>
+      empty
+        ? []
+        : [
+            { id: 'user_01alice', name: 'Alice Smith', type: 'user', extension_number: '1001' },
+            { id: 'user_01bob', name: 'Bob Jones', type: 'user', extension_number: '1002' },
+            {
+              id: 'rg_01main',
+              name: 'Main Ring Group',
+              type: 'ring_group',
+              extension_number: '2000',
+            },
+            { id: 'dp_01reception', name: 'Reception', type: 'dial_plan', extension_number: null },
+          ],
   };
 
   return instance;

@@ -86,6 +86,37 @@ export interface NamedResource {
   extension_number?: string;
 }
 
+export type RoutingTargetType =
+  'user' | 'dial_plan' | 'voice_app' | 'ring_group' | 'queue' | 'shared_voicemail';
+
+/**
+ * Canonical display order for routing-target types — the single source of truth
+ * both `routingTargets()` (result order) and the UIs (grouping order) share, so
+ * adding or reordering a type happens in exactly one place.
+ */
+export const ROUTING_TARGET_TYPE_ORDER: readonly RoutingTargetType[] = [
+  'user',
+  'dial_plan',
+  'voice_app',
+  'ring_group',
+  'queue',
+  'shared_voicemail',
+];
+
+/**
+ * A selectable inbound-routing destination. Not a first-class API resource —
+ * it's a synthetic union assembled from the underlying resources (users, dial
+ * plans, voice apps, ring groups, queues, shared voicemail boxes), each keyed
+ * by its own TypeID. `id` is that underlying resource's id, which is exactly
+ * what `phoneNumbers.updateRoute` accepts.
+ */
+export interface RoutingTarget {
+  id: string;
+  name: string;
+  type: RoutingTargetType;
+  extension_number?: string | null;
+}
+
 /**
  * Client secret response from fetchClientSecret
  * Can be either a string (for backward compatibility) or an object with expiry info
@@ -571,6 +602,13 @@ export interface DialStackInstance {
     type: 'user' | 'dial_plan' | 'voice_app' | 'ring_group' | 'queue' | 'shared_voicemail';
     extension_number?: string | null;
   } | null>;
+  /**
+   * List all selectable inbound-routing targets for the current account by
+   * fanning out over the underlying resource lists and merging the results.
+   * Convenience aggregation over existing list endpoints — there is no
+   * dedicated routing-targets endpoint.
+   */
+  routingTargets(): Promise<RoutingTarget[]>;
   /** Get current appearance options */
   getAppearance(): AppearanceOptions | undefined;
 

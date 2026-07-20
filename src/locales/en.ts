@@ -216,6 +216,7 @@ export const en = {
       search: 'Search',
       select: 'Select',
       confirm: 'Confirm',
+      route: 'Route',
       done: 'Done',
       stepOf: 'Step {current} of {total}',
     },
@@ -249,7 +250,28 @@ export const en = {
       description:
         'Your order will be submitted to the carrier for fulfillment. This usually completes within seconds but may take longer.',
       placeOrder: 'Place Order',
+      continue: 'Continue',
       back: 'Back',
+    },
+    route: {
+      title: 'Choose call routing',
+      subtitle:
+        'Pick where these numbers should send calls once they activate. You can change this any time, or set it up later.',
+      later: 'Set up routing later',
+      laterHint: 'Configure each number from its detail page after it activates.',
+      noTargets:
+        'No routing destinations exist yet. You can set up routing after the numbers are added.',
+      unnamed: 'Untitled',
+      extension: 'ext. {ext}',
+      back: 'Back',
+      type: {
+        user: 'User',
+        dial_plan: 'Dial plan',
+        voice_app: 'Voice app',
+        queue: 'Queue',
+        ring_group: 'Ring group',
+        shared_voicemail: 'Shared voicemail',
+      },
     },
     ordering: {
       title: 'Placing Order...',

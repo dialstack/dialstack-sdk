@@ -5,15 +5,18 @@
 import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenumber-js';
 import { BaseComponent } from './base-component';
 import { segmentedControlStyles, tableStyles } from './shared-styles';
+import { ROUTING_TARGET_TYPE_ORDER } from '../types';
 import type {
   AvailablePhoneNumber,
+  DIDItem,
   NumberOrder,
   PhoneNumberOrderingClasses,
+  RoutingTarget,
   SearchAvailableNumbersOptions,
   SearchType,
 } from '../types';
 
-type Step = 'search' | 'results' | 'confirm' | 'ordering' | 'complete' | 'error';
+type Step = 'search' | 'results' | 'confirm' | 'route' | 'ordering' | 'complete' | 'error';
 
 const CHECK_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
 const SUCCESS_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
@@ -382,6 +385,108 @@ const COMPONENT_STYLES = `
     color: var(--ds-color-text-secondary);
   }
 
+  /* ── Route step (routing-target picker) ── */
+  .route-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: var(--ds-layout-spacing-lg);
+    max-height: 340px;
+    overflow-y: auto;
+  }
+
+  .route-group-heading {
+    font-size: var(--ds-font-size-small);
+    font-weight: var(--ds-font-weight-medium);
+    color: var(--ds-color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: var(--ds-layout-spacing-md) var(--ds-layout-spacing-sm) var(--ds-spacing-xs);
+  }
+
+  .route-option {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-layout-spacing-md);
+    padding: var(--ds-layout-spacing-sm) var(--ds-layout-spacing-md);
+    border: 1px solid var(--ds-color-border);
+    border-radius: var(--ds-border-radius);
+    background: var(--ds-color-background);
+    cursor: pointer;
+    transition: all var(--ds-transition-duration);
+  }
+
+  .route-option:hover {
+    border-color: var(--ds-color-primary);
+    background: var(--ds-color-surface, var(--ds-color-background));
+  }
+
+  .route-option.selected {
+    border-color: var(--ds-color-primary);
+    background: color-mix(in srgb, var(--ds-color-primary) 8%, transparent);
+  }
+
+  .route-radio {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--ds-color-border);
+    border-radius: 50%;
+    background: var(--ds-color-background);
+    position: relative;
+    transition: all var(--ds-transition-duration);
+  }
+
+  .route-option:hover .route-radio {
+    border-color: var(--ds-color-primary);
+  }
+
+  .route-radio.checked {
+    border-color: var(--ds-color-primary);
+  }
+
+  .route-radio.checked::after {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    background: var(--ds-color-primary);
+  }
+
+  .route-option-main {
+    display: flex;
+    align-items: baseline;
+    gap: var(--ds-spacing-sm);
+    min-width: 0;
+    flex: 1;
+  }
+
+  .route-option-name {
+    font-weight: var(--ds-font-weight-medium);
+    color: var(--ds-color-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .route-option-ext {
+    font-size: var(--ds-font-size-small);
+    color: var(--ds-color-text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .route-option-hint {
+    font-size: var(--ds-font-size-small);
+    color: var(--ds-color-text-secondary);
+  }
+
+  .route-empty {
+    padding: var(--ds-layout-spacing-md);
+    font-size: var(--ds-font-size-small);
+    color: var(--ds-color-text-secondary);
+    text-align: center;
+  }
+
   /* ── Center State (loading, error, complete) ── */
   .center-state {
     display: flex;
@@ -554,6 +659,13 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
   private availableNumbers: AvailablePhoneNumber[] = [];
   private selectedNumbers: Set<string> = new Set();
 
+  // Routing state — the target chosen on the route step, applied to the
+  // ordered numbers once their DIDs exist. `null` = "set up routing later"
+  // (leave unrouted, no guess).
+  private routingTargets: RoutingTarget[] = [];
+  private isLoadingRoutingTargets: boolean = false;
+  private selectedRoutingTarget: string | null = null;
+
   // Order state
   private order: NumberOrder | null = null;
   private errorMessage: string = '';
@@ -680,6 +792,10 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
       } else if (order.status === 'pending') {
         this.startPolling();
       } else {
+        // Fire-and-forget: routing is a best-effort convenience, never a
+        // gate on order completion. Don't await it; `.catch` keeps a future
+        // throw from escaping as an unhandled rejection.
+        void this.applyRoutingToOrder(order).catch(() => {});
         this._onOrderComplete?.({ orderId: order.id, order });
       }
     } catch (err) {
@@ -688,6 +804,47 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
       this.step = 'error';
       this._onOrderError?.({ error: msg });
       this.render();
+    }
+  }
+
+  /**
+   * Best-effort, fire-and-forget: apply the chosen routing target to the
+   * numbers an order completed. The order never depends on this — callers
+   * invoke it without awaiting and fire onOrderComplete regardless. The
+   * pre-created DIDs exist (inactive) by the time an order resolves, so we
+   * match the completed E.164 strings against the phone-number list to get
+   * their ids and route each. A no-selection ("route later"), an unmatched
+   * number, or a per-DID failure is left unrouted (the normal "Set routing"
+   * fallback) — never retried, never surfaced as an order error. Routing an
+   * inactive DID is accepted by the API and preserved when the number activates.
+   */
+  private async applyRoutingToOrder(order: NumberOrder): Promise<void> {
+    // Capture the selection up front: the per-DID updateRoute calls run later
+    // inside Promise.all, and passing a null target would *clear* routing.
+    const target = this.selectedRoutingTarget;
+    if (!this.instance || !target) return;
+    const completed = order.completed_numbers ?? [];
+    if (completed.length === 0) return;
+
+    try {
+      const dids = await this.instance.fetchAllPages<DIDItem>((opts) =>
+        this.instance!.phoneNumbers.list(opts)
+      );
+      const idByNumber = new Map(dids.map((did) => [did.phone_number, did.id]));
+      await Promise.all(
+        completed.map(async (phone) => {
+          const didId = idByNumber.get(phone);
+          if (!didId) return;
+          try {
+            await this.instance!.phoneNumbers.updateRoute(didId, target);
+          } catch {
+            // Leave this number unrouted — surfaces as the normal "set routing"
+            // state on the number, no guess.
+          }
+        })
+      );
+    } catch {
+      // Listing failed — leave all completed numbers unrouted.
     }
   }
 
@@ -736,6 +893,9 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
         } else {
           this.stopPolling();
           if (order.status !== 'pending') {
+            // Fire-and-forget: never gate completion on routing. `.catch`
+            // keeps a future throw from escaping as an unhandled rejection.
+            void this.applyRoutingToOrder(order).catch(() => {});
             this._onOrderComplete?.({ orderId: order.id, order });
           }
         }
@@ -766,6 +926,29 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     this.render();
   }
 
+  private goToRoute(): void {
+    if (this.selectedNumbers.size === 0) return;
+    this.step = 'route';
+    this.render();
+    void this.loadRoutingTargets();
+  }
+
+  private async loadRoutingTargets(): Promise<void> {
+    if (!this.instance) return;
+    this.isLoadingRoutingTargets = true;
+    this.render();
+    try {
+      this.routingTargets = await this.instance.routingTargets();
+    } catch {
+      // A failed enumeration just leaves the picker empty — the user can still
+      // choose "set up routing later" and proceed.
+      this.routingTargets = [];
+    } finally {
+      this.isLoadingRoutingTargets = false;
+      if (this.step === 'route') this.render();
+    }
+  }
+
   private resetFlow(): void {
     this.stopPolling();
     this.step = 'search';
@@ -773,6 +956,8 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     this.quantity = 10;
     this.availableNumbers = [];
     this.selectedNumbers = new Set();
+    this.routingTargets = [];
+    this.selectedRoutingTarget = null;
     this.order = null;
     this.errorMessage = '';
     this.render();
@@ -797,6 +982,9 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
         break;
       case 'confirm':
         content = this.renderConfirmStep();
+        break;
+      case 'route':
+        content = this.renderRouteStep();
         break;
       case 'ordering':
         content = this.renderOrderingStep();
@@ -829,6 +1017,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
       this.t('phoneNumberOrdering.steps.search'),
       this.t('phoneNumberOrdering.steps.select'),
       this.t('phoneNumberOrdering.steps.confirm'),
+      this.t('phoneNumberOrdering.steps.route'),
       this.t('phoneNumberOrdering.steps.done'),
     ];
 
@@ -836,9 +1025,10 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
       search: 0,
       results: 1,
       confirm: 2,
-      ordering: 3,
-      complete: 3,
-      error: 3,
+      route: 3,
+      ordering: 4,
+      complete: 4,
+      error: 4,
     };
     const progressIndex = stepProgressMap[this.step] ?? 0;
     const totalSteps = stepLabels.length;
@@ -1026,6 +1216,53 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
           <div></div>
           <div class="footer-right">
             <button class="btn btn-secondary" data-action="back-to-results">${this.t('phoneNumberOrdering.confirm.back')}</button>
+            <button class="btn btn-primary" data-action="continue-to-route">
+              ${this.t('phoneNumberOrdering.confirm.continue')}
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  private renderRouteStep(): string {
+    const laterSelected = this.selectedRoutingTarget === null;
+
+    let list: string;
+    if (this.isLoadingRoutingTargets) {
+      list = `<div class="center-state" role="status" aria-live="polite">
+           <div class="spinner" aria-hidden="true">${this.icons.spinner}</div>
+         </div>`;
+    } else {
+      const laterRow = `
+        <div class="route-option ${laterSelected ? 'selected' : ''}" data-action="route-skip"
+             role="radio" aria-checked="${laterSelected}" tabindex="0">
+          <span class="route-radio ${laterSelected ? 'checked' : ''}" aria-hidden="true"></span>
+          <span class="route-option-main">
+            <span class="route-option-name">${this.t('phoneNumberOrdering.route.later')}</span>
+            <span class="route-option-hint">${this.t('phoneNumberOrdering.route.laterHint')}</span>
+          </span>
+        </div>`;
+
+      const groups =
+        this.routingTargets.length === 0
+          ? `<div class="route-empty">${this.t('phoneNumberOrdering.route.noTargets')}</div>`
+          : this.renderRouteTargetGroups();
+
+      list = `<div class="route-list" role="radiogroup">${laterRow}${groups}</div>`;
+    }
+
+    return `
+      <div class="card" part="route">
+        <h2 class="section-title">${this.t('phoneNumberOrdering.route.title')}</h2>
+        <p class="section-subtitle">${this.t('phoneNumberOrdering.route.subtitle')}</p>
+
+        ${list}
+
+        <div class="footer-bar">
+          <div></div>
+          <div class="footer-right">
+            <button class="btn btn-secondary" data-action="back-to-confirm">${this.t('phoneNumberOrdering.route.back')}</button>
             <button class="btn btn-primary" data-action="place-order">
               ${this.t('phoneNumberOrdering.confirm.placeOrder')}
             </button>
@@ -1033,6 +1270,61 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
         </div>
       </div>
     `;
+  }
+
+  /**
+   * Toggle the selected route option in place instead of re-rendering the whole
+   * component — avoids rebuilding every step's HTML and resetting the list's
+   * scroll position on each click.
+   */
+  private updateRouteSelectionUI(): void {
+    if (!this.shadowRoot) return;
+    const options = this.shadowRoot.querySelectorAll<HTMLElement>('.route-option');
+    for (const option of options) {
+      const isSkip = option.dataset.action === 'route-skip';
+      const selected = isSkip
+        ? this.selectedRoutingTarget === null
+        : option.dataset.targetId === this.selectedRoutingTarget;
+      option.classList.toggle('selected', selected);
+      option.setAttribute('aria-checked', String(selected));
+      option.querySelector('.route-radio')?.classList.toggle('checked', selected);
+    }
+  }
+
+  private renderRouteTargetGroups(): string {
+    const grouped = new Map<RoutingTarget['type'], RoutingTarget[]>();
+    for (const target of this.routingTargets) {
+      const list = grouped.get(target.type) ?? [];
+      list.push(target);
+      grouped.set(target.type, list);
+    }
+
+    return ROUTING_TARGET_TYPE_ORDER.map((type) => {
+      const items = grouped.get(type);
+      if (!items?.length) return '';
+      const rows = items
+        .map((target) => {
+          const isSelected = this.selectedRoutingTarget === target.id;
+          const ext = target.extension_number
+            ? `<span class="route-option-ext">${this.t('phoneNumberOrdering.route.extension', { ext: this.escapeHtml(target.extension_number) })}</span>`
+            : '';
+          return `
+            <div class="route-option ${isSelected ? 'selected' : ''}" data-action="select-route-target"
+                 data-target-id="${this.escapeHtml(target.id)}" role="radio" aria-checked="${isSelected}" tabindex="0">
+              <span class="route-radio ${isSelected ? 'checked' : ''}" aria-hidden="true"></span>
+              <span class="route-option-main">
+                <span class="route-option-name">${this.escapeHtml(target.name || this.t('phoneNumberOrdering.route.unnamed'))}</span>
+                ${ext}
+              </span>
+            </div>
+          `;
+        })
+        .join('');
+      return `
+        <div class="route-group-heading">${this.t(`phoneNumberOrdering.route.type.${type}`)}</div>
+        ${rows}
+      `;
+    }).join('');
   }
 
   private renderOrderingStep(): string {
@@ -1136,66 +1428,98 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     if (!this.shadowRoot) return;
 
     this.shadowRoot.addEventListener('click', (e) => {
-      const target = e.target as HTMLElement;
-      const actionEl = target.closest<HTMLElement>('[data-action]');
+      const actionEl = (e.target as HTMLElement).closest<HTMLElement>('[data-action]');
+      if (actionEl) this.handleAction(actionEl);
+    });
+
+    // Keyboard activation for focusable action elements (e.g. the route-step
+    // radio options are role="radio" tabindex="0"): Space/Enter select them, so
+    // keyboard and assistive-tech users can pick a routing destination.
+    this.shadowRoot.addEventListener('keydown', (e) => {
+      const ke = e as KeyboardEvent;
+      if (ke.key !== 'Enter' && ke.key !== ' ' && ke.key !== 'Spacebar') return;
+      const actionEl = (e.target as HTMLElement).closest<HTMLElement>('[data-action][tabindex]');
       if (!actionEl) return;
+      e.preventDefault(); // stop Space from scrolling the list
+      this.handleAction(actionEl);
+    });
+  }
 
-      const action = actionEl.dataset.action;
+  /** Run the action for a `[data-action]` element (shared by click + keydown). */
+  private handleAction(actionEl: HTMLElement): void {
+    const action = actionEl.dataset.action;
 
-      switch (action) {
-        case 'set-search-type': {
-          const type = actionEl.dataset.type as SearchType;
-          if (type && type !== this.searchType) {
-            this.searchType = type;
-            this.updateSearchTypeUI(type);
-            this.updateSearchButton();
-          }
-          break;
+    switch (action) {
+      case 'set-search-type': {
+        const type = actionEl.dataset.type as SearchType;
+        if (type && type !== this.searchType) {
+          this.searchType = type;
+          this.updateSearchTypeUI(type);
+          this.updateSearchButton();
         }
-        case 'search':
-          this.searchNumbers();
-          break;
-        case 'toggle-number': {
-          const phone = actionEl.dataset.phone;
-          if (phone) {
-            if (this.selectedNumbers.has(phone)) {
-              this.selectedNumbers.delete(phone);
-            } else {
-              this.selectedNumbers.add(phone);
-            }
-            this.render();
-          }
-          break;
-        }
-        case 'select-all': {
-          if (this.selectedNumbers.size === this.availableNumbers.length) {
-            this.selectedNumbers = new Set();
+        break;
+      }
+      case 'search':
+        this.searchNumbers();
+        break;
+      case 'toggle-number': {
+        const phone = actionEl.dataset.phone;
+        if (phone) {
+          if (this.selectedNumbers.has(phone)) {
+            this.selectedNumbers.delete(phone);
           } else {
-            this.selectedNumbers = new Set(this.availableNumbers.map((n) => n.phone_number));
+            this.selectedNumbers.add(phone);
           }
           this.render();
-          break;
         }
-        case 'continue':
-          this.goToConfirm();
-          break;
-        case 'back-to-search':
-          this.goToSearch();
-          break;
-        case 'back-to-results':
-          this.goToResults();
-          break;
-        case 'place-order':
-          this.placeOrder();
-          break;
-        case 'order-more':
-          this.resetFlow();
-          break;
-        case 'try-again':
-          this.goToSearch();
-          break;
+        break;
       }
-    });
+      case 'select-all': {
+        if (this.selectedNumbers.size === this.availableNumbers.length) {
+          this.selectedNumbers = new Set();
+        } else {
+          this.selectedNumbers = new Set(this.availableNumbers.map((n) => n.phone_number));
+        }
+        this.render();
+        break;
+      }
+      case 'continue':
+        this.goToConfirm();
+        break;
+      case 'continue-to-route':
+        this.goToRoute();
+        break;
+      case 'select-route-target': {
+        const targetId = actionEl.dataset.targetId;
+        if (targetId) {
+          this.selectedRoutingTarget = targetId;
+          this.updateRouteSelectionUI();
+        }
+        break;
+      }
+      case 'route-skip':
+        this.selectedRoutingTarget = null;
+        this.updateRouteSelectionUI();
+        break;
+      case 'back-to-search':
+        this.goToSearch();
+        break;
+      case 'back-to-results':
+        this.goToResults();
+        break;
+      case 'back-to-confirm':
+        this.goToConfirm();
+        break;
+      case 'place-order':
+        this.placeOrder();
+        break;
+      case 'order-more':
+        this.resetFlow();
+        break;
+      case 'try-again':
+        this.goToSearch();
+        break;
+    }
   }
 
   /** Attach per-element listeners for inputs -- called on each render(). */

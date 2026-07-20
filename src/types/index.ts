@@ -160,7 +160,10 @@ export type {
   SessionData,
   DialStackInstanceImpl,
   NamedResource,
+  RoutingTarget,
+  RoutingTargetType,
 } from './core';
+export { ROUTING_TARGET_TYPE_ORDER } from './core';
 
 // Dial plan types
 export type {
