@@ -254,6 +254,11 @@ export interface CallLog {
   to_label: string | null;
   started_at: string;
   answered_at: string | null;
+  // When the winning leg (user device / external number) answered —
+  // live-conversation start. Null when the call never connected to anyone:
+  // abandoned while ringing/greeting, or answered by voicemail. Distinct from
+  // answered_at, which is the signalling answer (a greeting counts).
+  connected_at: string | null;
   ended_at: string | null;
   duration_seconds: number | null;
   status: 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';

@@ -36,6 +36,7 @@ export const MOCK_CALLS: PaginatedResponse<CallLog> = {
       duration_seconds: 125,
       started_at: '2026-02-24T14:30:00Z',
       answered_at: '2026-02-24T14:30:05Z',
+      connected_at: '2026-02-24T14:30:42Z',
       ended_at: '2026-02-24T14:32:10Z',
     },
     {
@@ -52,6 +53,7 @@ export const MOCK_CALLS: PaginatedResponse<CallLog> = {
       duration_seconds: 45,
       started_at: '2026-02-24T13:00:00Z',
       answered_at: '2026-02-24T13:00:03Z',
+      connected_at: '2026-02-24T13:00:03Z',
       ended_at: '2026-02-24T13:00:48Z',
     },
     {
@@ -83,6 +85,7 @@ export const MOCK_CALLS: PaginatedResponse<CallLog> = {
       duration_seconds: 312,
       started_at: '2026-02-23T11:20:00Z',
       answered_at: '2026-02-23T11:20:08Z',
+      connected_at: '2026-02-23T11:20:25Z',
       ended_at: '2026-02-23T11:25:20Z',
     },
     {
