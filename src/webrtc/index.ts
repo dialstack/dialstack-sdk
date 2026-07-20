@@ -5,7 +5,7 @@ export type { PhoneErrorCode } from './errors';
 export type { PlatformStorage } from './platform';
 export { RingbackTone } from './ringback';
 export type { Ringback } from './ringback';
-export type { SignalingSocketFactory } from './transport';
+export type { SignalingSocketFactory, AppResumeSubscribe } from './transport';
 export type {
   PhoneOptions,
   CallOptions,

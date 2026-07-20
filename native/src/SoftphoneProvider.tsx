@@ -7,6 +7,7 @@
  */
 
 import React, { useEffect, useMemo } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 import InCallManager from 'react-native-incall-manager';
 import { type CountryCode } from 'libphonenumber-js';
 import {
@@ -26,6 +27,7 @@ import {
   type EmergencyAddressInput,
   type PlatformStorage,
   type Ringback,
+  type AppResumeSubscribe,
   type SignalingSocketFactory,
 } from '@dialstack/sdk/react/core';
 
@@ -87,6 +89,17 @@ const nativeSignalingSocket: SignalingSocketFactory = (url, protocols) => {
   return new RNWebSocket(url, protocols, {
     headers: { 'User-Agent': NATIVE_USER_AGENT },
   });
+};
+
+// React Native has no `document`, so the web core's DOM-lifecycle default for
+// detecting a foreground resume can't fire. Supply an AppState-backed variant:
+// the transport uses it to re-verify the connection when the app returns to the
+// foreground (the OS may have torn the socket down while backgrounded).
+const nativeAppResume: AppResumeSubscribe = (cb) => {
+  const sub = AppState.addEventListener('change', (s: AppStateStatus) => {
+    if (s === 'active') cb();
+  });
+  return () => sub.remove();
 };
 
 export type ConnectionState = SoftphoneConnectionState;
@@ -195,6 +208,7 @@ export function SoftphoneProvider({
       storage={storage}
       ringback={nativeRingback}
       createSignalingSocket={nativeSignalingSocket}
+      onAppResume={nativeAppResume}
       apiBaseUrl={apiBaseUrl}
       onTokenExpiring={onTokenExpiring}
       emergencyAddressId={emergencyAddressId}

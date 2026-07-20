@@ -98,4 +98,5 @@ export type {
   PlatformStorage,
   Ringback,
   SignalingSocketFactory,
+  AppResumeSubscribe,
 } from '../../webrtc';

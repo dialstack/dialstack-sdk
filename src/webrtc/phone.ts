@@ -6,7 +6,7 @@ import { storage as defaultStorage } from './platform';
 import type { PlatformStorage } from './platform';
 import type { RTCIceServer, RTCSessionDescriptionInit } from './platform';
 import type { Ringback } from './ringback';
-import { Transport, type SignalingSocketFactory } from './transport';
+import { Transport, type AppResumeSubscribe, type SignalingSocketFactory } from './transport';
 import type {
   EmergencyAddress,
   EmergencyAddressInput,
@@ -133,6 +133,9 @@ export class DialStackPhone {
   // Signaling-socket factory passed to Transport (see
   // PhoneOptions.createSignalingSocket). null → Transport opens a bare WebSocket.
   private createSignalingSocket: SignalingSocketFactory | null;
+  // App-resume subscription passed to Transport (see PhoneOptions.onAppResume).
+  // null → Transport uses its web DOM-lifecycle default.
+  private onAppResume: AppResumeSubscribe | null;
 
   private transport: Transport | null = null;
   private iceServers: RTCIceServer[] = [];
@@ -179,6 +182,7 @@ export class DialStackPhone {
     this.onTokenExpiring = options.onTokenExpiring ?? null;
     this.ringback = options.ringback ?? null;
     this.createSignalingSocket = options.createSignalingSocket ?? null;
+    this.onAppResume = options.onAppResume ?? null;
   }
 
   on<K extends keyof PhoneEventMap>(event: K, handler: Listener<K>): void {
@@ -207,7 +211,8 @@ export class DialStackPhone {
     const transport = new Transport(
       this.signalingUrl,
       this.autoReconnect,
-      this.createSignalingSocket ?? undefined
+      this.createSignalingSocket ?? undefined,
+      this.onAppResume ?? undefined
     );
     this.transport = transport;
 

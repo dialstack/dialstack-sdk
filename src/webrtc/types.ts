@@ -1,6 +1,6 @@
 import type { PlatformStorage } from './platform';
 import type { Ringback } from './ringback';
-import type { SignalingSocketFactory } from './transport';
+import type { AppResumeSubscribe, SignalingSocketFactory } from './transport';
 
 export type CallState = 'trying' | 'ringing' | 'active' | 'held' | 'ended';
 export type CallDirection = 'inbound' | 'outbound';
@@ -61,6 +61,15 @@ export interface PhoneOptions {
    * the default.
    */
   createSignalingSocket?: SignalingSocketFactory;
+  /**
+   * Subscribe to "the app/tab returned to the foreground". Defaults to the web
+   * DOM lifecycle events (`visibilitychange`/`focus`/`online`/`pageshow`); React
+   * Native has no `document`, so the RN softphone provider supplies an
+   * `AppState`-backed variant here. On resume the transport actively re-verifies
+   * the connection (a backgrounded tab's throttled event loop may never have
+   * processed the socket's close), reconnecting if it's dead.
+   */
+  onAppResume?: AppResumeSubscribe;
 }
 
 /**
@@ -138,6 +147,12 @@ export interface IceServersResponse {
 export type ClientMessage =
   | { type: 'authenticate'; token: string; emergency_address_id?: string }
   | { type: 'auth.refresh'; req_id?: string; token: string }
+  // Application-layer liveness probe. Sent by the client to confirm the socket
+  // is still alive after the environment resumes from a background throttle —
+  // browsers can't send WS control-frame pings from JS, so this is a data frame.
+  // The server replies `pong`; it has no other side effect (unlike auth.refresh,
+  // it does NOT reset the session expiry timer).
+  | { type: 'ping'; req_id?: string }
   | { type: 'call.create'; req_id?: string; destination: string; sdp: string }
   | { type: 'call.answer'; call_id: string }
   | { type: 'call.reject'; call_id: string; reason?: RejectReason }
@@ -169,6 +184,8 @@ export type ClientMessage =
 export type ServerMessage =
   | { type: 'authenticated'; user_id: string; account_id: string; reconnected?: boolean }
   | { type: 'auth.refreshed'; req_id?: string | null }
+  // Reply to a client `ping`; echoes its req_id. Proof the socket is alive.
+  | { type: 'pong'; req_id?: string | null }
   | { type: 'network.changed' }
   | {
       type: 'error';

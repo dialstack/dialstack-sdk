@@ -69,6 +69,7 @@ export interface SoftphoneCoreProps {
   storage?: PlatformStorage;
   ringback?: UseCallsOptions['ringback'];
   createSignalingSocket?: UseCallsOptions['createSignalingSocket'];
+  onAppResume?: UseCallsOptions['onAppResume'];
   emergencyAddressId?: string;
   autoConnect?: boolean;
   appearance?: AppearanceOptions;
@@ -112,6 +113,7 @@ export function SoftphoneProviderBase<Extra extends object>({
   storage,
   ringback,
   createSignalingSocket,
+  onAppResume,
   emergencyAddressId,
   autoConnect = true,
   appearance,
@@ -169,6 +171,7 @@ export function SoftphoneProviderBase<Extra extends object>({
     storage,
     ringback,
     createSignalingSocket,
+    onAppResume,
     emergencyAddressId,
     autoConnect,
     onIncomingCall,

@@ -909,6 +909,7 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
     storage,
     ringback,
     createSignalingSocket,
+    onAppResume,
   } = options;
   // The emergency-address id is a per-outbound-PSTN-call concern, NOT a
   // connection credential — the phone loads it from localStorage on construct
@@ -951,6 +952,13 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
   useEffect(() => {
     createSignalingSocketRef.current = createSignalingSocket;
   }, [createSignalingSocket]);
+  // `onAppResume` is the platform's foreground-resume subscription (DOM
+  // lifecycle default on web; AppState-backed on React Native). Non-credential,
+  // read through a ref like the others so it stays out of the connect deps.
+  const onAppResumeRef = useRef(onAppResume);
+  useEffect(() => {
+    onAppResumeRef.current = onAppResume;
+  }, [onAppResume]);
   // `onTokenExpiring` is a host callback the phone invokes shortly before the
   // token's exp to refresh it in-band (no reconnect). Passed inline its identity
   // changes each render, so like the other non-credential options it must NOT be a
@@ -973,6 +981,7 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
       storage: storageRef.current,
       ringback: ringbackRef.current,
       createSignalingSocket: createSignalingSocketRef.current,
+      onAppResume: onAppResumeRef.current,
       autoReconnect,
       onTokenExpiring: onTokenExpiringRef.current
         ? () => {
