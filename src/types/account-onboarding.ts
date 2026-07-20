@@ -73,6 +73,13 @@ export interface Account {
   config: AccountConfig;
   /** True when the account has completed every onboarding step. */
   onboarding_complete: boolean;
+  /**
+   * Subscription-agreement coverage. `not_required` — a non-live
+   * (sandbox/demo) account, never prompted to accept. `unsigned` — acceptance
+   * is owed (none recorded, or the recorded one is for a superseded version).
+   * `signed` — the current agreement is accepted.
+   */
+  tos_status?: 'signed' | 'unsigned' | 'not_required';
   hold_music_clip?: string | null;
   /** @deprecated Use `hold_music_clip`. Retained for backwards compatibility. */
   hold_music_clip_id?: string | null;

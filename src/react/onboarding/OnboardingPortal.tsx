@@ -103,10 +103,20 @@ export const OnboardingPortal: React.FC<OnboardingPortalProps> = (props) => {
   // Forced first-login acceptance: a top-level blocking gate that replaces the
   // entire portal (no sidebar, no exit) until the agreement is accepted. Shown
   // even when onboarding is otherwise complete, so it can't be routed around.
-  if (!tosAccepted) {
+  //
+  // Accounts the server marks `not_required` (non-live: sandbox/demo — they
+  // have no carrier access, so there is nothing to consent to) are never
+  // prompted and skip the gate entirely, including the fail-closed load-error
+  // screen. The check is server-authoritative and deliberately exact: a
+  // missing/unknown tos_status still gates, so we stay fail-closed for any
+  // account that may owe acceptance.
+  if (!tosAccepted && sharedData.account?.tos_status !== 'not_required') {
     // Fail closed: if the agreement couldn't be loaded we cannot prove it was
-    // accepted, so block the portal behind a retry rather than letting the user in.
-    if (sharedData.tosLoadFailed) {
+    // accepted, so block the portal behind a retry rather than letting the user
+    // in. A missing account is the same case — a failed account fetch leaves
+    // the whole bootstrap at defaults (tosLoadFailed false included), and
+    // without the account we cannot tell whether acceptance is required.
+    if (sharedData.tosLoadFailed || !sharedData.account) {
       return (
         <SsaGateLoadError
           locale={locale}
