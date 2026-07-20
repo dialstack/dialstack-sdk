@@ -10,9 +10,10 @@
  *
  * const dialstack = new DialStack(process.env.DIALSTACK_API_KEY);
  *
- * // Create an account (billing address and agreed pricing are required)
+ * // Create an account (owner email, contact name, billing address, and agreed pricing are required)
  * const account = await dialstack.accounts.create({
  *   email: 'test@example.com',
+ *   primary_contact_name: 'Jane Doe',
  *   billing_address: {
  *     street: '123 Main St',
  *     city: 'New York',
@@ -131,6 +132,7 @@ type EventCallback<T> = (event: T) => void;
 export interface Account {
   id: string;
   email: string | null;
+  primary_contact_name: string | null;
   config: AccountConfig;
   hold_music_clip_id: string | null;
   main_location_id: string | null;
@@ -184,7 +186,10 @@ export interface BillingAddress {
 }
 
 export interface AccountCreateParams {
-  email?: string;
+  /** Account owner email. Required — identifies the account owner. */
+  email: string;
+  /** Account owner's name. Required. */
+  primary_contact_name: string;
   config?: AccountConfig;
   /** Billing address for the account. Required when creating an account. */
   billing_address: BillingAddress;
@@ -194,6 +199,7 @@ export interface AccountCreateParams {
 
 export interface AccountUpdateParams {
   email?: string;
+  primary_contact_name?: string;
   config?: AccountConfig;
   hold_music_clip_id?: string | null;
   main_location_id?: string;
