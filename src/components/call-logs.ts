@@ -371,7 +371,7 @@ export class CallLogsComponent extends BaseComponent {
   private formatToCell(call: CallLog): string {
     return this.formatPartyCell(
       call,
-      call.to_number,
+      call.to_number ?? '',
       call.to_label,
       'inbound',
       'outbound',
@@ -396,7 +396,7 @@ export class CallLogsComponent extends BaseComponent {
   /**
    * Get color class for call status
    */
-  private getStatusClass(status: string): string {
+  private getStatusClass(status: string | null): string {
     switch (status) {
       case 'completed':
         return 'badge-answered';
@@ -470,7 +470,12 @@ export class CallLogsComponent extends BaseComponent {
   /**
    * Format status for display using i18n
    */
-  private formatStatus(status: string): string {
+  private formatStatus(status: string | null): string {
+    // Null status = a live (in-progress) call; the historical list is
+    // CDR-backed so this is defensive.
+    if (!status) {
+      return '—';
+    }
     const statusKey = status === 'no-answer' ? 'noAnswer' : status;
     return this.t(`callLogs.statuses.${statusKey}`);
   }

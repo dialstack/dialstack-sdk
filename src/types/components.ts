@@ -249,8 +249,21 @@ export interface CallLog {
   did: string | CallLogDID | null;
   direction: 'inbound' | 'outbound' | 'internal';
   from_number: string;
+  /**
+   * The caller's display name. For internal callers this is the calling user's
+   * display name (the caller is always a user's device); for external callers it
+   * is the caller ID name (CNAM). While a call is live it is the name captured at
+   * call start. Null when no name is available.
+   */
   from_label: string | null;
-  to_number: string;
+  /**
+   * Destination number/extension. While a call is live it is present when the
+   * destination is known at call start (outbound and internal extension-to-
+   * extension calls); for an inbound call the routed destination is resolved
+   * later, so this is null for the whole time the call is in flight and is
+   * populated once the call completes.
+   */
+  to_number: string | null;
   to_label: string | null;
   started_at: string;
   answered_at: string | null;
@@ -261,7 +274,11 @@ export interface CallLog {
   connected_at: string | null;
   ended_at: string | null;
   duration_seconds: number | null;
-  status: 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
+  /**
+   * Final call status. Null while the call is still live (in progress) — the
+   * status values are terminal only.
+   */
+  status: 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail' | null;
   // Q.850 hangup cause code of the destination leg when the call could not be
   // connected (e.g. 17 user busy, 21 call rejected). Set even if the
   // originating side was answered (e.g. click-to-call). Null otherwise.
