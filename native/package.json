@@ -36,15 +36,15 @@
     "prepublishOnly": "npm run clean && npm run build"
   },
   "dependencies": {
-    "@dialstack/sdk": "^1.2.0"
+    "@dialstack/sdk": "^1.2.0",
+    "react-native-webrtc": "github:dialstack/react-native-webrtc#7e9a0eb55e068b2ba452f22e02e4b789aff9e4ed"
   },
   "peerDependencies": {
     "libphonenumber-js": "^1.13.6",
     "react": ">=19",
     "react-native": ">=0.81",
     "react-native-incall-manager": ">=4",
-    "react-native-svg": ">=15",
-    "react-native-webrtc": ">=124"
+    "react-native-svg": ">=15"
   },
   "devDependencies": {
     "@dialstack/sdk": "file:..",

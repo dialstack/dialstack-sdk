@@ -1,4 +1,5 @@
 import { PhoneError } from './errors';
+import { logWarn } from './logger';
 import { createMediaStream, createPeerConnection, getUserMedia } from './platform';
 import { RingbackTone, type Ringback } from './ringback';
 import type {
@@ -18,6 +19,20 @@ import type {
   RejectReason,
   ServerMessage,
 } from './types';
+
+// Fires at most once per process: an audio sender with no `.dtmf` on React Native
+// means the app resolved react-native-webrtc to a build without the DialStack fork
+// (`RTCRtpSender.dtmf`), so DTMF is unavailable. Guarded so it can't spam per call.
+let warnedMissingDtmfBridge = false;
+function warnMissingDtmfBridgeOnce(): void {
+  if (warnedMissingDtmfBridge) return;
+  warnedMissingDtmfBridge = true;
+  logWarn(
+    'DTMF is unavailable: the audio sender exposes no RTCDTMFSender. On React ' +
+      'Native, resolve react-native-webrtc to the DialStack fork (which adds ' +
+      'RTCRtpSender.dtmf) — see the @dialstack/sdk-native README.'
+  );
+}
 
 type CallEventMap = {
   trying: () => void;
@@ -80,11 +95,13 @@ export class Call {
   }
 
   /**
-   * Whether DTMF can be sent on this call. False on platforms whose WebRTC
-   * senders expose no `.dtmf` (react-native-webrtc has no RTCDTMFSender), which
-   * is why the softphone UI gates its in-call keypad on this. Only meaningful
-   * once the call is active — the sender is attached during answer/offer
-   * negotiation (attachDtmfSender). `sendDtmf()` still throws if called anyway.
+   * Whether DTMF can be sent on this call — the gate the softphone UI uses for
+   * its in-call keypad. False when the audio sender exposes no `.dtmf` (e.g. a
+   * connected call that never got a usable sender). Only meaningful once the
+   * call is active — the sender is attached during answer/offer negotiation
+   * (attachDtmfSender). `sendDtmf()` still throws if called anyway. Both web and
+   * native go through the same sender: web via the browser RTCDTMFSender, native
+   * via react-native-webrtc's `RTCRtpSender.dtmf` (provided by the DialStack fork).
    */
   get canSendDtmf(): boolean {
     return this.dtmfSender !== null;
@@ -573,6 +590,12 @@ export class Call {
   private attachDtmfSender(): void {
     const sender = this.peerConnection.getSenders().find((s) => s.track?.kind === 'audio');
     this.dtmfSender = sender?.dtmf ?? null;
+    // Diagnostic: an audio sender with no `.dtmf` means the WebRTC impl lacks a
+    // DTMFSender. On web this never happens (browsers always expose it); on React
+    // Native it means the app installed a react-native-webrtc WITHOUT the DialStack
+    // fork that adds `RTCRtpSender.dtmf`, so DTMF is silently unavailable. Warn
+    // once so a misconfigured install surfaces instead of just a hidden keypad.
+    if (sender && this.dtmfSender === null) warnMissingDtmfBridgeOnce();
   }
 
   private startDurationTimer(): void {

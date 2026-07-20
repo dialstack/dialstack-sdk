@@ -141,10 +141,11 @@ describe('Call.prepareAnswerForOffer media direction', () => {
   });
 });
 
-// canSendDtmf reflects whether the platform's audio sender exposes an
-// RTCDTMFSender. Browsers do (dtmf is an object); react-native-webrtc does not
-// (dtmf is undefined → attachDtmfSender collapses it to null). The softphone UI
-// gates its in-call keypad on this.
+// canSendDtmf reflects whether the audio sender exposes an RTCDTMFSender.
+// Browsers do; on React Native the app resolves react-native-webrtc to a fork
+// that adds `RTCRtpSender.dtmf`, so it does there too. A sender with no `.dtmf`
+// (attachDtmfSender collapses `sender?.dtmf ?? null` to null) makes it false.
+// The softphone UI gates its in-call keypad on this.
 describe('Call.canSendDtmf', () => {
   beforeEach(() => {
     (globalThis as Record<string, unknown>).MediaStream = FakeMediaStream;
@@ -175,9 +176,10 @@ describe('Call.canSendDtmf', () => {
     expect(call.canSendDtmf).toBe(true);
   });
 
-  it('is false when the audio sender exposes no .dtmf (react-native-webrtc)', async () => {
-    // Model the RN sender: addTrack returns a sender whose `.dtmf` is undefined,
-    // which attachDtmfSender's `sender?.dtmf ?? null` collapses to null.
+  it('is false when the audio sender exposes no .dtmf', async () => {
+    // Model a sender whose `.dtmf` is undefined (e.g. stock react-native-webrtc
+    // without the DTMF-bridge fork), which attachDtmfSender's `sender?.dtmf ??
+    // null` collapses to null → keypad hidden rather than throwing on every tap.
     class NoDtmfPeerConnection extends FakeRTCPeerConnection {
       addTrack(track: FakeTrack): FakeSender {
         const s = super.addTrack(track);

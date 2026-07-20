@@ -27,7 +27,7 @@
     "react-native-nitro-modules": "^0.36.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-svg": "15.15.4",
-    "react-native-webrtc": "^124.0.7"
+    "react-native-webrtc": "github:dialstack/react-native-webrtc#7e9a0eb55e068b2ba452f22e02e4b789aff9e4ed"
   },
   "devDependencies": {
     "@types/react": "~19.2.0",

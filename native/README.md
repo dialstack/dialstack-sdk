@@ -34,13 +34,39 @@ registerGlobals();
 
 ```sh
 npm install @dialstack/sdk-native @dialstack/sdk \
-  react-native-webrtc react-native-incall-manager react-native-svg \
-  libphonenumber-js
+  react-native-incall-manager react-native-svg libphonenumber-js
 ```
 
-The React Native libraries are **peer dependencies** — install the versions that
-match your app (and its architecture). See the example apps under
-`../mobile/` for a runnable Expo app and a bare React Native app.
+These are **peer dependencies** — install the versions that match your app (and
+its architecture). `react-native-webrtc` is **not** listed here on purpose: it
+comes in as a dependency of `@dialstack/sdk-native` (see [DTMF](#dtmf) below), so
+you don't declare it yourself. See the example apps under `../mobile/` for a
+runnable Expo app and a bare React Native app.
+
+## DTMF
+
+`@dialstack/sdk-native` depends on **DialStack's fork of `react-native-webrtc`**,
+which adds the `RTCRtpSender.dtmf` bridge that upstream 124.x doesn't ship. DTMF
+(RFC 4733 telephone-event over the media path) only works with this fork, so the
+SDK pulls it in for you — install `@dialstack/sdk-native` and DTMF works, no extra
+setup.
+
+You don't need to declare `react-native-webrtc` yourself. If you do (many RN
+apps import it directly for `registerGlobals()`), keep it at the **same 124.x
+line** the SDK uses — npm then dedupes your entry onto the SDK's fork, so there's
+a single install and DTMF still works. Only a **conflicting** version (a
+different major, or your own pin to stock that npm can't dedupe) forces a second,
+non-fork copy — which silently disables DTMF: the in-call keypad stays hidden and
+the SDK logs `[dialstack] DTMF is unavailable …` on the first call. To force the
+fork in that case, add an `overrides` entry in **your app's** `package.json`:
+
+```jsonc
+"overrides": {
+  "react-native-webrtc": "github:dialstack/react-native-webrtc#<commit>"
+}
+```
+
+(Use the commit `@dialstack/sdk-native` depends on — see its `package.json`.)
 
 ## Storage (required)
 

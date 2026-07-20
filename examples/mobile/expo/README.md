@@ -116,14 +116,37 @@ import { mmkvStorage } from './mmkvStorage';
   `<audio>` element. `react-native-incall-manager` owns the audio session while a
   call is up; the native ringback (outbound) is also InCallManager-backed.
 
-## Known limitations
+## DTMF on native (RTP telephone-event)
 
-- **DTMF**: `react-native-webrtc` (locked at 124.0.7) exposes no `RTCDTMFSender`,
-  so DTMF cannot be sent on native. The softphone detects this via
-  `Call.canSendDtmf` (false when the sender has no `.dtmf`) and hides the in-call
-  keypad control entirely on native; web keeps it. A direct `call.sendDtmf()`
-  call throws `call_failed`. Sending DTMF on native needs a server-side
-  signaling path (tracked follow-up).
+Native DTMF rides the **negotiated media transport** as RFC 4733 telephone-event
+RTP — the same media-path mechanism the web SDK uses via the browser
+`RTCDTMFSender`, not audible in-band tones and not SIP signaling.
+
+Stock `react-native-webrtc` 124.x ships **no JS `dtmf` bridge**, even though the
+native libwebrtc `DtmfSender` exists on both platforms. So the app depends on a
+fork that exposes `RTCRtpSender.dtmf` — pinned as the `react-native-webrtc`
+dependency in `package.json`, no patch step and no import changes:
+
+```jsonc
+"dependencies": {
+  "react-native-webrtc": "github:dialstack/react-native-webrtc#7e9a0eb55e068b2ba452f22e02e4b789aff9e4ed"
+}
+```
+
+It's a direct dependency (not an `overrides` entry) because npm rejects an
+override on a package you also depend on directly; the single git-ref install
+dedupes across the app and `@dialstack/sdk-native`.
+
+With it, the audio sender's `.dtmf` is present, `Call.canSendDtmf` is `true`, the
+softphone shows the in-call keypad, and `Call.sendDtmf(digits)` inserts
+telephone-event RTP exactly like the browser. Without the fork, the sender has
+no `.dtmf`, `Call.canSendDtmf` is `false`, and the keypad stays hidden (a direct
+`Call.sendDtmf()` throws `call_failed`).
+
+> `dialstack/react-native-webrtc` is our fork of upstream 124.0.7 plus the DTMF
+> bridge, pending an upstream contribution. The dependency is pinned to an
+> immutable commit so installs are reproducible; installing from the git ref runs
+> the library's `prepare` build automatically.
 
 ## Out of scope
 
