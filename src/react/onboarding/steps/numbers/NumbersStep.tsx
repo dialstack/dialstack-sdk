@@ -1,5 +1,5 @@
 /**
- * Numbers onboarding step — order/port phone numbers, set primary DID, configure caller ID.
+ * Numbers onboarding step — order/port phone numbers and configure caller ID.
  *
  * SAFETY NOTE: dangerouslySetInnerHTML is used only for static SVG constants
  * (PORT_SVG, PLUS_CIRCLE_SVG, PHONE_SVG, SUCCESS_SVG, CHECK_SVG_WHITE) imported from
@@ -34,7 +34,6 @@ import { numReducer, INITIAL_STATE, E911_POLL_MAX } from './types';
 import { getSidebarActiveKey, validateCallerIdName } from './helpers';
 import { PhoneCardStrip } from './content/PhoneCardStrip';
 import { OverviewContent } from './content/OverviewContent';
-import { PrimaryDIDContent } from './content/PrimaryDIDContent';
 import { CallerIdContent } from './content/CallerIdContent';
 import { DirectoryListingContent } from './content/DirectoryListingContent';
 import {
@@ -189,46 +188,23 @@ export const NumbersStep: React.FC = () => {
   }, [startOrderPoll]);
 
   // Load active DIDs
-  const loadActiveDIDs = useCallback(
-    async (accountPhone: string): Promise<DIDItem[]> => {
-      dispatch({ type: 'load_dids_start' });
-      try {
-        const dids = await dialstack.fetchAllPages<DIDItem>((opts) =>
-          dialstack.phoneNumbers.list({ ...opts, status: 'active' })
-        );
+  const loadActiveDIDs = useCallback(async (): Promise<DIDItem[]> => {
+    dispatch({ type: 'load_dids_start' });
+    try {
+      const dids = await dialstack.fetchAllPages<DIDItem>((opts) =>
+        dialstack.phoneNumbers.list({ ...opts, status: 'active' })
+      );
 
-        const savedPrimaryDIDId = contextLocations[0]?.primary_did_id ?? null;
-        let selectedId: string | null = null;
-        let autoMatched = false;
-
-        // Priority 1: previously saved primary_did_id on the location
-        if (savedPrimaryDIDId && dids.find((d) => d.id === savedPrimaryDIDId)) {
-          selectedId = savedPrimaryDIDId;
-        } else {
-          // Priority 2: auto-match account phone to a DID
-          const parsed = parsePhoneNumberFromString(accountPhone, 'US');
-          const e164 = parsed?.number;
-          const matched = e164 ? dids.find((d) => d.phone_number === e164) : undefined;
-          if (matched) {
-            selectedId = matched.id;
-            autoMatched = true;
-          }
-          // Priority 3: convenience — only one DID
-          else if (dids.length === 1) selectedId = dids[0]!.id;
-        }
-
-        dispatch({ type: 'load_dids_success', dids, selectedId, autoMatched });
-        return dids;
-      } catch (err) {
-        dispatch({
-          type: 'load_dids_error',
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return [];
-      }
-    },
-    [dialstack, contextLocations]
-  );
+      dispatch({ type: 'load_dids_success', dids });
+      return dids;
+    } catch (err) {
+      dispatch({
+        type: 'load_dids_error',
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return [];
+    }
+  }, [dialstack]);
 
   // Search numbers
   const searchNumbers = useCallback(
@@ -582,7 +558,7 @@ export const NumbersStep: React.FC = () => {
 
   // Navigate to next main step: show complete state + trigger E911 provisioning
   const navigateToNext = useCallback(
-    async (currentState: NumState) => {
+    async (_currentState: NumState) => {
       if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
       if (e911PollTimerRef.current) clearTimeout(e911PollTimerRef.current);
       dispatch({ type: 'set_complete' });
@@ -662,49 +638,27 @@ export const NumbersStep: React.FC = () => {
         }
 
         const location = contextLocations[0]!;
-        if (location.primary_did_id) {
-          // Already has a primary DID — check status
-          if (location.e911_status === 'provisioned') {
-            dispatch({ type: 'e911_set_state', state: 'simple', location });
-            return;
-          }
-          if (location.e911_status === 'pending' || location.e911_status === 'binding') {
-            dispatch({ type: 'e911_set_state', state: 'running', location, pollCount: 0 });
-            startE911Polling(location.id, gen);
-            return;
-          }
-          if (location.e911_status === 'none' || location.e911_status === 'failed') {
-            await runE911Check(location.id, gen, cancelled);
-            return;
-          }
-          if (cancelled()) return;
-          dispatch({ type: 'e911_set_state', state: 'complex' });
+        if (location.e911_status === 'provisioned') {
+          dispatch({ type: 'e911_set_state', state: 'simple', location });
           return;
         }
-
-        // Find the pre-selected DID or match by account phone
-        let selectedDID = activeDIDs.find((d) => d.id === currentState.selectedPrimaryDIDId);
-        if (!selectedDID) {
-          const parsed = parsePhoneNumberFromString(contextAccount?.phone ?? '', 'US');
-          const e164 = parsed?.number;
-          selectedDID = e164 ? activeDIDs.find((d) => d.phone_number === e164) : undefined;
-        }
-        if (!selectedDID) {
-          dispatch({ type: 'e911_set_state', state: 'complex' });
+        if (location.e911_status === 'pending' || location.e911_status === 'binding') {
+          dispatch({ type: 'e911_set_state', state: 'running', location, pollCount: 0 });
+          startE911Polling(location.id, gen);
           return;
         }
-
-        await dialstack.locations.update(location.id, { primary_did_id: selectedDID.id });
-        if (cancelled()) return;
-        void reloadSharedData().catch(() => {});
-        await runE911Check(location.id, gen, cancelled);
+        if (location.e911_status === 'none' || location.e911_status === 'failed') {
+          await runE911Check(location.id, gen, cancelled);
+          return;
+        }
+        dispatch({ type: 'e911_set_state', state: 'complex' });
       } catch (err) {
         if (cancelled()) return;
         console.warn('[dialstack] E911 auto-provisioning failed:', err);
         dispatch({ type: 'e911_set_state', state: 'failed' });
       }
     },
-    [dialstack, contextLocations, contextAccount, startE911Polling, runE911Check, reloadSharedData]
+    [dialstack, contextLocations, startE911Polling, runE911Check, reloadSharedData]
   );
 
   // Initialize single-DID directory listing state, then navigate to the substep.
@@ -714,10 +668,7 @@ export const NumbersStep: React.FC = () => {
       const eligible = s.activeDIDs.filter((d) => d.number_class !== 'temporary');
 
       // Find best default location
-      const defaultLoc =
-        contextLocations.find(
-          (loc) => loc.primary_did_id && loc.primary_did_id === s.selectedPrimaryDIDId
-        ) ?? contextLocations[0];
+      const defaultLoc = contextLocations[0];
 
       // Check if any DID already has an active listing
       const existingListed = eligible.find(
@@ -761,7 +712,6 @@ export const NumbersStep: React.FC = () => {
     const optionsDone = substepsFor('options').some((s) => completed.has(s));
     const setupDone = substepsFor('setup').some((s) => completed.has(s));
     const verificationDone = substepsFor('verification').some((s) => completed.has(s));
-    const primaryDone = completed.has('primary-did');
     const callerIdDone = completed.has('caller-id');
     const dlDone = completed.has('directory-listing');
 
@@ -773,15 +723,9 @@ export const NumbersStep: React.FC = () => {
     // From here on we need active DIDs in local state to render content. Load
     // them (idempotent — same call the existing handlers make on advance).
     void (async () => {
-      const dids = await loadActiveDIDs(contextAccount?.phone ?? '');
+      const dids = await loadActiveDIDs();
       if (dids.length === 0) return;
 
-      if (!primaryDone) {
-        dispatch({ type: 'set_substep', subStep: 'primary-did' });
-        return;
-      }
-
-      // Past primary — initialize caller-id inputs the same way handlePrimaryDidNext does.
       const inputs: Record<string, string> = {};
       const statuses: Record<string, 'idle' | 'submitted'> = {};
       for (const did of dids) {
@@ -801,11 +745,7 @@ export const NumbersStep: React.FC = () => {
         // mirrors initDirectoryListingState but reads from the just-loaded
         // `dids` array directly.
         const eligible = dids.filter((d) => d.number_class !== 'temporary');
-        const savedPrimary = contextLocations[0]?.primary_did_id ?? null;
-        const defaultLoc =
-          contextLocations.find(
-            (loc) => loc.primary_did_id && loc.primary_did_id === savedPrimary
-          ) ?? contextLocations[0];
+        const defaultLoc = contextLocations[0];
         const existingListed = eligible.find(
           (d) => d.directory_listing_type && d.directory_listing_type !== 'non_registered'
         );
@@ -940,6 +880,24 @@ export const NumbersStep: React.FC = () => {
     [t, dialstack, navigateToNext, contextAccount, reloadSharedData]
   );
 
+  const openCallerID = useCallback((dids: DIDItem[]) => {
+    const inputs: Record<string, string> = {};
+    const statuses: Record<string, 'idle' | 'submitted'> = {};
+    for (const did of dids) {
+      if (did.number_class === 'temporary') continue;
+      inputs[did.id] = did.caller_id_name ?? '';
+      statuses[did.id] = did.caller_id_name ? 'submitted' : 'idle';
+    }
+    dispatch({ type: 'caller_id_init', inputs, statuses });
+    dispatch({ type: 'set_substep', subStep: 'caller-id' });
+  }, []);
+
+  const handleOrderContinue = useCallback(async () => {
+    dispatch({ type: 'order_reset' });
+    const dids = await loadActiveDIDs();
+    openCallerID(dids);
+  }, [loadActiveDIDs, openCallerID]);
+
   // "Next" from overview
   const handleOverviewNext = useCallback(
     async (s: NumState) => {
@@ -953,10 +911,10 @@ export const NumbersStep: React.FC = () => {
           return;
         }
         dispatch({ type: 'set_gate_error', error: null });
-        dispatch({ type: 'set_substep', subStep: 'primary-did' });
+        openCallerID(s.activeDIDs);
         return;
       }
-      const dids = await loadActiveDIDs(contextAccount?.phone ?? '');
+      const dids = await loadActiveDIDs();
       if (dids.length === 0)
         dispatch({
           type: 'set_gate_error',
@@ -964,52 +922,10 @@ export const NumbersStep: React.FC = () => {
         });
       else {
         dispatch({ type: 'set_gate_error', error: null });
-        dispatch({ type: 'set_substep', subStep: 'primary-did' });
+        openCallerID(dids);
       }
     },
-    [t, contextAccount, loadActiveDIDs]
-  );
-
-  // "Next" on primary-did
-  const handlePrimaryDidNext = useCallback(
-    async (s: NumState) => {
-      if (s.selectedPrimaryDIDId === null) {
-        dispatch({
-          type: 'set_primary_did_error',
-          error: t('accountOnboarding.numbers.gate.primaryRequired'),
-        });
-        return;
-      }
-      dispatch({ type: 'set_primary_did_error', error: null });
-
-      // Persist primary_did_id immediately so derive sees the substep as
-      // complete on the next reload — navigateToNext (called later from the
-      // directory-listing step) also writes this, but doing it here makes
-      // completion order-independent: if the e911 flow bails out for any
-      // reason, the user's selection is still recorded.
-      const location = contextLocations[0];
-      if (location && location.primary_did_id !== s.selectedPrimaryDIDId) {
-        try {
-          await dialstack.locations.update(location.id, {
-            primary_did_id: s.selectedPrimaryDIDId,
-          });
-          void reloadSharedData().catch(() => {});
-        } catch (err) {
-          console.warn('[dialstack] Failed to persist primary DID:', err);
-        }
-      }
-
-      const inputs: Record<string, string> = {};
-      const statuses: Record<string, 'idle' | 'submitted'> = {};
-      for (const did of s.activeDIDs) {
-        if (did.number_class === 'temporary') continue;
-        inputs[did.id] = did.caller_id_name ?? '';
-        statuses[did.id] = did.caller_id_name ? 'submitted' : 'idle';
-      }
-      dispatch({ type: 'caller_id_init', inputs, statuses });
-      dispatch({ type: 'set_substep', subStep: 'caller-id' });
-    },
-    [t, dialstack, contextLocations, reloadSharedData]
+    [t, loadActiveDIDs, openCallerID]
   );
 
   // ============================================================================
@@ -1033,11 +949,6 @@ export const NumbersStep: React.FC = () => {
         key: 'verification',
         label: t('accountOnboarding.sidebar.verification'),
         description: t('accountOnboarding.sidebar.verificationDesc'),
-      },
-      {
-        key: 'primary-did',
-        label: t('accountOnboarding.sidebar.primaryNumber'),
-        description: t('accountOnboarding.sidebar.primaryNumberDesc'),
       },
       {
         key: 'caller-id',
@@ -1084,13 +995,12 @@ export const NumbersStep: React.FC = () => {
   }, [sidebarActiveKey, sidebarSubSteps, t]);
 
   // ============================================================================
-  // Footer for overview / primary-did / caller-id
+  // Footer for overview / caller-id
   // (Must be computed before early return to preserve hook call order)
   // ============================================================================
 
   const showOuterHeader =
     state.subStep === 'overview' ||
-    state.subStep === 'primary-did' ||
     state.subStep === 'caller-id' ||
     state.subStep === 'directory-listing';
 
@@ -1111,23 +1021,6 @@ export const NumbersStep: React.FC = () => {
           </button>
         </div>
       );
-    } else if (state.subStep === 'primary-did') {
-      return (
-        <div className="footer-bar">
-          <button
-            className="btn-ghost"
-            onClick={() => dispatch({ type: 'set_substep', subStep: 'overview' })}
-          >
-            ← {t('accountOnboarding.nav.back')}
-          </button>
-          <button
-            className="btn btn-primary"
-            onClick={() => handlePrimaryDidNext(stateRef.current)}
-          >
-            {t('accountOnboarding.nav.next')} →
-          </button>
-        </div>
-      );
     } else if (state.subStep === 'caller-id') {
       const hasErrors =
         state.callerIdBulkAttempted &&
@@ -1136,7 +1029,7 @@ export const NumbersStep: React.FC = () => {
         <div className="footer-bar">
           <button
             className="btn-ghost"
-            onClick={() => dispatch({ type: 'set_substep', subStep: 'primary-did' })}
+            onClick={() => dispatch({ type: 'set_substep', subStep: 'overview' })}
           >
             ← {t('accountOnboarding.nav.back')}
           </button>
@@ -1189,7 +1082,6 @@ export const NumbersStep: React.FC = () => {
     t,
     handleBackToPrevStep,
     handleOverviewNext,
-    handlePrimaryDidNext,
     handleCallerIdNext,
     handleDirectoryListingNext,
     navigateToNext,
@@ -1338,17 +1230,15 @@ export const NumbersStep: React.FC = () => {
   // Sub-step content
   // ============================================================================
 
-  // Card mode: persistent PhoneCardStrip stays mounted across these 3 sub-steps
+  // Card mode: persistent PhoneCardStrip stays mounted across number setup substeps.
   const cardMode: CardMode | null =
     state.subStep === 'overview'
       ? 'overview'
-      : state.subStep === 'primary-did'
-        ? 'primary-did'
-        : state.subStep === 'caller-id'
-          ? 'caller-id'
-          : state.subStep === 'directory-listing'
-            ? 'directory-listing'
-            : null;
+      : state.subStep === 'caller-id'
+        ? 'caller-id'
+        : state.subStep === 'directory-listing'
+          ? 'directory-listing'
+          : null;
 
   let content: React.ReactNode;
   switch (state.subStep) {
@@ -1356,9 +1246,6 @@ export const NumbersStep: React.FC = () => {
       content = (
         <OverviewContent state={state} t={t} dispatch={dispatch} loadNumbers={loadNumbers} />
       );
-      break;
-    case 'primary-did':
-      content = <PrimaryDIDContent state={state} t={t} />;
       break;
     case 'caller-id':
       content = <CallerIdContent state={state} t={t} />;
@@ -1395,8 +1282,7 @@ export const NumbersStep: React.FC = () => {
           state={state}
           t={t}
           dispatch={dispatch}
-          accountPhone={contextAccount?.phone ?? ''}
-          loadActiveDIDs={loadActiveDIDs}
+          onContinue={handleOrderContinue}
           loadNumbers={loadNumbers}
         />
       );

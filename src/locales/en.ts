@@ -361,8 +361,6 @@ export const en = {
       teamMembersDesc: 'Add users and assign extensions',
       numberOptions: 'Number Options',
       numberOptionsDesc: 'Choose to port existing or get new numbers',
-      primaryNumber: 'Primary Number',
-      primaryNumberDesc: 'Select your main E911 number',
       callerId: 'Caller ID',
       callerIdDesc: 'Set caller ID for your numbers',
       directoryListing: 'Directory Listing',
@@ -451,20 +449,6 @@ export const en = {
       title: 'Phone Numbers',
       subtitle: "Choose how you'd like to set up your business numbers",
       defaultDialPlanName: 'Onboarding Dial Plan',
-      primaryNumber: {
-        heading: 'Primary Number',
-        description:
-          'Select the primary phone number for this location. This number is registered with E911 emergency services.',
-        loading: 'Loading phone numbers...',
-        noDIDs:
-          'No active phone numbers available yet. E911 will be configured once numbers are provisioned.',
-        autoMatched:
-          '{phone} matches your account phone and has been selected as the primary number for E911.',
-        autoMatchedBadge: 'Account number — auto-selected',
-        temporary: 'Temporary',
-        temporaryNote:
-          'This is a temporary number assigned to get you started. You can replace it with a permanent number at any time.',
-      },
       callerId: {
         title: 'Caller ID Setup',
         subtitle: 'Configure the name displayed when making outbound calls',

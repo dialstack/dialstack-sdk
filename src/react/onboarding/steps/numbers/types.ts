@@ -55,13 +55,10 @@ export interface NumState {
   portIsSubmitting: boolean;
   portSubmitError: string | null;
   activeDIDs: DIDItem[];
-  selectedPrimaryDIDId: string | null;
-  primaryDIDAutoMatched: boolean;
   isLoadingDIDs: boolean;
   didLoadError: string | null;
   hasAttemptedDIDLoad: boolean;
   gateError: string | null;
-  primaryDIDError: string | null;
   callerIdInputs: Record<string, string>;
   callerIdStatuses: Record<string, 'idle' | 'submitting' | 'submitted' | 'error'>;
   callerIdErrors: Record<string, string>;
@@ -125,11 +122,9 @@ export type NumAction =
   | { type: 'port_submit_error'; error: string }
   | { type: 'port_reset' }
   | { type: 'load_dids_start' }
-  | { type: 'load_dids_success'; dids: DIDItem[]; selectedId: string | null; autoMatched: boolean }
+  | { type: 'load_dids_success'; dids: DIDItem[] }
   | { type: 'load_dids_error'; error: string }
-  | { type: 'set_primary_did'; didId: string }
   | { type: 'set_gate_error'; error: string | null }
-  | { type: 'set_primary_did_error'; error: string | null }
   | {
       type: 'caller_id_init';
       inputs: Record<string, string>;
@@ -165,7 +160,7 @@ export type NumAction =
 
 export type Dispatcher = React.Dispatch<NumAction>;
 export type TFn = (key: string, params?: Record<string, string | number>) => string;
-export type CardMode = 'overview' | 'primary-did' | 'caller-id' | 'directory-listing';
+export type CardMode = 'overview' | 'caller-id' | 'directory-listing';
 
 export const E911_POLL_MAX = 5;
 
@@ -222,13 +217,10 @@ export const INITIAL_STATE: NumState = {
   portCompletedCarriers: [],
   portOrderResults: [],
   activeDIDs: [],
-  selectedPrimaryDIDId: null,
-  primaryDIDAutoMatched: false,
   isLoadingDIDs: false,
   didLoadError: null,
   hasAttemptedDIDLoad: false,
   gateError: null,
-  primaryDIDError: null,
   callerIdInputs: {},
   callerIdStatuses: {},
   callerIdErrors: {},
@@ -483,8 +475,6 @@ export function numReducer(state: NumState, action: NumAction): NumState {
         didLoadError: null,
         hasAttemptedDIDLoad: true,
         activeDIDs: action.dids,
-        selectedPrimaryDIDId: action.selectedId,
-        primaryDIDAutoMatched: action.autoMatched,
       };
     case 'load_dids_error':
       return {
@@ -493,14 +483,9 @@ export function numReducer(state: NumState, action: NumAction): NumState {
         didLoadError: action.error,
         hasAttemptedDIDLoad: true,
         activeDIDs: [],
-        selectedPrimaryDIDId: null,
       };
-    case 'set_primary_did':
-      return { ...state, selectedPrimaryDIDId: action.didId, primaryDIDAutoMatched: false };
     case 'set_gate_error':
       return { ...state, gateError: action.error };
-    case 'set_primary_did_error':
-      return { ...state, primaryDIDError: action.error };
     case 'caller_id_init':
       return {
         ...state,

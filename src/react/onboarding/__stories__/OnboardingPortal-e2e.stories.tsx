@@ -155,7 +155,7 @@ async function completeAccountStep(
 }
 
 /**
- * Navigate through the Numbers step overview -> primary DID -> caller ID -> complete -> Done.
+ * Navigate through the Numbers step overview -> caller ID -> complete -> Done.
  * Assumes phone numbers already exist (mock provides 2 DIDs).
  */
 async function completeNumbersStep(
@@ -170,31 +170,7 @@ async function completeNumbersStep(
     { timeout: DATA_TIMEOUT }
   );
 
-  // Click Next on overview -> should load DIDs then go to Primary DID
-  await clickButton(canvas, canvasElement, /Next →/, { last: true });
-  await waitFor(
-    () => {
-      expect(canvas.getByRole('heading', { name: /Primary Number/i })).toBeInTheDocument();
-    },
-    { timeout: DATA_TIMEOUT }
-  );
-
-  // A radio button should be present for the primary DID selection
-  await waitFor(
-    () => {
-      const didCards = canvasElement.querySelectorAll('.num-phone-card--check');
-      expect(didCards.length).toBeGreaterThan(0);
-    },
-    { timeout: DATA_TIMEOUT }
-  );
-
-  // Select the first radio if not already selected
-  const didCards = canvasElement.querySelectorAll<HTMLElement>('.num-phone-card--check');
-  if (didCards.length > 0) {
-    await userEvent.click(didCards[0]!);
-  }
-
-  // Next -> Caller ID
+  // Click Next on overview -> load DIDs and go directly to Caller ID
   await clickButton(canvas, canvasElement, /Next →/, { last: true });
   await waitFor(
     () => {
@@ -229,7 +205,7 @@ async function completeNumbersStep(
 
   // Wait for E911 provisioning to settle. navigateToNext kicks off
   // validateE911 + provisionE911 async; clicking Done before they finish
-  // cancels the chain on unmount and primary-did never marks complete.
+  // cancels the chain on unmount and emergency provisioning never marks complete.
   await waitFor(
     () => {
       expect(canvasElement.querySelector('.e911-panel .spinner')).toBeNull();
@@ -415,7 +391,7 @@ export const FullHappyPath: Story = {
       );
     });
 
-    await step('Numbers: overview -> primary DID -> caller ID -> complete', async () => {
+    await step('Numbers: overview -> caller ID -> complete', async () => {
       await completeNumbersStep(canvas, canvasElement);
     });
 
@@ -989,30 +965,7 @@ export const FullOrderFlow: Story = {
 
       await userEvent.click(canvas.getByRole('button', { name: /Continue/ }));
 
-      // Should navigate to Primary DID selection
-      await waitFor(
-        () => {
-          expect(canvas.getByRole('heading', { name: /Primary Number/i })).toBeInTheDocument();
-        },
-        { timeout: DATA_TIMEOUT }
-      );
-    });
-
-    await step('Select a primary DID', async () => {
-      await waitFor(
-        () => {
-          const didCards = canvasElement.querySelectorAll('.num-phone-card--check');
-          expect(didCards.length).toBeGreaterThan(0);
-        },
-        { timeout: DATA_TIMEOUT }
-      );
-
-      const didCards2 = canvasElement.querySelectorAll<HTMLElement>('.num-phone-card--check');
-      if (didCards2.length > 0) {
-        await userEvent.click(didCards2[0]!);
-      }
-
-      await clickButton(canvas, canvasElement, /Next →/, { last: true });
+      // Should bypass the retired Primary DID screen and open Caller ID.
       await waitFor(
         () => {
           expect(canvas.getByText('Caller ID Setup')).toBeInTheDocument();
@@ -1298,7 +1251,7 @@ export const FullPortFlow: Story = {
       );
     });
 
-    await step('Return to Numbers overview and continue to Primary DID', async () => {
+    await step('Return to Numbers overview and continue to Caller ID', async () => {
       // Click "Back to Numbers" button
       await userEvent.click(canvas.getByRole('button', { name: /Back to Numbers/ }));
 
@@ -1309,29 +1262,7 @@ export const FullPortFlow: Story = {
         { timeout: DATA_TIMEOUT }
       );
 
-      // Click Next to proceed to Primary DID
-      await clickButton(canvas, canvasElement, /Next →/, { last: true });
-      await waitFor(
-        () => {
-          expect(canvas.getByRole('heading', { name: /Primary Number/i })).toBeInTheDocument();
-        },
-        { timeout: DATA_TIMEOUT }
-      );
-
-      // Select a DID and continue through to completion
-      await waitFor(
-        () => {
-          const didCards = canvasElement.querySelectorAll('.num-phone-card--check');
-          expect(didCards.length).toBeGreaterThan(0);
-        },
-        { timeout: DATA_TIMEOUT }
-      );
-
-      const didCards2 = canvasElement.querySelectorAll<HTMLElement>('.num-phone-card--check');
-      if (didCards2.length > 0) {
-        await userEvent.click(didCards2[0]!);
-      }
-
+      // Click Next to proceed directly to Caller ID
       await clickButton(canvas, canvasElement, /Next →/, { last: true });
       await waitFor(
         () => {
@@ -1725,7 +1656,7 @@ export const ComprehensiveValidation: Story = {
       });
     });
 
-    // ---- Numbers - Primary DID Validation ----
+    // ---- Numbers - Caller ID Validation ----
 
     await step('Advance to Numbers step', async () => {
       // Complete team members step
@@ -1747,41 +1678,8 @@ export const ComprehensiveValidation: Story = {
       );
     });
 
-    await step('Navigate to Primary DID and try to advance without selecting', async () => {
-      // Click Next on overview to load DIDs and go to Primary DID
-      await clickButton(canvas, canvasElement, /Next →/, { last: true });
-      await waitFor(
-        () => {
-          expect(canvas.getByRole('heading', { name: /Primary Number/i })).toBeInTheDocument();
-        },
-        { timeout: DATA_TIMEOUT }
-      );
-
-      // Wait for radios to appear
-      await waitFor(
-        () => {
-          const didCards = canvasElement.querySelectorAll('.num-phone-card--check');
-          expect(didCards.length).toBeGreaterThan(0);
-        },
-        { timeout: DATA_TIMEOUT }
-      );
-
-      // If a radio is auto-selected (account phone match), deselect by checking
-      // another then we test the selection. Actually the mock account phone
-      // (+12018401234) won't match mock DIDs, so with 2 DIDs none is auto-selected
-      // unless there's only 1. With 2, the first may be pre-selected.
-      // Let's just verify clicking Next with a selection works, then test caller ID.
-    });
-
-    // ---- Numbers - Caller ID Validation ----
-
-    await step('Advance to Caller ID and test invalid characters', async () => {
-      // Select first DID card if not selected
-      const didCards = canvasElement.querySelectorAll<HTMLElement>('.num-phone-card--check');
-      if (didCards.length > 0) {
-        await userEvent.click(didCards[0]!);
-      }
-
+    await step('Navigate directly to Caller ID', async () => {
+      // Click Next on overview to load DIDs and bypass the retired Primary DID step.
       await clickButton(canvas, canvasElement, /Next →/, { last: true });
       await waitFor(
         () => {
@@ -1789,7 +1687,11 @@ export const ComprehensiveValidation: Story = {
         },
         { timeout: DATA_TIMEOUT }
       );
+    });
 
+    // ---- Numbers - Caller ID Validation ----
+
+    await step('Configure Caller ID', async () => {
       // Enter invalid characters (special chars not allowed)
       // Leave caller ID inputs empty and click Next — should show validation errors
       // (empty names are skipped by the submit flow, so just click Next to advance)
@@ -2057,27 +1959,15 @@ export const TemporaryDID: Story = {
       );
     });
 
-    await step('Navigate to Primary DID and verify temporary note', async () => {
-      // Click Next to go to Primary DID
+    await step('Temporary numbers also bypass Primary DID', async () => {
       await clickButton(canvas, canvasElement, /Next →/, { last: true });
       await waitFor(
         () => {
-          expect(canvas.getByRole('heading', { name: /Primary Number/i })).toBeInTheDocument();
+          expect(canvas.getByText('Caller ID Setup')).toBeInTheDocument();
         },
         { timeout: DATA_TIMEOUT }
       );
-
-      // Verify the temporary note
-      await waitFor(
-        () => {
-          const alerts = canvasElement.querySelectorAll('.inline-alert.info');
-          const note = Array.from(alerts).find((a) =>
-            a.textContent?.includes('This is a temporary number assigned to get you started')
-          );
-          expect(note).not.toBeNull();
-        },
-        { timeout: DATA_TIMEOUT }
-      );
+      expect(canvasElement.querySelector('.primary-did-section')).toBeNull();
     });
   },
 };

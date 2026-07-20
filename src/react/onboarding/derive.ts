@@ -83,17 +83,9 @@ export function deriveOnboardingState(snapshot: OnboardingDataSnapshot): Derived
     completed.numbers.add('order-confirm');
   }
   if (hasActiveDID && hasUserDID) completed.numbers.add('order-status');
-  const didIds = new Set(liveDIDs.map((d) => d.id));
-  // primary-did requires both: a location pointing to a real DID AND that
-  // location's E911 binding being provisioned. Without an active E911
-  // address, the phone numbers can't legally place calls — so onboarding
-  // isn't actually done until the location's E911 is provisioned.
-  if (
-    locations.some(
-      (l) => !!l.primary_did_id && didIds.has(l.primary_did_id) && l.e911_status === 'provisioned'
-    )
-  ) {
-    completed.numbers.add('primary-did');
+  // A location's main phone number is unrelated to E911 provisioning.
+  if (locations.some((l) => l.e911_status === 'provisioned')) {
+    completed.numbers.add('e911');
   }
   // Gate on liveDIDs (not raw dids) for parity with the substeps above — an
   // expired DID's caller-id/listing shouldn't mark the substep complete.

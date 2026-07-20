@@ -1,6 +1,5 @@
 import React from 'react';
 import type { NumState, Dispatcher, TFn } from '../types';
-import type { DIDItem } from '../../../../../types';
 import { formatPhone } from '../helpers';
 
 export function OrderSearchContent({
@@ -262,15 +261,13 @@ export function OrderStatusContent({
   state,
   t,
   dispatch,
-  accountPhone,
-  loadActiveDIDs,
+  onContinue,
   loadNumbers,
 }: {
   state: NumState;
   t: TFn;
   dispatch: Dispatcher;
-  accountPhone: string;
-  loadActiveDIDs: (phone: string) => Promise<DIDItem[]>;
+  onContinue: () => Promise<void>;
   loadNumbers: () => Promise<void>;
 }) {
   const order = state.orderCurrentOrder;
@@ -288,11 +285,6 @@ export function OrderStatusContent({
         ? t('accountOnboarding.numbers.order.statusStalled')
         : t('accountOnboarding.numbers.order.statusPending')
       : (messages[order.status] ?? '');
-  const handleDone = async () => {
-    dispatch({ type: 'order_reset' });
-    await loadActiveDIDs(accountPhone);
-    dispatch({ type: 'set_substep', subStep: 'primary-did' });
-  };
   return (
     <div className="placeholder" style={{ minHeight: 200 }}>
       {order.status === 'pending' && !pollExhausted && (
@@ -320,7 +312,7 @@ export function OrderStatusContent({
           >
             {t('accountOnboarding.numbers.order.orderMore')}
           </button>
-          <button className="btn btn-primary" onClick={() => void handleDone()}>
+          <button className="btn btn-primary" onClick={() => void onContinue()}>
             {t('accountOnboarding.numbers.order.continue')} →
           </button>
         </div>

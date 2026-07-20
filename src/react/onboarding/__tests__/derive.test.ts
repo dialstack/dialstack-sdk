@@ -255,56 +255,54 @@ describe('deriveOnboardingState', () => {
     });
   });
 
-  describe('numbers — primary-did, caller-id, directory-listing', () => {
-    it('marks primary-did when a location.primary_did_id matches an existing DID and E911 is provisioned', () => {
-      const did = mkDID({ id: 'did_a' });
+  describe('numbers — e911, caller-id, directory-listing', () => {
+    it('marks e911 complete when any location E911 address is provisioned', () => {
       const { completed } = deriveOnboardingState({
         ...emptySnapshot,
         account: mkAccount(),
-        locations: [mkLocation({ primary_did_id: 'did_a', e911_status: 'provisioned' })],
-        dids: [did],
+        locations: [mkLocation({ e911_status: 'provisioned' })],
       });
-      expect(completed.numbers.has('primary-did')).toBe(true);
+      expect(completed.numbers.has('e911')).toBe(true);
     });
 
-    it('does not mark primary-did when location points to a non-existent DID', () => {
+    it('ignores primary_did_id when deriving E911 readiness', () => {
       const { completed } = deriveOnboardingState({
         ...emptySnapshot,
         account: mkAccount(),
         locations: [mkLocation({ primary_did_id: 'did_missing', e911_status: 'provisioned' })],
         dids: [mkDID({ id: 'did_a' })],
       });
-      expect(completed.numbers.has('primary-did')).toBe(false);
+      expect(completed.numbers.has('e911')).toBe(true);
     });
 
-    it('does not mark primary-did when E911 is pending', () => {
+    it('does not mark e911 when E911 is pending', () => {
       const { completed } = deriveOnboardingState({
         ...emptySnapshot,
         account: mkAccount(),
         locations: [mkLocation({ primary_did_id: 'did_a', e911_status: 'pending' })],
         dids: [mkDID({ id: 'did_a' })],
       });
-      expect(completed.numbers.has('primary-did')).toBe(false);
+      expect(completed.numbers.has('e911')).toBe(false);
     });
 
-    it('does not mark primary-did when E911 has failed', () => {
+    it('does not mark e911 when E911 has failed', () => {
       const { completed } = deriveOnboardingState({
         ...emptySnapshot,
         account: mkAccount(),
         locations: [mkLocation({ primary_did_id: 'did_a', e911_status: 'failed' })],
         dids: [mkDID({ id: 'did_a' })],
       });
-      expect(completed.numbers.has('primary-did')).toBe(false);
+      expect(completed.numbers.has('e911')).toBe(false);
     });
 
-    it('does not mark primary-did when E911 status is missing', () => {
+    it('does not mark e911 when E911 status is missing', () => {
       const { completed } = deriveOnboardingState({
         ...emptySnapshot,
         account: mkAccount(),
         locations: [mkLocation({ primary_did_id: 'did_a' })],
         dids: [mkDID({ id: 'did_a' })],
       });
-      expect(completed.numbers.has('primary-did')).toBe(false);
+      expect(completed.numbers.has('e911')).toBe(false);
     });
 
     it('marks caller-id when any DID has caller_id_name', () => {

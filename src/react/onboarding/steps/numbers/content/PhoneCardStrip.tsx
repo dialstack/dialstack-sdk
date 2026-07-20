@@ -7,8 +7,7 @@ import { PHONE_SVG, SUCCESS_SVG } from '../../../icons';
 const NOWRAP_STYLE: React.CSSProperties = { whiteSpace: 'nowrap' };
 
 // ── Persistent phone card strip ──
-// Stays mounted across overview / primary-did / caller-id sub-steps so cards
-// morph smoothly instead of flashing.
+// Stays mounted across number sub-steps so cards morph smoothly instead of flashing.
 export function PhoneCardStrip({
   mode,
   state,
@@ -20,7 +19,7 @@ export function PhoneCardStrip({
   t: TFn;
   dispatch: Dispatcher;
 }) {
-  // Use activeDIDs for primary-did and caller-id modes, phoneNumbers for overview.
+  // Use activeDIDs for caller-id mode and phoneNumbers for overview.
   // Directory-listing uses pre-computed dlEligibleDIDs (excludes temporary numbers).
   // Caller-id also excludes temporary numbers.
   const items =
@@ -33,8 +32,7 @@ export function PhoneCardStrip({
           : state.activeDIDs;
   if (items.length === 0) return null;
 
-  // directory-listing uses radio + label pattern like primary-did
-  const useRadio = mode === 'primary-did' || mode === 'directory-listing';
+  const useRadio = mode === 'directory-listing';
 
   return (
     <div className={`num-phone-list num-phone-list--${mode}`}>
@@ -42,21 +40,14 @@ export function PhoneCardStrip({
         const did = item as DIDItem;
         const phoneItem = item as PhoneNumberItem;
         const formatted = formatPhone(item.phone_number);
-        const isSelected =
-          (mode === 'primary-did' && state.selectedPrimaryDIDId === did.id) ||
-          (mode === 'directory-listing' && state.dlSelectedDIDId === did.id);
-        const isAutoMatched =
-          mode === 'primary-did' &&
-          state.primaryDIDAutoMatched &&
-          did.id === state.selectedPrimaryDIDId;
+        const isSelected = mode === 'directory-listing' && state.dlSelectedDIDId === did.id;
 
         // Unified card classes
         const cardClasses = [
           'num-phone-card',
           mode === 'overview' &&
             `num-phone-card--${phoneItem.status?.replace('_', '-') ?? 'active'}`,
-          (mode === 'primary-did' || mode === 'directory-listing') &&
-            'num-phone-card--active num-phone-card--check',
+          mode === 'directory-listing' && 'num-phone-card--active num-phone-card--check',
           isSelected && 'num-phone-card--selected',
           mode === 'caller-id' && 'num-phone-card--cid',
           mode === 'directory-listing' && isSelected && 'num-phone-card--cid',
@@ -73,18 +64,6 @@ export function PhoneCardStrip({
 
         return (
           <Tag key={did.id ?? item.phone_number} className={cardClasses}>
-            {/* Hidden radio for primary-did mode */}
-            {mode === 'primary-did' && (
-              <input
-                type="radio"
-                name="primary-did"
-                value={did.id}
-                checked={isSelected}
-                onChange={() => dispatch({ type: 'set_primary_did', didId: did.id })}
-                style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
-              />
-            )}
-
             {/* Hidden radio for directory-listing mode */}
             {mode === 'directory-listing' && (
               <input
@@ -122,22 +101,6 @@ export function PhoneCardStrip({
                     {t(`accountOnboarding.numbers.source.${phoneItem.source}`)}
                   </div>
                 )}
-
-              {/* Primary DID: badges */}
-              {mode === 'primary-did' && (isAutoMatched || did.number_class === 'temporary') && (
-                <div className="num-phone-card-meta">
-                  {isAutoMatched && (
-                    <span className="primary-did-badge auto-matched">
-                      {t('accountOnboarding.numbers.primaryNumber.autoMatchedBadge')}
-                    </span>
-                  )}
-                  {did.number_class === 'temporary' && (
-                    <span className="primary-did-badge">
-                      {t('accountOnboarding.numbers.primaryNumber.temporary')}
-                    </span>
-                  )}
-                </div>
-              )}
             </div>
 
             {/* End section: changes per mode */}
@@ -148,10 +111,8 @@ export function PhoneCardStrip({
                   {t(`accountOnboarding.numbers.status.${phoneItem.status}`)}
                 </span>
               )}
-              {/* Primary DID / Directory listing: check dot */}
-              {(mode === 'primary-did' || mode === 'directory-listing') && (
-                <span className="num-phone-check-dot" />
-              )}
+              {/* Directory listing: check dot */}
+              {mode === 'directory-listing' && <span className="num-phone-check-dot" />}
             </div>
 
             {/* Caller ID: expandable input section */}

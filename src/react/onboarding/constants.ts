@@ -21,7 +21,7 @@ export const NUMBERS_SUBSTEPS = [
   'port-documents',
   'port-review',
   'port-submitted',
-  'primary-did',
+  'e911',
   'caller-id',
   'directory-listing',
 ] as const;
@@ -64,7 +64,7 @@ export const SIDEBAR_GROUPS: Record<StepName, SidebarGroup[]> = {
       ],
     },
     { sidebarKey: 'verification', substeps: ['order-status', 'port-submitted'] },
-    { sidebarKey: 'primary-did', substeps: ['primary-did'] },
+    { sidebarKey: 'e911', substeps: ['e911'] },
     { sidebarKey: 'caller-id', substeps: ['caller-id'], optional: true },
     { sidebarKey: 'directory-listing', substeps: ['directory-listing'], optional: true },
   ],

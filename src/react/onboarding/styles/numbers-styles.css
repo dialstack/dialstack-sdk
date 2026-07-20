@@ -609,23 +609,6 @@
   gap: var(--ds-layout-spacing-sm);
 }
 
-.primary-did-section {
-  margin-top: var(--ds-layout-spacing-sm);
-}
-
-.primary-did-badge {
-  font-size: 0.75rem;
-  padding: 2px 8px;
-  border-radius: 9999px;
-  background: var(--ds-color-surface-subtle);
-  color: var(--ds-color-text-secondary);
-}
-
-.primary-did-badge.auto-matched {
-  background: color-mix(in srgb, var(--ds-color-primary) 12%, transparent);
-  color: var(--ds-color-primary);
-}
-
 /* ── Caller ID ── */
 .num-cid-section {
   margin-top: var(--ds-layout-spacing-sm);
@@ -774,7 +757,6 @@
 }
 
 /* Section entrance animations — headings only (cards stay mounted via PhoneCardStrip) */
-.primary-did-section,
 .num-cid-section {
   animation: substep-enter 0.35s ease-out;
 }
@@ -820,7 +802,7 @@
   }
 }
 
-/* Check dot entrance animation when switching to primary-did mode */
+/* Check dot entrance animation when switching to directory-listing mode */
 .num-phone-card--check .num-phone-check-dot {
   animation: check-dot-enter 0.3s ease-out 0.1s both;
 }
