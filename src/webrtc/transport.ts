@@ -66,9 +66,15 @@ const BACKOFF_STEPS_MS = [1000, 2000, 4000, 8000, 16000, 30000];
 const PROBE_TIMEOUT_MS = 5000;
 
 // Fatal error codes a reconnect genuinely cannot recover: the credential is
-// dead server-side. Every OTHER fatal eviction (idle_timeout, session_limit,
+// dead server-side (session_revoked / auth_expired), or a newer connection has
+// taken over this user's slot (session_replaced) and reconnecting would start a
+// takeover war. Every OTHER fatal eviction (idle_timeout, session_limit,
 // slow_consumer, going_away) is transient and must still auto-reconnect.
-const TERMINAL_ERROR_CODES = new Set<PhoneError['code']>(['session_revoked', 'auth_expired']);
+const TERMINAL_ERROR_CODES = new Set<PhoneError['code']>([
+  'session_revoked',
+  'auth_expired',
+  'session_replaced',
+]);
 
 function isTerminalErrorCode(code: string): code is PhoneError['code'] {
   return TERMINAL_ERROR_CODES.has(code as PhoneError['code']);
@@ -233,10 +239,15 @@ export class Transport {
       if (parsed.type === 'error' && parsed.fatal && isTerminalErrorCode(parsed.code)) {
         // Terminal ONLY for codes a reconnect can't recover: the token is dead
         // server-side (session_revoked) or lapsed (auth_expired), so re-auth with
-        // it would just fail or loop. Every OTHER fatal eviction — idle_timeout
-        // (the reap this watchdog exists to recover from), session_limit (another
-        // tab freed a slot), slow_consumer, going_away (deploy/drain) — is
-        // recoverable, so it must fall through to auto-reconnect.
+        // it would just fail or loop; and session_replaced, where a newer
+        // connection took over this user's session slot — reconnecting would
+        // evict that newer session in turn (a takeover war), so stay closed and
+        // let the app surface "phone moved to your newer tab" (a manual
+        // reconnect is still allowed if the user returns to this tab). Every
+        // OTHER fatal eviction — idle_timeout (the reap this watchdog exists to
+        // recover from), session_limit (another tab freed a slot),
+        // slow_consumer, going_away (deploy/drain) — is recoverable, so it must
+        // fall through to auto-reconnect.
         this.terminalError = new PhoneError({
           code: parsed.code,
           message: parsed.message,

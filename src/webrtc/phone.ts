@@ -90,7 +90,11 @@ const EMERGENCY_ADDRESS_STORAGE_KEY_PREFIX = 'dialstack.webrtc.emergency_address
 
 type PhoneEventMap = {
   connected: () => void;
-  disconnected: () => void;
+  // error is set when the disconnect was a fatal, non-reconnecting close — e.g.
+  // session_replaced (a newer tab took over) or session_revoked — so the app can
+  // show the right message instead of a generic "disconnected". Undefined for an
+  // ordinary drop (auto-reconnect will follow) or a user-initiated disconnect.
+  disconnected: (error?: PhoneError) => void;
   reconnected: () => void;
   reconnecting: (attempt: number, delayMs: number) => void;
   incoming: (call: Call) => void;
@@ -246,10 +250,13 @@ export class DialStackPhone {
       this.emit('reconnecting', attempt, delayMs);
     });
 
-    transport.on('closed', () => {
+    transport.on('closed', (reason) => {
       if (!isCurrent()) return;
       this.isConnected = false;
-      this.emit('disconnected');
+      // Forward the fatal error (session_replaced / session_revoked) so the app
+      // can distinguish a takeover/revocation from an ordinary drop. Undefined
+      // for a non-fatal close (a reconnect will follow) or a user disconnect.
+      this.emit('disconnected', reason?.error);
     });
 
     return new Promise<void>((resolve, reject) => {

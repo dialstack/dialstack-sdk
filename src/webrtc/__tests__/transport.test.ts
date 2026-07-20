@@ -120,6 +120,30 @@ describe('Transport session_revoked handling', () => {
     expect(reason.error?.code).toBe('session_revoked');
   });
 
+  it('does not reconnect after a fatal session_replaced error frame', () => {
+    const { closed, reconnecting } = connect(true);
+    const ws = FakeWebSocket.instances[0]!;
+
+    ws.fire('message', {
+      data: JSON.stringify({
+        type: 'error',
+        code: 'session_replaced',
+        message: 'session replaced by a newer connection',
+        fatal: true,
+      }),
+    });
+    ws.fire('close', {});
+    jest.runAllTimers();
+
+    // Reconnecting would evict the newer session in turn (a takeover war).
+    expect(reconnecting).not.toHaveBeenCalled();
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(closed).toHaveBeenCalledTimes(1);
+    const reason = closed.mock.calls[0]![0] as { fatal: boolean; error?: PhoneError };
+    expect(reason.fatal).toBe(true);
+    expect(reason.error?.code).toBe('session_replaced');
+  });
+
   it('still reconnects after a non-terminal close', () => {
     const { reconnecting } = connect(true);
     const ws = FakeWebSocket.instances[0]!;

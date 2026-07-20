@@ -6,6 +6,7 @@ export type PhoneErrorCode =
   | 'call_not_found'
   | 'emergency_address_required'
   | 'session_limit'
+  | 'session_replaced'
   | 'session_revoked'
   | 'rate_limited'
   | 'internal_error'
