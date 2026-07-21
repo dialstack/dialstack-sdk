@@ -155,13 +155,6 @@ export interface OnboardingUser {
   id: string;
   name?: string | null;
   email?: string | null;
-  /**
-   * The user's account-level role. The API emits `'owner'` for the account
-   * owner, `'account_admin'` for an account admin, and `''` for a regular
-   * member; a literal union so a typo in the comparison fails typecheck. A
-   * person who is both the owner and a telephony user carries `'owner'` here.
-   */
-  account_role?: 'owner' | 'account_admin' | '' | null;
   extensions?: { data?: Array<{ number?: string }> };
   created_at: string;
   updated_at: string;

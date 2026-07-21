@@ -45,10 +45,6 @@
   height: 16px;
 }
 
-.user-table-role {
-  color: var(--ds-color-text-secondary);
-}
-
 /* ── Add User Form ── */
 .add-user-form {
   display: grid;

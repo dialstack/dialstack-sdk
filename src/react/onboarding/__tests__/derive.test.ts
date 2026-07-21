@@ -160,9 +160,9 @@ describe('deriveOnboardingState', () => {
   });
 
   it('does not double-count an owner who is also a telephony user', () => {
-    // The overlap case: the owner is also a telephony user (account_role
-    // 'owner', email === account.email). team-members is email-based and
-    // role-agnostic, so the overlap owner never counts as a teammate.
+    // The overlap case: the owner is also a telephony user (email ===
+    // account.email). team-members is email-based, so the overlap owner never
+    // counts as a teammate.
     const base = {
       ...emptySnapshot,
       account: mkAccount({ email: 'owner@acme.test' }),
@@ -173,7 +173,7 @@ describe('deriveOnboardingState', () => {
     expect(
       deriveOnboardingState({
         ...base,
-        users: [{ ...mkUser('u1'), email: 'owner@acme.test', account_role: 'owner' }],
+        users: [{ ...mkUser('u1'), email: 'owner@acme.test' }],
       }).completed.account.has('team-members')
     ).toBe(false);
 
@@ -182,7 +182,7 @@ describe('deriveOnboardingState', () => {
       deriveOnboardingState({
         ...base,
         users: [
-          { ...mkUser('u1'), email: 'owner@acme.test', account_role: 'owner' },
+          { ...mkUser('u1'), email: 'owner@acme.test' },
           { ...mkUser('u2'), email: 'employee@acme.test' },
         ],
       }).completed.account.has('team-members')

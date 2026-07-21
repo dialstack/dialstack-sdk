@@ -333,62 +333,27 @@ describe('TeamMembers', () => {
   });
 
   // ==========================================================================
-  // Account role rendering
+  // Delete affordance
   // ==========================================================================
 
-  const adminUser = {
-    id: 'user_admin',
-    name: 'Admin Andy',
-    email: 'andy@example.com',
-    account_role: 'account_admin' as const,
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z',
-  };
+  it('shows a delete affordance for every listed team member', async () => {
+    const memberA = {
+      id: 'user_a',
+      name: 'Member A',
+      email: 'a@example.com',
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    };
+    const memberB = {
+      id: 'user_b',
+      name: 'Member B',
+      email: 'b@example.com',
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    };
+    await renderTM({ users: { list: jest.fn().mockResolvedValue([memberA, memberB]) } });
 
-  const plainUser = {
-    id: 'user_plain',
-    name: 'Plain Pat',
-    email: 'pat@example.com',
-    account_role: '' as const,
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z',
-  };
-
-  // A person who is both the account owner and a telephony user. The owner role
-  // is a superset of account_admin, so this must render like an admin.
-  const ownerUser = {
-    id: 'user_owner',
-    name: 'Owner Olivia',
-    email: 'olivia@example.com',
-    account_role: 'owner' as const,
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z',
-  };
-
-  it('flags an account_admin user with the Admin role and no delete affordance', async () => {
-    await renderTM({ users: { list: jest.fn().mockResolvedValue([adminUser]) } });
-
-    // The admin is labelled as Admin, not User.
-    expect(screen.getByText('Admin')).toBeTruthy();
-    expect(screen.queryByText('User')).toBeNull();
-    // The account admin cannot be removed.
-    expect(screen.queryByTitle('Remove')).toBeNull();
-  });
-
-  it('flags an owner user (owner ⊇ admin) with the Admin role and no delete affordance', async () => {
-    await renderTM({ users: { list: jest.fn().mockResolvedValue([ownerUser]) } });
-
-    expect(screen.getByText('Admin')).toBeTruthy();
-    expect(screen.queryByText('User')).toBeNull();
-    expect(screen.queryByTitle('Remove')).toBeNull();
-  });
-
-  it('shows the User role and a delete affordance for a non-admin user', async () => {
-    await renderTM({ users: { list: jest.fn().mockResolvedValue([plainUser]) } });
-
-    expect(screen.getByText('User')).toBeTruthy();
-    expect(screen.queryByText('Admin')).toBeNull();
-    expect(screen.getByTitle('Remove')).toBeTruthy();
+    expect(screen.getAllByTitle('Remove')).toHaveLength(2);
   });
 
   // ==========================================================================

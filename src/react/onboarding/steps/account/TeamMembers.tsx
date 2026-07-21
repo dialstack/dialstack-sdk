@@ -209,17 +209,12 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ accountEmail, onBack, 
                 <th>{t.users.nameLabel}</th>
                 <th>{t.users.emailLabel}</th>
                 <th>{t.users.extensionLabel}</th>
-                <th>{t.users.roleLabel}</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {otherUsers.map((u) => {
                 const ext = getExtensionForUser(u.id, contextExtensions);
-                // The owner is an admin too (a superset of account_admin), so a
-                // person who is both the owner and a telephony user renders as
-                // admin here — with the admin badge and no delete affordance.
-                const isAdmin = u.account_role === 'account_admin' || u.account_role === 'owner';
                 return (
                   <tr key={u.id}>
                     <td className="user-table-name">
@@ -230,21 +225,16 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ accountEmail, onBack, 
                     </td>
                     <td>{u.email ?? ''}</td>
                     <td>{ext ? ext.number : '—'}</td>
-                    <td className="user-table-role">
-                      {isAdmin ? t.users.roleAdmin : t.users.roleUser}
-                    </td>
                     <td>
-                      {!isAdmin && (
-                        <button
-                          type="button"
-                          className="btn-icon-danger"
-                          title={t.users.removeUser}
-                          disabled={!!deletingUserId}
-                          onClick={() => void handleRemoveUser(u.id)}
-                        >
-                          <TrashIcon />
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        className="btn-icon-danger"
+                        title={t.users.removeUser}
+                        disabled={!!deletingUserId}
+                        onClick={() => void handleRemoveUser(u.id)}
+                      >
+                        <TrashIcon />
+                      </button>
                     </td>
                   </tr>
                 );
