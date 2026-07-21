@@ -99,6 +99,22 @@ export const MOCK_CALLS: PaginatedResponse<CallLog> = {
       started_at: '2026-02-23T09:05:00Z',
       ended_at: '2026-02-23T09:05:02Z',
     },
+    {
+      // Unattributed mailbox-access row: the API returns an empty direction and
+      // raw internal identifiers (a bare SIP auth username as from_number, a
+      // voicemail MWI presentity as to_number) for legacy rows written before
+      // the CDR attribution fix. The table must render these defensively — never
+      // the raw i18n key or the raw ids. direction is '' in practice; the type
+      // is optimistic, hence the cast.
+      id: 'call_07stu',
+      direction: '' as CallLog['direction'],
+      from_number: 'MoDK2hLJ2JuSTp3aYXziD9qJzzc8McwL',
+      to_number: 'vm_user_user_01kwz66brgfh2atberxt7h5792.acct_01kwd0nnv7fdh95qa8gm7p4tjb',
+      status: 'completed',
+      duration_seconds: 62,
+      started_at: '2026-02-22T17:04:00Z',
+      ended_at: '2026-02-22T17:05:02Z',
+    },
   ],
   next_page_url: null,
   previous_page_url: null,

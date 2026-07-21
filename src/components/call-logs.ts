@@ -316,7 +316,19 @@ export class CallLogsComponent extends BaseComponent {
    */
   private formatCallParty(number: string, label?: string | null): string {
     if (label) return `${this.escapeHtml(number)} (${this.escapeHtml(label)})`;
-    return this.formatPhoneNumber(number);
+    // Defensive: never render a raw internal identifier verbatim. A voicemail
+    // MWI presentity (vm_user_/vm_svm_), a bare 32-char SIP auth username, or a
+    // WebRTC AOR (user_<26>-wrtc) can reach the CDR unattributed on legacy rows;
+    // a readable placeholder beats a raw ID. A real phone number or extension
+    // never matches these shapes.
+    // The ARI voicemail-access funnel stamps the fixed sentinel "Voicemail"
+    // into cdr.to_number (see adoptVoicemailAccessWithResolvedTarget). Storing a
+    // readable literal keeps older SDKs sane, but the current locale should win —
+    // localize it here rather than let it fall through to formatPhoneNumber.
+    if (/^vm_(user|svm)_/.test(number) || number === 'Voicemail')
+      return this.t('callLogs.statuses.voicemail');
+    if (/^[A-Za-z0-9]{32}$/.test(number) || /^user_[0-9a-z]{26}-wrtc$/.test(number)) return '—';
+    return this.escapeHtml(this.formatPhoneNumber(number));
   }
 
   /**
@@ -388,8 +400,10 @@ export class CallLogsComponent extends BaseComponent {
         return 'badge-inbound';
       case 'internal':
         return 'badge-internal';
-      default:
+      case 'outbound':
         return 'badge-outbound';
+      default:
+        return 'badge-default';
     }
   }
 
@@ -463,7 +477,12 @@ export class CallLogsComponent extends BaseComponent {
   /**
    * Format direction for display using i18n
    */
-  private formatDirection(direction: 'inbound' | 'outbound' | 'internal'): string {
+  private formatDirection(direction: string): string {
+    // Guard unknown/empty so an unattributed row shows a neutral dash rather
+    // than the raw i18n key (e.g. "callLogs.directions."). Matches formatStatus.
+    if (direction !== 'inbound' && direction !== 'outbound' && direction !== 'internal') {
+      return '—';
+    }
     return this.t(`callLogs.directions.${direction}`);
   }
 
