@@ -12,7 +12,11 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "types": []
+    "types": [],
+    "baseUrl": ".",
+    "paths": {
+      "@dialstack/sdk/react/core": ["../src/react/core/index.ts"]
+    }
   },
   "include": ["src/**/*"]
 }

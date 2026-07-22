@@ -3,8 +3,8 @@
  * providers reuse so it can't drift between them. Platforms wrap this with only
  * their own bits (web: `<style>`/`<audio>`/live-appearance; native: InCallManager).
  *
- * Must stay DOM- and React-Native-free: it's reachable from the
- * `@dialstack/sdk/react/core` barrel that React Native imports.
+ * Must stay DOM- and React-Native-free: it's part of the shared headless core
+ * (src/react/core) that @dialstack/sdk-native inlines at build time.
  */
 
 import React, { createContext, useContext, useEffect, useMemo, useRef } from 'react';

@@ -5,7 +5,7 @@ Native Community CLI, **no Expo**) that renders the SDK's `<Softphone>` from its
 single mobile entry point:
 
 ```tsx
-import { Softphone, SoftphoneProvider } from '@dialstack/sdk/native';
+import { Softphone, SoftphoneProvider } from '@dialstack/sdk-native';
 ```
 
 ## Why this example exists

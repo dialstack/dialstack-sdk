@@ -1,10 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-// The web softphone UI ships from `@dialstack/sdk/react`. Note the neighbouring
-// `@dialstack/sdk/react/core` entry is the DOM-free headless "brain" (hooks +
-// provider base) that React Native imports — NOT the web components. For a web
-// app you always want `@dialstack/sdk/react`.
+// The web softphone UI ships from `@dialstack/sdk/react` — it bundles the web
+// components together with the shared headless "brain" (hooks + provider base).
+// React Native apps use the separate `@dialstack/sdk-native` package instead.
 import { SoftphoneProvider, Softphone } from '@dialstack/sdk/react';
 import styles from './page.module.css';
 

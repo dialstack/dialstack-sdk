@@ -16,9 +16,11 @@ graph is _structurally_ free of anything React Native — a web app that install
 `@dialstack/sdk` can never pull `react-native-webrtc`/`-svg`/`-incall-manager`,
 and there's no `optional: true` peer flag to remember or accidentally drop.
 
-`@dialstack/sdk-native` depends on `@dialstack/sdk` for the shared headless
-calling core and call-state hooks. The core is written to the standard browser
-WebRTC surface (`RTCPeerConnection`, `MediaStream`, `navigator.mediaDevices`);
+`@dialstack/sdk-native` is self-contained: it inlines its own compiled copy of
+the shared headless calling core and call-state hooks at build time, so it has
+**no runtime dependency on `@dialstack/sdk`** (the core is authored once in that
+package and shared at build time only). The core is written to the standard
+browser WebRTC surface (`RTCPeerConnection`, `MediaStream`, `navigator.mediaDevices`);
 call `registerGlobals()` from `react-native-webrtc` at your app's entry point so
 that surface exists on React Native before the SDK runs. The two RN-only gaps —
 outbound ringback audio and E911 persistence — are supplied by the softphone
@@ -33,7 +35,7 @@ registerGlobals();
 ## Install
 
 ```sh
-npm install @dialstack/sdk-native @dialstack/sdk \
+npm install @dialstack/sdk-native \
   react-native-incall-manager react-native-svg libphonenumber-js
 ```
 

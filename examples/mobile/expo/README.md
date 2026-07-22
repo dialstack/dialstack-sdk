@@ -1,7 +1,7 @@
 # DialStack Mobile Softphone example (Expo + react-native-webrtc)
 
 A launchable [Expo](https://expo.dev) app that renders the SDK's **`<Softphone>`**
-from `@dialstack/sdk/native` so you can run it on a device/simulator. The React
+from `@dialstack/sdk-native` so you can run it on a device/simulator. The React
 Native softphone lives inside the SDK (the RN sibling of the web softphone): it
 reuses the SDK's **headless calling core** (`DialStackPhone` / `Call`) plus the
 shared call-state hooks, so the only thing that differs from the web softphone is
@@ -9,7 +9,7 @@ the rendering layer (React Native views instead of DOM). Like the web SDK, the
 connection lives in `<SoftphoneProvider>` and the UI (`<Softphone>`, or the
 composable `<DialPad>` / `<IncomingCall>` / `<OngoingCall>`) subscribes to it.
 
-This app is just the Expo shell that imports `@dialstack/sdk/native` and makes it
+This app is just the Expo shell that imports `@dialstack/sdk-native` and makes it
 launchable — see [How it consumes the SDK](#how-it-consumes-the-sdk).
 
 > **Foreground calling only.** This example covers placing, receiving, and
@@ -67,7 +67,7 @@ This app depends on a **single package** — `@dialstack/sdk` — and imports th
 React Native softphone from its mobile entry point:
 
 ```tsx
-import { Softphone, SoftphoneProvider } from '@dialstack/sdk/native';
+import { Softphone, SoftphoneProvider } from '@dialstack/sdk-native';
 ```
 
 There are **no source aliases** in `metro.config.js` or `tsconfig.json`; the app

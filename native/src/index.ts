@@ -4,9 +4,10 @@
  * A separate package from `@dialstack/sdk` on purpose: it carries the React
  * Native peer dependencies, so the web SDK's dependency graph stays structurally
  * free of anything React Native (a web app installing `@dialstack/sdk` can never
- * pull an RN library). It depends on `@dialstack/sdk` for the shared headless
- * core + call-state hooks, consumed through that package's `react-native` export
- * condition.
+ * pull an RN library). It is self-contained — it inlines its own compiled copy
+ * of the shared headless core + call-state hooks at build time (the core is
+ * authored once in `@dialstack/sdk`'s source and shared at build time only), so
+ * it has no runtime dependency on `@dialstack/sdk`.
  *
  * The mobile siblings of the web softphone, with the SAME API: a headless
  * SoftphoneProvider that owns the connection, a batteries-included <Softphone>,

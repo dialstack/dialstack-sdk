@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@config-plugins/react-native-webrtc": "^15.0.1",
-    "@dialstack/sdk": "file:../../../",
     "@dialstack/sdk-native": "file:../../../native",
     "buffer": "^6.0.3",
     "expo": "^57.0.4",

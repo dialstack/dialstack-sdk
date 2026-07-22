@@ -1,7 +1,7 @@
 /**
  * Shared, framework-agnostic softphone provider core — the wiring both the web
- * and React Native providers reuse. DOM/RN-free, reachable from the
- * `@dialstack/sdk/react/core` barrel.
+ * and React Native providers reuse. DOM/RN-free, re-exported through the internal
+ * `src/react/core` barrel.
  */
 
 export {

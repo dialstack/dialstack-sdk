@@ -60,8 +60,9 @@ export type { SoftphoneProps } from './react/softphone/Softphone';
 export type { DialPadProps } from './react/softphone/DialPad';
 
 // Shared softphone hooks + view-model — the platform-agnostic call-state layer the
-// web Softphone and a React Native softphone both build on. Also exported from the
-// dedicated, RN-safe headless entry '@dialstack/sdk/react/core'.
+// web Softphone and a React Native softphone both build on. This headless core is
+// authored under src/react/core and inlined into the @dialstack/sdk-native build;
+// it is not a public subpath of @dialstack/sdk.
 export {
   useCalls,
   useCallActions,

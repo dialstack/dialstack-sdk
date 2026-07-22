@@ -152,28 +152,6 @@ export default [
     ],
     plugins: browserPlugins({ bundleNodeModulesCss: true }),
   },
-  // Headless React core entry (`@dialstack/sdk/react/core`) — the shared web ↔ RN
-  // call-state brain: React + headless core only, NO web component graph, so it's
-  // safe to import from React Native. React is external: the consuming app
-  // (web or RN) provides it.
-  {
-    input: 'src/react/core/index.ts',
-    external: (id) => /^react(-dom)?$/.test(id),
-    output: [
-      {
-        file: 'dist/react-core.cjs',
-        format: 'cjs',
-        sourcemap: true,
-        exports: 'named',
-      },
-      {
-        file: 'dist/react-core.mjs',
-        format: 'esm',
-        sourcemap: true,
-      },
-    ],
-    plugins: browserPlugins(),
-  },
   // Framework-agnostic softphone design tokens + glyph data (no React, no DOM,
   // no React Native) — published as standalone subpaths so the RN softphone
   // package can import them without pulling any component graph.

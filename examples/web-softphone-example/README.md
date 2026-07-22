@@ -59,7 +59,7 @@ The route returns `{ token, apiBaseUrl }` to the browser, which passes them to
 `DIALSTACK_USER_ID` server-side — the request has no `user` field, so the endpoint
 can only ever mint a session for the one configured user.
 
-## Which import? (`@dialstack/sdk/react` vs `@dialstack/sdk/react/core`)
+## Which import?
 
 Import the web components from **`@dialstack/sdk/react`**:
 
@@ -67,10 +67,10 @@ Import the web components from **`@dialstack/sdk/react`**:
 import { SoftphoneProvider, Softphone } from '@dialstack/sdk/react';
 ```
 
-The neighbouring `@dialstack/sdk/react/core` entry is the DOM-free headless
-"brain" (the shared hooks + provider base) that React Native imports — it does
-**not** export the web `<Softphone>` UI. For a web app you always want
-`@dialstack/sdk/react`.
+This bundles both the web `<Softphone>` UI and the shared headless "brain" (the
+call-state hooks + provider base). React Native consumers use the separate
+`@dialstack/sdk-native` package, which inlines its own copy of that shared core —
+so there is no separate core subpath to import on the web.
 
 ## A note on a shared token server (and why there isn't one)
 
