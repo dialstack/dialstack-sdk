@@ -86,6 +86,8 @@ export interface Account {
   main_location?: string | null;
   /** @deprecated Use `main_location`. Retained for backwards compatibility. */
   main_location_id?: string | null;
+  /** Button template inherited by newly created deskphones and DECT handsets. */
+  default_button_template: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -102,6 +104,8 @@ export interface UpdateAccountRequest {
   main_location?: string;
   /** @deprecated Use `main_location`. Retained for backwards compatibility. */
   main_location_id?: string;
+  /** Set or clear the template inherited by newly created compatible devices. */
+  default_button_template?: string | null;
 }
 
 /**

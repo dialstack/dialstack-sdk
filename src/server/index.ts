@@ -136,6 +136,8 @@ export interface Account {
   config: AccountConfig;
   hold_music_clip_id: string | null;
   main_location_id: string | null;
+  /** Button template inherited by newly created deskphones and DECT handsets. */
+  default_button_template: string | null;
   /**
    * Subscription-agreement (SSA/TOS) coverage status. `signed` — a live account
    * whose acceptance matches the current agreement version; `unsigned` — a live
@@ -203,6 +205,8 @@ export interface AccountUpdateParams {
   config?: AccountConfig;
   hold_music_clip_id?: string | null;
   main_location_id?: string;
+  /** Set or clear the template inherited by newly created compatible devices. */
+  default_button_template?: string | null;
 }
 
 export interface AccountListParams {

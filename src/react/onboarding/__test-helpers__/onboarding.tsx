@@ -38,6 +38,7 @@ export const mockAccount = {
   name: 'Acme Corp',
   phone: '(212) 555-0100',
   primary_contact_name: 'Jane Doe',
+  default_button_template: null,
   config: {
     region: 'us-east',
     extension_length: 4,
