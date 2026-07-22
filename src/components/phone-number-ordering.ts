@@ -783,19 +783,23 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
       this.step = 'complete';
       this.render();
 
-      // Route based on order status
       if (order.status === 'failed') {
         this.errorMessage = this.t('phoneNumberOrdering.error.description');
         this.step = 'error';
         this._onOrderError?.({ error: this.errorMessage });
         this.render();
-      } else if (order.status === 'pending') {
+        return;
+      }
+
+      // Fire-and-forget: routing is a best-effort convenience, never a gate on
+      // the order. The ordered numbers' DIDs already exist and are routable, so
+      // route now rather than waiting for a pending order to resolve. `.catch`
+      // keeps a future throw from escaping as an unhandled rejection.
+      void this.applyRoutingToOrder(order).catch(() => {});
+
+      if (order.status === 'pending') {
         this.startPolling();
       } else {
-        // Fire-and-forget: routing is a best-effort convenience, never a
-        // gate on order completion. Don't await it; `.catch` keeps a future
-        // throw from escaping as an unhandled rejection.
-        void this.applyRoutingToOrder(order).catch(() => {});
         this._onOrderComplete?.({ orderId: order.id, order });
       }
     } catch (err) {
@@ -809,30 +813,42 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
 
   /**
    * Best-effort, fire-and-forget: apply the chosen routing target to the
-   * numbers an order completed. The order never depends on this — callers
-   * invoke it without awaiting and fire onOrderComplete regardless. The
-   * pre-created DIDs exist (inactive) by the time an order resolves, so we
-   * match the completed E.164 strings against the phone-number list to get
-   * their ids and route each. A no-selection ("route later"), an unmatched
-   * number, or a per-DID failure is left unrouted (the normal "Set routing"
-   * fallback) — never retried, never surfaced as an order error. Routing an
-   * inactive DID is accepted by the API and preserved when the number activates.
+   * numbers an order was placed for. The order never depends on this — callers
+   * invoke it without awaiting and fire onOrderComplete regardless.
+   *
+   * We route the *ordered* numbers (`phone_numbers`), not `completed_numbers`:
+   * the API returns an order with `completed_numbers` still empty and fills it
+   * asynchronously (a carrier callback populates it later), so keying off it
+   * would route nothing. The DID rows for the ordered numbers already exist
+   * (inactive) the moment the order is placed and are routable immediately —
+   * the API accepts routing on an inactive DID and preserves it when the number
+   * activates, and it's inert if the number never provisions. So there's no
+   * need to wait for provisioning to finish.
+   *
+   * A no-selection ("route later"), an unmatched number, or a per-DID failure
+   * is left unrouted (the normal "Set routing" fallback) — never retried, never
+   * surfaced as an order error.
    */
   private async applyRoutingToOrder(order: NumberOrder): Promise<void> {
     // Capture the selection up front: the per-DID updateRoute calls run later
     // inside Promise.all, and passing a null target would *clear* routing.
     const target = this.selectedRoutingTarget;
     if (!this.instance || !target) return;
-    const completed = order.completed_numbers ?? [];
-    if (completed.length === 0) return;
+    const ordered = order.phone_numbers ?? [];
+    if (ordered.length === 0) return;
 
     try {
       const dids = await this.instance.fetchAllPages<DIDItem>((opts) =>
         this.instance!.phoneNumbers.list(opts)
       );
-      const idByNumber = new Map(dids.map((did) => [did.phone_number, did.id]));
+      // Skip released DIDs: a reacquired number can still have a lingering
+      // released row, and updateRoute on it would 404. list() is newest-first,
+      // so the live (active/inactive) row is the one we keep per number.
+      const idByNumber = new Map(
+        dids.filter((did) => did.status !== 'released').map((did) => [did.phone_number, did.id])
+      );
       await Promise.all(
-        completed.map(async (phone) => {
+        ordered.map(async (phone) => {
           const didId = idByNumber.get(phone);
           if (!didId) return;
           try {
@@ -844,7 +860,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
         })
       );
     } catch {
-      // Listing failed — leave all completed numbers unrouted.
+      // Listing failed — leave all ordered numbers unrouted.
     }
   }
 
@@ -893,9 +909,8 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
         } else {
           this.stopPolling();
           if (order.status !== 'pending') {
-            // Fire-and-forget: never gate completion on routing. `.catch`
-            // keeps a future throw from escaping as an unhandled rejection.
-            void this.applyRoutingToOrder(order).catch(() => {});
+            // Routing already fired when the order was placed (placeOrder) —
+            // polling only advances the UI status to its terminal state.
             this._onOrderComplete?.({ orderId: order.id, order });
           }
         }
