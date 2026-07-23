@@ -681,10 +681,10 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
       // a pasted/formatted "(581) 319-5082" dials as "+15813195082" and we never
       // send characters the server rejects. Extensions/star codes pass through.
       const target = sanitizeDestination(destination, DIAL_COUNTRY);
-      // Surface (rather than silently no-op) so a host calling the public dial()
-      // API with bad input, before connecting, or over a live call gets feedback
-      // — the built-in DialPad can't reach these (its Call button is gated), but
-      // dial() has no such gate.
+      // Surface (rather than silently no-op) so a host calling placeCall()
+      // directly with bad input, before connecting, or over a live call gets
+      // feedback — the built-in DialPad can't reach these (its Call button is
+      // gated), but a host caller has no such gate.
       if (!target) {
         handlers.current.onError?.({
           code: 'invalid_message',

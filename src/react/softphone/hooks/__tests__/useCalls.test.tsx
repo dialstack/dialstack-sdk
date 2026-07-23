@@ -518,7 +518,7 @@ describe('useCalls placeCall', () => {
     await act(async () => {
       await result.current.placeCall('   ');
     });
-    // No call placed, but not a silent no-op — the host (e.g. dial()) is told.
+    // No call placed, but not a silent no-op — the host caller is told.
     expect(phone().callArgs).toEqual([]);
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: 'invalid_message' }));
   });

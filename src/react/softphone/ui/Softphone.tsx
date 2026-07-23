@@ -15,8 +15,8 @@
  *
  * Because the connection lives in the provider (not this component), the
  * softphone stays connected app-wide while `<Softphone>` mounts/unmounts (e.g.
- * inside a drawer). `useSoftphone().dial(...)` places calls from anywhere under
- * the provider. For a bespoke UI, compose `<DialPad>` / `<IncomingCall>` /
+ * inside a drawer). `useSoftphone().placeCall(...)` places calls from anywhere
+ * under the provider. For a bespoke UI, compose `<DialPad>` / `<IncomingCall>` /
  * `<OngoingCall>` yourself under the same provider instead.
  */
 

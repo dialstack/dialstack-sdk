@@ -47,7 +47,6 @@ export interface SoftphoneContextBase {
   completeAttendedTransfer: () => void;
   cancelAttendedTransfer: () => void;
   placeCall: (destination: string) => Promise<void>;
-  dial: (destination: string) => void;
   emergency: UseEmergencyBinding;
   emergencyManagedByHost: boolean;
   lastError: { code: string; message: string } | null;
@@ -233,10 +232,6 @@ export function SoftphoneProviderBase<Extra extends object>({
       completeAttendedTransfer,
       cancelAttendedTransfer,
       placeCall,
-      dial: (destination: string) => {
-        const target = destination.trim();
-        if (target) void placeCall(target);
-      },
       emergency,
       emergencyManagedByHost: !!emergencyAddressId,
       lastError,
