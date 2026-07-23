@@ -13,6 +13,13 @@ export type { UseCallsOptions, UseCallsResult, SoftphoneConnectionState } from '
 export { useCallActions } from './useCallActions';
 export type { UseCallActions, UseCallActionsOptions, CallActions } from './useCallActions';
 
+// Internal built-in-UI machinery — the OngoingCall overlay flags. Consumed by the
+// provider only; deliberately NOT re-exported from the public `softphone/index.ts`
+// barrel (nor the RN-safe `core/softphone-core.ts`), so it isn't part of the SDK's
+// public API.
+export { useCallOverlays } from './useCallOverlays';
+export type { UseCallOverlays } from './useCallOverlays';
+
 export { useCallDuration } from './useCallDuration';
 
 export { useEmergencyBinding } from './useEmergencyBinding';

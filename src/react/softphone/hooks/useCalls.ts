@@ -16,7 +16,12 @@
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { DialStackPhone } from '../../../webrtc';
-import { sanitizeDestination, DIAL_COUNTRY, isIncomingRinging } from '../core/view-model';
+import {
+  sanitizeDestination,
+  sanitizeOrEmitInvalid,
+  DIAL_COUNTRY,
+  isIncomingRinging,
+} from '../core/view-model';
 import type {
   Call,
   CallEndReason,
@@ -680,18 +685,11 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
       // Clean the dial string (strip formatting, E.164 a valid PSTN number) so
       // a pasted/formatted "(581) 319-5082" dials as "+15813195082" and we never
       // send characters the server rejects. Extensions/star codes pass through.
-      const target = sanitizeDestination(destination, DIAL_COUNTRY);
-      // Surface (rather than silently no-op) so a host calling placeCall()
-      // directly with bad input, before connecting, or over a live call gets
-      // feedback — the built-in DialPad can't reach these (its Call button is
-      // gated), but a host caller has no such gate.
-      if (!target) {
-        handlers.current.onError?.({
-          code: 'invalid_message',
-          message: 'Enter a valid phone number, extension, or feature code',
-        });
-        return;
-      }
+      // On junk input, emit the shared invalid-destination error rather than a
+      // silent no-op — a host calling placeCall() directly with bad input gets
+      // feedback (the built-in DialPad can't reach this; its Call button is gated).
+      const target = sanitizeOrEmitInvalid(destination, handlers.current.onError);
+      if (!target) return;
       if (!phone || connectionRef.current !== 'connected') {
         handlers.current.onError?.({
           code: 'transport_closed',

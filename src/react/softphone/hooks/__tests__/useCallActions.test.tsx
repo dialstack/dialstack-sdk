@@ -26,49 +26,6 @@ function fakeCall(overrides: Partial<Record<string, unknown>> = {}): {
   return { call, spies };
 }
 
-describe('useCallActions overlays', () => {
-  it('keypad and transfer overlays are mutually exclusive', () => {
-    const { call } = fakeCall();
-    const { result } = renderHook(() => useCallActions(call));
-
-    expect(result.current.showKeypad).toBe(false);
-    expect(result.current.showTransfer).toBe(false);
-
-    act(() => result.current.toggleKeypad());
-    expect(result.current.showKeypad).toBe(true);
-    expect(result.current.showTransfer).toBe(false);
-
-    act(() => result.current.toggleTransfer());
-    expect(result.current.showKeypad).toBe(false);
-    expect(result.current.showTransfer).toBe(true);
-
-    act(() => result.current.resetOverlays());
-    expect(result.current.showKeypad).toBe(false);
-    expect(result.current.showTransfer).toBe(false);
-  });
-
-  it('resets overlays when the foreground call changes (new call or → null)', () => {
-    const first = fakeCall().call;
-    const { result, rerender } = renderHook(({ call }) => useCallActions(call), {
-      initialProps: { call: first as ReturnType<typeof fakeCall>['call'] | null },
-    });
-
-    act(() => result.current.toggleTransfer());
-    expect(result.current.showTransfer).toBe(true);
-
-    // A different call takes the foreground → overlay resets.
-    rerender({ call: fakeCall().call });
-    expect(result.current.showTransfer).toBe(false);
-
-    act(() => result.current.toggleKeypad());
-    expect(result.current.showKeypad).toBe(true);
-
-    // Call ends (→ null) → overlay resets.
-    rerender({ call: null });
-    expect(result.current.showKeypad).toBe(false);
-  });
-});
-
 describe('useCallActions pass-throughs', () => {
   it('answer / reject / hangup call the core directly', () => {
     const { call, spies } = fakeCall();
@@ -171,25 +128,50 @@ describe('useCallActions sendDtmf', () => {
 });
 
 describe('useCallActions transfer', () => {
-  it('transfers a trimmed destination and closes the transfer overlay', () => {
+  it('transfers a trimmed destination and reports success', () => {
     const { call, spies } = fakeCall();
     const { result } = renderHook(() => useCallActions(call));
-    act(() => result.current.toggleTransfer());
-    expect(result.current.showTransfer).toBe(true);
 
-    act(() => result.current.transfer('  +15551234567  '));
+    let handedOff: boolean | undefined;
+    act(() => {
+      handedOff = result.current.transfer('  +15551234567  ');
+    });
     expect(spies.transfer).toHaveBeenCalledWith('+15551234567');
-    expect(result.current.showTransfer).toBe(false);
+    expect(handedOff).toBe(true);
   });
 
-  it('ignores an empty destination', () => {
+  it('ignores an empty destination silently (no error, reports failure)', () => {
+    const onError = jest.fn();
     const { call, spies } = fakeCall();
-    const { result } = renderHook(() => useCallActions(call));
-    act(() => result.current.transfer('   '));
+    const { result } = renderHook(() => useCallActions(call, { onError }));
+    let handedOff: boolean | undefined;
+    act(() => {
+      handedOff = result.current.transfer('   ');
+    });
     expect(spies.transfer).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+    expect(handedOff).toBe(false);
   });
 
-  it('routes a thrown PhoneError to onError and leaves the overlay open', () => {
+  it('surfaces an invalid (non-empty) destination via onError and reports failure', () => {
+    const onError = jest.fn();
+    const { call, spies } = fakeCall();
+    const { result } = renderHook(() => useCallActions(call, { onError }));
+    let handedOff: boolean | undefined;
+    act(() => {
+      // Non-empty but cleans to nothing (all chars outside the dial allowlist) →
+      // bad input, not an empty field.
+      handedOff = result.current.transfer('xyz');
+    });
+    expect(spies.transfer).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith({
+      code: 'invalid_message',
+      message: 'Enter a valid phone number, extension, or feature code',
+    });
+    expect(handedOff).toBe(false);
+  });
+
+  it('routes a thrown PhoneError to onError and reports failure', () => {
     const onError = jest.fn();
     const { call } = fakeCall({
       transfer: jest.fn(() => {
@@ -197,9 +179,11 @@ describe('useCallActions transfer', () => {
       }),
     });
     const { result } = renderHook(() => useCallActions(call, { onError }));
-    act(() => result.current.toggleTransfer());
-    act(() => result.current.transfer('+1'));
+    let handedOff: boolean | undefined;
+    act(() => {
+      handedOff = result.current.transfer('+1');
+    });
     expect(onError).toHaveBeenCalledWith({ code: 'invalid_message', message: 'not active' });
-    expect(result.current.showTransfer).toBe(true);
+    expect(handedOff).toBe(false);
   });
 });

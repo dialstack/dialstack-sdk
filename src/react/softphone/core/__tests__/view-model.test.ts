@@ -11,6 +11,8 @@ import {
   formatDisplayNumber,
   stripToDialString,
   sanitizeDestination,
+  sanitizeOrEmitInvalid,
+  INVALID_DESTINATION_ERROR,
   callStateLabelKey,
   errorMessageKey,
 } from '../view-model';
@@ -258,6 +260,41 @@ describe('sanitizeDestination', () => {
     for (const input of ['(581) 319-5082', 'call bob', '*72', '', '   ', '+44 20 7946 0000']) {
       expect(sanitizeDestination(input)).toMatch(allowed);
     }
+  });
+});
+
+describe('sanitizeOrEmitInvalid', () => {
+  it('returns the cleaned target and does not emit for valid input', () => {
+    const onError = jest.fn();
+    expect(sanitizeOrEmitInvalid('(581) 319-5082', onError)).toBe('+15813195082');
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('emits the shared invalid-destination error and returns "" for junk input', () => {
+    const onError = jest.fn();
+    expect(sanitizeOrEmitInvalid('xyz', onError)).toBe('');
+    expect(onError).toHaveBeenCalledWith(INVALID_DESTINATION_ERROR);
+  });
+
+  it('emits for empty input by default (placeCall behavior)', () => {
+    const onError = jest.fn();
+    expect(sanitizeOrEmitInvalid('   ', onError)).toBe('');
+    expect(onError).toHaveBeenCalledWith(INVALID_DESTINATION_ERROR);
+  });
+
+  it('stays silent on empty input when silentWhenEmpty (transfer-field behavior)', () => {
+    const onError = jest.fn();
+    // Empty → silent...
+    expect(sanitizeOrEmitInvalid('   ', onError, { silentWhenEmpty: true })).toBe('');
+    expect(onError).not.toHaveBeenCalled();
+    // ...but non-empty junk still reports.
+    expect(sanitizeOrEmitInvalid('xyz', onError, { silentWhenEmpty: true })).toBe('');
+    expect(onError).toHaveBeenCalledWith(INVALID_DESTINATION_ERROR);
+  });
+
+  it('tolerates a missing onError callback', () => {
+    expect(() => sanitizeOrEmitInvalid('xyz', undefined)).not.toThrow();
+    expect(sanitizeOrEmitInvalid('xyz', undefined)).toBe('');
   });
 });
 

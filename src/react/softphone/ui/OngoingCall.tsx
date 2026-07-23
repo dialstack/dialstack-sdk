@@ -26,6 +26,7 @@ export const OngoingCall: React.FC = () => {
   const {
     activeCall: call,
     actions,
+    overlays,
     duration,
     consultCall,
     transferOriginal,
@@ -39,13 +40,13 @@ export const OngoingCall: React.FC = () => {
     displayNumber,
     scope,
   } = useSoftphone();
-  const { showKeypad, showTransfer } = actions;
+  const { showKeypad, showTransfer } = overlays;
   const [dtmfEntered, setDtmfEntered] = useState('');
   const [transferTo, setTransferTo] = useState('');
   const { onType: onTransferType, onPasteText: onTransferPaste } = useDialInput(setTransferTo);
 
   // Clear the per-call transient text when the foreground call changes. (The
-  // overlay flags themselves reset inside useCallActions so web + RN match.)
+  // overlay flags themselves reset inside useCallOverlays so web + RN match.)
   const callId = call?.id ?? null;
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset transient text on foreground-call change
@@ -143,23 +144,10 @@ export const OngoingCall: React.FC = () => {
           </div>
         )}
 
-        <div className="ds-peer">
-          <div className="ds-peer-name">{name}</div>
-          {peerName && <div className="ds-peer-number">{displayNumber(peer)}</div>}
-          <div className="ds-callstate">
-            <span className="ds-callstate-text">{t(callStateLabelKey(call.state))}</span>
-            {/* Duration ticks only while truly live. A held foreground call (e.g.
-                promoted when the active call ended, or held during a switch) shows
-                its "On hold" state + the Resume control below, never a running
-                timer implying live audio. */}
-            {call.state === 'active' && <span className="ds-duration">{duration}</span>}
-          </div>
-        </div>
-
-        <CallErrorChip />
-
         {/* Other backgrounded calls the user can switch to — click a card to
-            hold the current call and resume that one. Excludes the transfer
+            hold the current call and resume that one. Rendered ABOVE the active
+            peer (same as the transfer banner) so the backgrounded call sits above
+            and the active/current call below, consistently. Excludes the transfer
             leg shown in the banner above (so it isn't listed twice). */}
         {switchableHeld.length > 0 && (
           <div className="ds-held-calls" role="group" aria-label={t('heldCallsLabel')}>
@@ -181,6 +169,21 @@ export const OngoingCall: React.FC = () => {
             })}
           </div>
         )}
+
+        <div className="ds-peer">
+          <div className="ds-peer-name">{name}</div>
+          {peerName && <div className="ds-peer-number">{displayNumber(peer)}</div>}
+          <div className="ds-callstate">
+            <span className="ds-callstate-text">{t(callStateLabelKey(call.state))}</span>
+            {/* Duration ticks only while truly live. A held foreground call (e.g.
+                promoted when the active call ended, or held during a switch) shows
+                its "On hold" state + the Resume control below, never a running
+                timer implying live audio. */}
+            {call.state === 'active' && <span className="ds-duration">{duration}</span>}
+          </div>
+        </div>
+
+        <CallErrorChip />
 
         {isActive && showKeypad && canSendDtmf && (
           <div className="ds-dtmf">
@@ -224,8 +227,12 @@ export const OngoingCall: React.FC = () => {
                 className="ds-transfer-send ds-transfer-send-secondary"
                 disabled={!transferTo.trim()}
                 onClick={() => {
-                  actions.transfer(transferTo);
-                  setTransferTo('');
+                  // Close the transfer overlay only if the hand-off succeeded; a
+                  // failed transfer (routed to onError) leaves it open to retry.
+                  if (actions.transfer(transferTo)) {
+                    setTransferTo('');
+                    overlays.closeTransfer();
+                  }
                 }}
               >
                 {t('transferNow')}
@@ -277,7 +284,7 @@ export const OngoingCall: React.FC = () => {
                 className={`ds-control ${showKeypad ? 'ds-control-on' : ''}`}
                 aria-pressed={showKeypad}
                 aria-label={t('keypad')}
-                onClick={actions.toggleKeypad}
+                onClick={overlays.toggleKeypad}
               >
                 <span className="ds-control-glyph">
                   <Glyph glyph={softphoneGlyphs.keypad} />
@@ -291,7 +298,7 @@ export const OngoingCall: React.FC = () => {
               aria-pressed={showTransfer}
               aria-label={t('transfer')}
               disabled={!canStartTransfer}
-              onClick={actions.toggleTransfer}
+              onClick={overlays.toggleTransfer}
             >
               <span className="ds-control-glyph">
                 <Glyph glyph={softphoneGlyphs.transfer} />

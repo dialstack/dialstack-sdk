@@ -208,6 +208,40 @@ export function sanitizeDestination(value: string, defaultCountry: CountryCode =
 }
 
 /**
+ * The error surfaced when a dial/transfer destination cleans to nothing. Single
+ * source of truth so `placeCall`, `transfer`, and any future dial site emit the
+ * exact same `code`/`message` instead of hand-copying the string.
+ */
+export const INVALID_DESTINATION_ERROR = {
+  code: 'invalid_message',
+  message: 'Enter a valid phone number, extension, or feature code',
+} as const;
+
+/**
+ * Sanitize a dial/transfer destination and, when it cleans to empty, route the
+ * shared `INVALID_DESTINATION_ERROR` to `onError`. Returns the cleaned target, or
+ * `''` when there's nothing valid to dial (caller should bail).
+ *
+ * `silentWhenEmpty` (default false) suppresses the error for a blank/whitespace
+ * input — used where the UI already gates on non-empty (the transfer field), so
+ * only genuinely-invalid *content* reports, not an empty box.
+ */
+export function sanitizeOrEmitInvalid(
+  destination: string,
+  onError: ((e: { code: string; message: string }) => void) | undefined,
+  { silentWhenEmpty = false }: { silentWhenEmpty?: boolean } = {}
+): string {
+  const target = sanitizeDestination(destination, DIAL_COUNTRY);
+  if (!target) {
+    if (!(silentWhenEmpty && !destination.trim())) {
+      onError?.({ ...INVALID_DESTINATION_ERROR });
+    }
+    return '';
+  }
+  return target;
+}
+
+/**
  * Map a call state to a stable, locale-agnostic label key. The UIs resolve the
  * key to a localized string (web via the component locale table, RN via its own
  * map) — sharing the key→state mapping keeps the two from drifting on which

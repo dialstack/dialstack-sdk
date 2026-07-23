@@ -26,6 +26,7 @@ export function OngoingCall(): React.JSX.Element | null {
   const {
     activeCall: call,
     actions,
+    overlays,
     duration,
     consultCall,
     transferOriginal,
@@ -40,10 +41,14 @@ export function OngoingCall(): React.JSX.Element | null {
     palette,
   } = useSoftphone();
   const styles = useMemo(() => makeStyles(palette), [palette]);
-  const { showKeypad, showTransfer } = actions;
+  const { showKeypad, showTransfer } = overlays;
   const [transferTo, setTransferTo] = useState('');
   const { onType: onTransferType } = useDialInput(setTransferTo);
 
+  // Clear the per-call transient text when the foreground call changes. (The
+  // overlay flags themselves reset inside useCallOverlays so web + RN match.)
+  // No dtmfEntered readout here — native can't send DTMF (no RTCDTMFSender), so
+  // there's no keypad readout to reset, unlike web.
   const callId = call?.id ?? null;
   useEffect(() => {
     setTransferTo('');
@@ -118,24 +123,11 @@ export function OngoingCall(): React.JSX.Element | null {
         </>
       )}
 
-      <View style={styles.peer}>
-        <Text style={styles.peerName}>{name}</Text>
-        {!!peerName && <Text style={styles.peerNumber}>{displayNumber(peerRaw)}</Text>}
-        <View style={styles.callState}>
-          <Text style={styles.callStateText}>
-            {t(callStateLabelKey(call.state as CallState))}
-          </Text>
-          {/* Duration ticks only while truly live; a held foreground call shows
-              its "On hold" state + Resume control, never a running timer. */}
-          {call.state === 'active' && <Text style={styles.duration}>{duration}</Text>}
-        </View>
-      </View>
-
-      <CallErrorChip />
-
       {/* Other backgrounded calls the user can switch to — tap a card to hold
-          the current call and resume that one. Excludes the transfer leg shown
-          in the banner above (so it isn't listed twice). */}
+          the current call and resume that one. Rendered ABOVE the active peer
+          (same as the transfer banner) so the backgrounded call sits above and
+          the active/current call below, consistently. Excludes the transfer leg
+          shown in the banner above (so it isn't listed twice). */}
       {switchableHeld.length > 0 && (
         <View style={styles.heldCalls}>
           {switchableHeld.map((held: Call) => {
@@ -159,6 +151,21 @@ export function OngoingCall(): React.JSX.Element | null {
           })}
         </View>
       )}
+
+      <View style={styles.peer}>
+        <Text style={styles.peerName}>{name}</Text>
+        {!!peerName && <Text style={styles.peerNumber}>{displayNumber(peerRaw)}</Text>}
+        <View style={styles.callState}>
+          <Text style={styles.callStateText}>
+            {t(callStateLabelKey(call.state as CallState))}
+          </Text>
+          {/* Duration ticks only while truly live; a held foreground call shows
+              its "On hold" state + Resume control, never a running timer. */}
+          {call.state === 'active' && <Text style={styles.duration}>{duration}</Text>}
+        </View>
+      </View>
+
+      <CallErrorChip />
 
       {isActive && showKeypad && canSendDtmf && (
         <View style={styles.dtmfPad}>
@@ -199,8 +206,12 @@ export function OngoingCall(): React.JSX.Element | null {
             <Pressable
               disabled={!transferTo.trim()}
               onPress={() => {
-                actions.transfer(transferTo);
-                setTransferTo('');
+                // Close the transfer overlay only on a successful hand-off; a
+                // failed transfer (routed to onError) leaves it open to retry.
+                if (actions.transfer(transferTo)) {
+                  setTransferTo('');
+                  overlays.closeTransfer();
+                }
               }}
               style={[styles.transferSend, styles.transferSendSecondary]}
             >
@@ -241,7 +252,7 @@ export function OngoingCall(): React.JSX.Element | null {
               label={t('keypad')}
               glyph={softphoneGlyphs.keypad}
               on={showKeypad}
-              onPress={actions.toggleKeypad}
+              onPress={overlays.toggleKeypad}
               palette={palette}
               styles={styles}
             />
@@ -250,7 +261,7 @@ export function OngoingCall(): React.JSX.Element | null {
             label={t('transfer')}
             glyph={softphoneGlyphs.transfer}
             on={showTransfer}
-            onPress={actions.toggleTransfer}
+            onPress={overlays.toggleTransfer}
             palette={palette}
             styles={styles}
             disabled={!canStartTransfer}

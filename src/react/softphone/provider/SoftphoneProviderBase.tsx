@@ -11,6 +11,7 @@ import React, { createContext, useContext, useEffect, useMemo, useRef } from 're
 import {
   useCalls,
   useCallActions,
+  useCallOverlays,
   useCallDuration,
   useEmergencyBinding,
   useLastError,
@@ -25,6 +26,7 @@ import type { CountryCode } from 'libphonenumber-js';
 import type { Call, CallEndReason, PlatformStorage } from '../../../webrtc';
 import type {
   UseCallActions,
+  UseCallOverlays,
   UseEmergencyBinding,
   SoftphoneConnectionState,
   UseCallsOptions,
@@ -40,6 +42,14 @@ export interface SoftphoneContextBase {
   answerCall: (call: Call) => void;
   switchToCall: (call: Call) => void;
   actions: UseCallActions;
+  /**
+   * Internal built-in-UI machinery: the mutually-exclusive keypad/transfer
+   * overlay flags the bundled `OngoingCall` renders. Not part of the public
+   * softphone API — a custom layout owns its own presentation state and ignores
+   * this. Kept on the shared context (rather than local to `OngoingCall`) only so
+   * web and React Native can't drift on when the overlays reset.
+   */
+  overlays: UseCallOverlays;
   duration: string;
   consultCall: Call | null;
   transferOriginal: Call | null;
@@ -196,6 +206,9 @@ export function SoftphoneProviderBase<Extra extends object>({
   }, [emergency.onNetworkChanged]);
 
   const actions = useCallActions(activeCall, { onError: handleError });
+  // Built-in-UI overlay flags for the bundled OngoingCall. Owns the
+  // reset-on-foreground-call-change invariant so web and native can't drift.
+  const overlays = useCallOverlays(activeCall);
   const duration = useCallDuration(activeCall);
 
   const calls = useMemo(() => callEntries.map((e) => e.call), [callEntries]);
@@ -225,6 +238,7 @@ export function SoftphoneProviderBase<Extra extends object>({
       answerCall,
       switchToCall,
       actions,
+      overlays,
       duration,
       consultCall,
       transferOriginal,
@@ -253,6 +267,7 @@ export function SoftphoneProviderBase<Extra extends object>({
       answerCall,
       switchToCall,
       actions,
+      overlays,
       duration,
       consultCall,
       transferOriginal,
