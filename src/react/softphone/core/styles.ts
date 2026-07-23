@@ -36,6 +36,15 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       box-sizing: border-box;
     }
     .${scope} * { box-sizing: border-box; }
+    /* Every exported piece (DialPad, OngoingCall, IncomingCall, IncomingStack,
+       IncomingCallCard, EmergencyBanner) self-wraps in its own \`.ds-softphone\`
+       so it renders correctly standalone — a host can drop any one of them under
+       the provider without hand-supplying scoped wrappers. When one such piece is
+       composed INSIDE another (e.g. IncomingStack renders IncomingCallCards, or
+       <Softphone> stacks several screens), the inner \`.ds-softphone\` would
+       otherwise paint a second card box. Collapse any nested wrapper so only the
+       outermost is the padded card. */
+    .${scope} .ds-softphone { padding: 0; background: none; max-width: none; margin: 0; }
     .${scope} .ds-screen { display: flex; flex-direction: column; gap: clamp(12px, 3vw, 20px); }
 
     .${scope} .ds-chip {
@@ -225,6 +234,16 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     }
     .${scope} .ds-softphone-layout > .ds-softphone { padding: 0; background: none; }
     .${scope} .ds-incoming-overlay { flex: none; }
+
+    /* Batteries-included dial screen: the E911 banner above the dial pad, each in
+       its own scope wrapper. This outer wrapper is the single padded card; the
+       inner dial pad's own .ds-softphone must not add a second card box. The
+       banner (a direct .ds-e911 child) carries its own spacing. */
+    .${scope}.ds-dial-screen {
+      display: flex; flex-direction: column;
+      padding: clamp(12px, 4vw, 24px); background: var(--dsd-bg);
+    }
+    .${scope} .ds-dial-screen > .ds-softphone { padding: 0; background: none; }
     .${scope} .ds-incoming-stack { display: flex; flex-direction: column; gap: 8px; }
 
     /* One ringing call's card. Full-size inside the dedicated incoming screen;
@@ -255,6 +274,11 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     .${scope} .ds-incoming-card-compact .ds-actions-incoming { margin: 0; gap: 8px; flex: none; }
     .${scope} .ds-incoming-card-compact .ds-action { width: 44px; height: 44px; }
 
+    /* EmergencyBanner's self-wrap is only a scope carrier — never its own card
+       box. The visible chrome is the .ds-e911 prompt inside; the wrapper stays
+       transparent/paddingless in every context (standalone or composed), and its
+       trailing margin comes from .ds-e911 itself. */
+    .${scope}.ds-e911-root { padding: 0; background: none; max-width: none; margin: 0; }
     .${scope} .ds-e911 {
       margin-bottom: 12px;
       border: 1px solid var(--dsd-border); border-radius: ${d.radius}px;

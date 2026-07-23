@@ -24,6 +24,7 @@ import React, { useContext } from 'react';
 import { useSoftphone, SoftphoneContext } from '../provider/SoftphoneProvider';
 import { selectLayout } from '../hooks';
 import { DialPad } from './DialPad';
+import { EmergencyBanner } from './EmergencyBanner';
 import { IncomingCall, IncomingStack } from './IncomingCall';
 import { OngoingCall } from './OngoingCall';
 
@@ -59,20 +60,15 @@ const SoftphoneScreens: React.FC<{ autoFocusDestination?: boolean }> = ({
   // stack. This is a dedicated screen, not an overlay.
   if (layout.base === 'dial' && layout.incoming.length > 0) {
     if (layout.incoming.length === 1) return <IncomingCall />;
-    return (
-      <div className={`${scope} ds-softphone`}>
-        <div className="ds-screen ds-screen-incoming">
-          <IncomingStack compact={layout.compact} />
-        </div>
-      </div>
-    );
+    // IncomingStack is self-contained (own scoped wrapper), so render it directly.
+    return <IncomingStack compact={layout.compact} />;
   }
 
   const base =
     layout.base === 'in-call' ? (
       <OngoingCall />
     ) : (
-      <DialPad autoFocusDestination={autoFocusDestination} />
+      <DialScreen autoFocusDestination={autoFocusDestination} />
     );
 
   // No ringing calls → just the base screen (dial pad or the in-call screen).
@@ -88,6 +84,25 @@ const SoftphoneScreens: React.FC<{ autoFocusDestination?: boolean }> = ({
         <IncomingStack compact={layout.compact} />
       </div>
       {base}
+    </div>
+  );
+};
+
+/**
+ * The batteries-included dial screen: the E911 prompt above the dial pad. Since
+ * `DialPad` no longer bundles the banner (so a modular consumer can place it
+ * anywhere), the drop-in composes the two here — `<EmergencyBanner>` in its own
+ * scoped wrapper above `<DialPad>`. Each piece brings its own `.ds-softphone`
+ * scope wrapper (the banner's is empty and collapses to nothing when the banner
+ * self-hides), so this changes no `DialPad` contract. The banner self-hides when
+ * E911 doesn't apply (host-managed, already bound, or a call is active).
+ */
+const DialScreen: React.FC<{ autoFocusDestination?: boolean }> = ({ autoFocusDestination }) => {
+  const { scope } = useSoftphone();
+  return (
+    <div className={`${scope} ds-dial-screen`}>
+      <EmergencyBanner />
+      <DialPad autoFocusDestination={autoFocusDestination} />
     </div>
   );
 };

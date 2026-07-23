@@ -1,0 +1,20 @@
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.caption {
+  color: var(--muted-foreground);
+  font-size: 13px;
+  margin: 0;
+  text-align: center;
+}
+
+.caption code {
+  background: var(--surface-muted);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}

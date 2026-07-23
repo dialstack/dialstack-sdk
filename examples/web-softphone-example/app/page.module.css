@@ -98,6 +98,32 @@
   flex-direction: column;
   align-items: center;
   gap: 16px;
+  width: 100%;
+}
+
+.toggle {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+}
+
+.tab {
+  border: none;
+  background: none;
+  padding: 8px 20px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.tabActive {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: var(--shadow-sm);
 }
 
 .button {

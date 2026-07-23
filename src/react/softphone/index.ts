@@ -4,8 +4,10 @@
  * The offering is two ways to embed a phone, both driven by one provider:
  * 1. Drop in `<Softphone>` — the batteries-included UI — inside a
  *    `<SoftphoneProvider>`.
- * 2. Or mix and match the UI parts (`DialPad`, `IncomingCall`/`IncomingCallCard`,
- *    `OngoingCall`) inside the same provider to build a bespoke experience.
+ * 2. Or mix and match the UI parts (`DialPad`, `IncomingCall`/`IncomingStack`,
+ *    `OngoingCall`, `EmergencyBanner`) inside the same provider to build a bespoke
+ *    experience. Each is self-contained — it renders its own scoped wrapper, so
+ *    any one can be dropped in directly under the provider.
  *
  * The provider owns the connection and token, so the pieces stay connected as
  * they mount/unmount. This barrel is the authority on the public softphone API:
@@ -37,12 +39,21 @@ export type {
 export { Softphone } from './ui/Softphone';
 export type { SoftphoneProps } from './ui/Softphone';
 
-// 2b. Mix-and-match UI parts for a bespoke experience.
+// 2b. Mix-and-match UI parts for a bespoke experience. Each is self-contained —
+// it renders its own scoped wrapper, so a host can drop any one of these directly
+// under the provider without supplying `.ds-*` wrappers. (`IncomingCallCard`, the
+// single-call card these render internally, is deliberately NOT exported: it
+// takes a raw `Call` and only makes sense inside `IncomingCall`/`IncomingStack`,
+// so it isn't a standalone piece.)
 export { DialPad } from './ui/DialPad';
 export type { DialPadProps } from './ui/DialPad';
 export { IncomingCall, IncomingStack } from './ui/IncomingCall';
-export { IncomingCallCard } from './ui/IncomingCallCard';
 export { OngoingCall } from './ui/OngoingCall';
+// The E911 prompt as a standalone piece — decoupled from `DialPad` so a modular
+// layout can place it anywhere (or omit it when the host manages E911). The
+// batteries-included `<Softphone>` renders it above its dial pad. Self-hides when
+// E911 doesn't apply (host-managed, already bound, or a call is active).
+export { EmergencyBanner } from './ui/EmergencyBanner';
 
 // Shared call-state hooks + view-model helpers — the platform-agnostic layer the
 // web Softphone and a React Native softphone both build on.

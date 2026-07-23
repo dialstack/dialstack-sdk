@@ -1,8 +1,12 @@
 /**
- * DialPad — the idle/outbound screen of the softphone: connection status chip,
- * the built-in E911 banner, a destination field, the 12-key pad, and the call
- * button. Reads connection + `placeCall` from the softphone context and owns only
- * its own `destination` text.
+ * DialPad — the idle/outbound screen of the softphone: connection status chip, a
+ * destination field, the 12-key pad, and the call button. Reads connection +
+ * `placeCall` from the softphone context and owns only its own `destination` text.
+ *
+ * The E911 prompt is NOT rendered here — `<EmergencyBanner>` is a separate
+ * component so a modular consumer can place it wherever their layout wants (or
+ * omit it when the host manages E911). The batteries-included `<Softphone>`
+ * renders the banner above this pad itself, so its look is unchanged.
  *
  * Must be rendered inside a `<SoftphoneProvider>`.
  */
@@ -13,7 +17,6 @@ import { useDialInput, canPlaceCall } from '../hooks';
 import { dialPadKeys } from '../core/theme';
 import { softphoneGlyphs } from '../core/icons';
 import { Glyph } from './Glyph';
-import { EmergencyBanner } from './EmergencyBanner';
 import { CallErrorChip } from './CallErrorChip';
 
 export interface DialPadProps {
@@ -39,7 +42,6 @@ export const DialPad: React.FC<DialPadProps> = ({ autoFocusDestination = false }
   return (
     <div className={`${scope} ds-softphone`}>
       <div className="ds-screen ds-screen-dial">
-        <EmergencyBanner />
         <StatusChip />
         <CallErrorChip />
         <div className="ds-display">

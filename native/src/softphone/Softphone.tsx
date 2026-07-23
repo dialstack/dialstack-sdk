@@ -20,6 +20,7 @@ import { useWindowDimensions, View } from 'react-native';
 import { selectLayout } from '@dialstack/sdk/react/core';
 import { SoftphoneContext, useSoftphone } from '../SoftphoneProvider';
 import { DialPad } from './DialPad';
+import { EmergencyBanner } from './EmergencyBanner';
 import { IncomingCall, IncomingStack } from './IncomingCall';
 import { OngoingCall } from './OngoingCall';
 import { makeStyles } from './primitives';
@@ -48,11 +49,7 @@ function SoftphoneScreens({
   const layout = selectLayout(calls);
 
   const base =
-    layout.base === 'in-call' ? (
-      <OngoingCall />
-    ) : (
-      <DialPad autoFocusDestination={autoFocusDestination} />
-    );
+    layout.base === 'in-call' ? <OngoingCall /> : <DialScreen autoFocusDestination={autoFocusDestination} />;
 
   let body: React.JSX.Element;
   if (layout.base === 'dial' && layout.incoming.length > 0) {
@@ -78,6 +75,22 @@ function SoftphoneScreens({
     <View style={[styles.outer, landscape && styles.outerLandscape]}>
       <View style={styles.root}>{body}</View>
     </View>
+  );
+}
+
+/**
+ * The batteries-included dial screen: the E911 prompt above the dial pad. Since
+ * DialPad no longer bundles the banner (so a modular consumer can place it
+ * anywhere), the drop-in composes the two here — <EmergencyBanner> as a sibling
+ * above <DialPad>. Mirrors the web <Softphone>'s DialScreen so the two platforms
+ * share one modular contract. The banner self-hides when E911 doesn't apply.
+ */
+function DialScreen({ autoFocusDestination }: { autoFocusDestination?: boolean }): React.JSX.Element {
+  return (
+    <>
+      <EmergencyBanner />
+      <DialPad autoFocusDestination={autoFocusDestination} />
+    </>
   );
 }
 

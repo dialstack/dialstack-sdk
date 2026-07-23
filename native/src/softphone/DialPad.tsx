@@ -1,7 +1,12 @@
 /**
- * DialPad (RN) — the idle/outbound screen: connection status chip, the built-in
- * E911 banner, a destination field, the keypad, and the call button. Reads
- * connection + placeCall from the softphone context; owns its own destination.
+ * DialPad (RN) — the idle/outbound screen: connection status chip, a destination
+ * field, the keypad, and the call button. Reads connection + placeCall from the
+ * softphone context; owns its own destination.
+ *
+ * The E911 prompt is NOT rendered here — <EmergencyBanner> is a separate
+ * component so a modular consumer can place it anywhere (or omit it when the host
+ * manages E911). The batteries-included <Softphone> renders the banner above this
+ * pad itself, so its look is unchanged.
  *
  * Must be rendered inside a <SoftphoneProvider>.
  */
@@ -11,7 +16,6 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 import { dialPadKeys, softphoneDimensions as D, softphoneGlyphs } from '@dialstack/sdk/react/core';
 import { useDialInput, canPlaceCall, type Locale } from '@dialstack/sdk/react/core';
 import { useSoftphone, type ConnectionState } from '../SoftphoneProvider';
-import { EmergencyBanner } from './EmergencyBanner';
 import { CallErrorChip } from './CallErrorChip';
 import { Glyph, chunk, makeStyles } from './primitives';
 
@@ -42,7 +46,6 @@ export function DialPad({ autoFocusDestination = false }: DialPadProps): React.J
 
   return (
     <>
-      <EmergencyBanner />
       {label ? (
         <View style={[styles.chip, connection === 'error' && styles.chipError]}>
           <Text style={[styles.chipText, connection === 'error' && styles.chipErrorText]}>

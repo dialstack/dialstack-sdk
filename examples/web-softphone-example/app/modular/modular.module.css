@@ -1,0 +1,96 @@
+.workspace {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  background: var(--foreground);
+  color: #ffffff;
+  box-shadow: var(--shadow-md);
+}
+
+.connDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #6b7280;
+  flex: none;
+}
+
+.conn_connected {
+  background: var(--success);
+  box-shadow: 0 0 0 3px rgba(31, 138, 75, 0.25);
+}
+
+.conn_connecting,
+.conn_reconnecting {
+  background: var(--primary-lighter);
+}
+
+.conn_error {
+  background: var(--destructive);
+}
+
+.connLabel {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--primary-lightest);
+}
+
+.headerLine {
+  margin-left: auto;
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 680px) {
+  .columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 320px;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-foreground);
+}
+
+.idle {
+  margin: auto 0;
+  text-align: center;
+  color: var(--muted-foreground);
+  font-size: 14px;
+}

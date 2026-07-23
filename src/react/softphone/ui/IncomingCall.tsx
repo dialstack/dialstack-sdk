@@ -35,16 +35,21 @@ export const IncomingCall: React.FC = () => {
  * Renders nothing when none is ringing.
  */
 export const IncomingStack: React.FC<{ compact?: boolean }> = ({ compact }) => {
-  const { incomingCalls } = useSoftphone();
+  const { incomingCalls, scope } = useSoftphone();
   if (incomingCalls.length === 0) return null;
   // Compact whenever the caller asks (overlay case) or there's more than one.
   const isCompact = compact ?? incomingCalls.length > 1;
 
+  // Self-wrap in the scope so the stack renders correctly when dropped in
+  // standalone. When `<Softphone>` composes it inside another scoped wrapper the
+  // nested `.ds-softphone` collapses its box (see styles.ts), so this is safe.
   return (
-    <div className="ds-incoming-stack">
-      {incomingCalls.map((call) => (
-        <IncomingCallCard key={call.id} call={call} compact={isCompact} />
-      ))}
+    <div className={`${scope} ds-softphone`}>
+      <div className="ds-incoming-stack">
+        {incomingCalls.map((call) => (
+          <IncomingCallCard key={call.id} call={call} compact={isCompact} />
+        ))}
+      </div>
     </div>
   );
 };
