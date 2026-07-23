@@ -12,7 +12,7 @@ import dts from 'rollup-plugin-dts';
 // the source still writes (`import … from '@dialstack/sdk/react/core'`); we map
 // it to the core's source entry so rollup pulls the graph in and bundles it.
 const CORE_SPECIFIER = '@dialstack/sdk/react/core';
-const CORE_SOURCE = fileURLToPath(new URL('../src/react/core/index.ts', import.meta.url));
+const CORE_SOURCE = fileURLToPath(new URL('../src/react/softphone/core/index.ts', import.meta.url));
 
 function inlineCore() {
   return {

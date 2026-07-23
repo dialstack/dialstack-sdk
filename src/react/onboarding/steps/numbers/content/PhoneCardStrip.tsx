@@ -8,7 +8,7 @@ const NOWRAP_STYLE: React.CSSProperties = { whiteSpace: 'nowrap' };
 
 // ── Persistent phone card strip ──
 // Stays mounted across number sub-steps so cards morph smoothly instead of flashing.
-export function PhoneCardStrip({
+export const PhoneCardStrip = ({
   mode,
   state,
   t,
@@ -18,7 +18,7 @@ export function PhoneCardStrip({
   state: NumState;
   t: TFn;
   dispatch: Dispatcher;
-}) {
+}) => {
   // Use activeDIDs for caller-id mode and phoneNumbers for overview.
   // Directory-listing uses pre-computed dlEligibleDIDs (excludes temporary numbers).
   // Caller-id also excludes temporary numbers.
@@ -231,4 +231,4 @@ export function PhoneCardStrip({
       )}
     </div>
   );
-}
+};

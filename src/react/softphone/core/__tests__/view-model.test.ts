@@ -13,8 +13,8 @@ import {
   sanitizeDestination,
   callStateLabelKey,
   errorMessageKey,
-} from '../softphone-view-model';
-import type { Call, CallDirection, CallState } from '../../webrtc';
+} from '../view-model';
+import type { Call, CallDirection, CallState } from '../../../../webrtc';
 
 // A minimal Call-shaped stub — the view-model only reads these fields.
 function fakeCall(partial: Partial<Call> = {}): Call {

@@ -18,7 +18,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { EmergencyAddress, EmergencyAddressInput } from '../../webrtc';
+import type { EmergencyAddress, EmergencyAddressInput } from '../../../webrtc';
 import type { SoftphoneConnectionState } from './useCalls';
 
 export interface UseEmergencyBindingDeps {

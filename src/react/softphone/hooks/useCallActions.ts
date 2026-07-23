@@ -10,8 +10,8 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import type { Call, PhoneError } from '../../webrtc';
-import { sanitizeDestination, DIAL_COUNTRY } from '../../components/softphone-view-model';
+import type { Call, PhoneError } from '../../../webrtc';
+import { sanitizeDestination, DIAL_COUNTRY } from '../core/view-model';
 
 export interface UseCallActionsOptions {
   /** Fired on a failed action (e.g. DTMF on a call with no sender, transfer). */

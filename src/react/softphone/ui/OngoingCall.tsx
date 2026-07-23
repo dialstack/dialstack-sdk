@@ -9,20 +9,20 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { useSoftphone } from '../SoftphoneProvider';
+import { useSoftphone } from '../provider/SoftphoneProvider';
 import {
   callPeerNumber,
   callPeerName,
   callStateLabelKey,
   isCallActive,
   useDialInput,
-} from '../softphone-hooks';
-import { dialPadKeys } from '../../components/softphone-theme';
-import { softphoneGlyphs } from '../../components/softphone-icons';
+} from '../hooks';
+import { dialPadKeys } from '../core/theme';
+import { softphoneGlyphs } from '../core/icons';
 import { Glyph } from './Glyph';
 import { CallErrorChip } from './CallErrorChip';
 
-export function OngoingCall(): React.JSX.Element | null {
+export const OngoingCall: React.FC = () => {
   const {
     activeCall: call,
     actions,
@@ -314,4 +314,4 @@ export function OngoingCall(): React.JSX.Element | null {
       </div>
     </div>
   );
-}
+};

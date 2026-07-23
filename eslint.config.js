@@ -43,6 +43,23 @@ export default tseslint.config(
     },
   },
   {
+    // React components must be declared as `const X: React.FC<…> = () => {}`, never
+    // `export function X()`. TypeDoc buckets exports by JS construct: a `const`
+    // component lands under "Components & variables" in the SDK reference, a `function`
+    // lands under "Functions" — mixing the two scatters components across two doc
+    // sections. Enforcing arrow form also keeps one declaration style across the tree.
+    files: ['src/**/*.tsx'],
+    rules: {
+      'react/function-component-definition': [
+        'error',
+        {
+          namedComponents: 'arrow-function',
+          unnamedComponents: 'arrow-function',
+        },
+      ],
+    },
+  },
+  {
     // React Native entry (`@dialstack/sdk/native`). Same TS/React rules, but it
     // targets React Native, not the browser: drop the browser globals, and relax
     // two of the newest react-hooks rules that flag idiomatic RN patterns —

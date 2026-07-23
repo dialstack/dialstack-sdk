@@ -2,7 +2,7 @@
  * Story-support only — an in-memory fake of `DialStackPhone` + `Call` so
  * Storybook can drive the real softphone user flows (dial, incoming, answer,
  * hold, transfer, hang up) without a live WebSocket. Injected via the internal
- * `__setPhoneFactory` seam in `../../softphone-hooks/useCalls`.
+ * `__setPhoneFactory` seam in `../../softphone/hooks/useCalls`.
  *
  * This is NOT a story itself (it lives under `support/`, which the stories glob
  * doesn't match) and is NOT public API — it exists to make the softphone's

@@ -24,7 +24,7 @@ interface ResourceComboboxProps {
   extensionLabel?: string;
 }
 
-export function ResourceCombobox({
+export const ResourceCombobox = ({
   groups,
   value,
   loading = false,
@@ -36,7 +36,7 @@ export function ResourceCombobox({
   loadingLabel = 'Loading…',
   createNewPrefix = '+ Create new…',
   extensionLabel = 'Ext.',
-}: ResourceComboboxProps) {
+}: ResourceComboboxProps) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -190,4 +190,4 @@ export function ResourceCombobox({
       </Command>
     </div>
   );
-}
+};

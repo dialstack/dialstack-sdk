@@ -1,9 +1,5 @@
 import { useCallback } from 'react';
-import {
-  sanitizeDestination,
-  stripToDialString,
-  DIAL_COUNTRY,
-} from '../../components/softphone-view-model';
+import { sanitizeDestination, stripToDialString, DIAL_COUNTRY } from '../core/view-model';
 
 export interface UseDialInput {
   /**

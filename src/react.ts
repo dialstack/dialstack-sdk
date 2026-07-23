@@ -25,21 +25,11 @@ export { PhoneNumberOrdering } from './react/PhoneNumberOrdering';
 export { PhoneNumbers } from './react/PhoneNumbers';
 export { AIAgent } from './react/AIAgent';
 
-// Composable softphone: the SoftphoneProvider owns the connection; Softphone is
-// the batteries-included UI; DialPad / IncomingCall / OngoingCall are the pieces
-// for building a bespoke experience (render them inside a SoftphoneProvider and
-// mount/unmount freely — the phone stays connected in the provider).
-export {
-  SoftphoneProvider,
-  useSoftphone,
-  useActiveCall,
-  useIncomingCall,
-} from './react/SoftphoneProvider';
-export { Softphone } from './react/softphone/Softphone';
-export { DialPad } from './react/softphone/DialPad';
-export { IncomingCall, IncomingStack } from './react/softphone/IncomingCall';
-export { IncomingCallCard } from './react/softphone/IncomingCallCard';
-export { OngoingCall } from './react/softphone/OngoingCall';
+// The whole softphone feature — the SoftphoneProvider (owns the connection), the
+// batteries-included <Softphone>, the composable pieces (DialPad / IncomingCall /
+// OngoingCall), and the shared call-state hooks + view-model helpers. Its single
+// front door is the softphone barrel; this forwards that surface verbatim.
+export * from './react/softphone';
 
 // React prop types
 export type { DialstackComponentsProviderProps } from './react/DialstackComponentsProvider';
@@ -51,48 +41,6 @@ export type { ListResourcesOptions, ResourceType } from './react/dial-plan/regis
 export type { PhoneNumberOrderingProps } from './react/PhoneNumberOrdering';
 export type { PhoneNumbersProps } from './react/PhoneNumbers';
 export type { AIAgentProps } from './react/AIAgent';
-export type {
-  SoftphoneProviderProps,
-  SoftphoneContextValue,
-  SoftphoneConnectionState,
-} from './react/SoftphoneProvider';
-export type { SoftphoneProps } from './react/softphone/Softphone';
-export type { DialPadProps } from './react/softphone/DialPad';
-
-// Shared softphone hooks + view-model — the platform-agnostic call-state layer the
-// web Softphone and a React Native softphone both build on. This headless core is
-// authored under src/react/core and inlined into the @dialstack/sdk-native build;
-// it is not a public subpath of @dialstack/sdk.
-export {
-  useCalls,
-  useCallActions,
-  useCallDuration,
-  useLastError,
-  useDialInput,
-  isIncomingRinging,
-  shouldRingIncoming,
-  isCallActive,
-  selectScreen,
-  callPeerNumber,
-  callPeerName,
-  formatCallDuration,
-  formatDisplayNumber,
-  stripToDialString,
-  sanitizeDestination,
-  DIAL_COUNTRY,
-  callStateLabelKey,
-  errorMessageKey,
-} from './react/softphone-hooks';
-export type {
-  UseCallsOptions,
-  UseCallsResult,
-  UseCallActions,
-  UseCallActionsOptions,
-  UseLastError,
-  UseDialInput,
-  SoftphoneError,
-  SoftphoneScreen,
-} from './react/softphone-hooks';
 export { buildAIAgentPrefillFaq, shouldApplyPrefillFaq } from './components/ai-agent/prefill-faq';
 
 // AI agent resource types — re-exported here so consumers using only the

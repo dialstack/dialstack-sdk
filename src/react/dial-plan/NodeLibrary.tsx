@@ -8,7 +8,11 @@ interface NodeLibraryProps {
   locale?: DialPlanLocale;
 }
 
-export function NodeLibrary({ registry, onAddNode, locale }: NodeLibraryProps): React.ReactElement {
+export const NodeLibrary = ({
+  registry,
+  onAddNode,
+  locale,
+}: NodeLibraryProps): React.ReactElement => {
   const registrations = registry.getAll();
 
   return (
@@ -48,4 +52,4 @@ export function NodeLibrary({ registry, onAddNode, locale }: NodeLibraryProps): 
       })}
     </div>
   );
-}
+};

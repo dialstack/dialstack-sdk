@@ -1,12 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import React from 'react';
 import { expect, within, userEvent, waitFor } from 'storybook/test';
-import { DialPad } from '../softphone/DialPad';
-import { IncomingCall } from '../softphone/IncomingCall';
-import { OngoingCall } from '../softphone/OngoingCall';
-import { SoftphoneProvider } from '../SoftphoneProvider';
-import { useActiveCall, useIncomingCall } from '../SoftphoneProvider';
-import { __setPhoneFactory } from '../softphone-hooks/useCalls';
+import { DialPad } from '../softphone/ui/DialPad';
+import { IncomingCall } from '../softphone/ui/IncomingCall';
+import { OngoingCall } from '../softphone/ui/OngoingCall';
+import { SoftphoneProvider } from '../softphone/provider/SoftphoneProvider';
+import { useActiveCall, useIncomingCall } from '../softphone/provider/SoftphoneProvider';
+import { __setPhoneFactory } from '../softphone/hooks/useCalls';
 import { MockPhoneController } from './support/mock-phone';
 
 // Interaction ("e2e") story for the DECOMPOSED / build-your-own path: a host
@@ -20,13 +20,13 @@ import { MockPhoneController } from './support/mock-phone';
 
 // The host-authored layout — the same decision <Softphone> makes internally,
 // written out so the accessors are exercised the way a consumer would use them.
-function BuildYourOwnSoftphone(): React.JSX.Element {
+const BuildYourOwnSoftphone = (): React.JSX.Element => {
   const incoming = useIncomingCall();
   const { activeCall } = useActiveCall();
   if (incoming) return <IncomingCall />;
   if (activeCall) return <OngoingCall />;
   return <DialPad />;
-}
+};
 
 // The controller the current story's play function drives (stories run
 // sequentially, so a module-level handle is safe). It MUST be installed before
@@ -43,7 +43,7 @@ function installMockPhone(): void {
   currentController = c;
 }
 
-function WithMockPhone({ children }: { children: React.ReactNode }): React.JSX.Element {
+const WithMockPhone = ({ children }: { children: React.ReactNode }): React.JSX.Element => {
   React.useEffect(
     () => () => {
       __setPhoneFactory(null);
@@ -52,7 +52,7 @@ function WithMockPhone({ children }: { children: React.ReactNode }): React.JSX.E
     []
   );
   return <>{children}</>;
-}
+};
 
 const meta: Meta = {
   title: 'React/Softphone (build your own) (flows)',

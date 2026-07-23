@@ -48,16 +48,6 @@
       "require": "./dist/onboarding.cjs",
       "types": "./dist/onboarding.d.ts"
     },
-    "./components/softphone-theme": {
-      "import": "./dist/softphone-theme.mjs",
-      "require": "./dist/softphone-theme.cjs",
-      "types": "./dist/components/softphone-theme.d.ts"
-    },
-    "./components/softphone-icons": {
-      "import": "./dist/softphone-icons.mjs",
-      "require": "./dist/softphone-icons.cjs",
-      "types": "./dist/components/softphone-icons.d.ts"
-    },
     "./server": {
       "import": "./dist/server/index.js",
       "require": "./dist/server/index.js",

@@ -12,7 +12,7 @@ interface ConfigFieldProps {
  * Pass `action` to render a button or link to the right of the label
  * inside a flex header.
  */
-export function ConfigField({ label, action, children }: ConfigFieldProps) {
+export const ConfigField = ({ label, action, children }: ConfigFieldProps) => {
   return (
     <div className="ds-dial-plan-config-field">
       {action ? (
@@ -26,4 +26,4 @@ export function ConfigField({ label, action, children }: ConfigFieldProps) {
       {children}
     </div>
   );
-}
+};

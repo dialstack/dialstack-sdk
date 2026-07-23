@@ -6,7 +6,7 @@ interface OpenResourceLinkProps {
   label: string;
 }
 
-export function OpenResourceLink({ resourceId, onOpenResource, label }: OpenResourceLinkProps) {
+export const OpenResourceLink = ({ resourceId, onOpenResource, label }: OpenResourceLinkProps) => {
   return (
     <button
       type="button"
@@ -30,4 +30,4 @@ export function OpenResourceLink({ resourceId, onOpenResource, label }: OpenReso
       {label}
     </button>
   );
-}
+};

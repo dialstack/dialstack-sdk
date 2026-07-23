@@ -12,10 +12,10 @@
  */
 
 import React from 'react';
-import { useSoftphone } from '../SoftphoneProvider';
+import { useSoftphone } from '../provider/SoftphoneProvider';
 import { IncomingCallCard } from './IncomingCallCard';
 
-export function IncomingCall(): React.JSX.Element | null {
+export const IncomingCall: React.FC = () => {
   const { incomingCalls, scope } = useSoftphone();
   const call = incomingCalls[0];
   if (!call) return null;
@@ -27,14 +27,14 @@ export function IncomingCall(): React.JSX.Element | null {
       </div>
     </div>
   );
-}
+};
 
 /**
  * All ringing inbound calls, stacked. Compact when >1 so a burst of calls (or a
  * call-waiting interrupt over an active call) stays small and non-intrusive.
  * Renders nothing when none is ringing.
  */
-export function IncomingStack({ compact }: { compact?: boolean }): React.JSX.Element | null {
+export const IncomingStack: React.FC<{ compact?: boolean }> = ({ compact }) => {
   const { incomingCalls } = useSoftphone();
   if (incomingCalls.length === 0) return null;
   // Compact whenever the caller asks (overlay case) or there's more than one.
@@ -47,4 +47,4 @@ export function IncomingStack({ compact }: { compact?: boolean }): React.JSX.Ele
       ))}
     </div>
   );
-}
+};

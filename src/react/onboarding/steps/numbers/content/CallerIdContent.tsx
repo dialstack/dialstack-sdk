@@ -1,7 +1,7 @@
 import React from 'react';
 import type { NumState, TFn } from '../types';
 
-export function CallerIdContent({ state, t }: { state: NumState; t: TFn }) {
+export const CallerIdContent = ({ state, t }: { state: NumState; t: TFn }) => {
   if (state.activeDIDs.length === 0)
     return (
       <div className="inline-alert info">{t('accountOnboarding.numbers.callerId.noDIDs')}</div>
@@ -12,4 +12,4 @@ export function CallerIdContent({ state, t }: { state: NumState; t: TFn }) {
       <p className="section-description">{t('accountOnboarding.numbers.callerId.subtitle')}</p>
     </div>
   );
-}
+};

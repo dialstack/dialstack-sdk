@@ -3,7 +3,7 @@ import type { NumState, Dispatcher, TFn } from '../types';
 import { PORT_SVG, PLUS_CIRCLE_SVG } from '../../../icons';
 import { SkeletonLine, SkeletonCircle, SkeletonCard } from '../../../components/Skeleton';
 
-export function OverviewContent({
+export const OverviewContent = ({
   state,
   t,
   dispatch,
@@ -13,7 +13,7 @@ export function OverviewContent({
   t: TFn;
   dispatch: Dispatcher;
   loadNumbers: () => Promise<void>;
-}) {
+}) => {
   if (state.isLoadingNumbers)
     return (
       <div>
@@ -138,4 +138,4 @@ export function OverviewContent({
       )}
     </>
   );
-}
+};

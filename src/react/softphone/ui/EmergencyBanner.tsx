@@ -14,11 +14,11 @@
  */
 
 import React, { useState } from 'react';
-import { useSoftphone } from '../SoftphoneProvider';
-import { softphoneGlyphs } from '../../components/softphone-icons';
-import { normalizeStateCode } from '../../components/emergency-address-form';
+import { useSoftphone } from '../provider/SoftphoneProvider';
+import { softphoneGlyphs } from '../core/icons';
+import { normalizeStateCode } from '../core/emergency-address-form';
 import { Glyph } from './Glyph';
-import type { EmergencyAddressInput } from '../../webrtc';
+import type { EmergencyAddressInput } from '../../../webrtc';
 
 const EMPTY_FORM: EmergencyAddressInput = {
   address_number: '',
@@ -29,7 +29,7 @@ const EMPTY_FORM: EmergencyAddressInput = {
   postal_code: '',
 };
 
-export function EmergencyBanner(): React.JSX.Element | null {
+export const EmergencyBanner: React.FC = () => {
   const { emergency, emergencyManagedByHost, activeCall, t, scope } = useSoftphone();
   const [expanded, setExpanded] = useState(false);
   const [addingNew, setAddingNew] = useState(false);
@@ -208,4 +208,4 @@ export function EmergencyBanner(): React.JSX.Element | null {
       )}
     </div>
   );
-}
+};

@@ -5,7 +5,7 @@
  * class names (`ds-*`) are shared with the markup the component renders.
  */
 
-import { softphoneDimensions, softphoneFontFamily, type SoftphonePalette } from './softphone-theme';
+import { softphoneDimensions, softphoneFontFamily, type SoftphonePalette } from './theme';
 
 /** Build the Softphone stylesheet for a palette. `scope` is a class the rules are nested under. */
 export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'): string {

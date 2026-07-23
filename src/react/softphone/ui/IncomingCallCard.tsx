@@ -12,19 +12,16 @@
  */
 
 import React from 'react';
-import { useSoftphone } from '../SoftphoneProvider';
-import { softphoneGlyphs } from '../../components/softphone-icons';
-import { callPeerName, callPeerNumber } from '../softphone-hooks';
+import { useSoftphone } from '../provider/SoftphoneProvider';
+import { softphoneGlyphs } from '../core/icons';
+import { callPeerName, callPeerNumber } from '../hooks';
 import { Glyph } from './Glyph';
-import type { Call } from '../../webrtc';
+import type { Call } from '../../../webrtc';
 
-export function IncomingCallCard({
-  call,
-  compact = false,
-}: {
+export const IncomingCallCard: React.FC<{
   call: Call;
   compact?: boolean;
-}): React.JSX.Element {
+}> = ({ call, compact = false }) => {
   const { answerCall, actions, t, displayNumber } = useSoftphone();
   const peer = callPeerNumber(call);
   const name = callPeerName(call) || displayNumber(peer) || t('unknownCaller');
@@ -56,4 +53,4 @@ export function IncomingCallCard({
       </div>
     </div>
   );
-}
+};

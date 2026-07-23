@@ -2,7 +2,7 @@ import React from 'react';
 import type { NumState, Dispatcher, TFn } from '../types';
 import { formatPhone } from '../helpers';
 
-export function OrderSearchContent({
+export const OrderSearchContent = ({
   state,
   t,
   dispatch,
@@ -12,7 +12,7 @@ export function OrderSearchContent({
   t: TFn;
   dispatch: Dispatcher;
   onSearch: () => void;
-}) {
+}) => {
   const backToOverview = () => {
     dispatch({ type: 'order_reset' });
     dispatch({ type: 'set_substep', subStep: 'overview' });
@@ -96,9 +96,9 @@ export function OrderSearchContent({
       </div>
     </>
   );
-}
+};
 
-export function OrderResultsContent({
+export const OrderResultsContent = ({
   state,
   t,
   dispatch,
@@ -106,7 +106,7 @@ export function OrderResultsContent({
   state: NumState;
   t: TFn;
   dispatch: Dispatcher;
-}) {
+}) => {
   const allSelected =
     state.orderSelectedNumbers.length === state.orderAvailableNumbers.length &&
     state.orderAvailableNumbers.length > 0;
@@ -196,9 +196,9 @@ export function OrderResultsContent({
       </div>
     </>
   );
-}
+};
 
-export function OrderConfirmContent({
+export const OrderConfirmContent = ({
   state,
   t,
   dispatch,
@@ -208,7 +208,7 @@ export function OrderConfirmContent({
   t: TFn;
   dispatch: Dispatcher;
   onPlaceOrder: () => void;
-}) {
+}) => {
   return (
     <>
       <h2 className="section-title">{t('accountOnboarding.numbers.order.confirmTitle')}</h2>
@@ -255,9 +255,9 @@ export function OrderConfirmContent({
       </div>
     </>
   );
-}
+};
 
-export function OrderStatusContent({
+export const OrderStatusContent = ({
   state,
   t,
   dispatch,
@@ -269,7 +269,7 @@ export function OrderStatusContent({
   dispatch: Dispatcher;
   onContinue: () => Promise<void>;
   loadNumbers: () => Promise<void>;
-}) {
+}) => {
   const order = state.orderCurrentOrder;
   if (!order) return null;
   const pollExhausted = order.status === 'pending' && state.orderPollCount >= 5;
@@ -319,4 +319,4 @@ export function OrderStatusContent({
       )}
     </div>
   );
-}
+};

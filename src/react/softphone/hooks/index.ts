@@ -40,5 +40,5 @@ export {
   DIAL_COUNTRY,
   callStateLabelKey,
   errorMessageKey,
-} from '../../components/softphone-view-model';
-export type { SoftphoneScreen, SoftphoneLayout } from '../../components/softphone-view-model';
+} from '../core/view-model';
+export type { SoftphoneScreen, SoftphoneLayout } from '../core/view-model';

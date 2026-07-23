@@ -152,45 +152,6 @@ export default [
     ],
     plugins: browserPlugins({ bundleNodeModulesCss: true }),
   },
-  // Framework-agnostic softphone design tokens + glyph data (no React, no DOM,
-  // no React Native) — published as standalone subpaths so the RN softphone
-  // package can import them without pulling any component graph.
-  {
-    input: 'src/components/softphone-theme.ts',
-    external: () => false,
-    output: [
-      {
-        file: 'dist/softphone-theme.cjs',
-        format: 'cjs',
-        sourcemap: true,
-        exports: 'named',
-      },
-      {
-        file: 'dist/softphone-theme.mjs',
-        format: 'esm',
-        sourcemap: true,
-      },
-    ],
-    plugins: browserPlugins(),
-  },
-  {
-    input: 'src/components/softphone-icons.ts',
-    external: () => false,
-    output: [
-      {
-        file: 'dist/softphone-icons.cjs',
-        format: 'cjs',
-        sourcemap: true,
-        exports: 'named',
-      },
-      {
-        file: 'dist/softphone-icons.mjs',
-        format: 'esm',
-        sourcemap: true,
-      },
-    ],
-    plugins: browserPlugins(),
-  },
   // WebRTC client SDK (browser, no React)
   {
     input: 'src/webrtc/index.ts',

@@ -15,12 +15,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { DialStackPhone } from '../../webrtc';
-import {
-  sanitizeDestination,
-  DIAL_COUNTRY,
-  isIncomingRinging,
-} from '../../components/softphone-view-model';
+import { DialStackPhone } from '../../../webrtc';
+import { sanitizeDestination, DIAL_COUNTRY, isIncomingRinging } from '../core/view-model';
 import type {
   Call,
   CallEndReason,
@@ -28,7 +24,7 @@ import type {
   EmergencyAddressInput,
   PhoneError,
   PhoneOptions,
-} from '../../webrtc';
+} from '../../../webrtc';
 
 // Phone construction goes through this factory so tests and Storybook can inject
 // an in-memory phone without a live WebSocket. It defaults to the real phone and

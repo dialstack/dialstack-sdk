@@ -21,8 +21,8 @@
  */
 
 import React, { useContext } from 'react';
-import { useSoftphone, SoftphoneContext } from '../SoftphoneProvider';
-import { selectLayout } from '../softphone-hooks';
+import { useSoftphone, SoftphoneContext } from '../provider/SoftphoneProvider';
+import { selectLayout } from '../hooks';
 import { DialPad } from './DialPad';
 import { IncomingCall, IncomingStack } from './IncomingCall';
 import { OngoingCall } from './OngoingCall';
@@ -47,11 +47,9 @@ export interface SoftphoneProps {
  * - During a call, an inbound interrupt → the in-call screen with a small
  *   call-waiting card overlaid (non-intrusive), compact and stacked if several.
  */
-function SoftphoneScreens({
+const SoftphoneScreens: React.FC<{ autoFocusDestination?: boolean }> = ({
   autoFocusDestination,
-}: {
-  autoFocusDestination?: boolean;
-}): React.JSX.Element {
+}) => {
   const { calls, activeCall, scope } = useSoftphone();
   const layout = selectLayout(calls, activeCall);
 
@@ -92,9 +90,9 @@ function SoftphoneScreens({
       {base}
     </div>
   );
-}
+};
 
-export function Softphone({ autoFocusDestination }: SoftphoneProps): React.JSX.Element {
+export const Softphone: React.FC<SoftphoneProps> = ({ autoFocusDestination }) => {
   // Pure consumer: the connection + token live in <SoftphoneProvider>, the single
   // credential/connection entry point. Requiring an ancestor provider (rather
   // than self-provisioning from a `token` prop) means there is exactly one way to
@@ -107,4 +105,4 @@ export function Softphone({ autoFocusDestination }: SoftphoneProps): React.JSX.E
     );
   }
   return <SoftphoneScreens autoFocusDestination={autoFocusDestination} />;
-}
+};

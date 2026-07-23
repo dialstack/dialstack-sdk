@@ -12,20 +12,16 @@ import {
   selectIncomingCall,
   type SoftphoneContextBase,
   type PlatformEffectState,
-} from './softphone-provider';
-import {
-  formatDisplayNumber,
-  type SoftphoneConnectionState,
-  type UseCallActions,
-} from './softphone-hooks';
-import { resolveSoftphonePalette } from '../components/softphone-theme';
-import { buildSoftphoneStyles } from '../components/softphone-styles';
-import { IncomingRingtone } from './softphone/ringtone';
-import { DialstackComponentsContext } from './DialstackComponentsProvider';
-import { useAppearance } from './useAppearance';
-import { defaultLocale, type Locale } from '../locales';
-import type { AppearanceOptions, DialStackInstance, FormattingOptions } from '../types';
-import type { Call, CallEndReason } from '../webrtc';
+} from './SoftphoneProviderBase';
+import { formatDisplayNumber, type SoftphoneConnectionState, type UseCallActions } from '../hooks';
+import { resolveSoftphonePalette } from '../core/theme';
+import { buildSoftphoneStyles } from '../core/styles';
+import { IncomingRingtone } from '../ui/ringtone';
+import { DialstackComponentsContext } from '../../DialstackComponentsProvider';
+import { useAppearance } from '../../useAppearance';
+import { defaultLocale, type Locale } from '../../../locales';
+import type { AppearanceOptions, DialStackInstance, FormattingOptions } from '../../../types';
+import type { Call, CallEndReason } from '../../../webrtc';
 
 export type { SoftphoneConnectionState };
 
@@ -260,19 +256,19 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
 
 // Bridges live appearance updates from the DialStack instance into the provider.
 // Mounted only when a <DialstackComponentsProvider> is present. Renders nothing.
-function LiveAppearanceBridge({
+const LiveAppearanceBridge = ({
   dialstack,
   onChange,
 }: {
   dialstack: DialStackInstance;
   onChange: (a: AppearanceOptions | undefined) => void;
-}): null {
+}): null => {
   const appearance = useAppearance(dialstack);
   useEffect(() => {
     onChange(appearance);
   }, [appearance, onChange]);
   return null;
-}
+};
 
 /**
  * Access the full softphone context.

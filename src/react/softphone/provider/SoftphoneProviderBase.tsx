@@ -4,7 +4,7 @@
  * their own bits (web: `<style>`/`<audio>`/live-appearance; native: InCallManager).
  *
  * Must stay DOM- and React-Native-free: it's part of the shared headless core
- * (src/react/core) that @dialstack/sdk-native inlines at build time.
+ * (src/react/softphone/core) that @dialstack/sdk-native inlines at build time.
  */
 
 import React, { createContext, useContext, useEffect, useMemo, useRef } from 'react';
@@ -17,18 +17,18 @@ import {
   shouldRingIncoming,
   isIncomingRinging,
   formatDisplayNumber,
-} from '../softphone-hooks';
-import { resolveSoftphonePalette, type SoftphonePalette } from '../../components/softphone-theme';
-import { defaultLocale, type Locale } from '../../locales';
-import type { AppearanceOptions } from '../../types/appearance';
+} from '../hooks';
+import { resolveSoftphonePalette, type SoftphonePalette } from '../core/theme';
+import { defaultLocale, type Locale } from '../../../locales';
+import type { AppearanceOptions } from '../../../types/appearance';
 import type { CountryCode } from 'libphonenumber-js';
-import type { Call, CallEndReason, PlatformStorage } from '../../webrtc';
+import type { Call, CallEndReason, PlatformStorage } from '../../../webrtc';
 import type {
   UseCallActions,
   UseEmergencyBinding,
   SoftphoneConnectionState,
   UseCallsOptions,
-} from '../softphone-hooks';
+} from '../hooks';
 
 /** Context fields both platforms expose. Platforms add their own via `extra`. */
 export interface SoftphoneContextBase {
@@ -105,6 +105,7 @@ export interface SoftphoneProviderBaseProps<Extra extends object> extends Softph
   children: React.ReactNode;
 }
 
+// eslint-disable-next-line react/function-component-definition -- generic component; a `React.FC` arrow can't carry the <Extra> type parameter, so this must stay a function declaration
 export function SoftphoneProviderBase<Extra extends object>({
   token,
   apiBaseUrl,

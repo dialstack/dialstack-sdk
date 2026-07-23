@@ -5,14 +5,14 @@ import { ResourceCombobox } from './ResourceCombobox';
 import { ConfigField } from './fields/ConfigField';
 import { useResourceGroups } from './hooks/useResourceGroups';
 
-export function ScheduleConfigPanel({
+export const ScheduleConfigPanel = ({
   config,
   onConfigChange,
   listResources,
   onCreateResource,
   onOpenResource,
   locale,
-}: ConfigPanelProps) {
+}: ConfigPanelProps) => {
   const { groups, loading, handleCreateResource } = useResourceGroups(
     [{ type: 'schedule', labelKey: 'schedules', fallback: 'Schedules' }],
     listResources,
@@ -72,4 +72,4 @@ export function ScheduleConfigPanel({
       </div>
     </>
   );
-}
+};

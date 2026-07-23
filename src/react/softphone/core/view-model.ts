@@ -6,8 +6,8 @@
  */
 
 import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenumber-js';
-import type { Call, CallState } from '../webrtc';
-import type { Locale } from '../locales';
+import type { Call, CallState } from '../../../webrtc';
+import type { Locale } from '../../../locales';
 
 /** Which screen the softphone should present for the current foreground call. */
 export type SoftphoneScreen = 'dial' | 'incoming' | 'in-call';

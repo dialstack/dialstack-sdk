@@ -8,14 +8,14 @@ import { useResourceGroups } from './hooks/useResourceGroups';
 
 type VoiceAppMode = 'control' | 'notify';
 
-export function VoiceAppConfigPanel({
+export const VoiceAppConfigPanel = ({
   config,
   onConfigChange,
   listResources,
   onCreateResource,
   onOpenResource,
   locale,
-}: ConfigPanelProps) {
+}: ConfigPanelProps) => {
   const voiceAppId = (config.voice_app_id as string) ?? '';
   const mode: VoiceAppMode = (config.mode as VoiceAppMode | undefined) ?? 'control';
 
@@ -84,4 +84,4 @@ export function VoiceAppConfigPanel({
       />
     </>
   );
-}
+};

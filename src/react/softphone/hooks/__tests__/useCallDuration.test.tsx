@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { useCallDuration } from '../useCallDuration';
-import type { Call } from '../../../webrtc';
+import type { Call } from '../../../../webrtc';
 
 function fakeCall(state: string, duration: number): Call {
   // `isConnected` mirrors the real Call getter (active OR held) that

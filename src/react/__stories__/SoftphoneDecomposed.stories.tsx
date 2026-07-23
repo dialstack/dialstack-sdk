@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import React from 'react';
-import { DialPad } from '../softphone/DialPad';
-import { IncomingCall } from '../softphone/IncomingCall';
-import { OngoingCall } from '../softphone/OngoingCall';
-import { SoftphoneProvider } from '../SoftphoneProvider';
-import { useActiveCall, useIncomingCall } from '../SoftphoneProvider';
+import { DialPad } from '../softphone/ui/DialPad';
+import { IncomingCall } from '../softphone/ui/IncomingCall';
+import { OngoingCall } from '../softphone/ui/OngoingCall';
+import { SoftphoneProvider } from '../softphone/provider/SoftphoneProvider';
+import { useActiveCall, useIncomingCall } from '../softphone/provider/SoftphoneProvider';
 import type { AppearanceOptions } from '../../types';
 
 // The "build your own" path: instead of the batteries-included <Softphone>, a
@@ -22,14 +22,14 @@ import type { AppearanceOptions } from '../../types';
 // A minimal host-authored layout that switches pieces off the accessors — the
 // same decision the batteries-included <Softphone> makes internally, but written
 // out so consumers can see how to assemble their own.
-function BuildYourOwnSoftphone(): React.JSX.Element {
+const BuildYourOwnSoftphone = (): React.JSX.Element => {
   const incoming = useIncomingCall();
   const { activeCall } = useActiveCall();
 
   if (incoming) return <IncomingCall />;
   if (activeCall) return <OngoingCall />;
   return <DialPad />;
-}
+};
 
 interface StoryArgs {
   appearance?: AppearanceOptions;

@@ -8,10 +8,10 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { useSoftphone } from '../SoftphoneProvider';
-import { useDialInput, canPlaceCall } from '../softphone-hooks';
-import { dialPadKeys } from '../../components/softphone-theme';
-import { softphoneGlyphs } from '../../components/softphone-icons';
+import { useSoftphone } from '../provider/SoftphoneProvider';
+import { useDialInput, canPlaceCall } from '../hooks';
+import { dialPadKeys } from '../core/theme';
+import { softphoneGlyphs } from '../core/icons';
 import { Glyph } from './Glyph';
 import { EmergencyBanner } from './EmergencyBanner';
 import { CallErrorChip } from './CallErrorChip';
@@ -24,7 +24,7 @@ export interface DialPadProps {
   autoFocusDestination?: boolean;
 }
 
-export function DialPad({ autoFocusDestination = false }: DialPadProps): React.JSX.Element {
+export const DialPad: React.FC<DialPadProps> = ({ autoFocusDestination = false }) => {
   const { connection, placeCall, emergency, t, scope } = useSoftphone();
   const [destination, setDestination] = useState('');
   const { onType, onPasteText } = useDialInput(setDestination);
@@ -103,10 +103,10 @@ export function DialPad({ autoFocusDestination = false }: DialPadProps): React.J
       </div>
     </div>
   );
-}
+};
 
 /** Connection-state chip shown at the top of the dial screen. */
-function StatusChip(): React.JSX.Element {
+const StatusChip: React.FC = () => {
   const { connection, t } = useSoftphone();
   switch (connection) {
     case 'connecting':
@@ -136,4 +136,4 @@ function StatusChip(): React.JSX.Element {
     default:
       return <div className="ds-chip ds-chip-spacer" aria-hidden="true" />;
   }
-}
+};

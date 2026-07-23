@@ -4,13 +4,13 @@ import { ResourceCombobox } from './ResourceCombobox';
 import { ConfigField } from './fields/ConfigField';
 import { useResourceGroups } from './hooks/useResourceGroups';
 
-export function AudioClipConfigPanel({
+export const AudioClipConfigPanel = ({
   config,
   onConfigChange,
   listResources,
   onCreateResource,
   locale,
-}: ConfigPanelProps) {
+}: ConfigPanelProps) => {
   const { groups, loading, handleCreateResource } = useResourceGroups(
     [{ type: 'audio_clip', labelKey: 'audioClips', fallback: 'Audio Clips' }],
     listResources,
@@ -36,4 +36,4 @@ export function AudioClipConfigPanel({
       />
     </ConfigField>
   );
-}
+};

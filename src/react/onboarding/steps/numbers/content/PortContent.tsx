@@ -13,7 +13,7 @@ import { formatPhone } from '../helpers';
 import { US_STATES } from '../../../../../constants/us-states';
 import { SUCCESS_SVG, CHECK_CIRCLE_SVG } from '../../../icons';
 
-export function PortNumbersContent({
+export const PortNumbersContent = ({
   state,
   t,
   dispatch,
@@ -23,7 +23,7 @@ export function PortNumbersContent({
   t: TFn;
   dispatch: Dispatcher;
   onCheck: () => void;
-}) {
+}) => {
   const backToOverview = () => {
     dispatch({ type: 'port_reset' });
     dispatch({ type: 'set_substep', subStep: 'overview' });
@@ -94,9 +94,9 @@ export function PortNumbersContent({
       </div>
     </>
   );
-}
+};
 
-export function PortEligibilityContent({
+export const PortEligibilityContent = ({
   state,
   t,
   dispatch,
@@ -104,7 +104,7 @@ export function PortEligibilityContent({
   state: NumState;
   t: TFn;
   dispatch: Dispatcher;
-}) {
+}) => {
   const result = state.portEligibilityResult;
   if (!result) return null;
   const hasPortable = result.portable_numbers.length > 0;
@@ -193,9 +193,9 @@ export function PortEligibilityContent({
       </div>
     </>
   );
-}
+};
 
-export function PortCarrierSelectContent({
+export const PortCarrierSelectContent = ({
   state,
   t,
   dispatch,
@@ -203,7 +203,7 @@ export function PortCarrierSelectContent({
   state: NumState;
   t: TFn;
   dispatch: Dispatcher;
-}) {
+}) => {
   const carriers = Array.from(state.portCarrierGroups.entries());
   return (
     <>
@@ -268,9 +268,9 @@ export function PortCarrierSelectContent({
       </div>
     </>
   );
-}
+};
 
-export function PortSubscriberContent({
+export const PortSubscriberContent = ({
   state,
   t,
   dispatch,
@@ -280,7 +280,7 @@ export function PortSubscriberContent({
   t: TFn;
   dispatch: Dispatcher;
   onNext: () => void;
-}) {
+}) => {
   const e = state.portSubscriberErrors;
   const textFields = [
     {
@@ -481,9 +481,9 @@ export function PortSubscriberContent({
       </div>
     </>
   );
-}
+};
 
-export function PortFocDateContent({
+export const PortFocDateContent = ({
   state,
   t,
   dispatch,
@@ -493,7 +493,7 @@ export function PortFocDateContent({
   t: TFn;
   dispatch: Dispatcher;
   onNext: () => void;
-}) {
+}) => {
   const e = state.portFocErrors;
   const today = new Date();
   let bizDays = 0;
@@ -562,9 +562,9 @@ export function PortFocDateContent({
       </div>
     </>
   );
-}
+};
 
-export function PortDocumentsContent({
+export const PortDocumentsContent = ({
   state,
   t,
   dispatch,
@@ -572,7 +572,7 @@ export function PortDocumentsContent({
   state: NumState;
   t: TFn;
   dispatch: Dispatcher;
-}) {
+}) => {
   const billRef = useRef<HTMLInputElement>(null);
   const csrRef = useRef<HTMLInputElement>(null);
   const handleNext = () => {
@@ -664,9 +664,9 @@ export function PortDocumentsContent({
       </div>
     </>
   );
-}
+};
 
-export function PortReviewContent({
+export const PortReviewContent = ({
   state,
   t,
   dispatch,
@@ -676,7 +676,7 @@ export function PortReviewContent({
   t: TFn;
   dispatch: Dispatcher;
   onSubmit: () => void;
-}) {
+}) => {
   const result = state.portEligibilityResult;
   if (!result) return null;
   const isMultiCarrier = state.portCarrierGroups.size > 1;
@@ -795,9 +795,9 @@ export function PortReviewContent({
       </div>
     </>
   );
-}
+};
 
-export function PortSubmittedContent({
+export const PortSubmittedContent = ({
   state,
   t,
   dispatch,
@@ -807,7 +807,7 @@ export function PortSubmittedContent({
   t: TFn;
   dispatch: Dispatcher;
   loadNumbers: () => Promise<void>;
-}) {
+}) => {
   return (
     <div className="placeholder" style={{ minHeight: 200 }}>
       {/* SAFETY: SUCCESS_SVG is a static SVG constant */}
@@ -854,4 +854,4 @@ export function PortSubmittedContent({
       </div>
     </div>
   );
-}
+};

@@ -3,13 +3,16 @@
  * stream. These cover the web render tree wiring (screens, controls, audio
  * binding). `<Softphone>` is a pure consumer, so it's rendered under a
  * `<SoftphoneProvider>` (which owns the token/connection) via `renderSoftphone`;
- * the call-state logic itself is covered by the shared softphone-hooks tests.
+ * the call-state logic itself is covered by the shared softphone hooks tests.
  */
 
 import React from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
-import { Softphone } from '../softphone/Softphone';
-import { SoftphoneProvider, type SoftphoneProviderProps } from '../SoftphoneProvider';
+import { Softphone } from '../softphone/ui/Softphone';
+import {
+  SoftphoneProvider,
+  type SoftphoneProviderProps,
+} from '../softphone/provider/SoftphoneProvider';
 
 // Render <Softphone> under a provider (the only supported form). Provider props
 // (token, onError, onConnectionStateChange, …) go on the provider; the softphone

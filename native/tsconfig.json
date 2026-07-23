@@ -15,7 +15,7 @@
     "types": [],
     "baseUrl": ".",
     "paths": {
-      "@dialstack/sdk/react/core": ["../src/react/core/index.ts"]
+      "@dialstack/sdk/react/core": ["../src/react/softphone/core/index.ts"]
     }
   },
   "include": ["src/**/*"]

@@ -7,8 +7,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import type { Call } from '../../webrtc';
-import { formatCallDuration, isCallActive } from '../../components/softphone-view-model';
+import type { Call } from '../../../webrtc';
+import { formatCallDuration, isCallActive } from '../core/view-model';
 
 /**
  * Returns the formatted elapsed time for `call`, ticking every `intervalMs`

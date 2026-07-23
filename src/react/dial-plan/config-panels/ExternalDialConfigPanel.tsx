@@ -5,7 +5,7 @@ import { formatPhoneForDisplay } from '../format-phone';
 import { ConfigField } from './fields/ConfigField';
 import { TimeoutField } from './fields/TimeoutField';
 
-export function ExternalDialConfigPanel({ config, onConfigChange }: ConfigPanelProps) {
+export const ExternalDialConfigPanel = ({ config, onConfigChange }: ConfigPanelProps) => {
   const e164 = (config.phone_number as string) ?? '';
   const timeout = (config.timeout as number) ?? 60;
 
@@ -87,4 +87,4 @@ export function ExternalDialConfigPanel({ config, onConfigChange }: ConfigPanelP
       </ConfigField>
     </>
   );
-}
+};

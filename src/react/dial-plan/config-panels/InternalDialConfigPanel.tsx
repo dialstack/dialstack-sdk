@@ -6,14 +6,14 @@ import { ConfigField } from './fields/ConfigField';
 import { TimeoutField } from './fields/TimeoutField';
 import { useResourceGroups } from './hooks/useResourceGroups';
 
-export function InternalDialConfigPanel({
+export const InternalDialConfigPanel = ({
   config,
   onConfigChange,
   listResources,
   onCreateResource,
   onOpenResource,
   locale,
-}: ConfigPanelProps) {
+}: ConfigPanelProps) => {
   const { groups, loading, handleCreateResource } = useResourceGroups(
     [
       { type: 'user', labelKey: 'users', fallback: 'Users' },
@@ -62,4 +62,4 @@ export function InternalDialConfigPanel({
       </ConfigField>
     </>
   );
-}
+};

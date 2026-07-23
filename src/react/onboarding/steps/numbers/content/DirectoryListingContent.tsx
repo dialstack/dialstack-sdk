@@ -1,7 +1,7 @@
 import React from 'react';
 import type { NumState, TFn } from '../types';
 
-export function DirectoryListingContent({ state, t }: { state: NumState; t: TFn }) {
+export const DirectoryListingContent = ({ state, t }: { state: NumState; t: TFn }) => {
   if (state.dlEligibleDIDs.length === 0)
     return (
       <div className="inline-alert info">
@@ -25,4 +25,4 @@ export function DirectoryListingContent({ state, t }: { state: NumState; t: TFn 
       )}
     </div>
   );
-}
+};

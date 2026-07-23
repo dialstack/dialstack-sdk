@@ -6,10 +6,10 @@
  */
 
 import React from 'react';
-import { useSoftphone } from '../SoftphoneProvider';
-import { errorMessageKey } from '../softphone-hooks';
+import { useSoftphone } from '../provider/SoftphoneProvider';
+import { errorMessageKey } from '../hooks';
 
-export function CallErrorChip(): React.JSX.Element | null {
+export const CallErrorChip: React.FC = () => {
   const { lastError, clearError, t } = useSoftphone();
   if (!lastError) return null;
   return (
@@ -25,4 +25,4 @@ export function CallErrorChip(): React.JSX.Element | null {
       </button>
     </div>
   );
-}
+};

@@ -34,7 +34,7 @@ interface NodeConfigPanelProps {
   locale?: DialPlanLocale;
 }
 
-export function NodeConfigPanel({
+export const NodeConfigPanel = ({
   node,
   registration,
   onConfigChange,
@@ -44,7 +44,7 @@ export function NodeConfigPanel({
   onCreateResource,
   onOpenResource,
   locale,
-}: NodeConfigPanelProps) {
+}: NodeConfigPanelProps) => {
   // Close on Escape key
   const panelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -112,4 +112,4 @@ export function NodeConfigPanel({
       </div>
     </div>
   );
-}
+};

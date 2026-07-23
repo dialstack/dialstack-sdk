@@ -11,7 +11,7 @@
  * the `appearance` prop flows through identically on both platforms.
  */
 
-import type { AppearanceOptions, AppearanceVariables, Theme } from '../types/appearance';
+import type { AppearanceOptions, AppearanceVariables, Theme } from '../../../types/appearance';
 
 /** Flat color set the Softphone paints from, after appearance is resolved. */
 export interface SoftphonePalette {

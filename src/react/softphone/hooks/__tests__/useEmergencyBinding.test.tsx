@@ -1,6 +1,6 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useEmergencyBinding, type UseEmergencyBindingDeps } from '../useEmergencyBinding';
-import type { EmergencyAddress } from '../../../webrtc';
+import type { EmergencyAddress } from '../../../../webrtc';
 
 // `registered_ip` null = never anchored (present + reconnect); non-null = anchored
 // in some session. The short-circuit-to-bound also requires that THIS session

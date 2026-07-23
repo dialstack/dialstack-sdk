@@ -9,7 +9,7 @@ import type { ExitDefinition } from './registry-types';
 // ============================================================================
 
 /** Standard node header: icon + label + optional timeout + optional subtitle. */
-export function NodeHeader({
+export const NodeHeader = ({
   icon,
   label,
   timeout,
@@ -19,7 +19,7 @@ export function NodeHeader({
   label: string;
   timeout?: number;
   subtitle?: string;
-}) {
+}) => {
   return (
     <div className="ds-dial-plan-node__header">
       <div className="ds-dial-plan-node__icon">{icon}</div>
@@ -30,10 +30,10 @@ export function NodeHeader({
       {subtitle && <span className="ds-dial-plan-node__name">{subtitle}</span>}
     </div>
   );
-}
+};
 
 /** A single exit row with label and source handle. */
-export function ExitRow({ id, label }: { id: string; label: string }) {
+export const ExitRow = ({ id, label }: { id: string; label: string }) => {
   return (
     <div className="ds-dial-plan-node__exit-row">
       <span className="ds-dial-plan-node__exit-label">{label}</span>
@@ -45,16 +45,16 @@ export function ExitRow({ id, label }: { id: string; label: string }) {
       />
     </div>
   );
-}
+};
 
 /** Render static exits from registration definitions, with optional locale lookup. */
-export function StaticExits({
+export const StaticExits = ({
   exits,
   locale,
 }: {
   exits: ExitDefinition[];
   locale?: DialPlanLocale;
-}) {
+}) => {
   if (exits.length === 0) return null;
   return (
     <>
@@ -71,7 +71,7 @@ export function StaticExits({
       ))}
     </>
   );
-}
+};
 
 // ============================================================================
 // Node shell — the outer chrome shared by all nodes

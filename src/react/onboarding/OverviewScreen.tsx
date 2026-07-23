@@ -183,7 +183,7 @@ interface PhoneStatusProps {
   locale: ReturnType<typeof useOnboarding>['locale'];
 }
 
-function PhoneStatus({ phoneNumbers, locale }: PhoneStatusProps) {
+const PhoneStatus = ({ phoneNumbers, locale }: PhoneStatusProps) => {
   return (
     <div className="overview-phone-status">
       <h3 className="overview-phone-status-title">
@@ -238,4 +238,4 @@ function PhoneStatus({ phoneNumbers, locale }: PhoneStatusProps) {
       </div>
     </div>
   );
-}
+};

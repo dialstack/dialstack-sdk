@@ -12,8 +12,8 @@
 
 import React from 'react';
 import { render, screen, act } from '@testing-library/react';
-import { SoftphoneProvider } from '../SoftphoneProvider';
-import { useIncomingCall, useActiveCall } from '../SoftphoneProvider';
+import { SoftphoneProvider } from '../softphone/provider/SoftphoneProvider';
+import { useIncomingCall, useActiveCall } from '../softphone/provider/SoftphoneProvider';
 
 // ---- fake core (mirrors Softphone.test.tsx) --------------------------------
 
@@ -104,7 +104,7 @@ beforeEach(() => {
 // A tiny build-your-own UI that renders ONLY through the convenience accessors —
 // the shape a host would use for a bespoke softphone. If either accessor stops
 // returning the right call, this UI stops rendering it and the tests fail.
-function BuildYourOwn(): React.JSX.Element {
+const BuildYourOwn = (): React.JSX.Element => {
   const incoming = useIncomingCall();
   const { activeCall } = useActiveCall();
   return (
@@ -114,7 +114,7 @@ function BuildYourOwn(): React.JSX.Element {
       {!incoming && !activeCall && <div data-testid="idle">idle</div>}
     </div>
   );
-}
+};
 
 function renderByo() {
   return render(

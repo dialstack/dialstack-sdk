@@ -14,7 +14,7 @@ interface TimeoutFieldProps {
  * Numeric timeout input with built-in clamping. Empty/non-numeric input
  * resolves to `min`. Values outside [min, max] are clamped on every change.
  */
-export function TimeoutField({ value, min, max, onChange, locale }: TimeoutFieldProps) {
+export const TimeoutField = ({ value, min, max, onChange, locale }: TimeoutFieldProps) => {
   return (
     <ConfigField label={locale?.configLabels.timeout ?? 'Timeout (seconds)'}>
       <input
@@ -27,4 +27,4 @@ export function TimeoutField({ value, min, max, onChange, locale }: TimeoutField
       />
     </ConfigField>
   );
-}
+};

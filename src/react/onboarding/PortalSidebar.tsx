@@ -174,7 +174,7 @@ const PortalSidebarBase: React.FC<PortalSidebarProps> = ({
 };
 export const PortalSidebar = React.memo(PortalSidebarBase);
 
-function ProgressRing({ pct }: { pct: number }) {
+const ProgressRing = ({ pct }: { pct: number }) => {
   const offset = CIRCUMFERENCE * (1 - pct / 100);
   return (
     <svg viewBox="0 0 36 36" className="progress-ring">
@@ -204,4 +204,4 @@ function ProgressRing({ pct }: { pct: number }) {
       </text>
     </svg>
   );
-}
+};

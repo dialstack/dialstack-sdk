@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import React from 'react';
-import { Softphone } from '../softphone/Softphone';
-import { SoftphoneProvider } from '../SoftphoneProvider';
+import { Softphone } from '../softphone/ui/Softphone';
+import { SoftphoneProvider } from '../softphone/provider/SoftphoneProvider';
 import type { AppearanceOptions } from '../../types';
 
 // <Softphone> is a pure consumer of <SoftphoneProvider> (which owns the

@@ -9,7 +9,7 @@
 
 import { renderHook } from '@testing-library/react';
 import type { DialStackPhone, PhoneOptions } from '../../webrtc';
-import { useCalls, __setPhoneFactory } from '../softphone-hooks/useCalls';
+import { useCalls, __setPhoneFactory } from '../softphone/hooks/useCalls';
 
 class FakePhone {
   isConnected = false;

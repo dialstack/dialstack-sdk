@@ -9,7 +9,7 @@ import { getSmoothStepPath, getStraightPath, BaseEdge, type EdgeProps } from '@x
 /** Maximum Y difference (px) before switching from straight to smoothstep */
 const STRAIGHT_THRESHOLD = 1;
 
-export function SmartEdge(props: EdgeProps) {
+export const SmartEdge = (props: EdgeProps) => {
   const { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, style } =
     props;
 
@@ -29,4 +29,4 @@ export function SmartEdge(props: EdgeProps) {
         });
 
   return <BaseEdge path={path} markerEnd={markerEnd} style={style} />;
-}
+};

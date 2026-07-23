@@ -19,6 +19,7 @@ interface SegmentedFieldProps<T extends string> {
  * Two-or-more segmented toggle. Renders inside the standard ConfigField shell.
  * For binary/small enums where a `<select>` feels heavier than the choice.
  */
+// eslint-disable-next-line react/function-component-definition -- generic component; a `React.FC` arrow can't carry the <T> type parameter, so this must stay a function declaration
 export function SegmentedField<T extends string>({
   label,
   value,

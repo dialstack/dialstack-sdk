@@ -31,7 +31,7 @@ export {
   DIAL_COUNTRY,
   callStateLabelKey,
   errorMessageKey,
-} from '../softphone-hooks';
+} from '../hooks';
 export type {
   UseCallsOptions,
   UseCallsResult,
@@ -46,7 +46,7 @@ export type {
   SoftphoneError,
   SoftphoneScreen,
   SoftphoneLayout,
-} from '../softphone-hooks';
+} from '../hooks';
 
 // The shared provider core (DOM/RN-free). Platform providers build on this.
 export {
@@ -54,35 +54,31 @@ export {
   SoftphoneContext,
   useSoftphoneBase,
   selectIncomingCall,
-} from '../softphone-provider';
+} from '../provider';
 export type {
   SoftphoneContextBase,
   SoftphoneCoreProps,
   SoftphoneProviderBaseProps,
   PlatformEffectState,
-} from '../softphone-provider';
+} from '../provider';
 
 // The locale table + default, re-exported here so the React Native softphone can
 // resolve UI strings through the same `t()` accessor as the web softphone (this
 // RN-safe entry is the only SDK path RN imports from). Pure data — no DOM/RN dep.
-export { defaultLocale } from '../../locales';
-export type { Locale } from '../../locales';
+export { defaultLocale } from '../../../locales';
+export type { Locale } from '../../../locales';
 
 // Shared, framework-agnostic theme tokens. This entry is the SINGLE gateway the
 // React Native softphone imports from, so RN never deep-imports other subpaths.
-export {
-  resolveSoftphonePalette,
-  softphoneDimensions,
-  dialPadKeys,
-} from '../../components/softphone-theme';
-export type { SoftphonePalette } from '../../components/softphone-theme';
+export { resolveSoftphonePalette, softphoneDimensions, dialPadKeys } from './theme';
+export type { SoftphonePalette } from './theme';
 
 // Shared softphone glyph set (pure SVG path data — no DOM/RN).
-export { softphoneGlyphs } from '../../components/softphone-icons';
-export type { SoftphoneGlyph } from '../../components/softphone-icons';
+export { softphoneGlyphs } from './icons';
+export type { SoftphoneGlyph } from './icons';
 
 // Shared emergency-address form helpers (pure — no DOM/RN).
-export { normalizeStateCode } from '../../components/emergency-address-form';
+export { normalizeStateCode } from './emergency-address-form';
 
 // Headless WebRTC-core types the softphone UI needs. `PlatformStorage`,
 // `EmergencyAddressInput`, `Ringback`, and `SignalingSocketFactory` are also
@@ -99,4 +95,4 @@ export type {
   Ringback,
   SignalingSocketFactory,
   AppResumeSubscribe,
-} from '../../webrtc';
+} from '../../../webrtc';

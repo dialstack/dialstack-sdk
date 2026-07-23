@@ -7,13 +7,13 @@ import { useResourceGroups } from './hooks/useResourceGroups';
 
 const ALL_DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '*', '#'];
 
-export function MenuConfigPanel({
+export const MenuConfigPanel = ({
   config,
   onConfigChange,
   listResources,
   onCreateResource,
   locale,
-}: ConfigPanelProps) {
+}: ConfigPanelProps) => {
   const { groups, loading, handleCreateResource } = useResourceGroups(
     [{ type: 'audio_clip', labelKey: 'audioClips', fallback: 'Audio Clips' }],
     listResources,
@@ -149,4 +149,4 @@ export function MenuConfigPanel({
       </ConfigField>
     </>
   );
-}
+};

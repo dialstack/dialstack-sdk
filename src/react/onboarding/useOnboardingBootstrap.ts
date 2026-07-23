@@ -49,7 +49,7 @@ export function useOnboardingBootstrap(
 
   const progressStore = useMemo(
     () => new OnboardingProgressStore(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
     [] // intentionally stable — one store per mount
   );
 

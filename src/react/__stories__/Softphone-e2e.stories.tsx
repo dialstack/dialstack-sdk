@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import React from 'react';
 import { expect, within, userEvent, waitFor, fireEvent } from 'storybook/test';
-import { Softphone } from '../softphone/Softphone';
-import { SoftphoneProvider } from '../SoftphoneProvider';
-import { __setPhoneFactory } from '../softphone-hooks/useCalls';
+import { Softphone } from '../softphone/ui/Softphone';
+import { SoftphoneProvider } from '../softphone/provider/SoftphoneProvider';
+import { __setPhoneFactory } from '../softphone/hooks/useCalls';
 import { MockPhoneController } from './support/mock-phone';
 
 // Interaction ("e2e") stories that drive the batteries-included <Softphone>
@@ -27,7 +27,7 @@ function installMockPhone(): void {
   currentController = c;
 }
 
-function WithMockPhone({ children }: { children: React.ReactNode }): React.JSX.Element {
+const WithMockPhone = ({ children }: { children: React.ReactNode }): React.JSX.Element => {
   React.useEffect(
     () => () => {
       __setPhoneFactory(null);
@@ -36,7 +36,7 @@ function WithMockPhone({ children }: { children: React.ReactNode }): React.JSX.E
     []
   );
   return <>{children}</>;
-}
+};
 
 const meta: Meta = {
   title: 'React/Softphone (flows)',
