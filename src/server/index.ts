@@ -1044,6 +1044,45 @@ export interface ListResponse<T> {
 
 export type PaginatedList<T> = SharedPaginatedList<ListResponse<T>>;
 
+// Test-mode helpers (sandbox only). See the "Testing your integration" guide.
+
+export interface TestScenarioOverride {
+  outcome?: 'answered' | 'no-answer' | 'busy' | 'voicemail';
+  ring_seconds?: number;
+  talk_seconds?: number;
+  recording?: boolean;
+  voicemail_seconds?: number;
+}
+
+export interface TestCallCreateParams {
+  /** Target user for inbound, or originating user for outbound. Required. */
+  user: string;
+  /** 'inbound' (default) or 'outbound'. */
+  direction?: 'inbound' | 'outbound';
+  /** Caller number for inbound (E.164); ignored for outbound. */
+  from_number?: string;
+  /** Optional caller display name. */
+  from_name?: string;
+  /** Dialed number for outbound; its magic-number value selects the scenario. */
+  to_number?: string;
+  /** Explicit scenario override. */
+  scenario?: TestScenarioOverride;
+}
+
+export interface TestCallResponse {
+  id: string;
+  scenario: string;
+}
+
+export interface TestEventCreateParams {
+  /** Webhook event type to emit (e.g. 'queue.call.answered', 'fax.delivered'). */
+  event: string;
+}
+
+export interface TestEventResponse {
+  event: string;
+}
+
 // ============================================================================
 // DialStack Client
 // ============================================================================
@@ -1601,6 +1640,41 @@ export class DialStack {
       options: RequestOptions & { dialstackAccount: string }
     ): Promise<void> => {
       return this._request('POST', `/v1/calls/${callId}/recording/resume`, undefined, options);
+    },
+  };
+
+  /**
+   * Test-mode helpers (sandbox only). Trigger simulated calls and emit canned
+   * webhook events to exercise your integration end to end without real
+   * telephony. Requires a test key (`sk_test_...`); a live key receives a 400.
+   * See the "Testing your integration" guide.
+   */
+  testHelpers = {
+    calls: {
+      /**
+       * Trigger a simulated call. For inbound (screen pop) and custom-scenario
+       * simulations a dialed number cannot select. Returns the started call's
+       * id + scenario so a test can assert on it.
+       */
+      create: (
+        params: TestCallCreateParams,
+        options: RequestOptions & { dialstackAccount: string }
+      ): Promise<TestCallResponse> => {
+        return this._request('POST', '/v1/test_helpers/calls', params, options);
+      },
+    },
+    events: {
+      /**
+       * Emit a single canned webhook event (fax.*, queue.*, recording.failed,
+       * call.mobile_push_wakeup) for events the call simulator does not drive
+       * behaviorally.
+       */
+      create: (
+        params: TestEventCreateParams,
+        options: RequestOptions & { dialstackAccount: string }
+      ): Promise<TestEventResponse> => {
+        return this._request('POST', '/v1/test_helpers/events', params, options);
+      },
     },
   };
 
