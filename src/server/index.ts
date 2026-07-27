@@ -288,6 +288,11 @@ export interface User {
   name: string | null;
   email: string | null;
   config?: UserConfig;
+  /**
+   * Whether server-side do-not-disturb is enabled: when `true`, the calling
+   * path declines calls to this user. Always emitted on responses.
+   */
+  do_not_disturb: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -300,6 +305,10 @@ export interface UserCreateParams {
 export interface UserUpdateParams {
   name?: string;
   email?: string;
+  /**
+   * Enable or disable server-side do-not-disturb. Omit to leave unchanged.
+   */
+  do_not_disturb?: boolean;
   config?: {
     mobile_push_wakeup?: boolean;
   };
@@ -848,6 +857,12 @@ export interface UserPresence {
    * `notifiable`.
    */
   notifiable: boolean;
+  /**
+   * Whether server-side do-not-disturb is enabled. A separate axis from
+   * `state`: a user can be `available` but decline calls because
+   * `do_not_disturb` is on. Always emitted on responses.
+   */
+  do_not_disturb: boolean;
 }
 
 export interface UserPresenceItem extends UserPresence {
