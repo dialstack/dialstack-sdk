@@ -156,8 +156,24 @@ export function makeStyles(p: SoftphonePalette) {
       maxWidth: '100%',
     },
 
-    display: { flexDirection: 'row', alignItems: 'center', minHeight: 56, gap: 8 },
-    destination: { flex: 1, fontSize: 30, fontWeight: '500', color: p.text, padding: 0 },
+    display: { flexDirection: 'row', alignItems: 'center', minHeight: 56 },
+    destination: {
+      flex: 1,
+      fontSize: 30,
+      fontWeight: '500',
+      color: p.text,
+      // Horizontal centering is set via the TextInput `textAlign` prop (more
+      // reliable than style.textAlign on Android TextInput), not here.
+      // Android EditText carries default internal padding + font padding that
+      // offsets the text off-center inside its own box; zero both so the
+      // centered text lands on the keypad axis (matching web). No `gap` on the
+      // row either — the equal-width spacer/backspace flanks handle spacing, and
+      // a gap would shift the input when only one flank is present.
+      paddingVertical: 0,
+      paddingHorizontal: 0,
+      includeFontPadding: false,
+      textAlignVertical: 'center',
+    },
     backspace: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
     backspaceText: { fontSize: 22, color: p.textSecondary },
 
@@ -230,12 +246,17 @@ export function makeStyles(p: SoftphonePalette) {
     dtmfPad: { gap: D.keyGap },
     transfer: { flexDirection: 'column', gap: 8 },
     transferInput: {
-      flex: 1,
+      // No flex:1 here — unlike web's flex row, an RN column child with flex:1
+      // stretches vertically and collapses the field to an invisible sliver.
+      // minHeight gives it real presence; a surface fill (like the dial keys /
+      // held-call cards) separates it from the screen bg so typed digits read.
+      minHeight: 52,
       borderWidth: 1,
       borderColor: p.border,
       borderRadius: D.radius,
       paddingHorizontal: 14,
       paddingVertical: 12,
+      backgroundColor: p.surface,
       color: p.text,
       fontSize: 16,
     },
@@ -251,10 +272,10 @@ export function makeStyles(p: SoftphonePalette) {
     transferSendText: { color: p.onAccent, fontWeight: '600' },
     transferSendSecondary: { backgroundColor: p.surface },
     transferSendSecondaryText: { color: p.text, fontWeight: '600' },
+    transferSendDisabled: { opacity: 0.5 },
 
     // ---- Attended-transfer banner (RN parity with .ds-transfer-banner) ----
     consultHeld: { opacity: 0.7 },
-    consultActions: { flexDirection: 'row', gap: 8 },
 
     // ---- Multi-call + transfer: switchable held-call cards (parity with the web
     // ds-held-call). Tap to switch focus to that call. ----

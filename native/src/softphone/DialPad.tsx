@@ -57,6 +57,9 @@ export function DialPad({ autoFocusDestination = false }: DialPadProps): React.J
       )}
       <CallErrorChip />
       <View style={styles.display}>
+        {/* Left spacer mirrors the backspace's width so the number centers between
+            two equal flanks (a lone backspace optically pulls it left). */}
+        {destination.length > 0 && <View style={styles.backspace} />}
         <TextInput
           style={styles.destination}
           value={destination}

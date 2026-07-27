@@ -108,16 +108,19 @@ export function OngoingCall(): React.JSX.Element | null {
               </Pressable>
             );
           })()}
-          <View style={styles.consultActions}>
-            <Pressable onPress={cancelAttendedTransfer} style={styles.e911BtnSecondary}>
-              <Text style={styles.e911BtnSecondaryText}>{t('cancel')}</Text>
+          <View style={styles.transferActions}>
+            <Pressable
+              onPress={cancelAttendedTransfer}
+              style={[styles.transferSend, styles.transferSendSecondary]}
+            >
+              <Text style={styles.transferSendSecondaryText}>{t('cancel')}</Text>
             </Pressable>
             <Pressable
               onPress={completeAttendedTransfer}
               disabled={!canComplete}
-              style={[styles.e911Btn, !canComplete && styles.e911BtnDisabled]}
+              style={[styles.transferSend, !canComplete && styles.transferSendDisabled]}
             >
-              <Text style={styles.e911BtnText}>{t('transferComplete')}</Text>
+              <Text style={styles.transferSendText}>{t('transferComplete')}</Text>
             </Pressable>
           </View>
         </>
@@ -213,7 +216,11 @@ export function OngoingCall(): React.JSX.Element | null {
                   overlays.closeTransfer();
                 }
               }}
-              style={[styles.transferSend, styles.transferSendSecondary]}
+              style={[
+                styles.transferSend,
+                styles.transferSendSecondary,
+                !transferTo.trim() && styles.transferSendDisabled,
+              ]}
             >
               <Text style={styles.transferSendSecondaryText}>{t('transferNow')}</Text>
             </Pressable>
@@ -221,7 +228,7 @@ export function OngoingCall(): React.JSX.Element | null {
             <Pressable
               disabled={!transferTo.trim()}
               onPress={() => void startAttendedTransfer(transferTo)}
-              style={styles.transferSend}
+              style={[styles.transferSend, !transferTo.trim() && styles.transferSendDisabled]}
             >
               <Text style={styles.transferSendText}>{t('transferConsult')}</Text>
             </Pressable>

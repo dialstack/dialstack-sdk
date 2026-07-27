@@ -7,7 +7,7 @@
  */
 
 import React, { useEffect, useMemo } from 'react';
-import { AppState, type AppStateStatus } from 'react-native';
+import { AppState, Vibration, type AppStateStatus } from 'react-native';
 import InCallManager from 'react-native-incall-manager';
 import { type CountryCode } from 'libphonenumber-js';
 import {
@@ -192,9 +192,23 @@ export function SoftphoneProvider({
     }, [hasConnectedCall]);
 
     useEffect(() => {
-      if (incomingRinging) InCallManager.startRingtone('_DEFAULT_', [0], '', -1);
-      else InCallManager.stopRingtone();
-      return () => InCallManager.stopRingtone();
+      if (!incomingRinging) return;
+      // Ringtone audio only: pass a NON-array vibrate arg so InCallManager skips
+      // its own one-shot Vibration.vibrate(pattern, /*repeat*/ false) — that path
+      // both can't loop (hard-coded no-repeat) and, given any array, crashes on
+      // Android 14+ where a [0] waveform is rejected (all-zero timings). We drive
+      // the vibration ourselves below so it repeats for the whole ring.
+      InCallManager.startRingtone('_DEFAULT_', 0, '', -1);
+      // repeat=true loops the pattern from index 0 until cancel(). Timing is
+      // interpreted per-platform: on Android it's [wait, vibrate, pause] ms; on
+      // iOS durations are ignored (fixed buzz) and the values act as delays
+      // between buzzes. Either way it's a repeating buzz for the whole ring.
+      // No-op on devices without a vibrator (e.g. simulators).
+      Vibration.vibrate([0, 800, 800], true);
+      return () => {
+        Vibration.cancel();
+        InCallManager.stopRingtone();
+      };
     }, [incomingRinging]);
   };
 

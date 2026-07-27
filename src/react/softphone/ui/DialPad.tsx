@@ -45,6 +45,10 @@ export const DialPad: React.FC<DialPadProps> = ({ autoFocusDestination = false }
         <StatusChip />
         <CallErrorChip />
         <div className="ds-display">
+          {/* Left spacer mirrors the backspace's width so the number stays
+              centered between two equal-width flanks (no optical left-pull from a
+              lone backspace on the right). Present only when the backspace is. */}
+          {destination.length > 0 && <span className="ds-display-spacer" aria-hidden="true" />}
           <input
             ref={destinationRef}
             className="ds-destination"

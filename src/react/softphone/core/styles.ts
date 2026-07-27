@@ -76,7 +76,13 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       padding: 0;
     }
 
-    .${scope} .ds-display { display: flex; align-items: center; gap: 8px; min-height: 56px; }
+    /* The number must center on the keypad's axis. The backspace flanks the input
+       on the right, so an equal-width invisible spacer flanks it on the left — the
+       input then centers between two 40px flanks and reads as truly centered (a
+       lone backspace would optically pull the number left even when the box math
+       centers). */
+    .${scope} .ds-display { display: flex; align-items: center; min-height: 56px; }
+    .${scope} .ds-display-spacer { width: 40px; flex: none; }
     .${scope} .ds-destination {
       flex: 1; min-width: 0;
       font-size: clamp(24px, 7vw, 32px);
@@ -88,6 +94,7 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     }
     .${scope} .ds-destination::placeholder { color: var(--dsd-text-secondary); opacity: 0.7; }
     .${scope} .ds-backspace {
+      flex: none;
       border: none; background: transparent; cursor: pointer;
       font-size: 22px; color: var(--dsd-text-secondary);
       width: 40px; height: 40px; border-radius: 999px;
