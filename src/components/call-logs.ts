@@ -311,11 +311,45 @@ export class CallLogsComponent extends BaseComponent {
   }
 
   /**
+   * Whether a party's label is just the number again, in which case rendering
+   * it would produce "(581) 702-7849 (+15817027849)".
+   *
+   * The API reports the caller name exactly as the carrier sent it, and some
+   * carriers put the number in the display-name field — often in a different
+   * format than the number itself, so a string comparison isn't enough. Compare
+   * the parsed E.164 forms, falling back to digits-only when either side won't
+   * parse (an extension, a malformed number).
+   */
+  private labelIsNumber(number: string, label: string): boolean {
+    // Only a label that is *nothing but* a number can be a restatement of it.
+    // This guard comes first because libphonenumber happily extracts digits out
+    // of surrounding text: without it, "Marine (1002)" parses to the same number
+    // as extension 1002 and the name would be stripped.
+    if (!/^[+\d\s()./-]+$/.test(label)) return false;
+
+    const defaultCountry = (this.formatting.defaultCountry || 'US') as CountryCode;
+    try {
+      const a = parsePhoneNumber(number, defaultCountry);
+      const b = parsePhoneNumber(label, defaultCountry);
+      if (a && b) return a.number === b.number;
+    } catch {
+      // Fall through to the digit comparison below.
+    }
+
+    const digits = (s: string) => s.replace(/\D/g, '');
+    const numberDigits = digits(number);
+    return numberDigits !== '' && numberDigits === digits(label);
+  }
+
+  /**
    * Format a call party (from/to) with optional label.
    * Extensions show as "106 (Front Desk)", external numbers get phone formatting.
    */
   private formatCallParty(number: string, label?: string | null): string {
-    if (label) return `${this.escapeHtml(number)} (${this.escapeHtml(label)})`;
+    // The guards below come before the label: a label annotates a number, so
+    // when the number itself is an identifier we can't show, there is nothing
+    // for the label to annotate — and a clid-derived label makes these rows
+    // reachable where an extension lookup never was.
     // Defensive: never render a raw internal identifier verbatim. A voicemail
     // MWI presentity (vm_user_/vm_svm_), a bare 32-char SIP auth username, or a
     // WebRTC AOR (user_<26>-wrtc) can reach the CDR unattributed on legacy rows;
@@ -328,7 +362,13 @@ export class CallLogsComponent extends BaseComponent {
     if (/^vm_(user|svm)_/.test(number) || number === 'Voicemail')
       return this.t('callLogs.statuses.voicemail');
     if (/^[A-Za-z0-9]{32}$/.test(number) || /^user_[0-9a-z]{26}-wrtc$/.test(number)) return '—';
-    return this.escapeHtml(this.formatPhoneNumber(number));
+
+    // A labelled number is still a number: format it, so a row that gains a
+    // CNAM name doesn't also lose its national formatting.
+    const display = this.escapeHtml(this.formatPhoneNumber(number));
+    if (label && !this.labelIsNumber(number, label))
+      return `${display} (${this.escapeHtml(label)})`;
+    return display;
   }
 
   /**

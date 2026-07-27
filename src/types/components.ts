@@ -254,6 +254,11 @@ export interface CallLog {
    * display name (the caller is always a user's device); for external callers it
    * is the caller ID name (CNAM). While a call is live it is the name captured at
    * call start. Null when no name is available.
+   *
+   * For external callers the CNAM is not interpreted, only trimmed and limited
+   * to 80 characters, so it may be a locality rather than a person ("LA MESA
+   * CA"), a placeholder ("WIRELESS CALLER"), or a restatement of `from_number` —
+   * check for the latter before rendering the name beside the number.
    */
   from_label: string | null;
   /**
