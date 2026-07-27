@@ -309,6 +309,13 @@ export function createMockInstance(
           duration_seconds: 235,
           status: 'completed' as const,
           summary: 'Customer called to inquire about their account balance.',
+          sentiment: {
+            overall: 'neutral' as const,
+            score: 0.05,
+            magnitude: 0.15,
+            local: { sentiment: 'neutral' as const, score: 0.05, magnitude: 0.1 },
+            remote: { sentiment: 'neutral' as const, score: 0.1, magnitude: 0.2 },
+          },
           recording_url: 'https://example.com/mock-recording.wav',
           quality_metrics: [
             {
@@ -326,6 +333,7 @@ export function createMockInstance(
           call_id: 'mock',
           status: 'pending' as const,
           text: null,
+          sentiment: null,
         }),
       },
     },
@@ -336,6 +344,7 @@ export function createMockInstance(
         voicemail_id: 'mock',
         status: 'completed' as const,
         text: 'Hello, this is a test voicemail. Please call me back when you get a chance. Thanks!',
+        sentiment: { overall: 'neutral' as const, score: 0.0, magnitude: 0.05 },
       }),
       markAsRead: async (_voicemailId: string) => {},
       delete: async (_voicemailId: string) => {},

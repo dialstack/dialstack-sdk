@@ -26,6 +26,9 @@ export type {
   Transcript,
   TranscriptStatus,
   VoicemailTranscript,
+  Sentiment,
+  SentimentLabel,
+  ChannelSentiment,
   FormattingOptions,
   PaginationOptions,
   // Real-time call events

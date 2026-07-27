@@ -57,6 +57,9 @@ export type {
   TranscriptStatus,
   Transcript,
   VoicemailTranscript,
+  SentimentLabel,
+  ChannelSentiment,
+  Sentiment,
   // Configuration
   PaginationOptions,
   FormattingOptions,

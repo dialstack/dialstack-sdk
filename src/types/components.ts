@@ -284,10 +284,58 @@ export interface CallLog {
   // originating side was answered (e.g. click-to-call). Null otherwise.
   hangup_cause: number | null;
   summary: string | null;
+  /**
+   * AI-derived sentiment of the call transcript. Null if the call was not
+   * recorded, the transcript is not yet processed, or the analysis did not
+   * produce a usable result.
+   */
+  sentiment: Sentiment | null;
   recording_url: string | null;
 
   // Per-leg quality metrics. Empty array for unanswered calls.
   quality_metrics: QualityMetricLeg[];
+}
+
+/**
+ * Overall sentiment verdict for a transcript, derived from the score.
+ */
+export type SentimentLabel = 'positive' | 'neutral' | 'negative';
+
+/**
+ * Sentiment for one speaker on a two-party call.
+ */
+export interface ChannelSentiment {
+  sentiment: SentimentLabel;
+  /** Emotional leaning, -1.0 (strongly negative) to +1.0 (strongly positive). */
+  score: number;
+  /** Unsigned strength of expressed feeling, 0.0 (flat) to 1.0 (intense). */
+  magnitude: number;
+}
+
+/**
+ * AI-derived sentiment of a call or voicemail transcript, produced
+ * automatically alongside the summary once transcription completes.
+ *
+ * Two independent axes. `score` is the emotional leaning (-1.0 to +1.0, with
+ * `overall` derived from it); `magnitude` is how strongly feeling was expressed
+ * at all (0.0 to 1.0, unsigned). Read them together: a call where one side was
+ * angry and the other delighted scores near 0 with a HIGH magnitude, while a
+ * routine call scores near 0 with a LOW one — both `neutral` by label.
+ *
+ * Sentiment reflects how the participants feel about the interaction, not the
+ * subject matter: a calm conversation about an unpleasant topic is neutral,
+ * while a frustrated caller is negative even when the exchange stays cordial.
+ */
+export interface Sentiment {
+  overall: SentimentLabel;
+  /** Emotional leaning, -1.0 (strongly negative) to +1.0 (strongly positive). */
+  score: number;
+  /** Unsigned strength of expressed feeling, 0.0 (flat) to 1.0 (intense). */
+  magnitude: number;
+  /** Your user's side. Absent for voicemail, whose audio is single-channel. */
+  local?: ChannelSentiment;
+  /** The other party's side. Absent for voicemail. */
+  remote?: ChannelSentiment;
 }
 
 /**
@@ -302,6 +350,11 @@ export interface Transcript {
   call_id: string;
   status: TranscriptStatus;
   text: string | null;
+  /**
+   * Sentiment derived from the transcript. Null while transcription is
+   * incomplete, or when the analysis did not produce a usable result.
+   */
+  sentiment: Sentiment | null;
 }
 
 /**
@@ -313,6 +366,12 @@ export interface VoicemailTranscript {
   voicemail_id: string;
   status: TranscriptStatus;
   text: string | null;
+  /**
+   * Sentiment derived from the transcript. Voicemail audio is single-channel,
+   * so this never carries the `local`/`remote` breakdown a call transcript
+   * does. Null when not analyzed.
+   */
+  sentiment: Sentiment | null;
 }
 
 // ============================================================================

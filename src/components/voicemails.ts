@@ -12,7 +12,17 @@ import type {
   CallLog,
 } from '../types';
 
-import type { TranscriptStatus } from '../types';
+import type { TranscriptStatus, Sentiment } from '../types';
+
+/**
+ * Magnitude at or above which a neutral score is read as "Mixed" rather than
+ * "nobody expressed anything" — the two are indistinguishable by score alone.
+ *
+ * 0.5 sits well clear of what routine calls actually produce: across a sample
+ * of real production transcripts, ordinary business calls topped out around
+ * 0.35, so this cannot fire spuriously on them.
+ */
+const MIXED_MAGNITUDE = 0.5;
 
 /**
  * Voicemail data structure from API
@@ -28,6 +38,7 @@ interface Voicemail {
   format?: string;
   transcription?: string;
   summary?: string;
+  sentiment?: Sentiment | null;
   // ID of the call that produced this voicemail (or the expanded CallLog object).
   // Null/absent when the call could not be resolved.
   call?: string | CallLog | null;
@@ -1134,6 +1145,37 @@ export class VoicemailsComponent extends BaseComponent {
           max-width: 100%;
         }
 
+        /* Sentiment badge, shown beside the summary header. Neutral is not
+           rendered: it is the overwhelmingly common result, so a badge on every
+           voicemail would be noise rather than signal. */
+        .sentiment-badge {
+          display: inline-flex;
+          align-items: center;
+          margin-left: auto;
+          padding: 0 var(--ds-spacing-xs);
+          border-radius: var(--ds-border-radius);
+          font-size: var(--ds-font-size-small);
+          font-weight: var(--ds-font-weight-bold);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          line-height: 1.6;
+        }
+
+        .sentiment-badge.positive {
+          background: var(--ds-color-success-subtle, var(--ds-color-surface-subtle));
+          color: var(--ds-color-success, var(--ds-color-text));
+        }
+
+        .sentiment-badge.negative {
+          background: var(--ds-color-danger-subtle, var(--ds-color-surface-subtle));
+          color: var(--ds-color-danger, var(--ds-color-text));
+        }
+
+        .sentiment-badge.mixed {
+          background: var(--ds-color-surface-subtle);
+          color: var(--ds-color-text-secondary);
+        }
+
         /* Transcription container - unified box for summary + transcript */
         .transcription-container {
           background: var(--ds-color-surface-subtle);
@@ -1468,6 +1510,39 @@ export class VoicemailsComponent extends BaseComponent {
   /**
    * Render expanded voicemail detail
    */
+  /**
+   * Render the sentiment badge shown beside the summary header.
+   *
+   * A plain neutral reading is deliberately not rendered: the scale is
+   * calibrated so routine voicemails land neutral, so badging every one of them
+   * would be noise rather than signal.
+   *
+   * The exception is a neutral score with a high magnitude, which means feeling
+   * ran high on both sides and cancelled out rather than that nobody cared.
+   * That is shown as "Mixed" — the label the data model dropped in favour of
+   * deriving it from the pair.
+   */
+  private renderSentimentBadge(sentiment?: Sentiment | null): string {
+    if (!sentiment) return '';
+
+    const polarized = sentiment.overall === 'neutral' && sentiment.magnitude >= MIXED_MAGNITUDE;
+    const variant = polarized ? 'mixed' : sentiment.overall;
+    if (variant === 'neutral') return '';
+
+    const labels: Record<string, string> = {
+      positive: this.t('voicemails.sentimentPositive'),
+      negative: this.t('voicemails.sentimentNegative'),
+      mixed: this.t('voicemails.sentimentMixed'),
+    };
+    const label = labels[variant];
+    if (!label) return '';
+
+    const tooltip = `${sentiment.score} / ${sentiment.magnitude}`;
+    return `<span class="sentiment-badge ${variant}" part="sentiment-badge" title="${this.escapeHtml(
+      tooltip
+    )}">${this.escapeHtml(label)}</span>`;
+  }
+
   private renderExpandedDetail(vm: Voicemail): string {
     const callerName = this.escapeHtml(vm.from_name || 'Unknown');
     const phoneFormatted = this.escapeHtml(this.formatPhoneNumber(vm.from_number));
@@ -1552,18 +1627,27 @@ export class VoicemailsComponent extends BaseComponent {
 
         <!-- Row 6: Summary + Transcript in unified container -->
         ${
-          vm.summary || this.displayOptions.showTranscription
+          vm.summary || vm.sentiment || this.displayOptions.showTranscription
             ? `
         <div class="transcription-container" part="transcription-container">
           ${
-            vm.summary
+            // Summary and sentiment are independent best-effort outputs — either
+            // can be absent — so this block renders for whichever arrived. A
+            // short, angry voicemail may well have sentiment and no summary, and
+            // that badge is the whole point of the feature.
+            vm.summary || vm.sentiment
               ? `
           <div class="summary" part="summary">
             <div class="summary-header" part="summary-header">
               ${this.getIcon('sparkle')}
-              ${this.t('voicemails.summary')}
+              ${vm.summary ? this.t('voicemails.summary') : this.t('voicemails.sentiment')}
+              ${this.renderSentimentBadge(vm.sentiment)}
             </div>
-            <div class="summary-text" part="summary-text">${this.escapeHtml(vm.summary)}</div>
+            ${
+              vm.summary
+                ? `<div class="summary-text" part="summary-text">${this.escapeHtml(vm.summary)}</div>`
+                : ''
+            }
           </div>
           `
               : ''
