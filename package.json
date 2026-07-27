@@ -84,8 +84,8 @@
     "test:e2e:all": "npm run test:e2e && npm run test:e2e:firefox && npm run test:e2e:webkit"
   },
   "peerDependencies": {
-    "react": "^19.2.6",
-    "react-dom": "^19.2.7"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -113,8 +113,8 @@
     "@rollup/plugin-replace": "^6.0.3",
     "@rollup/plugin-terser": "^1.0.0",
     "@rollup/plugin-typescript": "^12.3.0",
-    "@storybook/react": "^10.5.2",
-    "@storybook/react-vite": "^10.5.2",
+    "@storybook/react": "^10.5.3",
+    "@storybook/react-vite": "^10.5.3",
     "@storybook/test-runner": "^0.24.4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^7.0.0",
@@ -124,8 +124,8 @@
     "@types/jest": "^30.0.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@typescript-eslint/eslint-plugin": "^8.64.0",
-    "@typescript-eslint/parser": "^8.64.0",
+    "@typescript-eslint/eslint-plugin": "^8.65.0",
+    "@typescript-eslint/parser": "^8.65.0",
     "@xyflow/react": "^12.11.2",
     "canvas-confetti": "^1.9.4",
     "dagre": "^0.8.5",
@@ -137,13 +137,13 @@
     "http-server": "^14.1.1",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
-    "prettier": "^3.9.5",
+    "prettier": "^3.9.6",
     "rollup": "^4.62.2",
     "storybook": "^10.2.13",
-    "ts-jest": "^29.4.9",
+    "ts-jest": "^29.4.12",
     "tslib": "^2.8.1",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.64.0"
+    "typescript-eslint": "^8.65.0"
   },
   "engines": {
     "node": ">=20.0.0"
