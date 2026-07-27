@@ -18,6 +18,7 @@ export type {
   SettablePresenceStatus,
   PresenceEntry,
   PresenceUpdate,
+  DirectoryEntry,
   EmergencyAddress,
   EmergencyAddressInput,
   EmergencyAddressDetails,

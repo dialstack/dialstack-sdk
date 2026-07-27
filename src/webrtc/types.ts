@@ -134,9 +134,28 @@ export interface PresenceEntry {
 
 export interface PresenceUpdate {
   userId: string;
+  name: string;
   status: PresenceStatus;
   statusText: string | null;
   updatedAt: string;
+}
+
+// One entry of the account directory (GET /v1/me/directory): a colleague the
+// signed-in user may see, by display name. Deliberately narrow (id + name) — the
+// endpoint never returns full user objects to a user-session credential. Used to
+// resolve who to watch for presence, or to populate a contact / transfer picker.
+export interface DirectoryEntry {
+  /** The colleague's user id (`user_…`). */
+  user: string;
+  /** Display name to show. */
+  displayName: string;
+}
+
+// Wire shape of a DirectoryEntry (snake_case, as returned by the API). Mapped to
+// the camelCase DirectoryEntry before it reaches the app.
+export interface DirectoryEntryWire {
+  user: string;
+  display_name: string;
 }
 
 export interface IceServersResponse {
@@ -179,7 +198,21 @@ export type ClientMessage =
       sdp_mid: string | null;
       sdp_m_line_index: number | null;
     }
-  | { type: 'ice.done'; call_id: string };
+  | { type: 'ice.done'; call_id: string }
+  // Presence: subscribe to an explicit, bounded set of users to watch (BLF).
+  // `users` is required and non-empty; the server rejects an empty/over-cap
+  // list with a non-fatal `invalid_message` error.
+  | { type: 'presence.subscribe'; req_id?: string; users: string[] };
+
+// Presence frames carry snake_case fields on the wire; the phone maps them to
+// the camelCase PresenceEntry / PresenceUpdate shapes before emitting.
+interface PresenceEntryWire {
+  user_id: string;
+  name: string;
+  status: PresenceStatus;
+  status_text?: string | null;
+  updated_at: string;
+}
 
 export type ServerMessage =
   | {
@@ -232,4 +265,10 @@ export type ServerMessage =
       sdp_mid: string | null;
       sdp_m_line_index: number | null;
     }
-  | { type: 'ice.done'; call_id: string };
+  | { type: 'ice.done'; call_id: string }
+  // presence.list is the direct reply to presence.subscribe (echoes req_id):
+  // the initial snapshot for every successfully-watched user. Failed targets
+  // are omitted here and named in a sibling `presence_unavailable` error.
+  | { type: 'presence.list'; req_id?: string | null; users: PresenceEntryWire[] }
+  // presence.update is a server-pushed delta for one watched user.
+  | ({ type: 'presence.update' } & PresenceEntryWire);

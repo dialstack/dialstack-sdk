@@ -7,13 +7,21 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   const apiBase = process.env.DIALSTACK_API_BASE_URL ?? 'https://api.dialstack.ai';
   const secretKey = process.env.DIALSTACK_SECRET_KEY;
+  // A platform key (`sk_live_…`) spans every account on the platform, so the
+  // account-scoped /v1/users read needs the DialStack-Account header to say
+  // which account's users to list. Optional: an account-scoped deployment can
+  // omit it. This lives server-side; the account id never reaches the browser.
+  const account = process.env.DIALSTACK_ACCOUNT;
 
   if (!secretKey) {
     return NextResponse.json({ error: 'Missing DIALSTACK_SECRET_KEY' }, { status: 500 });
   }
 
   const resp = await fetch(`${apiBase}/v1/users`, {
-    headers: { Authorization: `Bearer ${secretKey}` },
+    headers: {
+      Authorization: `Bearer ${secretKey}`,
+      ...(account ? { 'DialStack-Account': account } : {}),
+    },
   });
 
   if (!resp.ok) {

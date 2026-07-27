@@ -7,6 +7,9 @@ import {
   type CallEndReason,
   type EmergencyAddress,
   type EmergencyAddressInput,
+  type PresenceEntry,
+  type PresenceStatus,
+  type PresenceUpdate,
 } from '@dialstack/sdk/webrtc';
 import styles from './page.module.css';
 
@@ -78,6 +81,10 @@ export default function Page() {
   // The saved address has no network binding yet (registered_ip === null):
   // outbound PSTN stays blocked until it binds.
   const [notBound, setNotBound] = useState<boolean>(false);
+  // Presence (BLF) of the watched users, keyed by user id. Seeded by the
+  // presence.list snapshot on subscribe, then merged as presence.update deltas
+  // arrive.
+  const [seenUsers, setSeenUsers] = useState<Record<string, PresenceEntry>>({});
 
   useEffect(() => {
     return () => {
@@ -187,6 +194,25 @@ export default function Page() {
       phone.on('connected', () => {
         setStatus('connected');
         setMessage('');
+        void subscribeToPresence(phone);
+      });
+      phone.on('presenceList', (entries) => {
+        // Initial snapshot: replace whatever we had (a fresh subscribe
+        // supersedes any stale state from a prior session).
+        setSeenUsers(Object.fromEntries(entries.map((u) => [u.userId, u])));
+      });
+      phone.on('presenceUpdate', (update: PresenceUpdate) => {
+        // Delta: merge onto the existing entry. The update carries its own name.
+        setSeenUsers((prev) => ({
+          ...prev,
+          [update.userId]: {
+            userId: update.userId,
+            name: update.name || prev[update.userId]?.name || update.userId,
+            status: update.status,
+            statusText: update.statusText,
+            updatedAt: update.updatedAt,
+          },
+        }));
       });
       phone.on('network.changed', () => {
         setNetworkChanged(true);
@@ -206,6 +232,9 @@ export default function Page() {
         // so a now-resolved network.changed warning clears (and a moved binding
         // doesn't keep reading as bound). This gates 911 routing.
         void refreshEmergencyStatus();
+        // Presence subscriptions don't survive a reconnect (per-session standing
+        // dialogs), so re-subscribe to get a fresh snapshot.
+        void subscribeToPresence(phone);
       });
       phone.on('incoming', (call) => {
         setMessage(`Incoming call from ${call.from}`);
@@ -233,8 +262,24 @@ export default function Page() {
     setStatus('disconnected');
     setMessage('Disconnected');
     setCalls({});
+    setSeenUsers({});
     setNetworkChanged(false);
     setNotBound(false);
+  };
+
+  // Subscribe to presence (BLF) for the account directory. The softphone
+  // resolves who to watch itself via GET /v1/me/directory (the session token is
+  // enough — no account context needed), then subscribes. The SDK rejects an
+  // empty list and caps at 100, so skip when empty and watch the first 100.
+  const subscribeToPresence = async (phone: DialStackPhone) => {
+    try {
+      const directory = await phone.listDirectory();
+      const watch = directory.map((e) => e.user).slice(0, 100);
+      if (watch.length === 0) return;
+      phone.subscribePresence(watch);
+    } catch (e) {
+      setMessage(`Presence subscribe failed: ${(e as Error).message}`);
+    }
   };
 
   // Pull the user's saved emergency address so the panel reflects whether
@@ -550,6 +595,30 @@ export default function Page() {
         </section>
 
         <section className={styles.panel}>
+          <h2 className={styles.panelTitle}>Team presence</h2>
+          {status !== 'connected' ? (
+            <p className={styles.empty}>Connect to see your colleagues&apos; presence.</p>
+          ) : Object.values(seenUsers).length === 0 ? (
+            <p className={styles.empty}>
+              No presence yet. (Resolved from your account directory on connect;
+              updates appear here as colleagues come online or take calls.)
+            </p>
+          ) : (
+            Object.values(seenUsers).map((u) => (
+              <div key={u.userId} className={styles.call}>
+                <div className={styles.callHeader}>
+                  <div className={styles.callPeer}>
+                    <span className={styles.callPeerNumber}>{u.name}</span>
+                  </div>
+                  <span className={styles.callState}>{presenceLabel(u.status)}</span>
+                </div>
+                {u.statusText && <div className={styles.e911Status}>{u.statusText}</div>}
+              </div>
+            ))
+          )}
+        </section>
+
+        <section className={styles.panel}>
           <h2 className={styles.panelTitle}>Place a call</h2>
           <div className={styles.row}>
             <input
@@ -710,6 +779,21 @@ function snapshot(call: Call, parentId?: string): CallView {
     isHeld: call.isHeld,
     parentId,
   };
+}
+
+function presenceLabel(status: PresenceStatus): string {
+  switch (status) {
+    case 'available':
+      return '🟢 Available';
+    case 'on_call':
+      return '🔴 On a call';
+    case 'dnd':
+      return '⛔ Do not disturb';
+    case 'away':
+      return '🌙 Away';
+    case 'offline':
+      return '⚪ Offline';
+  }
 }
 
 function statusDotClass(status: Status, css: Record<string, string>): string {

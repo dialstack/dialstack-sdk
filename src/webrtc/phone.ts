@@ -9,6 +9,8 @@ import type { RTCIceServer, RTCSessionDescriptionInit } from './platform';
 import type { Ringback } from './ringback';
 import { Transport, type AppResumeSubscribe, type SignalingSocketFactory } from './transport';
 import type {
+  DirectoryEntry,
+  DirectoryEntryWire,
   EmergencyAddress,
   EmergencyAddressInput,
   IceServersResponse,
@@ -21,6 +23,11 @@ import type {
 } from './types';
 
 const DEFAULT_API_BASE_URL = 'https://api.dialstack.ai';
+
+// Max users a single presence.subscribe may watch; mirrors the server's
+// maxPresenceTargets (a standing dialog per user is per-session cost). The
+// server rejects an over-cap list, so we reject client-side first.
+const MAX_PRESENCE_TARGETS = 100;
 
 // How long to wait for the server's call.trying (or an error) after sending
 // call.create before giving up on an outbound call. Generous — it covers a real
@@ -539,8 +546,36 @@ export class DialStackPhone {
     return this.activeCalls.find((c) => c.id === callId);
   }
 
-  subscribePresence(_userIds?: string[]): void {
-    throw new NotImplementedError('DialStackPhone.subscribePresence');
+  /**
+   * Subscribe to presence (BLF) for an explicit, bounded set of users. The
+   * watch set is required and non-empty — there is no whole-account default —
+   * and is capped at {@link MAX_PRESENCE_TARGETS}; both bounds mirror the
+   * server, which rejects a bad list with a non-fatal `invalid_message` error.
+   *
+   * The server replies with a `presence.list` snapshot (emitted as
+   * `presenceList`) followed by `presence.update` deltas (`presenceUpdate`) as
+   * watched users' in-call status changes. Users whose subscription can't be
+   * established are omitted from the snapshot and named in a non-fatal
+   * `presence_unavailable` error (its `PhoneError` carries no user list; listen
+   * on `error` for the code).
+   */
+  subscribePresence(userIds: string[]): void {
+    if (!this.transport || !this.isConnected) {
+      throw new PhoneError({ code: 'transport_closed', message: 'Phone is not connected' });
+    }
+    if (userIds.length === 0) {
+      throw new PhoneError({
+        code: 'invalid_message',
+        message: 'subscribePresence requires a non-empty users list',
+      });
+    }
+    if (userIds.length > MAX_PRESENCE_TARGETS) {
+      throw new PhoneError({
+        code: 'invalid_message',
+        message: `subscribePresence accepts at most ${MAX_PRESENCE_TARGETS} users (got ${userIds.length})`,
+      });
+    }
+    this.transport.send({ type: 'presence.subscribe', req_id: this.nextReqId(), users: userIds });
   }
 
   setPresence(_status: SettablePresenceStatus, _statusText?: string): Promise<void> {
@@ -612,6 +647,27 @@ export class DialStackPhone {
   listEmergencyAddresses(): PaginatedList<ListResponse<EmergencyAddress>> {
     const fetchPage = (url: string) => this.apiRequest<ListResponse<EmergencyAddress>>('GET', url);
     return createPaginatedList(fetchPage('/v1/me/emergency-addresses'), fetchPage);
+  }
+
+  /**
+   * List the account directory — the colleagues this user may see, by name
+   * (`GET /v1/me/directory`). Resolved from the session token alone (no account
+   * context needed), so a softphone can discover who to watch for presence, or
+   * populate a contact / transfer picker, without its backend supplying the set.
+   *
+   * Auto-paginates the whole directory and returns a flat list. To watch every
+   * colleague's presence: `phone.subscribePresence((await phone.listDirectory()).map(e => e.user))`.
+   * Note presence subscription accepts at most 100 users at once, so watching a
+   * very large directory means subscribing to a subset.
+   */
+  async listDirectory(): Promise<DirectoryEntry[]> {
+    const fetchPage = (url: string) =>
+      this.apiRequest<ListResponse<DirectoryEntryWire>>('GET', url);
+    const rows = await createPaginatedList(
+      fetchPage('/v1/me/directory'),
+      fetchPage
+    ).autoPagingToArray();
+    return rows.map((r) => ({ user: r.user, displayName: r.display_name }));
   }
 
   /** Delete a saved emergency address. Clears the local selection if it matched. */
@@ -1000,6 +1056,29 @@ export class DialStackPhone {
           const idx = this.activeCalls.indexOf(call);
           if (idx >= 0) this.activeCalls.splice(idx, 1);
         }
+        return;
+      }
+      case 'presence.list': {
+        this.emit(
+          'presenceList',
+          msg.users.map((u) => ({
+            userId: u.user_id,
+            name: u.name,
+            status: u.status,
+            statusText: u.status_text ?? null,
+            updatedAt: u.updated_at,
+          }))
+        );
+        return;
+      }
+      case 'presence.update': {
+        this.emit('presenceUpdate', {
+          userId: msg.user_id,
+          name: msg.name,
+          status: msg.status,
+          statusText: msg.status_text ?? null,
+          updatedAt: msg.updated_at,
+        });
         return;
       }
       default:
