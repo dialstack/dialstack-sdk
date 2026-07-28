@@ -849,6 +849,40 @@ export interface QueueAgent {
 // on /v1/me/presence.
 export type PresenceState = 'available' | 'on_call' | 'offline';
 
+/**
+ * A user's reachability over WebRTC (a browser or in-app softphone)
+ * specifically, separate from the top-level `state`, which reflects any
+ * endpoint type.
+ */
+export interface WebRTCReachability {
+  /**
+   * WebRTC-only reachability, using the same values as `state` but scoped to
+   * WebRTC: `available` (a live WebRTC session, ready to ring), `on_call` (on a
+   * call answered in a WebRTC session), or `offline` (no live WebRTC session —
+   * the user may still be reachable on another endpoint type).
+   *
+   * Unlike the top-level `state`, this does not carry a strict no-unknown
+   * guarantee: attributing a call to WebRTC depends on a label the answering leg
+   * carries, and a call answered before that label was available reads as
+   * not-on-WebRTC rather than failing the request. The condition is transient
+   * and clears as calls turn over.
+   */
+  state: PresenceState;
+  /**
+   * Number of live WebRTC sessions (e.g. the same user on two browser tabs
+   * counts as two).
+   *
+   * Eventually consistent in both directions, not an exact live count. A
+   * reconnecting session (network change, sleep/wake) may be counted twice for a
+   * short window until the old connection times out, so this can briefly
+   * over-count; a just-established session may not be counted yet, so it can
+   * briefly under-count. In particular this can read `0` while `state` is
+   * `available` or `on_call` — `state` is the reachability answer, and
+   * `sessions` is a best-effort "how many" alongside it.
+   */
+  sessions: number;
+}
+
 export interface UserPresence {
   state: PresenceState;
   /**
@@ -863,6 +897,8 @@ export interface UserPresence {
    * `do_not_disturb` is on. Always emitted on responses.
    */
   do_not_disturb: boolean;
+  /** WebRTC-specific reachability, separate from the endpoint-agnostic `state`. */
+  webrtc: WebRTCReachability;
 }
 
 export interface UserPresenceItem extends UserPresence {
