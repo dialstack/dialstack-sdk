@@ -553,11 +553,18 @@ export class DialStackPhone {
    * server, which rejects a bad list with a non-fatal `invalid_message` error.
    *
    * The server replies with a `presence.list` snapshot (emitted as
-   * `presenceList`) followed by `presence.update` deltas (`presenceUpdate`) as
-   * watched users' in-call status changes. Users whose subscription can't be
-   * established are omitted from the snapshot and named in a non-fatal
-   * `presence_unavailable` error (its `PhoneError` carries no user list; listen
-   * on `error` for the code).
+   * `presenceList`), always before any `presence.update` delta
+   * (`presenceUpdate`) for the users that snapshot introduces. Deltas follow as
+   * those users' status changes.
+   *
+   * A status is `available`, `on_call`, or `offline` — `offline` meaning the user
+   * has no registered device and so cannot currently receive calls. The first
+   * delta after a snapshot may restate a status the snapshot already reported, so
+   * key the roster by `userId` and upsert.
+   *
+   * Users whose subscription can't be established are omitted from the snapshot
+   * and named in a non-fatal `presence_unavailable` error (its `PhoneError`
+   * carries no user list; listen on `error` for the code).
    */
   subscribePresence(userIds: string[]): void {
     if (!this.transport || !this.isConnected) {

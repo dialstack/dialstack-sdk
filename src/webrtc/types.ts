@@ -235,7 +235,10 @@ export type ServerMessage =
       fatal?: boolean;
       // Optional per-concern detail; which fields are present depends on `code`.
       // For `presence_unavailable`, `context.users` names the requested users
-      // whose presence subscription could not be established.
+      // whose presence subscription could not be established — they are absent
+      // from the snapshot. For `reachability_unavailable` it names users who ARE
+      // in the snapshot with a live status, but who will not be reported
+      // `offline` until that watch recovers.
       context?: { users?: string[] };
     }
   | { type: 'call.trying'; call_id: string; req_id?: string | null }

@@ -10,6 +10,7 @@ export type PhoneErrorCode =
   | 'session_revoked'
   | 'rate_limited'
   | 'presence_unavailable'
+  | 'reachability_unavailable'
   | 'internal_error'
   | 'going_away'
   | 'idle_timeout'
