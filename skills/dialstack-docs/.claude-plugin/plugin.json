@@ -1,7 +1,6 @@
 {
   "name": "dialstack-docs",
   "description": "Grounds answers about DialStack in its live documentation at docs.dialstack.ai instead of model recall.",
-  "version": "0.1.0",
   "author": { "name": "DialStack", "email": "engineering@dialstack.ai" },
   "homepage": "https://docs.dialstack.ai",
   "repository": "https://github.com/dialstack/dialstack-sdk",

@@ -9,7 +9,6 @@
       "name": "dialstack-docs",
       "source": "./skills/dialstack-docs",
       "description": "Grounds answers about DialStack in its live documentation at docs.dialstack.ai instead of model recall.",
-      "version": "0.1.0",
       "category": "documentation",
       "tags": ["dialstack", "voip", "telephony", "api", "documentation"]
     }

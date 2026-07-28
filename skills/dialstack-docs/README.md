@@ -21,6 +21,15 @@ product detail of its own, so it stays correct as the product ships.
 /plugin install dialstack-docs@dialstack
 ```
 
+Updates arrive on their own: neither `.claude-plugin/plugin.json` nor the
+marketplace entry declares a `version`, so for a github-sourced marketplace
+every commit counts as a new version. **Do not add a `version` field.** Claude
+Code resolves it from `plugin.json` first and skips the update while the string
+is unchanged, which would strand every existing install on the skill as it was
+the day they installed it — for a pointer skill that ships corrections
+continuously, that is the whole value gone. Declaring it in both files also
+silently masks the marketplace value.
+
 ### Any other Agent Skills client
 
 Cursor, OpenAI Codex, Gemini CLI, GitHub Copilot, Amp, Goose, OpenCode, Factory

@@ -68,7 +68,7 @@ If genuinely ambiguous, ask which they want. Do not answer both.
 3. For anything endpoint-level, fetch
    **`https://docs.dialstack.ai/api/endpoints.md`** — every operation with its
    verb, path, and query parameters in one ~20 KB file. Check the endpoint
-   exists here before naming it.
+   exists here before naming it. It has no HTML page — see Citing.
 4. Only for a request or response **schema**, search
    `https://docs.dialstack.ai/api/openapi.yaml` for the specific `operationId`
    from step 3. It is ~578 KB — never fetch it whole.
@@ -117,10 +117,19 @@ fetch: https://docs.dialstack.ai/docs/guides/pagination.md
 cite:  https://docs.dialstack.ai/guides/pagination
 ```
 
-The rule is exceptionless: strip `/docs`, strip `.md`. Do not cite the `.md`
-URL to a person — browsers download it instead of displaying it.
+The rule is: strip `/docs`, strip `.md`. Do not cite the `.md` URL to a person —
+browsers download it instead of displaying it.
+
+It applies only to pages fetched from under the `/docs` prefix.
+`/api/endpoints.md` is a generated file, not a page: dropping its `.md` gives a
+URL that **404s**, so never cite it. Use it to confirm an endpoint exists, then
+cite the guide that documents the behavior, or `https://docs.dialstack.ai/api`
+for the API reference.
 
 Cite the page you actually fetched. If you did not fetch it, you cannot cite it.
+The one exception is the `https://docs.dialstack.ai/api` reference above: cite it
+as the destination for an endpoint you confirmed in `/api/endpoints.md`, since
+that file has no page of its own. Nothing else may be cited unfetched.
 
 ## Rules that apply to every answer
 
