@@ -17,7 +17,6 @@ import {
   selectIncomingCall,
   resolveSoftphonePalette,
   type SoftphoneContextBase,
-  type PlatformEffectState,
   type Locale,
   type UseCallActions,
   type UseEmergencyBinding,
@@ -179,39 +178,6 @@ export function SoftphoneProvider({
   onError,
   children,
 }: SoftphoneProviderProps): React.JSX.Element {
-  // `use*`-named so rules-of-hooks accepts the hooks inside; the base calls it
-  // unconditionally each render, keeping hook order stable.
-  const useNativePlatformEffects = ({ callEntries, incomingRinging }: PlatformEffectState) => {
-    // Hold the audio session while ANY call is connected (not just the foreground
-    // one) so switching/promoting calls doesn't drop the route.
-    const hasConnectedCall = callEntries.some((e) => e.call.isConnected);
-    useEffect(() => {
-      if (!hasConnectedCall) return;
-      InCallManager.start({ media: 'audio' });
-      return () => InCallManager.stop();
-    }, [hasConnectedCall]);
-
-    useEffect(() => {
-      if (!incomingRinging) return;
-      // Ringtone audio only: pass a NON-array vibrate arg so InCallManager skips
-      // its own one-shot Vibration.vibrate(pattern, /*repeat*/ false) — that path
-      // both can't loop (hard-coded no-repeat) and, given any array, crashes on
-      // Android 14+ where a [0] waveform is rejected (all-zero timings). We drive
-      // the vibration ourselves below so it repeats for the whole ring.
-      InCallManager.startRingtone('_DEFAULT_', 0, '', -1);
-      // repeat=true loops the pattern from index 0 until cancel(). Timing is
-      // interpreted per-platform: on Android it's [wait, vibrate, pause] ms; on
-      // iOS durations are ignored (fixed buzz) and the values act as delays
-      // between buzzes. Either way it's a repeating buzz for the whole ring.
-      // No-op on devices without a vibrator (e.g. simulators).
-      Vibration.vibrate([0, 800, 800], true);
-      return () => {
-        Vibration.cancel();
-        InCallManager.stopRingtone();
-      };
-    }, [incomingRinging]);
-  };
-
   // Stable `extra` identity so the base's context-value memo isn't busted every
   // render by a fresh object literal.
   const extra = useMemo(() => ({ locationProvider }), [locationProvider]);
@@ -235,12 +201,55 @@ export function SoftphoneProvider({
       onCallStarted={onCallStarted}
       onCallEnded={onCallEnded}
       onError={onError}
-      platformEffects={useNativePlatformEffects}
       extra={extra}
     >
+      {/* Native-only side-effects, as an ordinary child that reads the context. */}
+      <NativeAudioSession />
       {children}
     </SoftphoneProviderBase>
   );
+}
+
+// Drives the InCallManager audio session + ringtone off call state. Renders
+// nothing. Reads the shared context like any other softphone child.
+function NativeAudioSession(): null {
+  const { calls, incomingRinging } = useSoftphoneBase();
+  // Hold the audio session while ANY call is connected (not just the foreground
+  // one) so switching/promoting calls doesn't drop the route.
+  const hasConnectedCall = calls.some((c) => c.isConnected);
+  useEffect(() => {
+    if (!hasConnectedCall) return;
+    InCallManager.start({ media: 'audio' });
+    return () => InCallManager.stop();
+  }, [hasConnectedCall]);
+
+  useEffect(() => {
+    if (!incomingRinging) return;
+    // Ringtone audio only: pass a NON-array vibrate arg so InCallManager skips
+    // its own one-shot Vibration.vibrate(pattern, /*repeat*/ false) — that path
+    // both can't loop (hard-coded no-repeat) and, given any array, crashes on
+    // Android 14+ where a [0] waveform is rejected (all-zero timings). We drive
+    // the vibration ourselves below so it repeats for the whole ring.
+    InCallManager.startRingtone('_DEFAULT_', 0, '', -1);
+    // repeat=true loops the pattern from index 0 until cancel(). Timing is
+    // interpreted per-platform: on Android it's [wait, vibrate, pause] ms; on
+    // iOS durations are ignored (fixed buzz) and the values act as delays
+    // between buzzes. Either way it's a repeating buzz for the whole ring.
+    // No-op on devices without a vibrator (e.g. simulators). Guarded because
+    // Android enforces VIBRATE by throwing: an unguarded throw here would
+    // escape before the cleanup below is registered, stranding the ringtone
+    // we just started so it plays on past answer/decline.
+    try {
+      Vibration.vibrate([0, 800, 800], true);
+    } catch {
+      // Missing android.permission.VIBRATE — ring without haptics.
+    }
+    return () => {
+      Vibration.cancel();
+      InCallManager.stopRingtone();
+    };
+  }, [incomingRinging]);
+  return null;
 }
 
 /** Access the full softphone context. Throws when used outside the provider. */

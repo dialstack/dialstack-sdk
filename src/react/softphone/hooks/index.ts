@@ -7,8 +7,11 @@
  * two UIs is single-sourced here. Each platform builds only its own render tree.
  */
 
+export { usePhone } from './usePhone';
+export type { UsePhoneOptions, UsePhoneResult, SoftphoneConnectionState } from './usePhone';
+
 export { useCalls } from './useCalls';
-export type { UseCallsOptions, UseCallsResult, SoftphoneConnectionState } from './useCalls';
+export type { UseCallsOptions, UseCallsResult } from './useCalls';
 
 export { useCallActions } from './useCallActions';
 export type { UseCallActions, UseCallActionsOptions, CallActions } from './useCallActions';
@@ -23,7 +26,11 @@ export type { UseCallOverlays } from './useCallOverlays';
 export { useCallDuration } from './useCallDuration';
 
 export { useEmergencyBinding } from './useEmergencyBinding';
-export type { UseEmergencyBinding, UseEmergencyBindingDeps } from './useEmergencyBinding';
+export type {
+  UseEmergencyBinding,
+  UseEmergencyBindingOptions,
+  PhoneE911Api,
+} from './useEmergencyBinding';
 
 export { useLastError } from './useLastError';
 export type { UseLastError, SoftphoneError } from './useLastError';

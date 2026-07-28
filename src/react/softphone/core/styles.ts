@@ -81,7 +81,7 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
        input then centers between two 40px flanks and reads as truly centered (a
        lone backspace would optically pull the number left even when the box math
        centers). */
-    .${scope} .ds-display { display: flex; align-items: center; min-height: 56px; }
+    .${scope} .ds-display { display: flex; align-items: center; min-height: 56px; gap: 8px; }
     .${scope} .ds-display-spacer { width: 40px; flex: none; }
     .${scope} .ds-destination {
       flex: 1; min-width: 0;

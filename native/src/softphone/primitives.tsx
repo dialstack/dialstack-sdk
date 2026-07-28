@@ -156,7 +156,7 @@ export function makeStyles(p: SoftphonePalette) {
       maxWidth: '100%',
     },
 
-    display: { flexDirection: 'row', alignItems: 'center', minHeight: 56 },
+    display: { flexDirection: 'row', alignItems: 'center', minHeight: 56, gap: 8 },
     destination: {
       flex: 1,
       fontSize: 30,
@@ -166,15 +166,18 @@ export function makeStyles(p: SoftphonePalette) {
       // reliable than style.textAlign on Android TextInput), not here.
       // Android EditText carries default internal padding + font padding that
       // offsets the text off-center inside its own box; zero both so the
-      // centered text lands on the keypad axis (matching web). No `gap` on the
-      // row either — the equal-width spacer/backspace flanks handle spacing, and
-      // a gap would shift the input when only one flank is present.
+      // centered text lands on the keypad axis (matching web). The row's `gap`
+      // is centering-neutral: the spacer and backspace render under the same
+      // condition, so the flanks are always both-or-neither and stay symmetric.
       paddingVertical: 0,
       paddingHorizontal: 0,
       includeFontPadding: false,
       textAlignVertical: 'center',
     },
     backspace: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+    // Invisible left flank matching the backspace's footprint (RN parity with
+    // .ds-display-spacer). Same box, named for the role it plays.
+    displaySpacer: { width: 40, height: 40 },
     backspaceText: { fontSize: 22, color: p.textSecondary },
 
     keypad: { gap: D.keyGap },

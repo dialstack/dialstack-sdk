@@ -1,5 +1,5 @@
 /**
- * useCalls forwards `onTokenExpiring` to the constructed phone, and does so
+ * usePhone forwards `onTokenExpiring` to the constructed phone, and does so
  * without letting a changing callback identity retrigger the connect effect
  * (which would tear down + reconnect the socket). The refresh mechanism itself
  * is covered at the phone layer in
@@ -9,7 +9,7 @@
 
 import { renderHook } from '@testing-library/react';
 import type { DialStackPhone, PhoneOptions } from '../../webrtc';
-import { useCalls, __setPhoneFactory } from '../softphone/hooks/useCalls';
+import { usePhone, __setPhoneFactory } from '../softphone/hooks/usePhone';
 
 class FakePhone {
   isConnected = false;
@@ -24,7 +24,7 @@ class FakePhone {
   }
 }
 
-describe('useCalls onTokenExpiring forwarding', () => {
+describe('usePhone onTokenExpiring forwarding', () => {
   let optionsSeen: PhoneOptions[];
 
   beforeEach(() => {
@@ -44,7 +44,7 @@ describe('useCalls onTokenExpiring forwarding', () => {
 
     const { rerender } = renderHook(
       ({ cb }: { cb: () => Promise<string> }) =>
-        useCalls({ token: 'tok', onTokenExpiring: cb, autoConnect: false }),
+        usePhone({ token: 'tok', onTokenExpiring: cb, autoConnect: false }),
       { initialProps: { cb: first } }
     );
 
@@ -63,7 +63,7 @@ describe('useCalls onTokenExpiring forwarding', () => {
   });
 
   it('passes undefined when no onTokenExpiring is supplied', () => {
-    renderHook(() => useCalls({ token: 'tok', autoConnect: false }));
+    renderHook(() => usePhone({ token: 'tok', autoConnect: false }));
     expect(optionsSeen).toHaveLength(1);
     expect(optionsSeen[0].onTokenExpiring).toBeUndefined();
   });

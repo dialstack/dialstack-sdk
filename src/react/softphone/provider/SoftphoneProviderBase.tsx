@@ -1,7 +1,9 @@
 /**
  * Shared core of the softphone provider — the wiring both the web and native
- * providers reuse so it can't drift between them. Platforms wrap this with only
- * their own bits (web: `<style>`/`<audio>`/live-appearance; native: InCallManager).
+ * providers reuse so it can't drift between them. It provides the context and
+ * renders `children`; each platform supplies its own side-effects (web:
+ * `<style>`/`<audio>`/ringtone; native: InCallManager) as ordinary child
+ * components that read the context via `useSoftphoneBase`.
  *
  * Must stay DOM- and React-Native-free: it's part of the shared headless core
  * (src/react/softphone/core) that @dialstack/sdk-native inlines at build time.
@@ -9,27 +11,36 @@
 
 import React, { createContext, useContext, useEffect, useMemo, useRef } from 'react';
 import {
+  usePhone,
   useCalls,
   useCallActions,
   useCallOverlays,
   useCallDuration,
   useEmergencyBinding,
+  type PhoneE911Api,
   useLastError,
   shouldRingIncoming,
   isIncomingRinging,
   formatDisplayNumber,
 } from '../hooks';
+import { createPaginatedList } from '../../../shared/pagination';
 import { resolveSoftphonePalette, type SoftphonePalette } from '../core/theme';
 import { defaultLocale, type Locale } from '../../../locales';
 import type { AppearanceOptions } from '../../../types/appearance';
 import type { CountryCode } from 'libphonenumber-js';
-import type { Call, CallEndReason, PlatformStorage } from '../../../webrtc';
+import type {
+  Call,
+  CallEndReason,
+  EmergencyAddress,
+  ListResponse,
+  PlatformStorage,
+} from '../../../webrtc';
 import type {
   UseCallActions,
   UseCallOverlays,
   UseEmergencyBinding,
   SoftphoneConnectionState,
-  UseCallsOptions,
+  UsePhoneOptions,
 } from '../hooks';
 
 /** Context fields both platforms expose. Platforms add their own via `extra`. */
@@ -38,6 +49,8 @@ export interface SoftphoneContextBase {
   calls: Call[];
   activeCall: Call | null;
   incomingCalls: Call[];
+  /** True while an unanswered inbound call should be audibly ringing. */
+  incomingRinging: boolean;
   heldCalls: Call[];
   answerCall: (call: Call) => void;
   switchToCall: (call: Call) => void;
@@ -69,16 +82,45 @@ export interface SoftphoneContextBase {
 
 const SoftphoneContext = createContext<SoftphoneContextBase | null>(null);
 
+// Stands in for the phone while `usePhone` has none — before the first construct
+// and after teardown.
+//
+// EVERY member rejects, reads included. Nothing here resolves, so no caller can
+// mistake "there is no phone" for an answer about the user's emergency address.
+// A write that resolved would report a successful bind while the server bound
+// nothing; a read that resolved empty would say "no saved address" for a user who
+// has one. The E911 hook already treats a failed read as unbound (its catch sets
+// `bound = false`), which is the safe state, so rejecting needs no handling there.
+//
+// In practice the reads are unreachable — the post-connect effect early-returns
+// unless `connection === 'connected'`, and usePhone sets the phone before it ever
+// reports connected. Rejecting anyway means that ordering is a nice-to-have
+// rather than load-bearing: if it ever changes, this fails closed instead of
+// silently answering with an empty list.
+const notConnected = () => Promise.reject(new Error('Phone not connected'));
+
+const DISCONNECTED_PHONE: PhoneE911Api = {
+  // Built per call, not once at module scope: the rejected promise must be
+  // created only when a caller is there to await it, or it would be an unhandled
+  // rejection at import time.
+  listEmergencyAddresses: () =>
+    createPaginatedList<ListResponse<EmergencyAddress>>(notConnected(), notConnected),
+  setEmergencyAddress: notConnected,
+  presentedEmergencyAddressId: null,
+  clearEmergencyAddressRegisteredIp: notConnected,
+  reconnectWithEmergency: notConnected,
+};
+
 export interface SoftphoneCoreProps {
   token: string;
   apiBaseUrl?: string;
   /** Host callback invoked shortly before the token expires; returns a fresh token. */
   onTokenExpiring?: () => Promise<string>;
-  iceServers?: UseCallsOptions['iceServers'];
+  iceServers?: UsePhoneOptions['iceServers'];
   storage?: PlatformStorage;
-  ringback?: UseCallsOptions['ringback'];
-  createSignalingSocket?: UseCallsOptions['createSignalingSocket'];
-  onAppResume?: UseCallsOptions['onAppResume'];
+  ringback?: UsePhoneOptions['ringback'];
+  createSignalingSocket?: UsePhoneOptions['createSignalingSocket'];
+  onAppResume?: UsePhoneOptions['onAppResume'];
   emergencyAddressId?: string;
   autoConnect?: boolean;
   appearance?: AppearanceOptions;
@@ -91,24 +133,7 @@ export interface SoftphoneCoreProps {
   onError?: (event: { code: string; message: string }) => void;
 }
 
-/** State passed to a platform's effect hook (web audio bind / native InCallManager). */
-export interface PlatformEffectState {
-  callEntries: ReturnType<typeof useCalls>['calls'];
-  activeCall: Call | null;
-  incomingCalls: Call[];
-  incomingRinging: boolean;
-  onError?: (event: { code: string; message: string }) => void;
-}
-
 export interface SoftphoneProviderBaseProps<Extra extends object> extends SoftphoneCoreProps {
-  /**
-   * Platform effects, run as a hook inside the base. Called unconditionally every
-   * render, so it MUST be a stable, always-present function — never conditionally
-   * `undefined` between renders, or the hooks it contains would change the render's
-   * hook count and violate rules-of-hooks. Required for this reason; pass a no-op
-   * hook if a platform has no effects.
-   */
-  platformEffects: (state: PlatformEffectState) => void;
   /** Platform-only context fields (web: `{ scope }`; native: `{ locationProvider }`). */
   extra: Extra;
   children: React.ReactNode;
@@ -134,7 +159,6 @@ export function SoftphoneProviderBase<Extra extends object>({
   onCallStarted,
   onCallEnded,
   onError,
-  platformEffects: usePlatformEffects,
   extra,
   children,
 }: SoftphoneProviderBaseProps<Extra>): React.JSX.Element {
@@ -148,13 +172,24 @@ export function SoftphoneProviderBase<Extra extends object>({
   const t = (k: keyof Locale['softphone']) => locale.softphone[k];
   const displayNumber = (v: string) => formatDisplayNumber(v, defaultCountry);
 
-  // network.changed must reach useEmergencyBinding, which is created AFTER
-  // useCalls. A ref breaks the cycle: useCalls calls a stable wrapper that
-  // forwards to the hook's handler once it exists.
-  const onNetworkChangedRef = useRef<() => void>(() => {});
+  // The composition root owns the phone: usePhone constructs it + tracks its
+  // connection lifecycle, then it's handed to both useCalls (call state) and
+  // useEmergencyBinding (E911). Neither of those owns the phone anymore.
+  const { phone, connection } = usePhone({
+    token,
+    apiBaseUrl,
+    onTokenExpiring,
+    iceServers,
+    storage,
+    ringback,
+    createSignalingSocket,
+    onAppResume,
+    emergencyAddressId,
+    autoConnect,
+    onError: handleError,
+  });
 
   const {
-    connection,
     calls: callEntries,
     activeCall,
     incomingCalls,
@@ -167,43 +202,42 @@ export function SoftphoneProviderBase<Extra extends object>({
     startAttendedTransfer,
     completeAttendedTransfer,
     cancelAttendedTransfer,
-    listEmergencyAddresses,
-    setEmergencyAddress,
-    getPresentedEmergencyAddressId,
-    clearEmergencyAddressRegisteredIp,
-    reconnectWithEmergency,
-  } = useCalls({
-    token,
-    apiBaseUrl,
-    onTokenExpiring,
-    iceServers,
-    storage,
-    ringback,
-    createSignalingSocket,
-    onAppResume,
-    emergencyAddressId,
-    autoConnect,
+  } = useCalls(phone, connection, {
     onIncomingCall,
     onCallStarted,
     onCallEnded,
     onError: handleError,
-    onNetworkChanged: () => onNetworkChangedRef.current(),
   });
 
-  // E911 binding wired once here so web and native can't drift.
-  const emergency = useEmergencyBinding({
+  // E911 binding wired once here so web and native can't drift. It talks to the
+  // phone directly via its narrow E911 interface — no rename layer.
+  //
+  // `usePhone` yields null before the first construct and after teardown, but the
+  // hook takes a NON-nullable phone: absorbing that here keeps every E911 call
+  // site unconditional. Were the hook to branch on a null phone instead, the
+  // natural `phone?.bind()` spelling would resolve without binding anything and
+  // report success on a safety gate. DISCONNECTED_PHONE rejects instead, so the
+  // banner surfaces an error and stays open.
+  const emergency = useEmergencyBinding(phone ?? DISCONNECTED_PHONE, {
     disabled: !!emergencyAddressId,
     connection,
     identityKey: token,
-    list: listEmergencyAddresses,
-    save: setEmergencyAddress,
-    getPresentedAddressId: getPresentedEmergencyAddressId,
-    clearRegisteredIp: clearEmergencyAddressRegisteredIp,
-    reconnectWithEmergency,
   });
+  // The server's network.changed signal (emergency address rejected for this
+  // network) drives the E911 gate. Subscribe here — after both hooks exist — so
+  // no forward-ref is needed to reach useEmergencyBinding from usePhone.
+  //
+  // This attaches a commit after the phone is constructed, where the pre-split
+  // code subscribed synchronously before connect(). No signal can be missed in
+  // that gap: network.changed is a server frame, so it cannot arrive until the
+  // socket has opened and authenticated — many round-trips after React has
+  // flushed this effect.
   useEffect(() => {
-    onNetworkChangedRef.current = emergency.onNetworkChanged;
-  }, [emergency.onNetworkChanged]);
+    if (!phone) return;
+    const onNetworkChanged = emergency.onNetworkChanged;
+    phone.on('network.changed', onNetworkChanged);
+    return () => phone.off('network.changed', onNetworkChanged);
+  }, [phone, emergency.onNetworkChanged]);
 
   const actions = useCallActions(activeCall, { onError: handleError });
   // Built-in-UI overlay flags for the bundled OngoingCall. Owns the
@@ -224,16 +258,13 @@ export function SoftphoneProviderBase<Extra extends object>({
     prevConnectionRef.current = connection;
   }, [connection, onConnectionStateChange, clearError]);
 
-  // `use`-cased binding so rules-of-hooks lints the hooks inside the platform
-  // effects fn (it's always called, unconditionally, keeping hook order stable).
-  usePlatformEffects({ callEntries, activeCall, incomingCalls, incomingRinging, onError });
-
   const value = useMemo(
     () => ({
       connection,
       calls,
       activeCall,
       incomingCalls,
+      incomingRinging,
       heldCalls,
       answerCall,
       switchToCall,
@@ -263,6 +294,7 @@ export function SoftphoneProviderBase<Extra extends object>({
       calls,
       activeCall,
       incomingCalls,
+      incomingRinging,
       heldCalls,
       answerCall,
       switchToCall,

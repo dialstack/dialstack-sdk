@@ -3,7 +3,7 @@ import React from 'react';
 import { expect, within, userEvent, waitFor, fireEvent } from 'storybook/test';
 import { Softphone } from '../softphone/ui/Softphone';
 import { SoftphoneProvider } from '../softphone/provider/SoftphoneProvider';
-import { __setPhoneFactory } from '../softphone/hooks/useCalls';
+import { __setPhoneFactory } from '../softphone/hooks/usePhone';
 import { MockPhoneController } from './support/mock-phone';
 
 // Interaction ("e2e") stories that drive the batteries-included <Softphone>

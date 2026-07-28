@@ -58,7 +58,6 @@ export { EmergencyBanner } from './ui/EmergencyBanner';
 // Shared call-state hooks + view-model helpers — the platform-agnostic layer the
 // web Softphone and a React Native softphone both build on.
 export {
-  useCalls,
   useCallActions,
   useCallDuration,
   useLastError,
@@ -78,8 +77,6 @@ export {
   errorMessageKey,
 } from './hooks';
 export type {
-  UseCallsOptions,
-  UseCallsResult,
   UseCallActions,
   UseCallActionsOptions,
   UseLastError,

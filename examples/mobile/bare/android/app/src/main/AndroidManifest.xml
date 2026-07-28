@@ -10,6 +10,12 @@
          WAKE_LOCK SecurityException. Not declared by the library's own manifest,
          so the consuming app must add it. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- The softphone vibrates while an incoming call rings. VibratorManagerService
+         enforces this permission and throws SecurityException rather than no-op'ing,
+         which would abort the ringtone effect before it registers its cleanup and
+         leave the ringtone playing after answer/decline. Neither react-native nor
+         react-native-incall-manager declares it, so the consuming app must. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
     <application

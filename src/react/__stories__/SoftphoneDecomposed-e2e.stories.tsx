@@ -6,7 +6,7 @@ import { IncomingCall } from '../softphone/ui/IncomingCall';
 import { OngoingCall } from '../softphone/ui/OngoingCall';
 import { SoftphoneProvider } from '../softphone/provider/SoftphoneProvider';
 import { useActiveCall, useIncomingCall } from '../softphone/provider/SoftphoneProvider';
-import { __setPhoneFactory } from '../softphone/hooks/useCalls';
+import { __setPhoneFactory } from '../softphone/hooks/usePhone';
 import { MockPhoneController } from './support/mock-phone';
 
 // Interaction ("e2e") story for the DECOMPOSED / build-your-own path: a host

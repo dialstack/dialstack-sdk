@@ -11,7 +11,6 @@ import {
   useSoftphoneBase,
   selectIncomingCall,
   type SoftphoneContextBase,
-  type PlatformEffectState,
 } from './SoftphoneProviderBase';
 import { formatDisplayNumber, type SoftphoneConnectionState, type UseCallActions } from '../hooks';
 import { resolveSoftphonePalette } from '../core/theme';
@@ -129,7 +128,6 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
   onError,
   children,
 }) => {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const scope = `ds-softphone-${useId().replace(/[:]/g, '')}`;
   // Stable `extra` identity so the base's context-value memo isn't busted every
   // render by a fresh object literal (`scope` is stable — useId never changes).
@@ -159,65 +157,6 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
     [appearanceKey, scope]
   );
 
-  const ringtoneRef = useRef<IncomingRingtone | null>(null);
-  if (ringtoneRef.current === null) ringtoneRef.current = new IncomingRingtone();
-  // `use*`-named so rules-of-hooks accepts the hooks inside; the base calls it
-  // unconditionally each render, keeping hook order stable.
-  const useWebPlatformEffects = ({
-    activeCall,
-    incomingRinging,
-    onError: reportError,
-  }: PlatformEffectState) => {
-    useEffect(() => {
-      const ringtone = ringtoneRef.current;
-      if (!ringtone) return;
-      if (incomingRinging) ringtone.start();
-      else ringtone.stop();
-      return () => ringtone.stop();
-    }, [incomingRinging]);
-
-    // Report autoplay failure only after a user gesture (answered), never while
-    // ringing pre-gesture — a silently muted answered call is worse than an error.
-    useEffect(() => {
-      const el = audioRef.current;
-      if (!el) return;
-      if (!activeCall) {
-        el.srcObject = null;
-        return;
-      }
-      el.srcObject = activeCall.remoteMediaStream;
-      const call = activeCall;
-      let done = false;
-      const tryPlay = (reportOnFail: boolean) => {
-        void el.play().then(
-          () => {
-            done = true;
-          },
-          (err: unknown) => {
-            // Surface any real playback failure, EXCEPT AbortError — that's the
-            // benign teardown (srcObject cleared on hangup / new call), and reporting
-            // it would flash a spurious "tap to enable sound" after every call. We
-            // report all other names (not just NotAllowedError) so a decode/
-            // unsupported-source failure on a non-standard WebView isn't swallowed.
-            const name = (err as { name?: string })?.name;
-            if (reportOnFail && !done && name !== 'AbortError') {
-              reportError?.({
-                code: 'audio_playback_blocked',
-                message: 'Could not play call audio — tap the call to enable sound.',
-              });
-            }
-          }
-        );
-      };
-      tryPlay(call.state === 'active');
-      const onAnswered = () => tryPlay(true);
-      call.on('answered', onAnswered);
-      return () => {
-        call.off('answered', onAnswered);
-      };
-    }, [activeCall, reportError]);
-  };
-
   return (
     <SoftphoneProviderBase
       token={token}
@@ -234,7 +173,6 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
       onCallStarted={onCallStarted}
       onCallEnded={onCallEnded}
       onError={onError}
-      platformEffects={useWebPlatformEffects}
       extra={extra}
     >
       {/* Subscribe to live instance appearance only when a components provider is
@@ -248,10 +186,81 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
       )}
       <style>{styles}</style>
       {children}
-      {/* Persistent remote-audio sink, owned here so it outlives the call UI. */}
-      <audio ref={audioRef} autoPlay />
+      {/* Web-only side-effects, as ordinary children that read the context. */}
+      <WebRingtone />
+      <AudioSink onError={onError} />
     </SoftphoneProviderBase>
   );
+};
+
+// Starts/stops the WebAudio incoming ringtone as inbound calls ring. One tone
+// instance for the component's life. Renders nothing.
+const WebRingtone = (): null => {
+  const { incomingRinging } = useSoftphone();
+  const ringtoneRef = useRef<IncomingRingtone | null>(null);
+  if (ringtoneRef.current === null) ringtoneRef.current = new IncomingRingtone();
+  useEffect(() => {
+    const ringtone = ringtoneRef.current;
+    if (!ringtone) return;
+    if (incomingRinging) ringtone.start();
+    else ringtone.stop();
+    return () => ringtone.stop();
+  }, [incomingRinging]);
+  return null;
+};
+
+// The persistent remote-audio sink: binds the active call's remote stream to a
+// hidden <audio> that outlives the call UI. Owned here (not the call UI) so a
+// re-rendering UI can't drop the element mid-call. Reports an autoplay block via
+// the host `onError` (the same callback the base forwards phone errors to).
+const AudioSink = ({
+  onError,
+}: {
+  onError?: SoftphoneProviderProps['onError'];
+}): React.JSX.Element => {
+  const { activeCall } = useSoftphone();
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    if (!activeCall) {
+      el.srcObject = null;
+      return;
+    }
+    el.srcObject = activeCall.remoteMediaStream;
+    const call = activeCall;
+    let done = false;
+    const tryPlay = (reportOnFail: boolean) => {
+      void el.play().then(
+        () => {
+          done = true;
+        },
+        (err: unknown) => {
+          // Surface any real playback failure, EXCEPT AbortError — that's the
+          // benign teardown (srcObject cleared on hangup / new call), and reporting
+          // it would flash a spurious "tap to enable sound" after every call. We
+          // report all other names (not just NotAllowedError) so a decode/
+          // unsupported-source failure on a non-standard WebView isn't swallowed.
+          const name = (err as { name?: string })?.name;
+          if (reportOnFail && !done && name !== 'AbortError') {
+            onError?.({
+              code: 'audio_playback_blocked',
+              message: 'Could not play call audio — tap the call to enable sound.',
+            });
+          }
+        }
+      );
+    };
+    // Report autoplay failure only after a user gesture (answered), never while
+    // ringing pre-gesture — a silently muted answered call is worse than an error.
+    tryPlay(call.state === 'active');
+    const onAnswered = () => tryPlay(true);
+    call.on('answered', onAnswered);
+    return () => {
+      call.off('answered', onAnswered);
+    };
+  }, [activeCall, onError]);
+  return <audio ref={audioRef} autoPlay />;
 };
 
 // Bridges live appearance updates from the DialStack instance into the provider.

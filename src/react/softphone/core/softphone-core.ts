@@ -10,6 +10,7 @@
  */
 
 export {
+  usePhone,
   useCalls,
   useCallActions,
   useCallDuration,
@@ -33,6 +34,8 @@ export {
   errorMessageKey,
 } from '../hooks';
 export type {
+  UsePhoneOptions,
+  UsePhoneResult,
   UseCallsOptions,
   UseCallsResult,
   SoftphoneConnectionState,
@@ -40,7 +43,7 @@ export type {
   UseCallActionsOptions,
   CallActions,
   UseEmergencyBinding,
-  UseEmergencyBindingDeps,
+  UseEmergencyBindingOptions,
   UseLastError,
   UseDialInput,
   SoftphoneError,
@@ -59,7 +62,6 @@ export type {
   SoftphoneContextBase,
   SoftphoneCoreProps,
   SoftphoneProviderBaseProps,
-  PlatformEffectState,
 } from '../provider';
 
 // The locale table + default, re-exported here so the React Native softphone can

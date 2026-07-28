@@ -14,5 +14,4 @@ export type {
   SoftphoneContextBase,
   SoftphoneCoreProps,
   SoftphoneProviderBaseProps,
-  PlatformEffectState,
 } from './SoftphoneProviderBase';

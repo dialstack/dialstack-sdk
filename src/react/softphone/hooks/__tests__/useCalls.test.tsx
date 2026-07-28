@@ -1,12 +1,18 @@
 /**
- * Tests for useCalls against a faked DialStackPhone event stream. The fake lets
- * the test drive the same events the real core emits (connected, incoming,
- * call.* lifecycle) so the hook's connection-state mapping, foreground-call
- * policy, per-call wiring, and teardown are exercised without a WebSocket.
+ * Tests for usePhone + useCalls composed against a faked DialStackPhone event
+ * stream. The fake lets the test drive the same events the real core emits
+ * (connected, incoming, call.* lifecycle) so the hooks' connection-state mapping,
+ * foreground-call policy, per-call wiring, and teardown are exercised without a
+ * WebSocket.
+ *
+ * usePhone now owns phone construction + the connection lifecycle; useCalls owns
+ * call state. The harness below composes them the way SoftphoneProviderBase does,
+ * so these tests exercise the same behavior across the split.
  */
 
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { useCalls } from '../useCalls';
+import { usePhone, type UsePhoneOptions } from '../usePhone';
+import { useCalls, type UseCallsOptions } from '../useCalls';
 import type { Call, CallEndReason } from '../../../../webrtc';
 
 // ---- fakes -----------------------------------------------------------------
@@ -129,11 +135,21 @@ beforeEach(() => {
   FakePhone.last = null;
 });
 
+// Compose usePhone + useCalls exactly as SoftphoneProviderBase does, exposing the
+// connection lifecycle (owned by usePhone) alongside the call surface (useCalls)
+// so the existing event-driven assertions read from one hook result. Options are
+// threaded to both; each hook picks the ones it knows.
+function useComposed(opts: UsePhoneOptions & UseCallsOptions) {
+  const { phone, connection } = usePhone(opts);
+  const calls = useCalls(phone, connection, opts);
+  return { ...calls, connection };
+}
+
 // ---- tests -----------------------------------------------------------------
 
-describe('useCalls connection lifecycle', () => {
+describe('usePhone connection lifecycle (composed with useCalls)', () => {
   it('connects on mount and maps connection events to state', async () => {
-    const { result } = renderHook(() => useCalls({ token: 'tok' }));
+    const { result } = renderHook(() => useComposed({ token: 'tok' }));
 
     // autoConnect default true → connecting immediately.
     expect(result.current.connection).toBe('connecting');
@@ -153,13 +169,13 @@ describe('useCalls connection lifecycle', () => {
   });
 
   it('does not connect when autoConnect is false', () => {
-    const { result } = renderHook(() => useCalls({ token: 'tok', autoConnect: false }));
+    const { result } = renderHook(() => useComposed({ token: 'tok', autoConnect: false }));
     expect(result.current.connection).toBe('idle');
     expect(phone().connectCalls).toBe(0);
   });
 
   it('disconnects the phone on unmount', () => {
-    const { unmount } = renderHook(() => useCalls({ token: 'tok' }));
+    const { unmount } = renderHook(() => useComposed({ token: 'tok' }));
     const p = phone();
     unmount();
     expect(p.disconnectCalls).toBe(1);
@@ -167,7 +183,7 @@ describe('useCalls connection lifecycle', () => {
 
   it('surfaces a fatal error as the error state and forwards it to onError', () => {
     const onError = jest.fn();
-    const { result } = renderHook(() => useCalls({ token: 'tok', onError }));
+    const { result } = renderHook(() => useComposed({ token: 'tok', onError }));
     act(() => phone().emit('error', { code: 'unauthorized', message: 'bad token', fatal: true }));
     expect(onError).toHaveBeenCalledWith({ code: 'unauthorized', message: 'bad token' });
     expect(result.current.connection).toBe('error');
@@ -177,7 +193,7 @@ describe('useCalls connection lifecycle', () => {
 describe('useCalls multi-call policy', () => {
   it('surfaces an incoming call in incomingCalls (not active) and fires onIncomingCall', () => {
     const onIncomingCall = jest.fn();
-    const { result } = renderHook(() => useCalls({ token: 'tok', onIncomingCall }));
+    const { result } = renderHook(() => useComposed({ token: 'tok', onIncomingCall }));
     act(() => phone().emit('connected'));
 
     const inbound = new FakeCall('inbound', '+15551112222', 'Alice', 'me');
@@ -190,7 +206,7 @@ describe('useCalls multi-call policy', () => {
   });
 
   it('surfaces multiple concurrent incoming calls (call-waiting), not busy', () => {
-    const { result } = renderHook(() => useCalls({ token: 'tok' }));
+    const { result } = renderHook(() => useComposed({ token: 'tok' }));
     act(() => phone().emit('connected'));
 
     const first = new FakeCall('inbound', '+1111', null, 'me');
@@ -207,7 +223,7 @@ describe('useCalls multi-call policy', () => {
     // Edge case: the same caller rings twice (two INVITEs, two distinct call_ids
     // → two distinct Call objects). They must NOT collapse into one card —
     // identity is the Call object, not the peer number.
-    const { result } = renderHook(() => useCalls({ token: 'tok' }));
+    const { result } = renderHook(() => useComposed({ token: 'tok' }));
     act(() => phone().emit('connected'));
 
     const a = new FakeCall('inbound', '+15551234567', 'Same Caller', 'me');
@@ -220,7 +236,7 @@ describe('useCalls multi-call policy', () => {
   });
 
   it('rejects a further inbound past the concurrent-call cap as busy', () => {
-    const { result } = renderHook(() => useCalls({ token: 'tok' }));
+    const { result } = renderHook(() => useComposed({ token: 'tok' }));
     act(() => phone().emit('connected'));
 
     // Cap is 4. Ring 4 → all surfaced; the 5th is rejected busy.
@@ -232,7 +248,7 @@ describe('useCalls multi-call policy', () => {
   });
 
   it('answering an incoming makes it active and holds the current active call', () => {
-    const { result } = renderHook(() => useCalls({ token: 'tok' }));
+    const { result } = renderHook(() => useComposed({ token: 'tok' }));
     act(() => phone().emit('connected'));
 
     // A live active call (answered inbound A).
@@ -255,7 +271,7 @@ describe('useCalls multi-call policy', () => {
   });
 
   it('switchToCall holds the current active call and resumes the target', () => {
-    const { result } = renderHook(() => useCalls({ token: 'tok' }));
+    const { result } = renderHook(() => useComposed({ token: 'tok' }));
     act(() => phone().emit('connected'));
 
     const a = new FakeCall('inbound', '+1111', null, 'me');
@@ -272,7 +288,7 @@ describe('useCalls multi-call policy', () => {
   });
 
   it('a background leg answering (core event) does not steal focus', () => {
-    const { result } = renderHook(() => useCalls({ token: 'tok' }));
+    const { result } = renderHook(() => useComposed({ token: 'tok' }));
     act(() => phone().emit('connected'));
 
     // A active, B held (user switched back to A).
@@ -295,7 +311,7 @@ describe('useCalls multi-call policy', () => {
   });
 
   it('a lone outbound stays active when its far end answers (core event)', () => {
-    const { result } = renderHook(() => useCalls({ token: 'tok' }));
+    const { result } = renderHook(() => useComposed({ token: 'tok' }));
     act(() => phone().emit('connected'));
 
     // Place an outbound; it's the sole call and is already active from `placeCall`.
@@ -315,7 +331,7 @@ describe('useCalls multi-call policy', () => {
   });
 
   it('holds the true active leg, not a render-late one, on rapid switch', () => {
-    const { result } = renderHook(() => useCalls({ token: 'tok' }));
+    const { result } = renderHook(() => useComposed({ token: 'tok' }));
     act(() => phone().emit('connected'));
 
     // A active, B held.
@@ -339,7 +355,7 @@ describe('useCalls multi-call policy', () => {
 
   it('switchToCall resumes the held call if resuming the target fails', () => {
     const onError = jest.fn();
-    const { result } = renderHook(() => useCalls({ token: 'tok', onError }));
+    const { result } = renderHook(() => useComposed({ token: 'tok', onError }));
     act(() => phone().emit('connected'));
 
     const a = new FakeCall('inbound', '+1111', null, 'me');
@@ -363,7 +379,7 @@ describe('useCalls multi-call policy', () => {
 
   it('answerCall resumes the held call if answering the target fails', () => {
     const onError = jest.fn();
-    const { result } = renderHook(() => useCalls({ token: 'tok', onError }));
+    const { result } = renderHook(() => useComposed({ token: 'tok', onError }));
     act(() => phone().emit('connected'));
 
     const a = new FakeCall('inbound', '+1111', null, 'me');
@@ -386,7 +402,7 @@ describe('useCalls multi-call policy', () => {
 
   it('clears the active call when it ends and fires onCallEnded', () => {
     const onCallEnded = jest.fn();
-    const { result } = renderHook(() => useCalls({ token: 'tok', onCallEnded }));
+    const { result } = renderHook(() => useComposed({ token: 'tok', onCallEnded }));
     act(() => phone().emit('connected'));
 
     const inbound = new FakeCall('inbound', '+1111', null, 'me');
@@ -404,7 +420,7 @@ describe('useCalls multi-call policy', () => {
     // B active). Ending B must surface A as the on-screen call — not leave the
     // in-call screen blank with A stranded in the list. A stays HELD (the user
     // resumes it), so we only re-focus it, we don't auto-resume.
-    const { result } = renderHook(() => useCalls({ token: 'tok' }));
+    const { result } = renderHook(() => useComposed({ token: 'tok' }));
     act(() => phone().emit('connected'));
 
     const a = new FakeCall('inbound', '+1111', null, 'me');
@@ -427,7 +443,7 @@ describe('useCalls multi-call policy', () => {
   });
 
   it('keeps exactly one active call as answered calls end one by one', () => {
-    const { result } = renderHook(() => useCalls({ token: 'tok' }));
+    const { result } = renderHook(() => useComposed({ token: 'tok' }));
     act(() => phone().emit('connected'));
 
     const a = new FakeCall('inbound', '+1111', null, 'me');
@@ -452,7 +468,7 @@ describe('useCalls multi-call policy', () => {
   });
 
   it('has no active call when only a ringing inbound remains after the answered call ends', () => {
-    const { result } = renderHook(() => useCalls({ token: 'tok' }));
+    const { result } = renderHook(() => useComposed({ token: 'tok' }));
     act(() => phone().emit('connected'));
 
     const answered = new FakeCall('inbound', '+1111', null, 'me');
@@ -471,7 +487,7 @@ describe('useCalls multi-call policy', () => {
   it('fires onCallActivated and onCallStarted(inbound) when an inbound call is answered', () => {
     const onCallActivated = jest.fn();
     const onCallStarted = jest.fn();
-    renderHook(() => useCalls({ token: 'tok', onCallActivated, onCallStarted }));
+    renderHook(() => useComposed({ token: 'tok', onCallActivated, onCallStarted }));
     act(() => phone().emit('connected'));
 
     const inbound = new FakeCall('inbound', '+1111', null, 'me');
@@ -489,7 +505,7 @@ describe('useCalls multi-call policy', () => {
 describe('useCalls placeCall', () => {
   it('places an outbound call when connected and fires onCallStarted(outbound)', async () => {
     const onCallStarted = jest.fn();
-    const { result } = renderHook(() => useCalls({ token: 'tok', onCallStarted }));
+    const { result } = renderHook(() => useComposed({ token: 'tok', onCallStarted }));
     act(() => phone().emit('connected'));
 
     await act(async () => {
@@ -502,7 +518,7 @@ describe('useCalls placeCall', () => {
   });
 
   it('no-ops when not connected', async () => {
-    const { result } = renderHook(() => useCalls({ token: 'tok' }));
+    const { result } = renderHook(() => useComposed({ token: 'tok' }));
     // still 'connecting' — never emitted connected
     await act(async () => {
       await result.current.placeCall('+15559998888');
@@ -513,7 +529,7 @@ describe('useCalls placeCall', () => {
 
   it('does not dial an empty/whitespace destination, and surfaces it via onError', async () => {
     const onError = jest.fn();
-    const { result } = renderHook(() => useCalls({ token: 'tok', onError }));
+    const { result } = renderHook(() => useComposed({ token: 'tok', onError }));
     act(() => phone().emit('connected'));
     await act(async () => {
       await result.current.placeCall('   ');
@@ -525,7 +541,7 @@ describe('useCalls placeCall', () => {
 
   it('forwards a placeCall failure to onError', async () => {
     const onError = jest.fn();
-    const { result } = renderHook(() => useCalls({ token: 'tok', onError }));
+    const { result } = renderHook(() => useComposed({ token: 'tok', onError }));
     act(() => phone().emit('connected'));
     phone().call = jest.fn().mockRejectedValue({ code: 'rate_limited', message: 'too many' });
 
@@ -539,7 +555,7 @@ describe('useCalls placeCall', () => {
 
   it('resumes the call it held when the second dial fails (no stranded hold)', async () => {
     const onError = jest.fn();
-    const { result } = renderHook(() => useCalls({ token: 'tok', onError }));
+    const { result } = renderHook(() => useComposed({ token: 'tok', onError }));
     act(() => phone().emit('connected'));
 
     // Place a first call; it becomes the active foreground call.
@@ -573,9 +589,9 @@ describe('useCalls placeCall', () => {
   });
 });
 
-describe('useCalls credential changes', () => {
+describe('usePhone credential changes (composed with useCalls)', () => {
   it('reconstructs and reconnects the phone when the token changes', () => {
-    const { rerender } = renderHook(({ token }) => useCalls({ token }), {
+    const { rerender } = renderHook(({ token }) => useComposed({ token }), {
       initialProps: { token: 'tok-1' },
     });
     const first = phone();
@@ -590,7 +606,7 @@ describe('useCalls credential changes', () => {
   });
 
   it('does not reconnect when only a handler identity changes', () => {
-    const { rerender } = renderHook(({ onError }) => useCalls({ token: 'tok', onError }), {
+    const { rerender } = renderHook(({ onError }) => useComposed({ token: 'tok', onError }), {
       initialProps: { onError: () => {} },
     });
     const p = phone();
@@ -599,12 +615,39 @@ describe('useCalls credential changes', () => {
     expect(p.connectCalls).toBe(1);
     expect(p.disconnectCalls).toBe(0);
   });
+
+  it('has no call from the old phone after a mid-call token switch', async () => {
+    // A live call on user A, then a token (account) switch → a fresh phone from
+    // usePhone. The new session must not carry A's call.
+    //
+    // NOTE: this asserts the END state, which the wiring effect's cleanup reset
+    // already guaranteed before the split. The regression the render-time reset in
+    // useCalls fixes is a ONE-FRAME gap — the old cleanup reset lagged the
+    // connection reset by a commit, so A's card could paint for ~16ms. jsdom +
+    // RTL flush effects synchronously on rerender, so they cannot observe that
+    // sub-commit paint window (a test here passes with OR without the fix). The
+    // render-time reset is what closes it; this test only pins that the switch
+    // ultimately leaves no stale call, not the frame timing.
+    const { result, rerender } = renderHook(({ token }) => useComposed({ token }), {
+      initialProps: { token: 'tok-1' },
+    });
+    act(() => phone().emit('connected'));
+    await act(async () => {
+      await result.current.placeCall('+15550001111');
+    });
+    expect(result.current.activeCall).not.toBeNull();
+    expect(result.current.calls.length).toBe(1);
+
+    rerender({ token: 'tok-2' });
+    expect(result.current.calls).toEqual([]);
+    expect(result.current.activeCall).toBeNull();
+  });
 });
 
 describe('useCalls attended transfer', () => {
   // Bring the hook to an active outbound call and return [result, the call].
   function withActiveCall() {
-    const rendered = renderHook(() => useCalls({ token: 'tok' }));
+    const rendered = renderHook(() => useComposed({ token: 'tok' }));
     act(() => phone().emit('connected'));
     const original = new FakeCall('outbound', '', null, '+1000');
     phone().nextCall = original;
@@ -745,7 +788,7 @@ describe('useCalls attended transfer', () => {
 
   it('fires onCallEnded once (for the original, not the consult) when a transfer completes', async () => {
     const onCallEnded = jest.fn();
-    const rendered = renderHook(() => useCalls({ token: 'tok', onCallEnded }));
+    const rendered = renderHook(() => useComposed({ token: 'tok', onCallEnded }));
     act(() => phone().emit('connected'));
     const original = new FakeCall('outbound', '', null, '+1000');
     phone().nextCall = original;

@@ -1,11 +1,14 @@
 /**
- * `useCalls` — the shared "brain" of the softphone, web and React Native.
+ * `useCalls` — the shared call-state "brain" of the softphone, web and React
+ * Native.
  *
- * It owns a `DialStackPhone`: constructs it from credentials, subscribes to the
- * connection + incoming-call events, tracks the live call legs (today: one active
- * call plus, during attended transfer, its consult leg), wires per-call state
- * events to React re-renders, and tears everything down on unmount / credential
- * change.
+ * Given a `DialStackPhone` (owned by `usePhone`) and its connection state, it
+ * subscribes to the incoming-call event, tracks the live call legs (today: one
+ * active call plus, during attended transfer, its consult leg), wires per-call
+ * state events to React re-renders, and unwires everything when the phone
+ * instance changes (reconnect) or on unmount. It does NOT own the phone or its
+ * connection lifecycle — that's `usePhone` — and it no longer exposes E911
+ * provisioning; `useEmergencyBinding` talks to the phone directly.
  *
  * It is platform-agnostic: it imports only the headless core (`../../webrtc`),
  * never the DOM or React Native. Platform-specific side-effects a call's
@@ -15,45 +18,17 @@
  */
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { DialStackPhone } from '../../../webrtc';
 import {
   sanitizeDestination,
   sanitizeOrEmitInvalid,
   DIAL_COUNTRY,
   isIncomingRinging,
 } from '../core/view-model';
-import type {
-  Call,
-  CallEndReason,
-  EmergencyAddress,
-  EmergencyAddressInput,
-  PhoneError,
-  PhoneOptions,
-} from '../../../webrtc';
+import type { Call, CallEndReason, DialStackPhone, PhoneError } from '../../../webrtc';
+import type { SoftphoneConnectionState } from './usePhone';
+import { useLatestRef } from './useLatestRef';
 
-// Phone construction goes through this factory so tests and Storybook can inject
-// an in-memory phone without a live WebSocket. It defaults to the real phone and
-// is NOT re-exported from the public `react.ts` barrel — `__setPhoneFactory` is
-// an internal test/story seam, never part of the SDK's public API.
-type PhoneFactory = (opts: PhoneOptions) => DialStackPhone;
-let phoneFactory: PhoneFactory = (opts) => new DialStackPhone(opts);
-
-/** @internal test/story seam — pass a factory to inject a mock phone, or null to restore the default. */
-export function __setPhoneFactory(factory: PhoneFactory | null): void {
-  phoneFactory = factory ?? ((opts) => new DialStackPhone(opts));
-}
-
-/** Connection lifecycle surfaced to the softphone UI. */
-export type SoftphoneConnectionState =
-  'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error';
-
-export interface UseCallsOptions extends PhoneOptions {
-  /**
-   * Connect automatically once the phone is constructed (default: true). Set
-   * false to render the UI without connecting yet (e.g. token still loading).
-   */
-  autoConnect?: boolean;
-
+export interface UseCallsOptions {
   /** Fired when an inbound call arrives and becomes the foreground call. */
   onIncomingCall?: (e: { from: string; fromName: string | null }) => void;
 
@@ -73,15 +48,8 @@ export interface UseCallsOptions extends PhoneOptions {
    */
   onCallEnded?: (e: { reason: CallEndReason }) => void;
 
-  /** Fired on a non-fatal or fatal phone error. */
+  /** Fired on a call-placement error (invalid destination, not connected, dial failure). */
   onError?: (e: { code: string; message: string }) => void;
-
-  /**
-   * Fired when the server rejects the session's emergency address for the
-   * current network (the `network.changed` signal). Outbound PSTN is gated
-   * until an address valid here is confirmed; 911/933 still flow.
-   */
-  onNetworkChanged?: () => void;
 }
 
 /**
@@ -122,8 +90,6 @@ export interface CallEntry {
 }
 
 export interface UseCallsResult {
-  /** Connection lifecycle state. */
-  connection: SoftphoneConnectionState;
   /**
    * Every live call leg — the active call, any held calls, and any ringing
    * inbound calls (call-waiting). `activeCall`/`consultCall`/`heldCalls`/
@@ -198,49 +164,14 @@ export interface UseCallsResult {
    * the held original. No-op unless a consult is in progress.
    */
   cancelAttendedTransfer: () => void;
-
-  /**
-   * List the user's saved emergency addresses. Truth for "is this session's
-   * emergency address bound to the current network" is `registered_ip !== null`
-   * on the presented address (server binds it at the authenticate handshake).
-   */
-  listEmergencyAddresses: () => Promise<EmergencyAddress[]>;
-
-  /** Create + validate a new emergency address (does not bind until reconnect). */
-  setEmergencyAddress: (input: EmergencyAddressInput) => Promise<EmergencyAddress>;
-
-  /**
-   * The emergency-address id the phone presents on authenticate (null if none).
-   * Distinguishes "this session bound the address" from "a saved address has a
-   * registered_ip from a past session" — the E911 gate is only satisfied for the
-   * former.
-   */
-  getPresentedEmergencyAddressId: () => string | null;
-
-  /** Clear an address's network binding (registered_ip) so a reconnect re-binds. */
-  clearEmergencyAddressRegisteredIp: (id: string) => Promise<void>;
-
-  /**
-   * Tear down and reconnect, re-running authenticate so the current emergency
-   * address binds to this network. How a just-selected/created address takes
-   * effect, and how a moved session re-binds.
-   */
-  reconnect: () => Promise<void>;
-
-  /**
-   * Select `id` and reconnect in one step, so the fresh authenticate presents it
-   * and the server binds it to this network. Resolves once the binding confirms.
-   */
-  reconnectWithEmergency: (id: string) => Promise<void>;
 }
 
 /**
- * The full call lifecycle state machine — connection state plus every live call
- * leg. Today at most two entries exist: the active call the user is talking to
- * and, during an attended transfer, the held original it's linked to (via
- * `transferPeer`). The single-call+consult shape is a special case of this list;
- * the list is what lets call-waiting/multi-call be added later without another
- * slot rework.
+ * The live call legs. Today at most two entries exist: the active call the user
+ * is talking to and, during an attended transfer, the held original it's linked
+ * to (via `transferPeer`). The single-call+consult shape is a special case of
+ * this list; the list is what lets call-waiting/multi-call be added later without
+ * another slot rework.
  *
  * Kept in a reducer so every transition is one atomic, centrally-defined change
  * rather than several `setState`s that must agree.
@@ -252,7 +183,6 @@ export interface UseCallsResult {
  *   unchanged there, so that's a separate render `tick`, not a transition.
  */
 interface CallsState {
-  connection: SoftphoneConnectionState;
   // The single source of truth for the live legs. Roles ARE the pointers — the
   // active call is the `'active'` entry, the consult is the `'consult'` entry —
   // so there's no separate active-call field to keep in sync. Entries hold the
@@ -262,11 +192,6 @@ interface CallsState {
 }
 
 type CallsAction =
-  | { type: 'connecting' }
-  | { type: 'connected' }
-  | { type: 'reconnecting' }
-  | { type: 'disconnected' }
-  | { type: 'error' }
   // A new outbound call (or the sole idle call) becomes active; any prior active
   // call is held (multi-call: entries accumulate, they aren't replaced).
   | { type: 'active'; call: Call }
@@ -294,10 +219,10 @@ type CallsAction =
   | { type: 'cancelConsult' }
   // A call ended: remove its entry.
   | { type: 'callEnded'; call: Call }
-  // Teardown / credential change: back to idle, no calls.
+  // Teardown / phone change: no calls.
   | { type: 'reset' };
 
-const IDLE: CallsState = { connection: 'idle', calls: [] };
+const IDLE: CallsState = { calls: [] };
 
 // Max concurrent live calls (active + held + ringing). Beyond this a new inbound
 // is rejected busy — keeps the stacked-card UI readable and matches real softphone
@@ -350,16 +275,6 @@ function callsReducer(state: CallsState, action: CallsAction): CallsState {
 
 function callsReducerInner(state: CallsState, action: CallsAction): CallsState {
   switch (action.type) {
-    case 'connecting':
-      return state.connection === 'connecting' ? state : { ...state, connection: 'connecting' };
-    case 'connected':
-      return state.connection === 'connected' ? state : { ...state, connection: 'connected' };
-    case 'reconnecting':
-      return state.connection === 'reconnecting' ? state : { ...state, connection: 'reconnecting' };
-    case 'disconnected':
-      return state.connection === 'disconnected' ? state : { ...state, connection: 'disconnected' };
-    case 'error':
-      return state.connection === 'error' ? state : { ...state, connection: 'error' };
     case 'active': {
       // A new call joins the list and becomes active; any prior active call is
       // held (multi-call). Already-present same call → just ensure it's the sole
@@ -468,34 +383,42 @@ function callsReducerInner(state: CallsState, action: CallsAction): CallsState {
       return { ...state, calls };
     }
     case 'reset':
-      return state.connection === 'idle' && state.calls.length === 0 ? state : IDLE;
+      return state.calls.length === 0 ? state : IDLE;
   }
 }
 
 /**
- * Construct and own a `DialStackPhone`, presenting a single foreground call as
- * React state. Reconstructs (and reconnects) whenever the credentials change.
+ * Present the live calls of a phone as React state. Given the `phone` (owned by
+ * `usePhone`) and its `connection`, it wires per-call listeners and exposes the
+ * foreground call + call actions. Re-wires when the phone instance changes
+ * (reconnect); clears its call list when the phone goes away.
  */
-export function useCalls(options: UseCallsOptions): UseCallsResult {
-  const {
-    autoConnect = true,
-    onIncomingCall,
-    onCallStarted,
-    onCallActivated,
-    onCallEnded,
-    onError,
-  } = options;
+export function useCalls(
+  phone: DialStackPhone | null,
+  connection: SoftphoneConnectionState,
+  options: UseCallsOptions = {}
+): UseCallsResult {
+  const { onIncomingCall, onCallStarted, onCallActivated, onCallEnded, onError } = options;
 
-  const phoneRef = useRef<DialStackPhone | null>(null);
-  // The whole call lifecycle (connection + the live call legs) as one state
-  // machine. Start in 'connecting' when autoConnect so the initial render already
-  // shows the connecting state (the connect effect then only transitions from
-  // here), avoiding a synchronous setState in the effect body.
-  const [state, dispatch] = useReducer(callsReducer, {
-    ...IDLE,
-    connection: autoConnect && options.token ? 'connecting' : 'idle',
-  });
-  const { connection, calls } = state;
+  const [state, dispatch] = useReducer(callsReducer, IDLE);
+  // Clear the call list the instant the phone instance changes (a reconnect /
+  // credential swap hands us a fresh phone from usePhone), synchronously DURING
+  // render — NOT only in the wiring effect's cleanup, which runs a commit later.
+  // The effect-cleanup reset alone lagged the connection reset (owned by usePhone)
+  // by one frame, so a mid-call token/account switch could paint the previous
+  // session's call cards for ~16ms before they cleared. This is React's canonical
+  // "reset state when a prop changes during render" pattern: tracking the last
+  // phone in STATE (a ref write during render is disallowed by react-hooks/refs,
+  // but a set-state during render is supported) makes React re-run and discard
+  // this render before it paints, so `calls` reads empty on the very first render
+  // that sees the new phone. The effect still owns listener teardown (a real
+  // side-effect); its own reset is then a harmless no-op.
+  const [renderedPhone, setRenderedPhone] = useState(phone);
+  if (renderedPhone !== phone) {
+    setRenderedPhone(phone);
+    if (state.calls.length > 0) dispatch({ type: 'reset' });
+  }
+  const { calls } = state;
   // Derived call views — the UI reads these; the `calls` entries are the source
   // of truth (the `active` flag names the on-screen call; `call.state`/`isMuted`
   // stay on the Call). During an attended transfer the active call is the consult
@@ -524,14 +447,11 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
   // which one the user is currently focused on.
   const consultCall = calls.find((e) => e.transferRole === 'consult')?.call ?? null;
   const transferOriginal = calls.find((e) => e.transferRole === 'original')?.call ?? null;
-  // Mirror of `connection` read by the otherwise-stable `placeCall` callback, so
-  // it doesn't get a new identity on every connection-lifecycle transition (the
-  // same ref pattern the handlers/emergencyAddressId/iceServers use — synced in
-  // an effect, never written during render).
-  const connectionRef = useRef(connection);
-  useEffect(() => {
-    connectionRef.current = connection;
-  }, [connection]);
+  // The phone + connection read by the otherwise-stable dispatchers, through refs
+  // so they don't get a new identity on every reconnect / connection-lifecycle
+  // transition.
+  const phoneRef = useLatestRef(phone);
+  const connectionRef = useLatestRef(connection);
   // Bumped to force a re-render when a (mutable) Call's state changes in place
   // (hold→active, duration) — that's not a reducer transition (identity is
   // unchanged), so it stays a separate tick.
@@ -554,17 +474,11 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
   const activeCallRef = useRef<Call | null>(null);
   // eslint-disable-next-line react-hooks/refs
   activeCallRef.current = activeCall;
-  const consultCallRef = useRef<Call | null>(null);
+  const consultCallRef = useLatestRef(consultCall);
   // The held original of an in-flight transfer — completeAttendedTransfer /
   // cancelAttendedTransfer act on THIS, not on `activeCall` (which during a
   // transfer is the consult leg).
-  const transferOriginalRef = useRef<Call | null>(null);
-  useEffect(() => {
-    consultCallRef.current = consultCall;
-  }, [consultCall]);
-  useEffect(() => {
-    transferOriginalRef.current = transferOriginal;
-  }, [transferOriginal]);
+  const transferOriginalRef = useLatestRef(transferOriginal);
 
   // True for the hook's lifetime; flips false on unmount. Async actions that
   // await the transport (attendedTransfer) check it after the await so a resolve
@@ -578,24 +492,13 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
   }, []);
 
   // Callbacks are read through a ref so changing a handler identity doesn't tear
-  // down and reconnect the phone (the connect effect depends only on credentials).
-  const handlers = useRef({
+  // down and re-wire the phone (the wiring effect depends only on the phone).
+  const handlers = useLatestRef({
     onIncomingCall,
     onCallStarted,
     onCallActivated,
     onCallEnded,
     onError,
-    onNetworkChanged: options.onNetworkChanged,
-  });
-  useEffect(() => {
-    handlers.current = {
-      onIncomingCall,
-      onCallStarted,
-      onCallActivated,
-      onCallEnded,
-      onError,
-      onNetworkChanged: options.onNetworkChanged,
-    };
   });
 
   // Per-call listener cleanup. A call's listeners must be removed when it ends or
@@ -676,7 +579,7 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
         call.off('ended', onEnded);
       });
     },
-    [rerender, unwireCall]
+    [rerender, unwireCall, handlers]
   );
 
   const placeCall = useCallback(
@@ -734,7 +637,7 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
         handlers.current.onError?.({ code: e.code ?? 'call_failed', message: e.message });
       }
     },
-    [wireCall]
+    [wireCall, connectionRef, handlers, phoneRef]
   );
 
   // Hold the current active call, then bring `target` to the foreground via
@@ -745,24 +648,27 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
   // settle each call's state on the rerender tick. On failure it rolls the held
   // call back (best-effort resume, unless it already ended) so a failed
   // activate() never strands the live conversation on hold.
-  const holdThenActivate = useCallback((activate: () => void, action: CallsAction) => {
-    const current = activeCallRef.current;
-    try {
-      current?.hold();
-      activate();
-      dispatch(action);
-    } catch (err) {
-      if (current && current.state !== 'ended') {
-        try {
-          current.resume();
-        } catch {
-          // Best-effort — current may itself have ended.
+  const holdThenActivate = useCallback(
+    (activate: () => void, action: CallsAction) => {
+      const current = activeCallRef.current;
+      try {
+        current?.hold();
+        activate();
+        dispatch(action);
+      } catch (err) {
+        if (current && current.state !== 'ended') {
+          try {
+            current.resume();
+          } catch {
+            // Best-effort — current may itself have ended.
+          }
         }
+        const e = err as PhoneError;
+        handlers.current.onError?.({ code: e.code ?? 'call_failed', message: e.message });
       }
-      const e = err as PhoneError;
-      handlers.current.onError?.({ code: e.code ?? 'call_failed', message: e.message });
-    }
-  }, []);
+    },
+    [handlers]
+  );
 
   // Switch the active call to an already-answered held call: hold the current
   // active call, resume the target. No-op if the target is already active.
@@ -814,7 +720,7 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
         handlers.current.onError?.({ code: e.code ?? 'call_failed', message: e.message });
       }
     },
-    [wireCall]
+    [wireCall, consultCallRef, handlers, phoneRef]
   );
 
   const completeAttendedTransfer = useCallback(() => {
@@ -833,7 +739,7 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
       const e = err as PhoneError;
       handlers.current.onError?.({ code: e.code ?? 'call_failed', message: e.message });
     }
-  }, []);
+  }, [consultCallRef, handlers, transferOriginalRef]);
 
   const cancelAttendedTransfer = useCallback(() => {
     const consult = consultCallRef.current;
@@ -850,170 +756,22 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
     unwireCall(consult);
     if (original?.state === 'held') original.resume();
     dispatch({ type: 'cancelConsult' });
-  }, [unwireCall]);
+  }, [unwireCall, consultCallRef, transferOriginalRef]);
 
-  const listEmergencyAddresses = useCallback(async (): Promise<EmergencyAddress[]> => {
-    const phone = phoneRef.current;
-    if (!phone) return [];
-    const page = await phone.listEmergencyAddresses();
-    return page.data;
-  }, []);
-
-  const setEmergencyAddress = useCallback(
-    async (input: EmergencyAddressInput): Promise<EmergencyAddress> => {
-      const phone = phoneRef.current;
-      if (!phone) throw new Error('Phone not connected');
-      // Creates + validates the address and selects it locally. Binding to the
-      // network happens on the next reconnect (authenticate handshake).
-      return phone.setEmergencyAddress(input);
-    },
-    []
-  );
-
-  // The emergency-address id the phone presents in its authenticate frame. Used
-  // by useEmergencyBinding to distinguish "this session actually bound the
-  // address" from "a saved address merely has a registered_ip from a past
-  // session" — the two are not the same, and treating them as equal shows the
-  // E911 gate as satisfied while the server has bound nothing.
-  const getPresentedEmergencyAddressId = useCallback(
-    (): string | null => phoneRef.current?.presentedEmergencyAddressId ?? null,
-    []
-  );
-
-  const clearEmergencyAddressRegisteredIp = useCallback(async (id: string): Promise<void> => {
-    const phone = phoneRef.current;
+  // Wire the phone's incoming-call event + per-call listeners for the CURRENT
+  // phone instance. Keyed on the phone identity: a reconnect swaps in a new phone
+  // (fresh instance from usePhone), so this re-runs — unwiring the old phone's
+  // calls and clearing the call list — and attaches to the new one. On unmount it
+  // does the same teardown. Errors from the phone's own event (fatal etc.) are
+  // owned by usePhone; here we only care about incoming calls.
+  useEffect(() => {
     if (!phone) return;
-    await phone.clearEmergencyAddressRegisteredIp(id);
-  }, []);
-
-  const reconnect = useCallback(async (): Promise<void> => {
-    await phoneRef.current?.reconnect();
-  }, []);
-
-  const reconnectWithEmergency = useCallback(async (id: string): Promise<void> => {
-    await phoneRef.current?.reconnectWithEmergency(id);
-  }, []);
-
-  // Construct + connect the phone for the current credentials. Reconnects when
-  // any credential changes; tears down on unmount.
-  const {
-    token,
-    apiBaseUrl,
-    signalingBaseUrl,
-    emergencyAddressId,
-    iceServers,
-    autoReconnect,
-    storage,
-    ringback,
-    createSignalingSocket,
-    onAppResume,
-  } = options;
-  // The emergency-address id is a per-outbound-PSTN-call concern, NOT a
-  // connection credential — the phone loads it from localStorage on construct
-  // and `setEmergencyAddress` updates the live instance in place. It must NEVER
-  // be a connect-effect dependency, or resolving/changing it would tear down and
-  // reconnect the socket mid-registration (dropping incoming calls). We read the
-  // latest value through a ref at construct time and keep it out of the deps.
-  const emergencyAddressIdRef = useRef(emergencyAddressId);
-  useEffect(() => {
-    emergencyAddressIdRef.current = emergencyAddressId;
-  }, [emergencyAddressId]);
-  // `iceServers` is an optional array a consumer often passes inline. Like
-  // `emergencyAddressId` it must NOT be a connect-effect dep — a new array
-  // identity each render would tear down and reconnect the socket
-  // mid-registration (dropping incoming calls). Read it through a ref at
-  // construct time and keep it out of the deps.
-  const iceServersRef = useRef(iceServers);
-  useEffect(() => {
-    iceServersRef.current = iceServers;
-  }, [iceServers]);
-  // `storage` is the host-supplied persistence adapter (localStorage on web; on
-  // React Native the provider requires an MMKV/AsyncStorage-backed one). Read at
-  // construct time through a ref, like the other non-credential options, so a new
-  // adapter identity can't retrigger the connect effect and drop the socket.
-  const storageRef = useRef(storage);
-  useEffect(() => {
-    storageRef.current = storage;
-  }, [storage]);
-  // `ringback` is the platform's outbound-ringback tone (WebAudio default on web;
-  // InCallManager-backed on React Native). Non-credential, so read at construct
-  // time through a ref like `storage`, keeping it out of the connect deps.
-  const ringbackRef = useRef(ringback);
-  useEffect(() => {
-    ringbackRef.current = ringback;
-  }, [ringback]);
-  // `createSignalingSocket` is the platform's WebSocket opener (bare on web; a
-  // User-Agent-attaching variant on React Native). Non-credential, read through a
-  // ref at construct time like `storage`/`ringback`, out of the connect deps.
-  const createSignalingSocketRef = useRef(createSignalingSocket);
-  useEffect(() => {
-    createSignalingSocketRef.current = createSignalingSocket;
-  }, [createSignalingSocket]);
-  // `onAppResume` is the platform's foreground-resume subscription (DOM
-  // lifecycle default on web; AppState-backed on React Native). Non-credential,
-  // read through a ref like the others so it stays out of the connect deps.
-  const onAppResumeRef = useRef(onAppResume);
-  useEffect(() => {
-    onAppResumeRef.current = onAppResume;
-  }, [onAppResume]);
-  // `onTokenExpiring` is a host callback the phone invokes shortly before the
-  // token's exp to refresh it in-band (no reconnect). Passed inline its identity
-  // changes each render, so like the other non-credential options it must NOT be a
-  // connect-effect dep — a new identity would tear down and reconnect the socket.
-  // Read the latest through a ref and hand the phone a stable wrapper that always
-  // calls the freshest callback.
-  const onTokenExpiringRef = useRef(options.onTokenExpiring);
-  useEffect(() => {
-    onTokenExpiringRef.current = options.onTokenExpiring;
-  }, [options.onTokenExpiring]);
-  useEffect(() => {
-    if (!token) return;
     let disposed = false;
-    const p = phoneFactory({
-      token,
-      apiBaseUrl,
-      signalingBaseUrl,
-      emergencyAddressId: emergencyAddressIdRef.current,
-      iceServers: iceServersRef.current,
-      storage: storageRef.current,
-      ringback: ringbackRef.current,
-      createSignalingSocket: createSignalingSocketRef.current,
-      onAppResume: onAppResumeRef.current,
-      autoReconnect,
-      onTokenExpiring: onTokenExpiringRef.current
-        ? () => {
-            const cb = onTokenExpiringRef.current;
-            if (!cb) return Promise.reject(new Error('onTokenExpiring not set'));
-            return cb();
-          }
-        : undefined,
-    });
-    phoneRef.current = p;
-
-    const guard = (fn: () => void) => () => {
-      if (!disposed) fn();
-    };
-    p.on(
-      'connected',
-      guard(() => dispatch({ type: 'connected' }))
-    );
-    p.on(
-      'reconnected',
-      guard(() => dispatch({ type: 'connected' }))
-    );
-    p.on(
-      'reconnecting',
-      guard(() => dispatch({ type: 'reconnecting' }))
-    );
-    p.on(
-      'disconnected',
-      guard(() => dispatch({ type: 'disconnected' }))
-    );
-    p.on(
-      'network.changed',
-      guard(() => handlers.current.onNetworkChanged?.())
-    );
-    p.on('incoming', (call) => {
+    // Snapshot the stable Map container (not its contents) so the cleanup reads
+    // the live set of wired calls at teardown time — calls are added to it after
+    // this effect runs, so it must iterate `.current` then, not an early copy.
+    const wired = unwireByCall.current;
+    const onIncoming = (call: Call) => {
       if (disposed) return;
       // Multi-call: accept a 2nd+ inbound as call-waiting, up to a soft cap on
       // concurrent live calls. Reject busy only past the cap. We gate on the
@@ -1030,52 +788,21 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
       notifiedCalls.current.add(call);
       handlers.current.onIncomingCall?.({ from: call.from, fromName: call.fromName });
       wireCall(call);
-    });
-    p.on('error', (err: PhoneError) => {
-      // Guarded like the other handlers: a late error emitted during/after
-      // teardown must not fire the consumer callback into an unmounted tree.
-      if (disposed) return;
-      handlers.current.onError?.({ code: err.code, message: err.message });
-      if (err.fatal) dispatch({ type: 'error' });
-    });
-
-    if (autoConnect) {
-      // Reset to 'connecting' for this (re)connect. On first mount the initial
-      // state is already 'connecting'; this matters on a credential change, when
-      // the effect re-runs against a fresh phone and the prior state must reset.
-      dispatch({ type: 'connecting' });
-      p.connect().catch((err: PhoneError) => {
-        // transport_closed is the phone aborting its own connect (our disconnect
-        // during teardown / reconnect); expected, swallow it. Other codes are real
-        // failures and must surface even at teardown.
-        if (err?.code === 'transport_closed') return;
-        handlers.current.onError?.({
-          code: err?.code ?? 'internal_error',
-          message: err?.message ?? String(err),
-        });
-        if (!disposed) dispatch({ type: 'error' });
-      });
-    }
+    };
+    phone.on('incoming', onIncoming);
 
     return () => {
       disposed = true;
+      phone.off('incoming', onIncoming);
       // Unwire every wired call (foreground + any consult leg).
-      for (const off of unwireByCall.current.values()) off();
-      unwireByCall.current.clear();
-      p.disconnect();
-      phoneRef.current = null;
-      // Back to idle, no calls (atomic).
+      for (const off of wired.values()) off();
+      wired.clear();
+      // No calls (atomic) — the old phone's legs are gone with it.
       dispatch({ type: 'reset' });
     };
-    // wireCall is stable (depends only on the stable rerender); credentials are
-    // the real reconnect triggers.
-    // emergencyAddressId is intentionally excluded — see emergencyAddressIdRef above.
-    // iceServers is likewise excluded — read through iceServersRef so an inline
-    // array literal doesn't tear down and reconnect the socket mid-registration.
-  }, [token, apiBaseUrl, signalingBaseUrl, autoReconnect, autoConnect, wireCall]);
+  }, [phone, wireCall, handlers]);
 
   return {
-    connection,
     calls,
     activeCall,
     incomingCalls,
@@ -1088,11 +815,5 @@ export function useCalls(options: UseCallsOptions): UseCallsResult {
     startAttendedTransfer,
     completeAttendedTransfer,
     cancelAttendedTransfer,
-    listEmergencyAddresses,
-    setEmergencyAddress,
-    getPresentedEmergencyAddressId,
-    clearEmergencyAddressRegisteredIp,
-    reconnect,
-    reconnectWithEmergency,
   };
 }

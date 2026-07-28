@@ -15,13 +15,46 @@
  *
  * When the host supplies `emergencyAddressId`, it manages E911 itself and this
  * hook stays dormant (`disabled`). 911/933 are never gated by any of this.
+ *
+ * It talks to the `DialStackPhone` (owned by `usePhone`) DIRECTLY via a narrow
+ * interface — the subset of phone methods E911 needs. That interface is the
+ * hook's testable seam: a test passes a small phone-shaped stub, no full mock.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { EmergencyAddress, EmergencyAddressInput } from '../../../webrtc';
-import type { SoftphoneConnectionState } from './useCalls';
+import type {
+  EmergencyAddress,
+  EmergencyAddressInput,
+  PaginatedList,
+  ListResponse,
+} from '../../../webrtc';
+import type { SoftphoneConnectionState } from './usePhone';
+import { useLatestRef } from './useLatestRef';
 
-export interface UseEmergencyBindingDeps {
+/**
+ * The narrow slice of `DialStackPhone` this hook uses. `DialStackPhone` satisfies
+ * it structurally, so the provider passes the phone straight in; a test passes a
+ * minimal stub with just these members.
+ */
+export interface PhoneE911Api {
+  /** List the user's saved emergency addresses (auto-paginating; we read the first page). */
+  listEmergencyAddresses: () => PaginatedList<ListResponse<EmergencyAddress>>;
+  /** Create + validate a new emergency address (does not bind until reconnect). */
+  setEmergencyAddress: (input: EmergencyAddressInput) => Promise<EmergencyAddress>;
+  /**
+   * The emergency-address id the phone presented on the CURRENT socket's
+   * authenticate (null if none). A saved address's `registered_ip` proves it was
+   * bound in *some* session, not this one — only a match here means the server
+   * bound it for the live connection.
+   */
+  readonly presentedEmergencyAddressId: string | null;
+  /** Clear an address's network binding (registered_ip) so a reconnect re-binds. */
+  clearEmergencyAddressRegisteredIp: (id: string) => Promise<void>;
+  /** Select `id` and reconnect in one step; resolves once the server binds it. */
+  reconnectWithEmergency: (id: string) => Promise<void>;
+}
+
+export interface UseEmergencyBindingOptions {
   /** Skip all E911 handling (the host supplies emergencyAddressId itself). */
   disabled: boolean;
   /** Live connection state — the check runs when this becomes 'connected'. */
@@ -35,18 +68,6 @@ export interface UseEmergencyBindingDeps {
    * reading green for the wrong identity).
    */
   identityKey: string;
-  list: () => Promise<EmergencyAddress[]>;
-  save: (input: EmergencyAddressInput) => Promise<EmergencyAddress>;
-  /**
-   * The emergency-address id the phone presented on the CURRENT socket's
-   * authenticate (null if none). A saved address's `registered_ip` proves it was
-   * bound in *some* session, not this one — only a match here means the server
-   * bound it for the live connection.
-   */
-  getPresentedAddressId: () => string | null;
-  clearRegisteredIp: (id: string) => Promise<void>;
-  /** Select `id` and reconnect in one step; resolves once the server binds it. */
-  reconnectWithEmergency: (id: string) => Promise<void>;
 }
 
 export interface UseEmergencyBinding {
@@ -117,31 +138,31 @@ function withSpinnerTimeout(
   });
 }
 
-export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergencyBinding {
-  const {
-    disabled,
-    connection,
-    identityKey,
-    list,
-    save,
-    getPresentedAddressId,
-    clearRegisteredIp,
-    reconnectWithEmergency,
-  } = deps;
+export function useEmergencyBinding(
+  phone: PhoneE911Api,
+  options: UseEmergencyBindingOptions
+): UseEmergencyBinding {
+  const { disabled, connection, identityKey } = options;
   const [loading, setLoading] = useState(!disabled);
   const [bound, setBound] = useState(false);
   const [denied, setDenied] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<EmergencyAddress[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  // Read inside the post-connect effect WITHOUT retriggering it: listing
+  // `submitting` as a dep re-ran the whole address-list fetch on both edges of
+  // every submit. The effect only needs the value to decide whether a concurrent
+  // submit owns the error/bound state.
+  const submittingRef = useLatestRef(submitting);
   const [error, setError] = useState<string | null>(null);
 
-  // Latest deps in a ref so the connect effect can call them without listing them
-  // as deps (which would re-run the rebind on every render). Synced in an effect,
-  // not during render — writing a ref mid-render is disallowed (react-hooks/refs).
-  const fns = useRef({ list, reconnectWithEmergency, getPresentedAddressId });
-  useEffect(() => {
-    fns.current = { list, reconnectWithEmergency, getPresentedAddressId };
-  });
+  // The phone read through a latest-value ref so the connect effect can use it
+  // without listing it as a dep (a new phone identity on reconnect would re-run
+  // the rebind on every render). `phone` is NON-nullable on purpose: the
+  // provider supplies a stable stand-in while no phone exists, so this hook can
+  // never take a "maybe" branch on an emergency-address call. A silently skipped
+  // bind that still resolves would clear the spinner and close the form while the
+  // server bound nothing.
+  const phoneRef = useLatestRef(phone);
   // Guard so we auto-adopt at most once per connected session (no reconnect loop).
   const autoAdoptedRef = useRef(false);
   // Bumped per submit so a late-settle reconcile can't clobber a newer submit's
@@ -191,7 +212,8 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
     let cancelled = false;
     (async () => {
       try {
-        const addrs = await fns.current.list();
+        const phone = phoneRef.current;
+        const addrs = (await phone.listEmergencyAddresses()).data;
         if (cancelled) return;
         setSavedAddresses(addrs);
         // Resolve the "active" address by the id the phone actually presented this
@@ -200,7 +222,7 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
         // both mis-judge boundness and, on reconnect, clobber the user's selection
         // with a different address. Fall back to addrs[0] only when nothing was
         // presented (fresh install / pasted token / no persisted id).
-        const presentedId = fns.current.getPresentedAddressId();
+        const presentedId = phone.presentedEmergencyAddressId;
         const active = addrs.find((a) => a.id === presentedId) ?? addrs[0] ?? null;
         if (!active) {
           // Nothing saved → must collect an address.
@@ -231,7 +253,7 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
             setBound(true);
             // Clear a stale cap-timeout error now this session is bound — but not
             // mid-submit, whose own cap error must stay until its late-settle clears it.
-            if (!submitting) setError(null);
+            if (!submittingRef.current) setError(null);
           } else {
             // Nothing bound this session: present the address so the server binds it.
             // Do NOT set bound here — the rebind drives a fresh 'connected' that
@@ -240,12 +262,12 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
             // prevents a re-present loop on that re-run. The cap bounds `loading` so a
             // socket that never authenticates can't hide the banner for the full ~20s
             // CONNECT_TIMEOUT (no late-settle reconcile needed — the re-run decides).
-            await withSpinnerTimeout(fns.current.reconnectWithEmergency(active.id), () => {}).catch(
+            await withSpinnerTimeout(phone.reconnectWithEmergency(active.id), () => {}).catch(
               () => {}
             );
             return;
           }
-        } else if (!submitting) {
+        } else if (!submittingRef.current) {
           // Presented; bound unless denied. Skipped mid-submit: that submit clears
           // `denied` synchronously and re-runs this effect while the socket is still
           // the OLD 'connected' one, so flipping bound=true here would be a wrong-green
@@ -262,7 +284,7 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
     return () => {
       cancelled = true;
     };
-  }, [disabled, connection, denied, submitting]);
+  }, [disabled, connection, denied, phoneRef, submittingRef]);
 
   // Shared submit protocol for confirm/create: block the form, mark this an
   // explicit choice (so auto-adopt doesn't fire over it), run the caller's `prep`
@@ -292,7 +314,8 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
       autoAdoptedRef.current = true;
       try {
         const id = await prep();
-        await withSpinnerTimeout(reconnectWithEmergency(id), onLateSettle);
+        const rebind = phoneRef.current.reconnectWithEmergency(id);
+        await withSpinnerTimeout(rebind, onLateSettle);
       } catch (e) {
         setError(errorFor(e));
         throw e;
@@ -301,9 +324,14 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
         setSubmitting(false);
       }
     },
-    [reconnectWithEmergency]
+    [phoneRef]
   );
 
+  // Both submit paths read the phone through `phoneRef`, the same source
+  // `runRebind` uses for the reconnect. Closing over the `phone` prop instead
+  // would let one submit straddle two instances if the phone swaps mid-flight:
+  // the anchor cleared on the old phone, the rebind presented on the new one —
+  // which never cleared its anchor, so the server would decline to re-bind.
   const confirm = useCallback(
     (id: string) =>
       runRebind('Failed to confirm emergency address', async () => {
@@ -311,18 +339,20 @@ export function useEmergencyBinding(deps: UseEmergencyBindingDeps): UseEmergency
         // server only (re)binds a NULL anchor, so clear it first, then present it so
         // the fresh authenticate re-binds it to THIS network. reconnectWithEmergency
         // resolves once the server confirms; bound then flips via the effect re-run.
-        await clearRegisteredIp(id);
+        await phoneRef.current.clearEmergencyAddressRegisteredIp(id);
         return id;
       }),
-    [runRebind, clearRegisteredIp]
+    [runRebind, phoneRef]
   );
 
   const create = useCallback(
     (input: EmergencyAddressInput) =>
       // Create the address, then present it in one step — otherwise the socket
       // re-authenticates without carrying it and the server binds nothing.
-      runRebind('Failed to save emergency address', async () => (await save(input)).id),
-    [runRebind, save]
+      runRebind('Failed to save emergency address', async () => {
+        return (await phoneRef.current.setEmergencyAddress(input)).id;
+      }),
+    [runRebind, phoneRef]
   );
 
   return { loading, bound, savedAddresses, submitting, error, onNetworkChanged, confirm, create };
