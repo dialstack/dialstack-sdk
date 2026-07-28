@@ -141,7 +141,14 @@ export interface MaterializedButton {
   label: string;
   type: ButtonType;
   target: ButtonTarget;
-  source: 'template' | 'override' | 'template_overridden';
+  /**
+   * Where this button came from. `model_default` is a button the device model
+   * gets for free because its hardware has no other way to reach the function
+   * — it is stored nowhere, so it has neither `template_button` nor
+   * `override`, but a device override at the same position shadows or
+   * suppresses it like any other row.
+   */
+  source: 'template' | 'override' | 'template_overridden' | 'model_default';
   template_button?: string | null;
   /** @deprecated Use `template_button`. Retained for backwards compatibility. */
   template_button_id?: string | null;
