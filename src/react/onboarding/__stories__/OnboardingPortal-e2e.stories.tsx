@@ -657,14 +657,14 @@ export const ValidationErrors: Story = {
       expect(nameInput).not.toBeNull();
       await userEvent.clear(nameInput);
 
-      // The owner contact email is locked once an owner exists (changing it is a
-      // reassignment), so it renders read-only and is not part of the editable
-      // required-field validation here.
+      // The contact email is an ordinary editable field — it is the account's
+      // contact address, not the owner's identity. Left populated here so this
+      // case exercises the other required fields.
       const emailInput = canvasElement.querySelector(
         'input[value="admin@acme.com"]'
       ) as HTMLInputElement;
       expect(emailInput).not.toBeNull();
-      expect(emailInput.readOnly).toBe(true);
+      expect(emailInput.readOnly).toBe(false);
 
       // Clear Primary Contact
       const contactInput = canvasElement.querySelector(
@@ -1564,13 +1564,13 @@ export const ComprehensiveValidation: Story = {
         ) as HTMLInputElement;
         await userEvent.type(nameInput, 'Fixed Corp');
 
-        // The owner contact email is locked once an owner exists (changing it is
-        // a reassignment), so it is read-only and cannot be cleared — exercise
-        // the remaining editable required fields instead.
+        // The contact email is an ordinary editable field — it is the account's
+        // contact address, not the owner's identity. Left populated here so this
+        // case exercises the other required fields.
         const emailInput = canvasElement.querySelector(
           'input[value="admin@acme.com"]'
         ) as HTMLInputElement;
-        expect(emailInput.readOnly).toBe(true);
+        expect(emailInput.readOnly).toBe(false);
 
         const phoneInput = canvasElement.querySelector('input[type="tel"]') as HTMLInputElement;
         await userEvent.clear(phoneInput);

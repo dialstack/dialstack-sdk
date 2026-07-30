@@ -17,7 +17,7 @@ import { TeamMembers } from './TeamMembers';
 type AccountSubStep = 'business-details' | 'team-members' | 'complete';
 
 export const AccountStep: React.FC = () => {
-  const { locale, progressStore, activeSteps, account, entryMode } = useOnboarding();
+  const { locale, progressStore, activeSteps, entryMode } = useOnboarding();
   // 'continue' entry: jump to the first substep not yet data-satisfied. 'review'
   // walks from the start so the user can revisit existing values.
   const [subStep, setSubStep] = useState<AccountSubStep>(() => {
@@ -27,7 +27,6 @@ export const AccountStep: React.FC = () => {
     if (!done.has('team-members')) return 'team-members';
     return 'business-details';
   });
-  const [accountEmail, setAccountEmail] = useState(account?.email ?? '');
 
   // Back from first sub-step goes to previous step (if any).
   const accountIdx = activeSteps.indexOf('account');
@@ -37,8 +36,7 @@ export const AccountStep: React.FC = () => {
     return () => progressStore.setCurrentStep(prevStep);
   }, [accountIdx, activeSteps, progressStore]);
 
-  const handleBusinessDetailsAdvance = useCallback((email: string) => {
-    setAccountEmail(email);
+  const handleBusinessDetailsAdvance = useCallback(() => {
     setSubStep('team-members');
   }, []);
 
@@ -94,11 +92,7 @@ export const AccountStep: React.FC = () => {
         <BusinessDetails onAdvance={handleBusinessDetailsAdvance} onBack={handleBackToPrevStep} />
       )}
       {subStep === 'team-members' && (
-        <TeamMembers
-          accountEmail={accountEmail}
-          onBack={handleTeamMembersBack}
-          onDone={handleTeamMembersDone}
-        />
+        <TeamMembers onBack={handleTeamMembersBack} onDone={handleTeamMembersDone} />
       )}
       {subStep === 'complete' && (
         <StepCompleteScreen stepName={stepLabel} onDone={handleCompleteDone} />

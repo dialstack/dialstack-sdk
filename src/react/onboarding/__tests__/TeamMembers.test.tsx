@@ -11,6 +11,7 @@ import {
   renderWithOnboarding,
   createStatefulUserMocks,
   createStatefulExtensionMocks,
+  mockAccount,
   mockUsers,
 } from '../__test-helpers__/onboarding';
 
@@ -34,7 +35,6 @@ function getFieldByLabel(
 
 describe('TeamMembers', () => {
   const defaultProps = {
-    accountEmail: 'owner@example.com',
     onBack: jest.fn(),
     onDone: jest.fn(),
   };
@@ -299,9 +299,10 @@ describe('TeamMembers', () => {
       ...extensionsNS({ list: jest.fn().mockResolvedValue([]) }),
     });
 
-    // No team members → wizard must not let the user advance past a state
-    // the data doesn't satisfy. Next stays disabled until ≥1 user other than
-    // the signed-in admin is added.
+    // No team members → wizard must not let the user advance past a state the
+    // data doesn't satisfy. Next stays disabled until ≥1 user is added; the
+    // account owner is admin-side and never appears here, so there is nobody to
+    // discount from the count.
     const nextButton = screen.getByRole('button', { name: /next/i });
     expect(nextButton).toBeDisabled();
   });
@@ -360,18 +361,30 @@ describe('TeamMembers', () => {
   // Navigation
   // ==========================================================================
 
-  it('calls onDone and completes sub-step when advancing with users', async () => {
-    // derive.ts requires users.length >= 2; mockUsers has one entry, so add a
-    // second so team-members flips to done.
-    const extraUser = {
-      id: 'user_02bcd',
-      name: 'Bob',
-      email: 'bob@example.com',
-      created_at: '2026-01-01T00:00:00Z',
-      updated_at: '2026-01-01T00:00:00Z',
-    };
+  it('calls onDone and completes sub-step with a single team member', async () => {
+    // One user is enough: the threshold is ≥1 user, not ≥2. mockUsers has a
+    // single entry.
     const { progressStore } = await renderTM({
-      users: { list: jest.fn().mockResolvedValue([...mockUsers, extraUser]) },
+      users: { list: jest.fn().mockResolvedValue(mockUsers) },
+    });
+
+    clickNext();
+
+    await waitFor(() => {
+      expect(defaultProps.onDone).toHaveBeenCalled();
+    });
+
+    expect(progressStore.getCompletedSubSteps('account').has('team-members')).toBe(true);
+  });
+
+  it('advances with a single member whose email matches the account contact address', async () => {
+    // The overlap case: this person owns the account and also holds a seat, so
+    // their user email equals the account's contact address. They are a real team
+    // member — the old email comparison discounted them and left the substep
+    // permanently incomplete.
+    const overlapUser = { ...mockUsers[0]!, email: mockAccount.email };
+    const { progressStore } = await renderTM({
+      users: { list: jest.fn().mockResolvedValue([overlapUser]) },
     });
 
     clickNext();

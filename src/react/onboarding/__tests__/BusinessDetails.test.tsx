@@ -307,15 +307,17 @@ describe('BusinessDetails', () => {
     });
   });
 
-  it('calls onAdvance with email after successful save', async () => {
+  it('calls onAdvance after successful save', async () => {
     await renderBD({
       ...locationsNS({ list: jest.fn().mockResolvedValue([mockLocation]) }),
     });
 
     clickNext();
 
+    // No email is handed to the next substep: TeamMembers no longer needs it, so
+    // advancing carries no argument.
     await waitFor(() => {
-      expect(onAdvance).toHaveBeenCalledWith('existing@example.com');
+      expect(onAdvance).toHaveBeenCalledWith();
     });
   });
 

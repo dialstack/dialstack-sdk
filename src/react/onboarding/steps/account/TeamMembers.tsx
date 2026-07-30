@@ -11,7 +11,6 @@ import { UserIcon, TrashIcon } from '../../components/icons';
 import { ErrorAlert } from '../../components/ErrorAlert';
 
 export interface TeamMembersProps {
-  accountEmail: string;
   onBack: () => void;
   onDone: () => void;
 }
@@ -27,7 +26,7 @@ function getExtensionForUser(userId: string, extensions: Extension[]): Extension
   return extensions.find((e) => e.target === userId);
 }
 
-export const TeamMembers: React.FC<TeamMembersProps> = ({ accountEmail, onBack, onDone }) => {
+export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
   const {
     dialstack,
     locale,
@@ -130,16 +129,11 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ accountEmail, onBack, 
     setNewUserExtension(getNextExtensionNumber(contextExtensions));
   }, [contextExtensions]);
 
-  // Substep requires ≥1 user other than the signed-in admin (the auto-
-  // provisioned admin user already exists on every account, so a true empty-
-  // team would otherwise mark complete). Mirror the derive's intent without
-  // letting the user advance past a still-incomplete state.
-  const otherUsersCount = (
-    accountEmail
-      ? contextUsers.filter((u) => u.email?.toLowerCase() !== accountEmail.toLowerCase())
-      : contextUsers
-  ).length;
-  const hasEnoughUsers = otherUsersCount >= 1;
+  // Substep requires ≥1 user on the account. The account owner is an admin-side
+  // identity and is never one of these users, so there is nobody to discount.
+  // Mirror the derive's intent without letting the user advance past a
+  // still-incomplete state.
+  const hasEnoughUsers = contextUsers.length >= 1;
 
   const handleDone = useCallback(() => {
     if (!hasEnoughUsers) {
@@ -149,9 +143,7 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ accountEmail, onBack, 
     onDone();
   }, [hasEnoughUsers, onDone, t]);
 
-  const otherUsers = contextUsers.filter(
-    (u) => u.email?.toLowerCase() !== accountEmail.toLowerCase()
-  );
+  const otherUsers = contextUsers;
 
   return (
     <div>

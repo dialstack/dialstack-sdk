@@ -13,8 +13,24 @@ import { ErrorAlert } from '../../components/ErrorAlert';
 import { AddressSearch } from './AddressSearch';
 import type { ManualAddress, AddressMode } from './AddressSearch';
 
+/**
+ * Catches obvious address typos so the error lands in the field slot rather than
+ * the card-level banner. Deliberately loose: the API's own check is authoritative,
+ * and a client rule stricter than the server would reject addresses the server
+ * would happily accept — a worse failure than relaying its message.
+ */
+function looksLikeEmailAddress(value: string): boolean {
+  if (/\s/.test(value)) return false;
+  const parts = value.split('@');
+  if (parts.length !== 2) return false;
+  const [local, domain] = parts;
+  return (
+    !!local && !!domain && domain.includes('.') && !domain.startsWith('.') && !domain.endsWith('.')
+  );
+}
+
 export interface BusinessDetailsProps {
-  onAdvance: (accountEmail: string) => void;
+  onAdvance: () => void;
   onBack?: () => void;
 }
 
@@ -57,11 +73,6 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
-  // The contact email is the account owner's identity once one exists. Changing
-  // it is a reassignment (rejected by the API), so lock the field when the
-  // account already carries an email — an ownerless account leaves it editable
-  // so the first save seeds the owner.
-  const [ownerEmailLocked, setOwnerEmailLocked] = useState(false);
 
   // Hydrate form fields from pre-fetched context data (runs once on mount).
   const [hydrated, setHydrated] = useState(false);
@@ -73,7 +84,6 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
       const phoneParsed = phoneRaw ? parsePhoneNumberFromString(phoneRaw, 'US') : null;
       setAccountName(account.name ?? '');
       setAccountEmail(account.email ?? '');
-      setOwnerEmailLocked(Boolean(account.email));
       setAccountPhone(phoneParsed ? phoneParsed.formatNational() : phoneRaw);
       setPrimaryContact(account.primary_contact_name ?? '');
       setTimezone(account.config?.timezone ?? accountConfig?.timezone ?? '');
@@ -133,7 +143,15 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
     const errors: ValidationErrors = {};
 
     if (!accountName.trim()) errors.name = t.details.companyNameRequired;
-    if (!accountEmail.trim()) errors.email = t.details.emailRequired;
+    if (!accountEmail.trim()) {
+      errors.email = t.details.emailRequired;
+    } else if (!looksLikeEmailAddress(accountEmail.trim())) {
+      // Now that this field is editable, a format check has to land in the field
+      // slot. Without it the API's 400 surfaces in the card-level error banner
+      // instead, and the field-level slot stays empty. These inputs are not in a
+      // <form>, so type="email" contributes no native validation.
+      errors.email = t.details.emailInvalid;
+    }
 
     if (!accountPhone.trim()) {
       errors.phone = t.details.phoneRequired;
@@ -238,7 +256,7 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
     // Reload pulls the new account/location and re-derives the business-details
     // substep from real data — no manual completeSubStep needed.
     await reloadSharedData().catch(() => {});
-    onAdvance(accountEmail.trim());
+    onAdvance();
   }, [
     isSaving,
     accountName,
@@ -304,10 +322,7 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
               value={accountEmail}
               placeholder={t.details.emailPlaceholder}
               onChange={(e) => setAccountEmail(e.target.value)}
-              readOnly={ownerEmailLocked}
-              aria-readonly={ownerEmailLocked}
             />
-            {ownerEmailLocked && <div className="form-hint">{t.details.emailLockedHint}</div>}
             {validationErrors.email && <div className="form-error">{validationErrors.email}</div>}
           </div>
           <div className="form-group">

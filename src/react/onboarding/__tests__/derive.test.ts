@@ -103,46 +103,36 @@ describe('deriveOnboardingState', () => {
     expect(completed.account.has('team-members')).toBe(false);
   });
 
-  it('marks team-members when there is ≥1 user whose email differs from account.email', () => {
+  it('marks team-members when the account has ≥1 user', () => {
     const base = {
       ...emptySnapshot,
       account: mkAccount({ email: 'owner@acme.test' }),
       locations: [mkLocation()],
     };
 
-    // Only the owner user → not a team yet.
-    expect(
-      deriveOnboardingState({
-        ...base,
-        users: [{ ...mkUser('u1'), email: 'owner@acme.test' }],
-      }).completed.account.has('team-members')
-    ).toBe(false);
-
-    // Owner + 1 employee → team-members complete.
-    expect(
-      deriveOnboardingState({
-        ...base,
-        users: [
-          { ...mkUser('u1'), email: 'owner@acme.test' },
-          { ...mkUser('u2'), email: 'employee@acme.test' },
-        ],
-      }).completed.account.has('team-members')
-    ).toBe(true);
-
-    // 1 employee, no owner user present (e.g., admin-user was soft-deleted)
-    // → still complete because the rule requires "≥1 non-owner", not "≥2 total".
+    // A single user is a team of one — the account owner is an admin-side
+    // identity and never appears in this list, so there is nobody to discount.
     expect(
       deriveOnboardingState({
         ...base,
         users: [{ ...mkUser('u1'), email: 'employee@acme.test' }],
       }).completed.account.has('team-members')
     ).toBe(true);
+
+    expect(
+      deriveOnboardingState({
+        ...base,
+        users: [
+          { ...mkUser('u1'), email: 'employee@acme.test' },
+          { ...mkUser('u2'), email: 'other@acme.test' },
+        ],
+      }).completed.account.has('team-members')
+    ).toBe(true);
   });
 
-  it('counts a non-owner user with no email toward team-members', () => {
-    // The owner always carries the account email, so a user with no email at
-    // all can never be the owner — it's a real teammate and must count. (This
-    // mirrors the server gate, which also counts NULL-email non-owner users.)
+  it('counts a user with no email toward team-members', () => {
+    // A user without an email address is still a real team member. (This mirrors
+    // the server gate, which counts every active user row.)
     const base = {
       ...emptySnapshot,
       account: mkAccount({ email: 'owner@acme.test' }),
@@ -159,34 +149,28 @@ describe('deriveOnboardingState', () => {
     ).toBe(true);
   });
 
-  it('does not double-count an owner who is also a telephony user', () => {
-    // The overlap case: the owner is also a telephony user (email ===
-    // account.email). team-members is email-based, so the overlap owner never
-    // counts as a teammate.
+  it('counts a user whose email matches the account contact address', () => {
+    // The overlap case: someone who owns the account and also holds a telephony
+    // seat, so their user email equals the account's contact address. They are a
+    // real team member and must count — team-members is a plain user count, not
+    // an email comparison, so a matching address no longer discounts a seat.
     const base = {
       ...emptySnapshot,
       account: mkAccount({ email: 'owner@acme.test' }),
       locations: [mkLocation()],
     };
 
-    // Overlap owner alone → not a team.
     expect(
       deriveOnboardingState({
         ...base,
         users: [{ ...mkUser('u1'), email: 'owner@acme.test' }],
       }).completed.account.has('team-members')
-    ).toBe(false);
-
-    // Overlap owner + 1 employee → complete.
-    expect(
-      deriveOnboardingState({
-        ...base,
-        users: [
-          { ...mkUser('u1'), email: 'owner@acme.test' },
-          { ...mkUser('u2'), email: 'employee@acme.test' },
-        ],
-      }).completed.account.has('team-members')
     ).toBe(true);
+
+    // Still incomplete with no users at all.
+    expect(
+      deriveOnboardingState({ ...base, users: [] }).completed.account.has('team-members')
+    ).toBe(false);
   });
 
   describe('numbers — unexpired DIDs count, expired ones drop out', () => {

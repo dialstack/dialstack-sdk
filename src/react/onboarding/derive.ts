@@ -54,15 +54,12 @@ export function deriveOnboardingState(snapshot: OnboardingDataSnapshot): Derived
         !!l.address?.postal_code
     );
   if (hasBusinessDetails) completed.account.add('business-details');
-  // team-members: ≥1 user who is not the account owner. The owner is the
-  // auto-provisioned user carrying the account email, so any user whose email
-  // differs (or has no email at all — it can't be the owner) counts; a true
-  // empty team can't mark the substep complete.
-  const accountEmail = account?.email?.toLowerCase();
-  const teamCount = accountEmail
-    ? users.filter((u) => u.email?.toLowerCase() !== accountEmail).length
-    : users.length;
-  if (hasBusinessDetails && teamCount >= 1) completed.account.add('team-members');
+  // team-members: ≥1 user on the account. The account owner is an admin-side
+  // identity and never appears as a user here, so every user is a real team
+  // member; a true empty team can't mark the substep complete. (This used to
+  // discount any user whose email matched the account's contact address, which
+  // wrongly excluded an owner who also holds a seat.)
+  if (hasBusinessDetails && users.length >= 1) completed.account.add('team-members');
 
   // Any unexpired DID — temp or user-ordered — counts as a working number.
   // Temp DIDs drop out once expires_at passes, flipping the account back to
