@@ -531,6 +531,9 @@ export class PhoneNumbersComponent extends BaseComponent {
         if (item.outbound_enabled === false) return 'c';
         return 'd';
       case 'routing_target':
+        // Fax rows render "Not applicable" rather than their preserved target,
+        // so sort them with the other cells that show no target.
+        if (item.fax_enabled) return '';
         return item.routing_target ? (this.resolvedTargetNames.get(item.routing_target) ?? '') : '';
       case 'carrier':
         return item.carrier || '';
@@ -862,13 +865,15 @@ export class PhoneNumbersComponent extends BaseComponent {
 
   /**
    * Whether the routing cell is an actionable deep-link: the row resolves to a
-   * DID (including inactive numbers mid-order/mid-port) and a host wired the
-   * click callback. Single source of truth — `renderCellContent` uses it to
+   * DID (including inactive numbers mid-order/mid-port), a host wired the click
+   * callback, and the number isn't a fax number — fax numbers have no call
+   * routing at all, so offering the deep-link would invite the reader to
+   * configure something that never applies. Single source of truth — `renderCellContent` uses it to
    * decide the cell *content*, and `renderTable` uses it to attach the cell's
    * class/attrs (and thus its listener). The two must agree.
    */
   private isRoutable(item: PhoneNumberItem): boolean {
-    return !!item.did_id && !!this._onRowClick;
+    return !!item.did_id && !!this._onRowClick && !item.fax_enabled;
   }
 
   private renderCellContent(item: PhoneNumberItem, col: ColumnId): string {
@@ -897,6 +902,12 @@ export class PhoneNumbersComponent extends BaseComponent {
             ? this.t('phoneNumbers.outbound.disabled')
             : '';
       case 'routing_target': {
+        // Fax numbers receive inbound calls as faxes and never consult call
+        // routing, so showing a target (even the preserved one) reads as though
+        // routing had to be configured for faxing to work.
+        if (item.fax_enabled) {
+          return `<span class="text-muted">${this.t('phoneNumbers.routingTarget.faxNotApplicable')}</span>`;
+        }
         // When routable the cell is an explicit action so it's discoverable as
         // clickable at rest, not only on hover.
         const routable = this.isRoutable(item);

@@ -255,6 +255,39 @@ describe('PhoneNumbersComponent merge', () => {
     expect(events[0]?.item.port_order_id).toBeUndefined();
   });
 
+  it('shows no call routing for a fax number: no target chip, no set-routing action, inert cell', async () => {
+    const el = await mount(
+      makeInstance(
+        [makeDID({ status: 'active', fax_enabled: true, routing_target: 'vapp_01abc' })],
+        []
+      )
+    );
+    const events: PhoneNumberRowClickEvent[] = [];
+    el.setOnRowClick((e) => events.push(e));
+
+    expect(el.shadowRoot.querySelector('tbody dialstack-routing-target')).toBeNull();
+    expect(rowsText(el)).not.toContain('Set routing');
+    expect(rowsText(el)).toContain('Not applicable');
+    expect(routingCell(el, '+15145551234')).toBeNull();
+
+    // Clicking the routing cell must not open the routing picker; it only falls
+    // through to the row-level click that opens the number detail.
+    el.shadowRoot.querySelector<HTMLElement>('tbody td[part~="cell-routing_target"]')?.click();
+    expect(events.map((e) => e.section)).toEqual(['detail']);
+  });
+
+  it('still shows call routing for a non-fax active number', async () => {
+    const el = await mount(
+      makeInstance([makeDID({ status: 'active', routing_target: 'vapp_01abc' })], [])
+    );
+    el.setOnRowClick(() => {});
+
+    expect(
+      el.shadowRoot.querySelector('tbody dialstack-routing-target')?.getAttribute('target')
+    ).toBe('vapp_01abc');
+    expect(routingCell(el, '+15145551234')).not.toBeNull();
+  });
+
   function statusBadge(el: PhoneNumbersEl): HTMLElement | null {
     return el.shadowRoot.querySelector<HTMLElement>('tbody [part~="badge-status"]');
   }

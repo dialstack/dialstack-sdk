@@ -358,6 +358,7 @@ export const en = {
     routingTarget: {
       notSet: 'Not set',
       setAction: 'Set routing',
+      faxNotApplicable: 'Not applicable',
     },
     routingTargetTypes: {
       user: 'User',
