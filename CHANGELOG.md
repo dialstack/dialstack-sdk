@@ -5,6 +5,232 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0](https://github.com/dialstack/dialstack-sdk/compare/v1.2.0...v2.0.0) (2026-07-31)
+
+### Breaking changes
+
+- **server:** `accounts.create` now requires `email` (the account owner's email),
+  `primary_contact_name`, `billing_address`, and `pricing`. Calls that omitted any
+  of them are rejected. `primary_contact_name` is also emitted on the account
+  object.
+- **server:** the rates on `AccountPricing` (`per_user_rate`, `per_did_rate`,
+  `per_voiceai_location_rate`) are no longer nullable — they are always present on
+  a retrieved pricing singleton. Writes are range-checked; a rate outside the
+  permitted range is rejected and the API error names the accepted range.
+- **server:** `account_role` is removed from the user wire and from
+  `OnboardingUser`. It is no longer emitted or typed, so code branching on it must
+  be reworked; the built-in onboarding team list no longer renders a role badge.
+- the `users.endpoints` resource (`list` / `update`) and the `OnboardingEndpoint`
+  and `UpdateEndpointRequest` types are removed. Endpoints are an internal
+  operator resource — manage them through device assignment
+  (`devices.assignUsers`) instead.
+
+### Features
+
+#### Softphone
+
+- **react:** React Native softphone, shipped as its own `@dialstack/sdk-native`
+  package over a headless call-state core shared with the web softphone. The
+  React Native peer libraries are declared as optional peer dependencies, and
+  `./components/softphone-theme` and `./components/softphone-icons` are published
+  as subpaths for native consumers.
+- **react:** multi-call support — call waiting, switching between calls, and
+  automatic hold of the call you switch away from. `useCalls` exposes the call
+  list with per-call actions, and the web UI stacks incoming calls and offers a
+  switchable held-call list.
+- **react:** attended transfer — place a consult call, talk to the transfer
+  target, then complete or cancel. Consult and original are freely switchable and
+  the in-call controls stay available throughout.
+- **react:** E911 emergency-address binding in the softphone. The provider binds
+  the user's chosen dispatchable address to the network it registers from, prompts
+  when no address is bound, and re-binds when the network changes. The wait for a
+  re-bind is capped so a stuck bind fails fast rather than hanging.
+- **webrtc:** in-band token refresh — the phone invokes an `onTokenExpiring` host
+  callback shortly before the token expires and re-authenticates over the live
+  socket, with no reconnect and no dropped call. Forwarded through `useCalls` and
+  both providers.
+- **webrtc:** stale-session watchdog — an app-layer ping/pong plus a wake probe
+  detects a session the network silently dropped (laptop sleep, backgrounded tab)
+  and reconnects it.
+- **webrtc:** DTMF on React Native, sent as native RTP telephone-events. The
+  keypad is capability-gated and hidden where DTMF cannot be sent.
+- **react:** incoming-call ringtone in the web softphone, plus live appearance
+  theming that matches the other components.
+- **react:** call and connection errors surface in the built-in softphone UI, and
+  genuine errors are always logged to the console — no opt-in flag. The chip shows
+  a generic message while the specific error still reaches your `onError`.
+- **webrtc:** inject the signaling-socket factory and the storage adapter
+  (`PhoneOptions.createSignalingSocket` / `storage`) instead of bundling a
+  platform implementation, so the React Native build keeps its own User-Agent and
+  persistence.
+- **webrtc:** the signaling URL is now derived from `apiBaseUrl` (`api.` →
+  `webrtc.`) when `signalingBaseUrl` is not given, an explicit base wins over the
+  derived default, and `http(s)` bases are upgraded to `ws(s)`.
+- **webrtc:** `session_replaced` is handled as a terminal close reason: when a
+  newer connection takes over the user's session slot the phone stays closed
+  rather than reconnecting into a takeover war. A manual `reconnect()` is still
+  allowed. Every other fatal eviction still auto-reconnects.
+
+#### Presence
+
+- **webrtc:** presence subscribe — watch a set of users and receive their status
+  live. `presence.subscribe` requires an explicit user list, unknown users come
+  back with an unknown status, and a failed subscribe names the users that failed
+  instead of reporting a status.
+- **webrtc:** resolve the presence watch-list from `GET /v1/me/directory`.
+- **server:** `do_not_disturb` on the user resource and on presence — a separate
+  axis from `state`, always emitted on responses. A user can be `available` and
+  still decline calls.
+- **server:** `webrtc` reachability on `UserPresence`, separate from the
+  endpoint-agnostic `state`.
+
+#### Calls and call logs
+
+- **server:** pause and resume recording on a live call —
+  `calls.pauseRecording()` / `calls.resumeRecording()` — so sensitive audio (a
+  card number read aloud) is never captured. Both parties hear a confirmation
+  tone.
+- **server:** `GET /v1/calls/:id` now also resolves in-progress calls, so a call
+  can be retrieved over its whole lifecycle. On a live call `status` and
+  `to_number` are null until the call is routed and completed.
+- `connected_at` on the call log — when the call was actually connected, as
+  distinct from when it started.
+- transcript and voicemail sentiment, carrying a magnitude on a -1..1 scale. The
+  sentiment badge renders independently of the summary.
+- a caller name that merely restates the caller's number is no longer rendered.
+
+#### Accounts, numbers, and provisioning
+
+- **server:** mode-scoped webhook endpoints. An endpoint created with a live key
+  receives events from live accounts only; one created with a test key receives
+  sandbox events only. The signing `secret` is returned on create only. Endpoints
+  are platform-global by default; set the `DialStack-Account` header to manage a
+  single account's scoped endpoints, whose events are delivered in addition to the
+  platform-global ones.
+- **server:** `inbound_routing` on a phone number, `'default' | 'drop'` — `drop`
+  deliberately drops inbound calls with no ring and no message, and forces
+  `routing_target` to null.
+- **server:** `caller_id_prepend` on the phone-number types.
+- **server:** `recording_enabled` and `redaction_enabled` on `AccountConfig`.
+- **server:** `default_agent_visible` on `AccountConfig`, a tri-state
+  account-level override for whether the managed AI agent is offered when creating
+  a voice app. Null inherits the platform default.
+- **server:** API reference fields drop their `_id` suffixes (`schedule` rather
+  than `schedule_id`, `target` rather than `target_id`, and so on). Both keys are
+  emitted and accepted during the transition; the `_id` forms are deprecated and
+  the unsuffixed name wins when both are sent.
+- **server:** `MaterializedButton.source` can now be `'model_default'`, for a
+  button the device model gets for free because its hardware has no other way to
+  reach the function. It has neither a `template_button` nor an `override`, and a
+  device override at the same position shadows or suppresses it.
+- **server:** `ButtonCompatibilityReason` can now be `'park_slot_not_provisioned'`.
+
+#### Onboarding
+
+- **react/onboarding:** assign devices to users during onboarding via
+  `/v1/devices/:id/users`.
+- **react/onboarding:** route numbers before an order or port-in completes, so a
+  number is not left unrouted while it is in flight.
+- **react/onboarding:** the subscriber-agreement (SSA) gate is variant-aware and
+  serves the agreement body from the TOS API as its single source of truth.
+  Acceptance is exposed through the account `tos` expand, and a superseded
+  acceptance reads as none.
+- **react/onboarding:** onboarding can edit the account contact email.
+
+#### Fax
+
+- **server:** received faxes can be attached to the notification email and purged
+  from storage, with delete-on-send for outbound. The `fax_notifications` toggles
+  collapse into a single `delete_documents`; `attach_pdf` remains as a
+  backwards-compatible alias and defaults to false (attach is opt-in). Enabling
+  `delete_documents` now requires at least one entry in `recipients` — a received
+  fax would otherwise be neither stored nor delivered.
+
+### Bug Fixes
+
+#### Softphone and WebRTC
+
+- **webrtc:** `connect()` and outbound calls now time out, so a wedged session
+  fails loudly instead of hanging; in-flight outbound calls settle on
+  `disconnect()`, and `connect()` aborts when `disconnect()` lands mid-connect.
+- **webrtc:** reconnect backoff is jittered to de-synchronise clients and resets
+  on successful auth rather than on socket open. `reconnect()` emits
+  `reconnecting` so the connection state transitions.
+- **webrtc:** the socket is torn down on a server auth-reject, so a stray
+  `authenticated` frame can no longer flip the phone to connected.
+- **webrtc:** `hold()` / `resume()` no-op unless the call is in a holdable state,
+  and a held call can be transferred.
+- **webrtc:** incoming calls are de-duplicated by `call_id`.
+- **react:** dial and blind-transfer destinations are sanitized, so a pasted or
+  formatted number connects; `placeCall` no-ops surface through `onError`.
+- **react:** `onCallEnded` fires once per user-visible call across a transfer.
+- **react:** a second inbound call is rejected as busy while a call is active, and
+  placing a call over an active one no longer orphans a transfer.
+- **react:** the consult is hung up if the transfer original drops mid-dial, and
+  unwired on cancel rather than waiting for its `ended`.
+- **react:** one call always stays active while answered calls remain; held-call
+  cards render above the active call.
+- **react:** the call-waiting card is an in-flow banner rather than an overlapping
+  overlay, and idle multi-incoming is its own screen rather than a dial-pad
+  overlay.
+- **react:** autoplay-block is reported from call state rather than the answered
+  event, and `audio_playback_blocked` is not surfaced on call teardown.
+- **react:** connection-class failures read as "Connection error" rather than
+  "Call failed".
+- **react:** the transfer input clears after a transfer, the disabled Transfer
+  control is greyed out, and Transfer is disabled during a transfer or with two or
+  more calls.
+- **react:** the dial-pad number is centred on the keypad axis on web and native.
+- **react:** the React Native audio session is released on unmount.
+- **react:** `usePhone` is exported publicly so the decomposed hook path works,
+  and a disconnected phone rejects reads as well as writes.
+- **react:** the `useCalls` call list is cleared on phone change during render.
+
+#### E911
+
+- **react:** the E911 address that was actually presented is used to resolve the
+  active address and the bound check, rather than the first address in the list,
+  and it is latched to the socket's `authenticate` frame.
+- **react:** a newly-created address is presented so it binds; an already-anchored
+  address is treated as bound with no reconnect; a redundant reconnect is skipped
+  when the saved address is already network-bound.
+- **react:** binding is no longer marked bound off a stale `registered_ip`.
+- **react:** binding state resets on user (token) change, is reconciled when a
+  timed-out reconnect later settles, and the loading flag clears on terminal
+  connection states so the prompt is not suppressed forever.
+- **webrtc:** E911 state codes are normalized to a two-letter code before
+  validation.
+- **webrtc:** a live primary connection is not torn down when a rebuilt
+  registration subscription fails.
+
+#### Numbers, porting, and call logs
+
+- port orders that are approved present as pending rather than active, and the
+  transfer date is gated on `submitted_at` rather than status.
+- a released number no longer masks a completed re-port, and routing resolves the
+  live number rather than a lingering released row.
+- order-flow routing applies to ordered numbers rather than completed ones, and
+  order/port numbers resolve from a fresh full list so routing persists.
+- call logs render defensively for unattributed rows: a labelled number is
+  formatted and internal identifiers are withheld, call-party fall-through is
+  escaped, the WebRTC address-of-record shape is guarded, and the stored voicemail
+  sentinel is localized.
+- call routing is hidden for fax numbers in the phone-numbers table.
+
+#### Onboarding
+
+- **react/onboarding:** the portal fails closed when the account fetch fails
+  during bootstrap.
+- **react/onboarding:** the subscriber-agreement gate is skipped when acceptance
+  is not required, no longer clips plan prices in the pricing box, and aligns to
+  the top rather than centring.
+- **react/onboarding:** primary-DID onboarding is retired, and a retired primary
+  number is bypassed after number orders.
+- **server:** ownerless accounts converge, and a committed update is no longer
+  reported as failed.
+- **server:** the unimplemented public `tos_status` filter is dropped; status is
+  carried on create and update instead.
+
 ## [1.2.0](https://github.com/dialstack/dialstack-sdk/compare/v1.1.0...v1.2.0) (2026-06-22)
 
 ### Features
