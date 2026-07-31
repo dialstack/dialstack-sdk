@@ -12,6 +12,7 @@ import {
   selectIncomingCall,
   type SoftphoneContextBase,
 } from './SoftphoneProviderBase';
+import { AudioDevicesProvider, useAudioDevices } from './AudioDevicesProvider';
 import { formatDisplayNumber, type SoftphoneConnectionState, type UseCallActions } from '../hooks';
 import { resolveSoftphonePalette } from '../core/theme';
 import { buildSoftphoneStyles } from '../core/styles';
@@ -185,10 +186,14 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
         />
       )}
       <style>{styles}</style>
-      {children}
-      {/* Web-only side-effects, as ordinary children that read the context. */}
-      <WebRingtone />
-      <AudioSink onError={onError} />
+      {/* Owns the device selection the sink and ringtone below both read. Inside the
+          base so it can reach the phone and the foreground call. */}
+      <AudioDevicesProvider>
+        {children}
+        {/* Web-only side-effects, as ordinary children that read the context. */}
+        <WebRingtone />
+        <AudioSink onError={onError} />
+      </AudioDevicesProvider>
     </SoftphoneProviderBase>
   );
 };
@@ -197,8 +202,14 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
 // instance for the component's life. Renders nothing.
 const WebRingtone = (): null => {
   const { incomingRinging } = useSoftphone();
+  const { outputDeviceId } = useAudioDevices();
   const ringtoneRef = useRef<IncomingRingtone | null>(null);
   if (ringtoneRef.current === null) ringtoneRef.current = new IncomingRingtone();
+
+  useEffect(() => {
+    ringtoneRef.current?.setSinkId(outputDeviceId);
+  }, [outputDeviceId]);
+
   useEffect(() => {
     const ringtone = ringtoneRef.current;
     if (!ringtone) return;
@@ -219,7 +230,22 @@ const AudioSink = ({
   onError?: SoftphoneProviderProps['onError'];
 }): React.JSX.Element => {
   const { activeCall } = useSoftphone();
+  const { outputDeviceId } = useAudioDevices();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Deliberately separate from the srcObject/play effect below: adding outputDeviceId to
+  // those deps would re-assign srcObject and fire a second play() on every device change.
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el || typeof el.setSinkId !== 'function') return;
+    // '' is the spec's "system default" sink, so a null selection must still be applied
+    void el.setSinkId(outputDeviceId ?? '').catch(() => {
+      // Device gone, or a restored id not yet re-authorized. Swallow: the element stays on
+      // its previous sink and keeps playing, so unlike a blocked autoplay there's nothing
+      // for the host to act on.
+    });
+  }, [outputDeviceId, activeCall]);
+
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;

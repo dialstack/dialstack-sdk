@@ -1,8 +1,5 @@
 import { RingbackTone } from '../ringback';
 
-// Fakes only the WebAudio boundary (AudioContext); the controller's
-// start/stop/cadence logic is the real code under test.
-
 class FakeParam {
   value = 0;
   setCalls: Array<{ value: number; time: number }> = [];
@@ -51,9 +48,16 @@ class FakeAudioContext {
   gains: FakeGain[] = [];
   resumed = false;
   closed = false;
+  readonly options: { sinkId?: string } | undefined;
+  sinkIdCalls: string[] = [];
 
-  constructor() {
+  constructor(options?: { sinkId?: string }) {
+    this.options = options;
     FakeAudioContext.instances.push(this);
+  }
+  setSinkId(sinkId: string): Promise<void> {
+    this.sinkIdCalls.push(sinkId);
+    return Promise.resolve();
   }
   createOscillator(): FakeOscillator {
     const o = new FakeOscillator();
@@ -109,7 +113,6 @@ describe('RingbackTone', () => {
     tone.start();
 
     const gain = FakeAudioContext.instances[0].gains[0];
-    // First window: audible at t=0, silent two seconds later.
     expect(gain.gain.setCalls[0]).toEqual({ value: expect.any(Number), time: 0 });
     expect(gain.gain.setCalls[0].value).toBeGreaterThan(0);
     expect(gain.gain.setCalls[1]).toEqual({ value: 0, time: 2 });
@@ -124,15 +127,11 @@ describe('RingbackTone', () => {
       const gain = ctx.gains[0];
       const onTimes = () => gain.gain.setCalls.filter((c) => c.value > 0).map((c) => c.time);
 
-      // Initial batch is scheduled ahead from t=0 on the 6s lattice.
       expect(onTimes()).toEqual([0, 6]);
 
-      // The re-arm timer fires late — the audio clock has already run on to 13s.
       ctx.currentTime = 13;
       jest.advanceTimersByTime(6000);
 
-      // New windows continue the same lattice (12, 18, 24…) instead of
-      // re-anchoring to 13, so every on-window stays a multiple of the cadence.
       const ons = onTimes();
       expect(ons).toContain(12);
       expect(ons).toContain(18);
@@ -198,13 +197,158 @@ describe('RingbackTone', () => {
 
     const tone = new RingbackTone();
     expect(() => tone.start()).not.toThrow();
-    // A failed build must report not-playing (not a silent "playing") and free
-    // the context, so a later attempt can succeed.
     expect(tone.isPlaying).toBe(false);
     expect(FakeAudioContext.instances[0].closed).toBe(true);
 
     fail = false;
     tone.start();
     expect(tone.isPlaying).toBe(true);
+  });
+
+  describe('output device routing', () => {
+    it('constructs the context already routed, rather than switching after', () => {
+      const tone = new RingbackTone();
+      tone.setSinkId('spk-1');
+      tone.start();
+
+      const ctx = FakeAudioContext.instances[0];
+      expect(ctx.options).toEqual({ sinkId: 'spk-1' });
+      expect(ctx.sinkIdCalls).toEqual([]);
+    });
+
+    it('re-routes every start, because stop() closes the context', () => {
+      const tone = new RingbackTone();
+      tone.setSinkId('spk-1');
+      tone.start();
+      tone.stop();
+      tone.start();
+
+      expect(FakeAudioContext.instances).toHaveLength(2);
+      expect(FakeAudioContext.instances[1].options).toEqual({ sinkId: 'spk-1' });
+    });
+
+    it('re-routes a context that is already ringing', () => {
+      const tone = new RingbackTone();
+      tone.start();
+      tone.setSinkId('spk-2');
+
+      expect(FakeAudioContext.instances[0].sinkIdCalls).toEqual(['spk-2']);
+    });
+
+    it('passes no options at all when using the OS default', () => {
+      const tone = new RingbackTone();
+      tone.setSinkId(null);
+      tone.start();
+
+      expect(FakeAudioContext.instances[0].options).toBeUndefined();
+    });
+
+    it('rings on the default device when a stale sink makes construction throw', () => {
+      // The AudioContext constructor validates the sink synchronously and throws for an
+      // id that no longer resolves — the normal state of a saved id before the page has
+      // mic permission. Going silent here looked like the SDK had stopped ringing.
+      class RejectingSinkContext extends FakeAudioContext {
+        constructor(options?: { sinkId?: string }) {
+          if (options?.sinkId) {
+            throw Object.assign(new Error('no such sink'), { name: 'NotFoundError' });
+          }
+          super(options);
+        }
+      }
+      (globalThis as Record<string, unknown>).AudioContext =
+        RejectingSinkContext as unknown as typeof AudioContext;
+
+      const tone = new RingbackTone();
+      tone.setSinkId('spk-gone');
+      tone.start();
+
+      expect(tone.isPlaying).toBe(true);
+    });
+
+    it('forgets a sink that threw, so later tones do not retry it', () => {
+      let attempts = 0;
+      class OnceRejectingContext extends FakeAudioContext {
+        constructor(options?: { sinkId?: string }) {
+          attempts++;
+          if (options?.sinkId) {
+            throw Object.assign(new Error('no such sink'), { name: 'NotFoundError' });
+          }
+          super(options);
+        }
+      }
+      (globalThis as Record<string, unknown>).AudioContext =
+        OnceRejectingContext as unknown as typeof AudioContext;
+
+      const tone = new RingbackTone();
+      tone.setSinkId('spk-gone');
+      tone.start();
+      tone.stop();
+      const afterFirst = attempts;
+
+      tone.start();
+
+      // Exactly one construction on the second start: the bad id is gone, not retried.
+      expect(attempts).toBe(afterFirst + 1);
+      expect(tone.isPlaying).toBe(true);
+    });
+
+    it('still rings on an engine that ignores the sinkId option', () => {
+      class OptionIgnoringContext extends FakeAudioContext {
+        constructor() {
+          super(undefined);
+        }
+      }
+      (globalThis as Record<string, unknown>).AudioContext =
+        OptionIgnoringContext as unknown as typeof AudioContext;
+
+      const tone = new RingbackTone();
+      tone.setSinkId('spk-1');
+      tone.start();
+
+      expect(tone.isPlaying).toBe(true);
+    });
+
+    it('still rings on a context with no setSinkId method', () => {
+      class NoSinkContext extends FakeAudioContext {
+        setSinkId = undefined as unknown as (id: string) => Promise<void>;
+      }
+      (globalThis as Record<string, unknown>).AudioContext =
+        NoSinkContext as unknown as typeof AudioContext;
+
+      const tone = new RingbackTone();
+      tone.start();
+      // A live change against an engine lacking the method must no-op, not throw —
+      // lib.dom.d.ts types setSinkId, so only a runtime check catches its absence.
+      expect(() => tone.setSinkId('spk-2')).not.toThrow();
+      expect(tone.isPlaying).toBe(true);
+    });
+
+    it('keeps ringing when the device rejects the route', async () => {
+      class RejectingContext extends FakeAudioContext {
+        setSinkId(): Promise<void> {
+          return Promise.reject(new Error('NotFoundError'));
+        }
+      }
+      (globalThis as Record<string, unknown>).AudioContext =
+        RejectingContext as unknown as typeof AudioContext;
+
+      const tone = new RingbackTone();
+      tone.start();
+      tone.setSinkId('spk-gone');
+      await Promise.resolve();
+
+      expect(tone.isPlaying).toBe(true);
+    });
+  });
+
+  it('reverts a live tone to the OS default', async () => {
+    // Bailing on null left the tone on the device the user just switched away from.
+    // '' is the spec's default-sink instruction.
+    const tone = new RingbackTone();
+    tone.setSinkId('spk-1');
+    tone.start();
+    tone.setSinkId(null);
+
+    expect(FakeAudioContext.instances[0].sinkIdCalls).toEqual(['']);
   });
 });

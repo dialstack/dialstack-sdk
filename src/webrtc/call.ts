@@ -1,9 +1,11 @@
-import { PhoneError } from './errors';
+import { devicePhoneError, isRetryableWithoutDevice, PhoneError } from './errors';
 import { logWarn } from './logger';
 import { createMediaStream, createPeerConnection, getUserMedia } from './platform';
 import { RingbackTone, type Ringback } from './ringback';
 import type {
   MediaStream,
+  MediaStreamConstraints,
+  MediaStreamTrack,
   RTCDTMFSender,
   RTCIceCandidateInit,
   RTCIceServer,
@@ -34,6 +36,23 @@ function warnMissingDtmfBridgeOnce(): void {
   );
 }
 
+// Always `exact` for a real request: Chrome's own device-picker preference overrides
+// `ideal`, so a lenient constraint can silently capture a mic that was never asked for
+// and leave the recorded preference naming a device that was never opened. Leniency
+// belongs in the caller's fallback (acquireLocalMedia retries unconstrained), not here.
+function audioConstraintsFor(deviceId: string | null): MediaStreamConstraints {
+  if (!deviceId) return { audio: true };
+  return { audio: { deviceId: { exact: deviceId } } };
+}
+
+function stopTrack(track: MediaStreamTrack): void {
+  try {
+    track.stop();
+  } catch {
+    // Some hosts throw on a second stop.
+  }
+}
+
 type CallEventMap = {
   trying: () => void;
   ringing: () => void;
@@ -41,6 +60,9 @@ type CallEventMap = {
   held: (by: HeldBy) => void;
   resumed: () => void;
   ended: (reason: CallEndReason) => void;
+  audioInputChanged: (deviceId: string | null) => void;
+  // The sender keeps a dead track, so the far end hears silence and nothing throws.
+  audioInputLost: () => void;
 };
 
 type Listener<K extends keyof CallEventMap> = CallEventMap[K];
@@ -62,6 +84,8 @@ export interface CallInit {
   // supplies an InCallManager-backed one (WebAudio's `AudioContext` doesn't exist
   // there). Threaded from `PhoneOptions.ringback`.
   ringback?: Ringback;
+  audioInputDeviceId?: string;
+  audioOutputDeviceId?: string;
 }
 
 export class Call {
@@ -123,12 +147,9 @@ export class Call {
   // is then sent automatically from prepareAnswerForOffer once ready, rather
   // than answer() throwing on an eager first click.
   private wantsAnswer = false;
-  // Resolves once the mic tracks are attached to localStream. The Call
-  // acquires the mic itself (rather than the caller awaiting getUserMedia
-  // before construction) so phone.ts can register the Call synchronously on
-  // call.incoming — otherwise the sdp.offer/ICE that arrive while the mic
-  // permission prompt is open would hit getCall() → undefined and be dropped.
-  private readonly localMediaReady: Promise<void>;
+  // Not readonly: a successful switch replaces a rejected one, or negotiation keeps
+  // awaiting the original failure and never answers.
+  private localMediaReady: Promise<void>;
   // Remote ICE candidates that arrive before the remote description is set
   // (e.g. an ice.candidate processed before prepareAnswerForOffer's
   // setRemoteDescription resolves) — applied once the description is in place.
@@ -142,6 +163,10 @@ export class Call {
   // until the remote audio track actually unmutes (RTP starts flowing); a brief
   // tone/early-media overlap is preferable to silence.
   private remoteAudioFlowing = false;
+  private audioInputDeviceId_: string | null;
+  // Serializes device switches: two overlapping switches would otherwise interleave
+  // their acquire/replace/stop steps, and one could stop the track the other installed.
+  private switchChain: Promise<void> = Promise.resolve();
 
   constructor(init: CallInit) {
     this.id = init.id;
@@ -153,8 +178,10 @@ export class Call {
     this.transport = init.transport;
     this.startConsult = init.startConsult;
     this.ringback = init.ringback ?? new RingbackTone();
+    this.ringback.setSinkId?.(init.audioOutputDeviceId ?? null);
     this.localStream = createMediaStream();
     this.remoteStream = createMediaStream();
+    this.audioInputDeviceId_ = init.audioInputDeviceId ?? null;
 
     this.peerConnection = createPeerConnection(init.iceServers);
     this.wirePeerConnection();
@@ -169,8 +196,178 @@ export class Call {
   }
 
   private async acquireLocalMedia(): Promise<void> {
-    const stream = await getUserMedia({ audio: true });
-    stream.getTracks().forEach((t) => this.localStream.addTrack(t));
+    const preferred = this.audioInputDeviceId_;
+    let stream: MediaStream;
+    try {
+      stream = await getUserMedia(audioConstraintsFor(preferred));
+    } catch (e) {
+      // A saved id that no longer resolves must not fail the call — ids rotate per
+      // origin and devices get unplugged between sessions — so retry unconstrained and
+      // let the OS choose. Skipped for a permission denial (re-prompts, same answer)
+      // and for a locked mic (no device of the kind is readable, so there is nothing
+      // looser constraints could find).
+      if (!preferred || !isRetryableWithoutDevice(e)) throw e;
+      stream = await getUserMedia({ audio: true });
+    }
+    stream.getTracks().forEach((t) => {
+      this.localStream.addTrack(t);
+      this.watchCaptureTrack(t);
+    });
+  }
+
+  /** The selected mic, or null for the OS default. */
+  get audioInputDeviceId(): string | null {
+    return this.audioInputDeviceId_;
+  }
+
+  /**
+   * The device actually captured. May differ from `audioInputDeviceId` at acquisition,
+   * where the constraint is `ideal` — how a caller detects a substitution.
+   */
+  get effectiveAudioInputDeviceId(): string | null {
+    const [track] = this.localStream.getAudioTracks();
+    return track?.getSettings?.().deviceId ?? null;
+  }
+
+  /** Internal — the phone-level setter broadcasts this to every live call. */
+  async setAudioInputDevice(deviceId: string | null): Promise<void> {
+    // The stored link swallows, so one failure can't poison the chain.
+    const run = this.switchChain.then(
+      () => this.switchAudioInput(deviceId),
+      () => this.switchAudioInput(deviceId)
+    );
+    this.switchChain = run.catch(() => {});
+    return run;
+  }
+
+  private async switchAudioInput(deviceId: string | null): Promise<void> {
+    // Against what's CAPTURED and still live, never the recorded preference: `ideal`
+    // acquisition can hand back a different device than was asked for, and a track that
+    // ended keeps its deviceId — trusting the preference turned both the unplug-recovery
+    // re-pick and that correction into no-ops that resolved without switching anything.
+    const [capturedTrack] = this.localStream.getAudioTracks();
+    const captured = this.effectiveAudioInputDeviceId;
+    const capturedIsLive = capturedTrack?.readyState === 'live';
+    if (deviceId !== null && deviceId === captured && capturedIsLive) return;
+    // Don't also skip on non-null `captured`: the OS may hand back a specific device for
+    // an unconstrained request, and the user must still be able to move off it.
+    if (deviceId === null && this.audioInputDeviceId_ === null && captured === null) return;
+
+    if (this.isFinished) {
+      this.audioInputDeviceId_ = deviceId;
+      return;
+    }
+
+    // A second getUserMedia while the prompt is open double-prompts on some browsers.
+    let hadInitialMedia = true;
+    try {
+      await this.localMediaReady;
+    } catch {
+      hadInitialMedia = false;
+    }
+    if (this.isFinished) {
+      this.audioInputDeviceId_ = deviceId;
+      return;
+    }
+
+    let next: MediaStreamTrack;
+    try {
+      const stream = await getUserMedia(audioConstraintsFor(deviceId));
+      const [track] = stream.getAudioTracks();
+      if (!track) throw new Error('the acquired stream carried no audio track');
+      next = track;
+    } catch (e) {
+      throw devicePhoneError({ cause: e, deviceId, callId: this.id });
+    }
+
+    // releaseMedia can't see this track; unstopped, the mic indicator stays lit.
+    if (this.isFinished) {
+      stopTrack(next);
+      this.audioInputDeviceId_ = deviceId;
+      return;
+    }
+
+    // A fresh track arrives enabled, so a muted call would start transmitting again.
+    next.enabled = !this.isMuted;
+
+    const sender = this.peerConnection.getSenders().find((s) => s.track?.kind === 'audio');
+    const previous = this.localStream.getAudioTracks();
+    let recoveredMedia = false;
+
+    if (sender) {
+      // replaceTrack changes only the sender's track, which is not an input to the
+      // negotiation-needed check, so it can never ask for a renegotiation this client
+      // couldn't service (it offers once per call and has no negotiationneeded
+      // listener). A track the negotiated envelope can't carry — a different channel
+      // count, say — rejects with InvalidModificationError instead, which is what the
+      // catch below is for: the old track is still attached and sending at that point.
+      try {
+        await sender.replaceTrack(next);
+      } catch (e) {
+        stopTrack(next);
+        throw new PhoneError({
+          code: 'call_failed',
+          message: `Could not switch microphone: ${(e as Error).message}`,
+          callId: this.id,
+        });
+      }
+    } else if (!hadInitialMedia) {
+      // The original acquisition failed, so `localMediaReady` stays rejected and every
+      // later await aborts — negotiation would never answer despite a working track.
+      this.localMediaReady = Promise.resolve();
+      recoveredMedia = true;
+    }
+
+    this.localStream.addTrack(next);
+    this.watchCaptureTrack(next);
+    previous.forEach((track) => {
+      this.localStream.removeTrack(track);
+      // Stop only after replaceTrack: an output-disabled sender sends no audio at all,
+      // so stopping a track still attached to the sender would cut the stream rather
+      // than mute it. Stopping is mandatory once detached, or the old device's mic
+      // indicator stays lit for the rest of the call.
+      stopTrack(track);
+    });
+
+    // Re-applied now that `next` is in localStream: a mute()/unmute() landing during the
+    // replaceTrack await above mutated only the old track, and nothing else re-reads
+    // isMuted, so the call would transmit against what the UI and server both believe.
+    next.enabled = !this.isMuted;
+
+    this.attachDtmfSender();
+
+    this.audioInputDeviceId_ = deviceId;
+    this.emit('audioInputChanged', deviceId);
+
+    // An inbound call whose mic was denied has already consumed and discarded its offer
+    // (the server sends sdp.offer right after call.incoming), so the recovered track has
+    // no answer to ride out on. Rebuild one now.
+    if (recoveredMedia && this.remoteDescriptionSet && !this.answerSent) {
+      await this.buildAnswer();
+    }
+  }
+
+  /** Route this call's ringback tone to `deviceId` (null = OS default). */
+  setAudioOutputDevice(deviceId: string | null): void {
+    this.ringback.setSinkId?.(deviceId);
+  }
+
+  // A capture track that ends on its own (device unplugged, OS revoked it) leaves the
+  // sender attached to a dead track: the far end hears silence and nothing throws.
+  private watchCaptureTrack(track: MediaStreamTrack): void {
+    track.addEventListener?.('ended', () => {
+      if (this.isFinished) return;
+      // Only for a track that is still ours — a track we stopped during a switch
+      // also fires 'ended', and reporting that would cry wolf on every switch.
+      if (!this.localStream.getAudioTracks().includes(track)) return;
+      this.emit('audioInputLost');
+    });
+  }
+
+  // True once the call is over by either path: the server's call.ended (which sets
+  // endedSettled) or a local dispose().
+  private get isFinished(): boolean {
+    return this.endedSettled || this.state === 'ended';
   }
 
   on<K extends keyof CallEventMap>(event: K, handler: Listener<K>): void {
@@ -361,6 +558,14 @@ export class Call {
       // same denial.
       return;
     }
+    await this.buildAnswer();
+  }
+
+  // Builds (or rebuilds) the answer from an already-set remote description. Split
+  // out of prepareAnswerForOffer so a mic acquired late — after a denial the user
+  // recovered from — can still produce one: the server sends sdp.offer right after
+  // call.incoming, so by then the offer has already been consumed and discarded.
+  private async buildAnswer(): Promise<void> {
     // setRemoteDescription(offer) above already created a track-less sender for
     // each offered m-line, so getSenders() is non-empty here even though no mic
     // is attached yet. Guard on whether a sender actually has a track — keying
@@ -477,6 +682,9 @@ export class Call {
   }
 
   dispose(): void {
+    // Before releasing media: releaseMedia stops tracks without removing them, so the
+    // `ended` handlers would report the device as lost during ordinary teardown.
+    this.endedSettled = true;
     this.ringback.stop();
     this.stopDurationTimer();
     this.releaseMedia();

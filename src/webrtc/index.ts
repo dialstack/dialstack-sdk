@@ -7,6 +7,8 @@ export { RingbackTone } from './ringback';
 export type { Ringback } from './ringback';
 export type { SignalingSocketFactory, AppResumeSubscribe } from './transport';
 export type {
+  AudioDevice,
+  AudioDeviceList,
   PhoneOptions,
   CallOptions,
   CallState,

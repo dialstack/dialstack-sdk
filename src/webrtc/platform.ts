@@ -29,6 +29,7 @@ export type RTCSessionDescriptionInit = globalThis.RTCSessionDescriptionInit;
 export type RTCIceCandidateInit = globalThis.RTCIceCandidateInit;
 export type RTCDTMFSender = globalThis.RTCDTMFSender;
 export type MediaStreamConstraints = globalThis.MediaStreamConstraints;
+export type MediaDeviceInfo = globalThis.MediaDeviceInfo;
 
 // --- WebRTC primitives -----------------------------------------------------
 
@@ -45,6 +46,40 @@ export function createMediaStream(): MediaStream {
 /** Acquire local capture (the mic) — wraps `navigator.mediaDevices.getUserMedia`. */
 export function getUserMedia(constraints: MediaStreamConstraints): Promise<MediaStream> {
   return globalThis.navigator.mediaDevices.getUserMedia(constraints);
+}
+
+/**
+ * Wraps `enumerateDevices`, resolving to `[]` rather than rejecting where it's absent
+ * or partial (some WebViews, React Native) so a picker needn't handle a throw.
+ */
+export async function enumerateDevices(): Promise<MediaDeviceInfo[]> {
+  const mediaDevices = globalThis.navigator?.mediaDevices;
+  if (typeof mediaDevices?.enumerateDevices !== 'function') return [];
+  try {
+    return await mediaDevices.enumerateDevices();
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Subscribe to `devicechange`; returns an unsubscribe function.
+ *
+ * `mediaDevices` is not an EventTarget on every host (React Native, test stubs), so a
+ * missing `addEventListener` yields a no-op unsubscriber — deciding both halves behind
+ * one check leaves no "subscribed but can't unsubscribe" state.
+ */
+export function onDeviceChange(handler: () => void): () => void {
+  const mediaDevices = globalThis.navigator?.mediaDevices;
+  if (typeof mediaDevices?.addEventListener !== 'function') return () => {};
+  mediaDevices.addEventListener('devicechange', handler);
+  return () => {
+    try {
+      mediaDevices.removeEventListener('devicechange', handler);
+    } catch {
+      // The host may have been swapped out underneath us (tests).
+    }
+  };
 }
 
 // --- Persistence shim ------------------------------------------------------

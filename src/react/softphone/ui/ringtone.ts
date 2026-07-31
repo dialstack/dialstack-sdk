@@ -14,7 +14,16 @@ const CADENCE_SECONDS = ON_SECONDS + OFF_SECONDS;
 const SCHEDULE_AHEAD_SECONDS = 2 * CADENCE_SECONDS;
 const ON_GAIN = 0.14;
 
-type AudioContextConstructor = new () => AudioContext;
+// `sinkId` isn't in this TypeScript release's AudioContextOptions. An engine without the
+// Audio Output Devices API ignores the unknown option and returns a default-routed context.
+type RoutableAudioContextOptions = AudioContextOptions & { sinkId?: string };
+type AudioContextConstructor = new (options?: RoutableAudioContextOptions) => AudioContext;
+
+// Chromium-only (110+), unlike the HTMLMediaElement method (Firefox 116+, Safari 18.4+),
+// so outside Chromium the ring stays on the OS default even though call audio follows.
+type RoutableAudioContext = AudioContext & {
+  setSinkId?: (sinkId: string) => Promise<void>;
+};
 
 function resolveAudioContext(): AudioContextConstructor | null {
   const g = globalThis as Record<string, unknown>;
@@ -29,9 +38,23 @@ export class IncomingRingtone {
   private cadenceTimer: ReturnType<typeof setInterval> | null = null;
   private started = false;
   private nextCadenceTime = 0;
+  private sinkId: string | null = null;
 
   get isPlaying(): boolean {
     return this.started;
+  }
+
+  /**
+   * Applied at AudioContext *construction* in start(), not after: the async setter
+   * would let the first milliseconds out of the default device — on a shared
+   * workstation, the laptop speaker the user picked a headset to avoid.
+   */
+  setSinkId(deviceId: string | null): void {
+    this.sinkId = deviceId;
+    const ctx = this.ctx as RoutableAudioContext | null;
+    if (!ctx || typeof ctx.setSinkId !== 'function') return;
+    // '' is the spec's default sink; bailing on null left a live ring on the old device.
+    void Promise.resolve(ctx.setSinkId(deviceId ?? '')).catch(() => undefined);
   }
 
   // Idempotent; no-ops without throwing when WebAudio is unavailable (e.g. SSR
@@ -42,9 +65,18 @@ export class IncomingRingtone {
     if (!Ctor) return;
     let ctx: AudioContext;
     try {
-      ctx = new Ctor();
+      // Re-passed every start(): stop() closes the context, so once-only silently reverts.
+      ctx = new Ctor(this.sinkId ? { sinkId: this.sinkId } : undefined);
     } catch {
-      return;
+      // Some engines reject an unusable sink at construction. Chrome instead reroutes
+      // itself to the default device, so this is a guard for the stricter ones: ring on
+      // the default rather than not at all, and forget the id so it isn't retried.
+      this.sinkId = null;
+      try {
+        ctx = new Ctor();
+      } catch {
+        return;
+      }
     }
     this.ctx = ctx;
 

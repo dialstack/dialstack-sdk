@@ -56,6 +56,20 @@ export const en = {
     stateHeld: 'On hold',
     stateEnded: 'Call ended',
     done: 'Done',
+    audioDevices: 'Audio',
+    audioMicrophone: 'Microphone',
+    audioSpeaker: 'Speaker',
+    audioSystemDefault: 'System default',
+    audioUnnamedDevice: 'Unnamed device',
+    audioLabelsHidden: 'Allow microphone access to see device names',
+    // This browser can't enumerate devices at all (an old WebView, or a sandboxed
+    // iframe / Permissions-Policy blocking it), so the lists stay empty. Without a
+    // hint the mic dropdown reads as "you have one microphone".
+    audioDevicesUnsupported: 'This browser cannot list audio devices',
+    // Reachable only on iOS Safari, so word it as the device's limit rather than a
+    // "your browser is old" nudge the user can't act on.
+    audioSpeakerUnsupported: 'Choose your speaker in your device settings',
+    audioMicrophoneLost: 'Your microphone was disconnected — choose another',
     // Multi-call: switching between concurrent calls + the on-hold list.
     switchToCall: 'Switch to this call',
     heldCallsLabel: 'On hold',

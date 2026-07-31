@@ -232,8 +232,17 @@ export function makeStyles(p: SoftphonePalette) {
       color: p.textSecondary,
     },
 
-    controls: { flexDirection: 'row', justifyContent: 'space-between' },
-    control: { alignItems: 'center', gap: 6, flex: 1 },
+    // Fixed cell rather than `flex: 1`, which stretches across the row and never wraps.
+    controls: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'center',
+      alignSelf: 'center',
+      maxWidth: (D.controlButtonSize + 12) * 3 + 40,
+      rowGap: 8,
+      columnGap: 20,
+    },
+    control: { alignItems: 'center', gap: 6, width: D.controlButtonSize + 12 },
     controlDisabled: { opacity: 0.4 },
     controlGlyphWrap: {
       width: D.controlButtonSize,

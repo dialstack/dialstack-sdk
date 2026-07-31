@@ -167,9 +167,12 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     }
 
     .${scope} .ds-controls {
-      display: grid; grid-template-columns: repeat(4, 1fr);
-      gap: 10px; justify-items: center;
+      display: flex; flex-wrap: wrap; justify-content: center;
+      gap: 8px 20px;
+      max-width: ${(d.controlButtonSize + 12) * 3 + 40}px;
+      margin: 0 auto;
     }
+    .${scope} .ds-controls > * { flex: 0 0 ${d.controlButtonSize + 12}px; }
     .${scope} .ds-control {
       display: flex; flex-direction: column; align-items: center; gap: 6px;
       border: none; background: transparent; cursor: pointer;
@@ -210,6 +213,23 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     .${scope} .ds-transfer-send-secondary {
       background: var(--dsd-surface); color: var(--dsd-text);
     }
+
+    .${scope} .ds-devices {
+      display: flex; flex-direction: column; gap: 10px;
+      width: 100%; max-width: ${(d.controlButtonSize + 12) * 3 + 40}px; margin: 0 auto;
+    }
+    .${scope} .ds-device-row { display: flex; flex-direction: column; gap: 4px; }
+    .${scope} .ds-device-label { font-size: 12px; color: var(--dsd-text-muted); }
+    .${scope} .ds-device-select {
+      width: 100%; padding: 10px 12px;
+      border: 1px solid var(--dsd-border); border-radius: ${d.radius}px;
+      background: var(--dsd-bg); color: var(--dsd-text);
+      font-size: 14px; font-family: inherit; outline: none;
+    }
+    .${scope} .ds-device-select:focus { border-color: var(--dsd-accent); }
+    .${scope} .ds-device-select:disabled { opacity: 0.5; cursor: not-allowed; }
+    .${scope} .ds-device-hint { margin: 0; font-size: 12px; color: var(--dsd-text-muted); }
+    .${scope} .ds-device-alert { font-size: 12px; color: var(--dsd-danger); }
 
     /* Attended-transfer banner (layered over the normal in-call view): the other
        transfer leg as a switch card + the Cancel/Complete actions. */

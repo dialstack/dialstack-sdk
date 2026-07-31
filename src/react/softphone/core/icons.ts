@@ -36,6 +36,9 @@ export const softphoneGlyphs = {
     path: 'M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z',
   },
   chevronDown: { path: 'M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z' },
+  speaker: {
+    path: 'M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05A4.47 4.47 0 0 0 16.5 12zM14 2.23v2.06a7.5 7.5 0 0 1 0 15.42v2.06a9.5 9.5 0 0 0 0-19.54z',
+  },
 } satisfies Record<string, SoftphoneGlyph>;
 
 export type SoftphoneGlyphName = keyof typeof softphoneGlyphs;

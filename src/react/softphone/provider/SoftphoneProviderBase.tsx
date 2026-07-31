@@ -31,6 +31,7 @@ import type { CountryCode } from 'libphonenumber-js';
 import type {
   Call,
   CallEndReason,
+  DialStackPhone,
   EmergencyAddress,
   ListResponse,
   PlatformStorage,
@@ -46,6 +47,12 @@ import type {
 /** Context fields both platforms expose. Platforms add their own via `extra`. */
 export interface SoftphoneContextBase {
   connection: SoftphoneConnectionState;
+  /**
+   * The live WebRTC phone, or null before the first one is constructed. For the
+   * phone-scoped settings that aren't per-call — audio device selection, which
+   * must work whether or not a call is up. Per-call actions belong on `actions`.
+   */
+  webrtcPhone: DialStackPhone | null;
   calls: Call[];
   activeCall: Call | null;
   incomingCalls: Call[];
@@ -261,6 +268,7 @@ export function SoftphoneProviderBase<Extra extends object>({
   const value = useMemo(
     () => ({
       connection,
+      webrtcPhone: phone,
       calls,
       activeCall,
       incomingCalls,
@@ -291,6 +299,7 @@ export function SoftphoneProviderBase<Extra extends object>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       connection,
+      phone,
       calls,
       activeCall,
       incomingCalls,

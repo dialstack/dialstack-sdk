@@ -70,6 +70,42 @@ export interface PhoneOptions {
    * processed the socket's close), reconnecting if it's dead.
    */
   onAppResume?: AppResumeSubscribe;
+  /**
+   * Microphone `deviceId` for new calls; omitted means the OS default. Held for the
+   * phone's lifetime and NOT persisted — remembering a device is the host's call, so
+   * pass a saved value back in on construction (the React softphone does).
+   *
+   * An id that no longer resolves falls back to the default rather than failing the
+   * call, since ids are origin-scoped and rotate.
+   */
+  audioInputDeviceId?: string;
+  /**
+   * Speaker `deviceId` for the ringback tone only; not persisted. Remote call audio
+   * plays through a media element the host owns, and only its owner can route it.
+   */
+  audioOutputDeviceId?: string;
+}
+
+/** One selectable audio device, as reported by the host. */
+export interface AudioDevice {
+  /** Opaque, origin-scoped id to pass to `setAudioInputDevice` / `setSinkId`. */
+  deviceId: string;
+  /** Name, or `''` when the page has no mic permission yet. */
+  label: string;
+  /** Shared by the input and output halves of one physical device. */
+  groupId: string;
+  /** True for the entry whose id is literally 'default'. */
+  isDefault: boolean;
+}
+
+/** The host's audio devices, split by direction. */
+export interface AudioDeviceList {
+  inputs: AudioDevice[];
+  outputs: AudioDevice[];
+  /** False when devices exist but their names are withheld pending mic permission. */
+  labelsAvailable: boolean;
+  /** False when the host can't enumerate at all — distinct from "no devices". */
+  supported: boolean;
 }
 
 /**

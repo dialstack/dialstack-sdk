@@ -14,9 +14,6 @@ import {
   type SoftphoneProviderProps,
 } from '../softphone/provider/SoftphoneProvider';
 
-// Render <Softphone> under a provider (the only supported form). Provider props
-// (token, onError, onConnectionStateChange, …) go on the provider; the softphone
-// takes only its own UI props.
 function renderSoftphone(
   providerProps: Partial<SoftphoneProviderProps> = {},
   softphoneProps: { autoFocusDestination?: boolean } = {}
@@ -27,8 +24,6 @@ function renderSoftphone(
     </SoftphoneProvider>
   );
 }
-
-// ---- fake core -------------------------------------------------------------
 
 type Handler = (...args: unknown[]) => void;
 
@@ -50,13 +45,12 @@ class FakeCall extends Emitter {
   state = 'trying';
   isMuted = false;
   duration = 0;
-  // Mirror the real Call.isConnected getter (active OR held) — the UI's
-  // isCallActive gate reads it.
+  // The device genuinely captured. null means "nothing captured", so the picker falls
+  // back to the phone's preference — set it to model an acquisition fallback.
+  effectiveAudioInputDeviceId: string | null = null;
   get isConnected(): boolean {
     return this.state === 'active' || this.state === 'held';
   }
-  // Browser default: the audio sender exposes an RTCDTMFSender. RN sets this
-  // false (no .dtmf), which hides the keypad.
   canSendDtmf = true;
   remoteMediaStream = {} as MediaStream;
   answer = jest.fn();
@@ -93,6 +87,15 @@ class FakeCall extends Emitter {
 class FakePhone extends Emitter {
   static last: FakePhone | null = null;
   nextCall: FakeCall | null = null;
+  audioInputDeviceId: string | null = null;
+  audioOutputDeviceId: string | null = null;
+  setAudioInputDevice = jest.fn((id: string | null) => {
+    this.audioInputDeviceId = id;
+    return Promise.resolve();
+  });
+  setAudioOutputDevice = jest.fn((id: string | null) => {
+    this.audioOutputDeviceId = id;
+  });
   constructor() {
     super();
     FakePhone.last = this;
@@ -116,19 +119,51 @@ function phone(): FakePhone {
   return FakePhone.last;
 }
 
-// HTMLMediaElement.play is not implemented in jsdom.
+// jsdom implements neither HTMLMediaElement.play nor setSinkId. Note lib.dom.d.ts
+// DOES type setSinkId, so production code can only detect its absence at runtime —
+const setSinkId = jest.fn().mockResolvedValue(undefined);
+
+const audioDevices: MediaDeviceInfo[] = [
+  { deviceId: 'mic-1', kind: 'audioinput', label: 'Headset Mic', groupId: 'g1' },
+  { deviceId: 'mic-2', kind: 'audioinput', label: 'Built-in Mic', groupId: 'g3' },
+  { deviceId: 'spk-1', kind: 'audiooutput', label: 'Headset Speaker', groupId: 'g1' },
+  { deviceId: 'spk-2', kind: 'audiooutput', label: 'Display Audio', groupId: 'g2' },
+] as MediaDeviceInfo[];
+
 beforeAll(() => {
   Object.defineProperty(HTMLMediaElement.prototype, 'play', {
     configurable: true,
     value: jest.fn().mockResolvedValue(undefined),
   });
+  Object.defineProperty(HTMLMediaElement.prototype, 'setSinkId', {
+    configurable: true,
+    value: setSinkId,
+  });
+  // jsdom has no navigator.mediaDevices at all.
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: {
+      enumerateDevices: jest.fn().mockResolvedValue(audioDevices),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+    },
+  });
+
+  const realError = console.error;
+  jest.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+    const first = args[0];
+    if (typeof first === 'string' && first.includes('not wrapped in act')) return;
+    realError(...(args as []));
+  });
 });
 
 beforeEach(() => {
   FakePhone.last = null;
+  setSinkId.mockClear();
+  // The speaker choice persists to localStorage, so without this the persistence
+  // case and the "no selection → no setSinkId" case couple through test ordering.
+  localStorage.clear();
 });
-
-// ---- tests -----------------------------------------------------------------
 
 describe('Softphone dial screen', () => {
   it('shows the connecting chip, then enables Call once connected + a number is typed', () => {
@@ -168,7 +203,6 @@ describe('Softphone dial screen', () => {
     await act(async () => {
       fireEvent.click(screen.getByLabelText('Call'));
     });
-    // The outbound FakeCall becomes the foreground call → in-call screen.
     expect(screen.getByLabelText('Hang up')).toBeInTheDocument();
   });
 });
@@ -186,17 +220,14 @@ describe('Softphone error surfacing', () => {
       });
     });
 
-    // The host still receives the real, specific error...
     expect(onError).toHaveBeenCalledWith({
       code: 'call_failed',
       message: 'destination invalid: raw server text',
     });
-    // ...but the built-in UI shows a GENERIC message, never the raw server text.
     const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent('Call failed');
     expect(alert).not.toHaveTextContent('raw server text');
 
-    // Dismiss clears it.
     fireEvent.click(screen.getByLabelText('Dismiss'));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
@@ -212,7 +243,6 @@ describe('Softphone error surfacing', () => {
       });
     });
 
-    // Not the generic 'Call failed' — a specific, self-remediable message.
     const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent(/microphone/i);
     expect(alert).not.toHaveTextContent('Call failed');
@@ -226,7 +256,6 @@ describe('Softphone error surfacing', () => {
     });
     expect(screen.getByRole('alert')).toBeInTheDocument();
 
-    // A disconnect→connected edge clears the stale banner.
     act(() => phone().emit('disconnected'));
     act(() => phone().emit('connected'));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
@@ -246,8 +275,6 @@ describe('Softphone incoming screen', () => {
 
     fireEvent.click(screen.getByLabelText('Answer'));
     expect(inbound.answer).toHaveBeenCalled();
-    // Answering leaves the incoming screen (it's now the in-call panel) — the
-    // just-answered call is NOT still shown as a declinable incoming card.
     expect(screen.queryByLabelText('Decline')).not.toBeInTheDocument();
   });
 
@@ -286,14 +313,12 @@ describe('Softphone in-call screen', () => {
     const call = connectWithActiveCall();
     fireEvent.click(screen.getByLabelText('Mute'));
     expect(call.mute).toHaveBeenCalled();
-    // After mute the control relabels to Unmute.
     expect(screen.getByLabelText('Unmute')).toBeInTheDocument();
   });
 
   it('opens the keypad and sends DTMF', () => {
     const call = connectWithActiveCall();
     fireEvent.click(screen.getByLabelText('Keypad'));
-    // The DTMF pad renders digit buttons; tap "5".
     fireEvent.click(screen.getByLabelText('5'));
     expect(call.sendDtmf).toHaveBeenCalledWith('5');
   });
@@ -308,7 +333,6 @@ describe('Softphone in-call screen', () => {
       inbound.state = 'active';
       inbound.emit('answered');
     });
-    // Other in-call controls still render; only the Keypad control is gone.
     expect(screen.getByLabelText('Hang up')).toBeInTheDocument();
     expect(screen.getByLabelText('Mute')).toBeInTheDocument();
     expect(screen.queryByLabelText('Keypad')).not.toBeInTheDocument();
@@ -330,23 +354,15 @@ describe('Softphone in-call screen', () => {
     fireEvent.change(screen.getByLabelText('Transfer to…'), {
       target: { value: '5559999' },
     });
-    // "Consult first" holds the original and dials the consult leg (async).
     await act(async () => {
       fireEvent.click(screen.getByText('Consult first'));
     });
     expect(call.attendedTransfer).toHaveBeenCalledWith('5559999');
-    // Complete is disabled until the consult answers (bridging a ringing leg
-    // would drop the held caller).
     expect(screen.getByText('Complete transfer')).toBeDisabled();
-    // Consult answers → Complete enables; clicking it bridges via the original.
     act(() => {
       call.consult!.state = 'active';
       call.consult!.emit('answered');
     });
-    // The transfer renders the normal in-call view + a Complete/Cancel banner —
-    // NOT a bespoke screen that drops the controls. With the consult answered
-    // (active), Mute/Hold/Hang up stay available alongside the banner
-    // (regression: they used to disappear during a transfer).
     expect(screen.getByLabelText('Mute')).toBeInTheDocument();
     expect(screen.getByLabelText('Hold')).toBeInTheDocument();
     expect(screen.getByLabelText('Hang up')).toBeInTheDocument();
@@ -371,7 +387,6 @@ describe('Softphone in-call screen', () => {
 });
 
 describe('Softphone multi-call', () => {
-  // Bring up a connected softphone with one active (answered inbound) call.
   function connectWithActiveCall(name: string, from: string): FakeCall {
     const call = new FakeCall('inbound', from, name, 'me');
     act(() => phone().emit('incoming', call));
@@ -387,17 +402,13 @@ describe('Softphone multi-call', () => {
     act(() => phone().emit('connected'));
     const active = connectWithActiveCall('Alice', '+14155550001');
 
-    // A 2nd inbound arrives while Alice is active — surfaced as call-waiting.
     const interrupt = new FakeCall('inbound', '+14155550002', 'Bob', 'me');
     act(() => phone().emit('incoming', interrupt));
 
-    // The in-call controls for the active call are still present (non-intrusive).
     expect(screen.getByLabelText('Hang up')).toBeInTheDocument();
-    // The interrupt is shown as an answer/decline card on top.
     expect(screen.getByText('Bob')).toBeInTheDocument();
     expect(screen.getByLabelText('Answer')).toBeInTheDocument();
 
-    // Answering the interrupt holds the active call and answers the interrupt.
     fireEvent.click(screen.getByLabelText('Answer'));
     expect(active.hold).toHaveBeenCalled();
     expect(interrupt.answer).toHaveBeenCalled();
@@ -408,11 +419,8 @@ describe('Softphone multi-call', () => {
     act(() => phone().emit('connected'));
     connectWithActiveCall('Alice', '+14155550001');
 
-    // One call → Transfer is available.
     expect(screen.getByLabelText('Transfer')).toBeEnabled();
 
-    // A 2nd call arrives (call-waiting) → starting a new transfer is ambiguous,
-    // so the Transfer control is disabled (shown, not hidden).
     act(() => phone().emit('incoming', new FakeCall('inbound', '+14155550002', 'Bob', 'me')));
     expect(screen.getByLabelText('Transfer')).toBeDisabled();
   });
@@ -426,15 +434,11 @@ describe('Softphone multi-call', () => {
     act(() => phone().emit('incoming', a));
     act(() => phone().emit('incoming', b));
 
-    // Both callers are shown; neither is answered.
     expect(screen.getByText('Alice')).toBeInTheDocument();
     expect(screen.getByText('Bob')).toBeInTheDocument();
     expect(a.answer).not.toHaveBeenCalled();
     expect(b.answer).not.toHaveBeenCalled();
-    // Two answer buttons (one per card).
     expect(screen.getAllByLabelText('Answer')).toHaveLength(2);
-    // The incoming stack is the whole screen — no dial pad behind it (you're
-    // being called, not dialing). The dial pad's number field must be absent.
     expect(screen.queryByLabelText('Enter a number')).not.toBeInTheDocument();
   });
 
@@ -443,7 +447,6 @@ describe('Softphone multi-call', () => {
     act(() => phone().emit('connected'));
     const alice = connectWithActiveCall('Alice', '+14155550001');
 
-    // A 2nd inbound arrives and is answered → Alice is held, Bob active.
     const bob = new FakeCall('inbound', '+14155550002', 'Bob', 'me');
     act(() => phone().emit('incoming', bob));
     fireEvent.click(screen.getByLabelText('Answer'));
@@ -453,8 +456,6 @@ describe('Softphone multi-call', () => {
       bob.emit('answered');
     });
 
-    // Alice now shows in the switchable held-call list; clicking resumes her
-    // (and holds Bob).
     const switchToAlice = screen.getByLabelText('Switch to this call: Alice');
     fireEvent.click(switchToAlice);
     expect(bob.hold).toHaveBeenCalled();
@@ -465,14 +466,10 @@ describe('Softphone multi-call', () => {
     renderSoftphone();
     act(() => phone().emit('connected'));
 
-    // A single inbound rings, then the user answers — but the server echo hasn't
-    // landed, so the call is `active` (flag) while its `state` is still 'ringing'.
     const inbound = new FakeCall('inbound', '+14155550001', 'Alice', 'me');
     act(() => phone().emit('incoming', inbound));
     fireEvent.click(screen.getByLabelText('Answer'));
-    // No emit('answered') — reproduce the pre-echo window (state stays 'ringing').
 
-    // It must render ONLY as the in-call panel, never also as an incoming card.
     expect(screen.getByLabelText('Hang up')).toBeInTheDocument();
     expect(screen.queryByText('Incoming call')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Answer')).not.toBeInTheDocument();
@@ -483,7 +480,6 @@ describe('Softphone multi-call', () => {
     act(() => phone().emit('connected'));
     const alice = connectWithActiveCall('Alice', '+14155550001');
 
-    // Start an attended transfer from Alice → consult leg is active, Alice held.
     fireEvent.click(screen.getByLabelText('Transfer'));
     fireEvent.change(screen.getByLabelText('Transfer to…'), { target: { value: '5559999' } });
     await act(async () => {
@@ -495,8 +491,6 @@ describe('Softphone multi-call', () => {
     });
     expect(screen.getByText('Complete transfer')).toBeInTheDocument();
 
-    // A third, unrelated inbound arrives and is answered → it's the focused call,
-    // and it is NOT part of the transfer. The banner + Complete must disappear.
     const carol = new FakeCall('inbound', '+14155550003', 'Carol', 'me');
     act(() => phone().emit('incoming', carol));
     fireEvent.click(screen.getByLabelText('Answer'));
@@ -512,12 +506,8 @@ describe('Softphone multi-call', () => {
     act(() => phone().emit('connected'));
     const alice = connectWithActiveCall('Alice', '+14155550001');
 
-    // Alice is active + live: the Hold control (labeled Hold) is present.
     expect(screen.getByLabelText('Hold')).toBeInTheDocument();
 
-    // Alice goes held while still the foreground call (e.g. promoted after another
-    // call ended, or held during a switch): the control reads Resume and no live
-    // duration timer is shown — the UI reflects the real held state.
     act(() => {
       alice.state = 'held';
       alice.emit('held');
@@ -536,9 +526,6 @@ describe('Softphone callbacks', () => {
   });
 
   it('retries audio play on answer and surfaces a persistent autoplay block', async () => {
-    // Autoplay is blocked: play() always rejects. The pre-answer attempt (while
-    // ringing) must NOT report; the post-answer retry must report via onError so
-    // an answered call isn't silently without audio.
     const play = HTMLMediaElement.prototype.play as jest.Mock;
     play.mockReset();
     play.mockRejectedValue(new DOMException('blocked', 'NotAllowedError'));
@@ -549,11 +536,9 @@ describe('Softphone callbacks', () => {
     const inbound = new FakeCall('inbound', '+14155552671', 'Alice', 'me');
     act(() => phone().emit('incoming', inbound));
 
-    // While ringing (pre-gesture), a rejected play() is not reported.
     await act(async () => {});
     expect(onError).not.toHaveBeenCalled();
 
-    // Answer → the answered retry fails too → surfaced.
     await act(async () => {
       inbound.state = 'active';
       inbound.emit('answered');
@@ -563,16 +548,11 @@ describe('Softphone callbacks', () => {
       expect.objectContaining({ code: 'audio_playback_blocked' })
     );
 
-    // Restore the default resolving mock for other tests.
     play.mockReset();
     play.mockResolvedValue(undefined);
   });
 
   it('does NOT surface an error when play() is aborted by call teardown', async () => {
-    // On hangup the stream's srcObject is cleared, which rejects any pending
-    // play() with AbortError ("interrupted by a new load request") — normal
-    // teardown, not an autoplay block. It must NOT surface audio_playback_blocked,
-    // or a spurious banner appears after every call ends.
     const play = HTMLMediaElement.prototype.play as jest.Mock;
     play.mockReset();
     play.mockRejectedValue(
@@ -590,7 +570,6 @@ describe('Softphone callbacks', () => {
     });
     await act(async () => {});
 
-    // AbortError is teardown noise — never surfaced.
     expect(onError).not.toHaveBeenCalledWith(
       expect.objectContaining({ code: 'audio_playback_blocked' })
     );
@@ -600,10 +579,6 @@ describe('Softphone callbacks', () => {
   });
 
   it('surfaces a non-AbortError play() rejection (e.g. unsupported source)', async () => {
-    // Not every real playback failure is NotAllowedError — a decode/unsupported-
-    // source failure rejects with a different name. Only AbortError (teardown) is
-    // benign; any other rejection on the answered retry must surface so an answered
-    // call isn't silently without audio.
     const play = HTMLMediaElement.prototype.play as jest.Mock;
     play.mockReset();
     play.mockRejectedValue(new DOMException('cannot decode', 'NotSupportedError'));
@@ -625,5 +600,357 @@ describe('Softphone callbacks', () => {
 
     play.mockReset();
     play.mockResolvedValue(undefined);
+  });
+});
+
+describe('Softphone audio device selection', () => {
+  async function connectWithActiveCall(): Promise<FakeCall> {
+    renderSoftphone();
+    act(() => phone().emit('connected'));
+    const inbound = new FakeCall('inbound', '+14155552671', 'Alice', 'me');
+    act(() => phone().emit('incoming', inbound));
+    await act(async () => {
+      inbound.state = 'active';
+      inbound.emit('answered');
+    });
+    return inbound;
+  }
+
+  /** Opens the Audio overlay and waits for the device lists to populate. */
+  async function openPicker(): Promise<{ mic: HTMLElement; speaker: HTMLElement }> {
+    fireEvent.click(screen.getByLabelText('Audio'));
+    await screen.findByRole('option', { name: 'Headset Mic' });
+    await screen.findByRole('option', { name: 'Display Audio' });
+    return {
+      mic: screen.getByLabelText('Microphone'),
+      speaker: screen.getByLabelText('Speaker'),
+    };
+  }
+
+  it('renders the picker from the in-call controls and toggles it closed', async () => {
+    await connectWithActiveCall();
+    await openPicker();
+
+    fireEvent.click(screen.getByLabelText('Audio'));
+    expect(screen.queryByLabelText('Microphone')).not.toBeInTheDocument();
+  });
+
+  it('shows the captured microphone, not the one that was asked for', async () => {
+    // Acquisition falls back to an unconstrained mic when the saved id no longer
+    // resolves, so the preference can name a device that was never opened. Showing the
+    // preference made the picker claim a mic the call wasn't using.
+    const call = await connectWithActiveCall();
+    phone().audioInputDeviceId = 'mic-1';
+    act(() => {
+      call.effectiveAudioInputDeviceId = 'mic-2';
+      call.emit('audioInputChanged', 'mic-2');
+    });
+    const { mic } = await openPicker();
+
+    expect((mic as HTMLSelectElement).value).toBe('mic-2');
+  });
+
+  it('re-reads the captured device when the core switches it', async () => {
+    // `audioInputDeviceId` is plain mutable state; without an `audioInputChanged`
+    // subscription a switch driven from the public API never reached the UI.
+    const call = await connectWithActiveCall();
+    const { mic } = await openPicker();
+    expect((mic as HTMLSelectElement).value).toBe('');
+
+    act(() => {
+      call.effectiveAudioInputDeviceId = 'mic-1';
+      call.emit('audioInputChanged', 'mic-1');
+    });
+
+    expect((screen.getByLabelText('Microphone') as HTMLSelectElement).value).toBe('mic-1');
+  });
+
+  it('routes call audio to the selected speaker', async () => {
+    await connectWithActiveCall();
+    const { speaker } = await openPicker();
+
+    await act(async () => {
+      fireEvent.change(speaker, { target: { value: 'spk-2' } });
+    });
+
+    expect(setSinkId).toHaveBeenCalledWith('spk-2');
+  });
+
+  it('routes the ringback of the selected speaker through the phone too', async () => {
+    await connectWithActiveCall();
+    const { speaker } = await openPicker();
+
+    await act(async () => {
+      fireEvent.change(speaker, { target: { value: 'spk-2' } });
+    });
+
+    expect(phone().setAudioOutputDevice).toHaveBeenCalledWith('spk-2');
+  });
+
+  it('re-applies the speaker on a later call', async () => {
+    const first = await connectWithActiveCall();
+    const { speaker } = await openPicker();
+    await act(async () => {
+      fireEvent.change(speaker, { target: { value: 'spk-2' } });
+    });
+    setSinkId.mockClear();
+
+    await act(async () => {
+      first.state = 'ended';
+      first.emit('ended', 'hangup');
+    });
+    const second = new FakeCall('inbound', '+14155559999', 'Bob', 'me');
+    act(() => phone().emit('incoming', second));
+    await act(async () => {
+      second.state = 'active';
+      second.emit('answered');
+    });
+
+    expect(setSinkId).toHaveBeenCalledWith('spk-2');
+  });
+
+  it('routes to the system default when no speaker has been chosen', async () => {
+    await connectWithActiveCall();
+
+    // Originally asserted the opposite — that no call is made — on the theory that a
+    // consumer who never opens the picker shouldn't eat a needless setSinkId. That was
+    expect(setSinkId).toHaveBeenCalledWith('');
+  });
+
+  it('switches the microphone through the phone', async () => {
+    await connectWithActiveCall();
+    const { mic } = await openPicker();
+
+    await act(async () => {
+      fireEvent.change(mic, { target: { value: 'mic-1' } });
+    });
+
+    expect(phone().setAudioInputDevice).toHaveBeenCalledWith('mic-1');
+  });
+
+  it('maps the system-default option back to null', async () => {
+    await connectWithActiveCall();
+    const { mic } = await openPicker();
+    await act(async () => {
+      fireEvent.change(mic, { target: { value: 'mic-1' } });
+    });
+
+    await act(async () => {
+      fireEvent.change(mic, { target: { value: '' } });
+    });
+
+    expect(phone().setAudioInputDevice).toHaveBeenLastCalledWith(null);
+  });
+
+  it('applies the system default when the speaker selection is cleared', async () => {
+    await connectWithActiveCall();
+    const { speaker } = await openPicker();
+    await act(async () => {
+      fireEvent.change(speaker, { target: { value: 'spk-2' } });
+    });
+    setSinkId.mockClear();
+
+    await act(async () => {
+      fireEvent.change(speaker, { target: { value: '' } });
+    });
+
+    expect(setSinkId).toHaveBeenCalledWith('');
+  });
+
+  it('switches the microphone even while a call already holds one', async () => {
+    // The phone-level probe used to getUserMedia the target device before switching.
+    // Platforms that grant a mic exclusively fail the probe when a call already holds it,
+    // which used to skip the fan-out and silently drop the switch.
+    const call = await connectWithActiveCall();
+    const { mic } = await openPicker();
+
+    await act(async () => {
+      fireEvent.change(mic, { target: { value: 'mic-1' } });
+    });
+
+    expect(phone().setAudioInputDevice).toHaveBeenCalledWith('mic-1');
+    expect(call).toBeDefined();
+  });
+
+  it('does not show a microphone as selected when the switch failed', async () => {
+    await connectWithActiveCall();
+    phone().setAudioInputDevice.mockRejectedValueOnce(
+      Object.assign(new Error('nope'), { code: 'audio_device_unavailable' })
+    );
+    const { mic } = await openPicker();
+
+    await act(async () => {
+      fireEvent.change(mic, { target: { value: 'mic-1' } });
+    });
+
+    expect((mic as HTMLSelectElement).value).toBe('');
+  });
+
+  it('surfaces a disconnected microphone with a recovery prompt', async () => {
+    const call = await connectWithActiveCall();
+    await openPicker();
+
+    await act(async () => {
+      call.emit('audioInputLost');
+    });
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/microphone was disconnected/i);
+  });
+
+  it('keeps the disconnected warning when the recovery re-pick fails', async () => {
+    // `audioInputLost` fires once per capture track, so clearing the warning on attempt
+    // rather than on success erased the user's only signal for good — leaving a clean UI
+    // over a dead track.
+    const call = await connectWithActiveCall();
+    const { mic } = await openPicker();
+    await act(async () => {
+      call.emit('audioInputLost');
+    });
+
+    phone().setAudioInputDevice.mockRejectedValueOnce(
+      Object.assign(new Error('busy'), { code: 'audio_device_unavailable' })
+    );
+    await act(async () => {
+      fireEvent.change(mic, { target: { value: 'mic-1' } });
+    });
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/microphone was disconnected/i);
+  });
+
+  it('clears the disconnected warning once a re-pick succeeds', async () => {
+    const call = await connectWithActiveCall();
+    const { mic } = await openPicker();
+    await act(async () => {
+      call.emit('audioInputLost');
+    });
+
+    await act(async () => {
+      fireEvent.change(mic, { target: { value: 'mic-1' } });
+    });
+
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('keeps audio playing when the sink rejects the route', async () => {
+    const onError = jest.fn();
+    renderSoftphone({ onError });
+    act(() => phone().emit('connected'));
+    const inbound = new FakeCall('inbound', '+14155552671', 'Alice', 'me');
+    act(() => phone().emit('incoming', inbound));
+    await act(async () => {
+      inbound.state = 'active';
+      inbound.emit('answered');
+    });
+    setSinkId.mockRejectedValueOnce(new Error('NotFoundError'));
+
+    const { speaker } = await openPicker();
+    await act(async () => {
+      fireEvent.change(speaker, { target: { value: 'spk-2' } });
+    });
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Hang up')).toBeInTheDocument();
+  });
+
+  it('re-enumerates once a call grants microphone access', async () => {
+    const enumerate = navigator.mediaDevices.enumerateDevices as jest.Mock;
+    enumerate.mockResolvedValueOnce([
+      // The pre-permission shape: real count, blank identity.
+      { deviceId: '', kind: 'audioinput', label: '', groupId: '' },
+    ] as MediaDeviceInfo[]);
+
+    await connectWithActiveCall();
+    const { speaker } = await openPicker();
+
+    expect(enumerate.mock.calls.length).toBeGreaterThan(1);
+    expect(speaker).toBeEnabled();
+  });
+
+  it('remembers the speaker across a remount', async () => {
+    const first = await connectWithActiveCall();
+    const { speaker } = await openPicker();
+    await act(async () => {
+      fireEvent.change(speaker, { target: { value: 'spk-2' } });
+    });
+    await act(async () => {
+      first.state = 'ended';
+      first.emit('ended', 'hangup');
+    });
+    setSinkId.mockClear();
+
+    renderSoftphone();
+    act(() => phone().emit('connected'));
+    const next = new FakeCall('inbound', '+14155551234', 'Carol', 'me');
+    act(() => phone().emit('incoming', next));
+    await act(async () => {
+      next.state = 'active';
+      next.emit('answered');
+    });
+
+    expect(setSinkId).toHaveBeenCalledWith('spk-2');
+  });
+});
+
+describe('Softphone audio device selection without setSinkId', () => {
+  let original: PropertyDescriptor | undefined;
+
+  beforeEach(() => {
+    original = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'setSinkId');
+    delete HTMLMediaElement.prototype.setSinkId;
+  });
+
+  afterEach(() => {
+    if (original) Object.defineProperty(HTMLMediaElement.prototype, 'setSinkId', original);
+  });
+
+  it('still offers the microphone and explains the speaker limitation', async () => {
+    const onError = jest.fn();
+    renderSoftphone({ onError });
+    act(() => phone().emit('connected'));
+    const inbound = new FakeCall('inbound', '+14155552671', 'Alice', 'me');
+    act(() => phone().emit('incoming', inbound));
+    await act(async () => {
+      inbound.state = 'active';
+      inbound.emit('answered');
+    });
+
+    fireEvent.click(screen.getByLabelText('Audio'));
+
+    expect(await screen.findByLabelText('Microphone')).toBeEnabled();
+    expect(await screen.findByLabelText('Speaker')).toBeDisabled();
+    expect(screen.getByText(/device settings/i)).toBeInTheDocument();
+    expect(onError).not.toHaveBeenCalled();
+  });
+});
+
+describe('Softphone audio device selection without enumerateDevices', () => {
+  let original: PropertyDescriptor | undefined;
+
+  beforeEach(() => {
+    original = Object.getOwnPropertyDescriptor(navigator, 'mediaDevices');
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: undefined });
+  });
+
+  afterEach(() => {
+    if (original) Object.defineProperty(navigator, 'mediaDevices', original);
+  });
+
+  it('says so rather than showing a lone "System default" mic', async () => {
+    // An old WebView, or a sandboxed iframe / Permissions-Policy blocking enumeration:
+    // the lists stay empty, and with no hint the dropdown reads as "one microphone".
+    const onError = jest.fn();
+    renderSoftphone({ onError });
+    act(() => phone().emit('connected'));
+    const inbound = new FakeCall('inbound', '+14155552671', 'Alice', 'me');
+    act(() => phone().emit('incoming', inbound));
+    await act(async () => {
+      inbound.state = 'active';
+      inbound.emit('answered');
+    });
+
+    fireEvent.click(screen.getByLabelText('Audio'));
+
+    expect(await screen.findByText(/cannot list audio devices/i)).toBeInTheDocument();
+    expect(onError).not.toHaveBeenCalled();
   });
 });

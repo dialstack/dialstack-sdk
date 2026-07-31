@@ -1,14 +1,21 @@
 import { createPaginatedList, type PaginatedList } from '../shared/pagination';
 import { Call } from './call';
 import { ConnectHandshake } from './connect-handshake';
-import { NotImplementedError, PhoneError } from './errors';
+import { devicePhoneError, NotImplementedError, PhoneError } from './errors';
 import { logError } from './logger';
-import { storage as defaultStorage } from './platform';
+import {
+  enumerateDevices,
+  getUserMedia,
+  onDeviceChange,
+  storage as defaultStorage,
+} from './platform';
 import type { PlatformStorage } from './platform';
 import type { RTCIceServer, RTCSessionDescriptionInit } from './platform';
 import type { Ringback } from './ringback';
 import { Transport, type AppResumeSubscribe, type SignalingSocketFactory } from './transport';
 import type {
+  AudioDevice,
+  AudioDeviceList,
   DirectoryEntry,
   DirectoryEntryWire,
   EmergencyAddress,
@@ -127,6 +134,7 @@ type PhoneEventMap = {
   presenceList: (entries: PresenceEntry[]) => void;
   presenceUpdate: (update: PresenceUpdate) => void;
   'network.changed': () => void;
+  audioDevicesChanged: (devices: AudioDeviceList) => void;
   error: (err: PhoneError) => void;
 };
 
@@ -199,6 +207,9 @@ export class DialStackPhone {
   // takes no persistence dependency), overridable via PhoneOptions.storage. The
   // React Native softphone provider requires the host to inject a real store.
   private storage: PlatformStorage;
+  private audioInputDeviceId_: string | null;
+  private audioOutputDeviceId_: string | null;
+  private deviceChangeUnsubscribe: (() => void) | null = null;
 
   constructor(options: PhoneOptions) {
     this.token = options.token;
@@ -209,11 +220,135 @@ export class DialStackPhone {
     this.storage = options.storage ?? defaultStorage;
     this.storageUserId = userIdFromToken(options.token);
     this.emergencyAddressId =
-      options.emergencyAddressId ?? loadStoredEmergencyAddressId(this.storage, this.storageUserId);
+      options.emergencyAddressId ??
+      loadStoredId(this.storage, this.storageUserId, EMERGENCY_ADDRESS_STORAGE_KEY_PREFIX);
     this.onTokenExpiring = options.onTokenExpiring ?? null;
     this.ringback = options.ringback ?? null;
     this.createSignalingSocket = options.createSignalingSocket ?? null;
     this.onAppResume = options.onAppResume ?? null;
+    this.audioInputDeviceId_ = options.audioInputDeviceId ?? null;
+    this.audioOutputDeviceId_ = options.audioOutputDeviceId ?? null;
+  }
+
+  /** The microphone `deviceId` new calls capture, or null for the OS default. */
+  get audioInputDeviceId(): string | null {
+    return this.audioInputDeviceId_;
+  }
+
+  /** The speaker `deviceId` the ringback plays through, or null for the OS default. */
+  get audioOutputDeviceId(): string | null {
+    return this.audioOutputDeviceId_;
+  }
+
+  /**
+   * Record a microphone preference WITHOUT acquiring it — for a host restoring a saved
+   * selection at construction time. `setAudioInputDevice` probes the device, which
+   * prompts for permission when no call is up; this doesn't, so a returning user isn't
+   * asked for the mic on page load. An id that no longer resolves falls back to the
+   * default at the next call's acquisition.
+   */
+  seedAudioInputDevice(deviceId: string | null): void {
+    if (this.activeCalls.length > 0) return;
+    this.audioInputDeviceId_ = deviceId;
+  }
+
+  /**
+   * Select the microphone: seeds future calls and live-switches calls already up. Held
+   * for this phone's lifetime only — saving the choice across sessions is the host's
+   * (the React softphone does it). Rejects without recording the id when the device
+   * can't be acquired. A single live call's failure surfaces on `error` rather than
+   * rejecting, so one bad call can't leave the others behind.
+   */
+  async setAudioInputDevice(deviceId: string | null): Promise<void> {
+    // Probe so a broken id can't be recorded and then fail every future call — but only
+    if (deviceId !== null && this.activeCalls.length === 0) {
+      try {
+        const probe = await getUserMedia({ audio: { deviceId: { exact: deviceId } } });
+        probe.getTracks().forEach((t) => {
+          try {
+            t.stop();
+          } catch {
+            // Some hosts throw on a second stop.
+          }
+        });
+      } catch (e) {
+        throw devicePhoneError({ cause: e, deviceId });
+      }
+    }
+
+    // Include the pending outbound call: it isn't in `activeCalls` until `call.trying`
+    // lands (up to OUTBOUND_CALL_TIMEOUT_MS), and skipping it committed the preference
+    // while that call kept the old mic for its whole duration. `Call.setAudioInputDevice`
+    // awaits `localMediaReady` rather than racing the initial acquisition.
+    const targets = new Set<Call>(this.activeCalls);
+    if (this.pendingCall) targets.add(this.pendingCall);
+    const results = await Promise.allSettled(
+      [...targets].map((call) => call.setAudioInputDevice(deviceId))
+    );
+    results.forEach((result) => {
+      if (result.status !== 'rejected') return;
+      this.emit(
+        'error',
+        result.reason instanceof PhoneError
+          ? result.reason
+          : new PhoneError({
+              code: 'call_failed',
+              message: `Could not switch microphone on a live call: ${
+                (result.reason as Error)?.message ?? 'unknown error'
+              }`,
+            })
+      );
+    });
+
+    const allRejected = results.length > 0 && results.every((r) => r.status === 'rejected');
+    if (allRejected) {
+      const first = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+      throw first.reason instanceof PhoneError
+        ? first.reason
+        : new PhoneError({ code: 'call_failed', message: 'Could not switch microphone' });
+    }
+
+    this.audioInputDeviceId_ = deviceId;
+  }
+
+  /**
+   * Select the speaker for the ringback tone. Does NOT route remote call audio — that
+   * plays through a media element the host owns, and only its owner can call
+   * `setSinkId`. Void-returning because nothing here is verified or awaited.
+   */
+  setAudioOutputDevice(deviceId: string | null): void {
+    this.audioOutputDeviceId_ = deviceId;
+    // Same pending-call reasoning as setAudioInputDevice above.
+    const targets = new Set<Call>(this.activeCalls);
+    if (this.pendingCall) targets.add(this.pendingCall);
+    targets.forEach((call) => call.setAudioOutputDevice(deviceId));
+  }
+
+  /**
+   * The available audio devices. Deliberately does not prompt for mic access — opening
+   * a picker shouldn't spring a permission dialog — so names stay hidden until
+   * permission has been granted once (`labelsAvailable: false`).
+   */
+  async listAudioDevices(): Promise<AudioDeviceList> {
+    const all = await enumerateDevices();
+    const pick = (kind: string): AudioDevice[] =>
+      all
+        .filter((d) => d.kind === kind)
+        .map((d) => ({
+          deviceId: d.deviceId,
+          label: d.label ?? '',
+          groupId: d.groupId ?? '',
+          isDefault: d.deviceId === 'default',
+        }));
+
+    const inputs = pick('audioinput');
+    return {
+      inputs,
+      outputs: pick('audiooutput'),
+      labelsAvailable: inputs.length > 0 && inputs.some((d) => d.label !== ''),
+      // A working mediaDevices always reports at least a default placeholder, so empty
+      supported: all.length > 0,
+    };
   }
 
   on<K extends keyof PhoneEventMap>(event: K, handler: Listener<K>): void {
@@ -223,14 +358,37 @@ export class DialStackPhone {
       (this.listeners as Record<string, Set<Listener<K>>>)[event] = set;
     }
     set.add(handler);
+    this.syncDeviceChangeSubscription();
   }
 
   off<K extends keyof PhoneEventMap>(event: K, handler?: Listener<K>): void {
     if (!handler) {
       delete this.listeners[event];
+      this.syncDeviceChangeSubscription();
       return;
     }
     (this.listeners[event] as Set<Listener<K>> | undefined)?.delete(handler);
+    this.syncDeviceChangeSubscription();
+  }
+
+  /**
+   * Reference-counted off the existing listener set.
+   *
+   * Deliberately NOT tied to connect/disconnect: `reconnect()` calls `disconnect()`, so
+   * releasing there would permanently kill device events after any reconnect.
+   */
+  private syncDeviceChangeSubscription(): void {
+    const wanted = (this.listeners.audioDevicesChanged?.size ?? 0) > 0;
+    if (wanted && !this.deviceChangeUnsubscribe) {
+      this.deviceChangeUnsubscribe = onDeviceChange(() => {
+        void this.listAudioDevices().then((devices) => {
+          this.emit('audioDevicesChanged', devices);
+        });
+      });
+    } else if (!wanted && this.deviceChangeUnsubscribe) {
+      this.deviceChangeUnsubscribe();
+      this.deviceChangeUnsubscribe = null;
+    }
   }
 
   async connect(): Promise<void> {
@@ -463,6 +621,8 @@ export class DialStackPhone {
       iceServers: this.iceServers,
       startConsult: (p, d) => this.startConsult(p, d),
       ringback: this.ringback ?? undefined,
+      audioInputDeviceId: this.audioInputDeviceId_ ?? undefined,
+      audioOutputDeviceId: this.audioOutputDeviceId_ ?? undefined,
     });
 
     // startOutbound acquires the mic (getUserMedia) internally and gathers ICE
@@ -473,19 +633,11 @@ export class DialStackPhone {
       offer = await call.startOutbound();
     } catch (e) {
       call.dispose();
-      // A denied mic permission (getUserMedia throws NotAllowedError/SecurityError)
-      // is user-remediable and distinct from a generic call failure — give it its
-      // own code so the UI can prompt the user to grant access.
-      const name = (e as { name?: string }).name;
-      if (name === 'NotAllowedError' || name === 'SecurityError') {
-        throw new PhoneError({
-          code: 'mic_permission_denied',
-          message: 'Microphone permission is required to place a call',
-        });
-      }
-      throw new PhoneError({
-        code: 'call_failed',
-        message: `Failed to start outbound call: ${(e as Error).message}`,
+      throw devicePhoneError({
+        cause: e,
+        deviceId: this.audioInputDeviceId,
+        permissionMessage: 'Microphone permission is required to place a call',
+        fallbackMessage: 'Could not start the call',
       });
     }
     if (!offer.sdp) {
@@ -606,7 +758,7 @@ export class DialStackPhone {
       address
     );
     this.emergencyAddressId = created.id;
-    persistEmergencyAddressId(this.storage, this.storageUserId, created.id);
+    persistId(this.storage, this.storageUserId, EMERGENCY_ADDRESS_STORAGE_KEY_PREFIX, created.id);
     return created;
   }
 
@@ -617,7 +769,7 @@ export class DialStackPhone {
    */
   selectEmergencyAddress(id: string): void {
     this.emergencyAddressId = id;
-    persistEmergencyAddressId(this.storage, this.storageUserId, id);
+    persistId(this.storage, this.storageUserId, EMERGENCY_ADDRESS_STORAGE_KEY_PREFIX, id);
   }
 
   /**
@@ -682,7 +834,7 @@ export class DialStackPhone {
     await this.apiRequest<void>('DELETE', `/v1/me/emergency-addresses/${encodeURIComponent(id)}`);
     if (this.emergencyAddressId === id) {
       this.emergencyAddressId = null;
-      persistEmergencyAddressId(this.storage, this.storageUserId, null);
+      persistId(this.storage, this.storageUserId, EMERGENCY_ADDRESS_STORAGE_KEY_PREFIX, null);
     }
   }
 
@@ -1105,6 +1257,8 @@ export class DialStackPhone {
       iceServers: this.iceServers,
       startConsult: (p, d) => this.startConsult(p, d),
       ringback: this.ringback ?? undefined,
+      audioInputDeviceId: this.audioInputDeviceId_ ?? undefined,
+      audioOutputDeviceId: this.audioOutputDeviceId_ ?? undefined,
     });
     // Register the Call synchronously so the sdp.offer + ICE the server sends
     // immediately after call.incoming are routed to it, not dropped via
@@ -1223,21 +1377,23 @@ function userIdFromToken(token: string): string | null {
 // cache on native), which is itself guarded so the SDK works in non-browser
 // hosts where storage is absent — there (or when the token can't be decoded)
 // the id must be supplied via PhoneOptions.emergencyAddressId.
-function loadStoredEmergencyAddressId(
-  storage: PlatformStorage,
-  userId: string | null
-): string | null {
-  if (!userId) return null;
-  return storage.getItem(EMERGENCY_ADDRESS_STORAGE_KEY_PREFIX + userId);
-}
-
-function persistEmergencyAddressId(
+function loadStoredId(
   storage: PlatformStorage,
   userId: string | null,
+  prefix: string
+): string | null {
+  if (!userId) return null;
+  return storage.getItem(prefix + userId);
+}
+
+function persistId(
+  storage: PlatformStorage,
+  userId: string | null,
+  prefix: string,
   id: string | null
 ): void {
   if (!userId) return;
-  const key = EMERGENCY_ADDRESS_STORAGE_KEY_PREFIX + userId;
+  const key = prefix + userId;
   if (id) storage.setItem(key, id);
   else storage.removeItem(key);
 }

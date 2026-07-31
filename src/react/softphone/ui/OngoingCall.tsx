@@ -1,7 +1,8 @@
 /**
  * OngoingCall — the in-call screen: peer + call-state + live duration, the
- * optional DTMF keypad and transfer overlays, the control row (mute / hold /
- * keypad / transfer), and hang up. Renders nothing when there is no active call.
+ * optional DTMF keypad / transfer / audio-device overlays, the control row (mute /
+ * hold / keypad / transfer / audio), and hang up. Renders nothing when there is no
+ * active call.
  *
  * Reads the active call, actions, and duration from the softphone context; owns
  * only its own transient DTMF-readout and transfer-input text. Must be rendered
@@ -21,6 +22,7 @@ import { dialPadKeys } from '../core/theme';
 import { softphoneGlyphs } from '../core/icons';
 import { Glyph } from './Glyph';
 import { CallErrorChip } from './CallErrorChip';
+import { AudioDevicePicker } from './AudioDevicePicker';
 
 export const OngoingCall: React.FC = () => {
   const {
@@ -40,7 +42,7 @@ export const OngoingCall: React.FC = () => {
     displayNumber,
     scope,
   } = useSoftphone();
-  const { showKeypad, showTransfer } = overlays;
+  const { showKeypad, showTransfer, showDevices } = overlays;
   const [dtmfEntered, setDtmfEntered] = useState('');
   const [transferTo, setTransferTo] = useState('');
   const { onType: onTransferType, onPasteText: onTransferPaste } = useDialInput(setTransferTo);
@@ -250,6 +252,8 @@ export const OngoingCall: React.FC = () => {
           </div>
         )}
 
+        {isActive && showDevices && <AudioDevicePicker />}
+
         {isActive && (
           <div className="ds-controls" role="group">
             <button
@@ -304,6 +308,18 @@ export const OngoingCall: React.FC = () => {
                 <Glyph glyph={softphoneGlyphs.transfer} />
               </span>
               <span className="ds-control-label">{t('transfer')}</span>
+            </button>
+            <button
+              type="button"
+              className={`ds-control ${showDevices ? 'ds-control-on' : ''}`}
+              aria-pressed={showDevices}
+              aria-label={t('audioDevices')}
+              onClick={overlays.toggleDevices}
+            >
+              <span className="ds-control-glyph">
+                <Glyph glyph={softphoneGlyphs.speaker} />
+              </span>
+              <span className="ds-control-label">{t('audioDevices')}</span>
             </button>
           </div>
         )}

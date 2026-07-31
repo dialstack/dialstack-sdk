@@ -273,6 +273,18 @@ export function OngoingCall(): React.JSX.Element | null {
             styles={styles}
             disabled={!canStartTransfer}
           />
+          {/* Placeholder so the control grid matches web's five buttons. Device
+              selection on native routes through the OS audio session rather than
+              setSinkId/getUserMedia constraints, so it is not wired up yet. */}
+          <ControlButton
+            label={t('audioDevices')}
+            glyph={softphoneGlyphs.speaker}
+            on={false}
+            onPress={() => {}}
+            palette={palette}
+            styles={styles}
+            disabled
+          />
         </View>
       )}
 

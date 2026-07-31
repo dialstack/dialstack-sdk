@@ -1,8 +1,9 @@
 /**
- * `useCallOverlays` — the in-call keypad/transfer overlay flags, shared web ↔ RN.
+ * `useCallOverlays` — the in-call overlay flags, shared web ↔ RN.
  *
  * These are presentation state for ONE screen (the built-in `OngoingCall`): the
- * DTMF keypad panel and the blind-transfer input, which are mutually exclusive.
+ * DTMF keypad panel, the blind-transfer input, and the audio-device picker, which
+ * are mutually exclusive.
  * They are deliberately kept OUT of `useCallActions` (which is platform-agnostic
  * call control) so a consumer building a custom layout gets call control without
  * this built-in-UI plumbing. It's a shared hook rather than local `OngoingCall`
@@ -17,13 +18,19 @@ export interface UseCallOverlays {
   showKeypad: boolean;
   /** Whether the in-call transfer input overlay is showing. */
   showTransfer: boolean;
-  /** Toggle the DTMF keypad (closes the transfer overlay — they're exclusive). */
+  /** Whether the in-call audio-device picker is showing. */
+  showDevices: boolean;
+  /** Toggle the DTMF keypad (closes the other overlays — they're exclusive). */
   toggleKeypad: () => void;
-  /** Toggle the transfer input (closes the keypad overlay). */
+  /** Toggle the transfer input (closes the other overlays). */
   toggleTransfer: () => void;
+  /** Toggle the audio-device picker (closes the other overlays). */
+  toggleDevices: () => void;
   /** Close the transfer overlay (e.g. after a transfer is handed off). */
   closeTransfer: () => void;
 }
+
+type OverlayPanel = 'keypad' | 'transfer' | 'devices' | null;
 
 /**
  * The keypad/transfer overlay flags for the current foreground `call`. Both reset
@@ -32,27 +39,33 @@ export interface UseCallOverlays {
  * to wire overlay-reset by hand and they can't drift on *when* it happens.
  */
 export function useCallOverlays(call: Call | null): UseCallOverlays {
-  const [showKeypad, setShowKeypad] = useState(false);
-  const [showTransfer, setShowTransfer] = useState(false);
+  const [panel, setPanel] = useState<OverlayPanel>(null);
 
-  const toggleKeypad = useCallback(() => {
-    setShowKeypad((v) => !v);
-    setShowTransfer(false);
+  const toggle = useCallback((next: Exclude<OverlayPanel, null>) => {
+    setPanel((current) => (current === next ? null : next));
   }, []);
-  const toggleTransfer = useCallback(() => {
-    setShowTransfer((v) => !v);
-    setShowKeypad(false);
-  }, []);
-  const closeTransfer = useCallback(() => setShowTransfer(false), []);
+
+  const toggleKeypad = useCallback(() => toggle('keypad'), [toggle]);
+  const toggleTransfer = useCallback(() => toggle('transfer'), [toggle]);
+  const toggleDevices = useCallback(() => toggle('devices'), [toggle]);
+  const closeTransfer = useCallback(
+    () => setPanel((current) => (current === 'transfer' ? null : current)),
+    []
+  );
 
   // Reset the overlays whenever the foreground call changes. Owning this here
-  // keeps web and RN identical — neither UI wires it by hand, and they can't
-  // drift on *when* it happens (change vs end).
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset transient overlays on foreground-call change
-    setShowKeypad(false);
-    setShowTransfer(false);
+    setPanel(null);
   }, [call]);
 
-  return { showKeypad, showTransfer, toggleKeypad, toggleTransfer, closeTransfer };
+  return {
+    showKeypad: panel === 'keypad',
+    showTransfer: panel === 'transfer',
+    showDevices: panel === 'devices',
+    toggleKeypad,
+    toggleTransfer,
+    toggleDevices,
+    closeTransfer,
+  };
 }

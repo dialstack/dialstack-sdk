@@ -30,6 +30,62 @@ describe('useCallOverlays', () => {
     expect(result.current.showTransfer).toBe(false);
   });
 
+  it('all three overlays are mutually exclusive', () => {
+    // Exclusivity is structural (one piece of state names the open panel), so this
+    // guards against a regression back to N booleans where each toggler has to
+    // remember to clear the others.
+    const call = fakeCall();
+    const { result } = renderHook(() => useCallOverlays(call));
+    const open = (): string[] =>
+      [
+        result.current.showKeypad && 'keypad',
+        result.current.showTransfer && 'transfer',
+        result.current.showDevices && 'devices',
+      ].filter(Boolean) as string[];
+
+    act(() => result.current.toggleDevices());
+    expect(open()).toEqual(['devices']);
+
+    act(() => result.current.toggleKeypad());
+    expect(open()).toEqual(['keypad']);
+
+    act(() => result.current.toggleDevices());
+    expect(open()).toEqual(['devices']);
+
+    act(() => result.current.toggleTransfer());
+    expect(open()).toEqual(['transfer']);
+
+    act(() => result.current.toggleDevices());
+    expect(open()).toEqual(['devices']);
+
+    // Toggling the open one closes it, leaving nothing open.
+    act(() => result.current.toggleDevices());
+    expect(open()).toEqual([]);
+  });
+
+  it('closeTransfer leaves another open overlay alone', () => {
+    const call = fakeCall();
+    const { result } = renderHook(() => useCallOverlays(call));
+    act(() => result.current.toggleDevices());
+
+    act(() => result.current.closeTransfer());
+
+    // It closes the transfer overlay specifically, not "whatever is open".
+    expect(result.current.showDevices).toBe(true);
+  });
+
+  it('resets the devices overlay when the foreground call changes', () => {
+    const { result, rerender } = renderHook(({ call }) => useCallOverlays(call), {
+      initialProps: { call: fakeCall() as Call | null },
+    });
+    act(() => result.current.toggleDevices());
+    expect(result.current.showDevices).toBe(true);
+
+    rerender({ call: null });
+
+    expect(result.current.showDevices).toBe(false);
+  });
+
   it('closeTransfer closes only the transfer overlay', () => {
     const call = fakeCall();
     const { result } = renderHook(() => useCallOverlays(call));
