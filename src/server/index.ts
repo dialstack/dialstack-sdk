@@ -50,6 +50,32 @@ import {
   createPaginatedList,
   type PaginatedList as SharedPaginatedList,
 } from '../shared/pagination';
+// Shared with the browser SDK where the shape is identical to the documented
+// wire contract. Type-only imports, so they erase at build time and pull no
+// runtime code into the server bundle — unlike src/types/components.ts, which
+// reaches the component graph.
+//
+// Deliberately NOT imported: the browser SDK's Device, DeviceUserAssignment,
+// TemplateButton, DeviceButtonOverride, MaterializedButton,
+// ButtonCompatibilitySummary, and the device request bodies. Those carry
+// deprecated `*_id` aliases (`location_id`, `base_id`, `template_id`, …) that
+// exist only for older clients and appear nowhere in the OpenAPI spec. They are
+// re-declared below from the spec instead, so this surface publishes only the
+// documented, canonical fields.
+import type {
+  ButtonCompatibilityVerdict,
+  ButtonParams,
+  ButtonTarget,
+  ButtonType,
+  ButtonTemplate,
+  CreateButtonTemplateRequest,
+  CreateDeviceButtonOverrideRequest,
+  CreateTemplateButtonRequest,
+  UpdateButtonTemplateRequest,
+  UpdateTemplateButtonRequest,
+} from '../types/button';
+import type { CreateDeviceResponse, DeviceStatus, DeviceType } from '../types/device';
+import type { DeviceSettings } from '../types/provisioning';
 
 // Re-export error classes for consumers
 export {
@@ -221,6 +247,58 @@ export interface AccountPricing {
 }
 
 /**
+ * A recorded acceptance of the subscription agreement. Captures the evidence of
+ * acceptance together with a snapshot of the pricing agreed to, so consent is
+ * provable against the specific price shown even if pricing later changes.
+ */
+export interface TosAcceptance {
+  accepted_at: string;
+  /**
+   * IP of the client that recorded the acceptance — the account owner's browser
+   * in-portal, or your backend when your platform accepts on their behalf.
+   */
+  ip: string;
+  user_agent?: string;
+  pricing: AccountPricing;
+}
+
+/**
+ * The account's subscription-agreement resource: the agreement currently in
+ * effect plus the account's acceptance state.
+ */
+export interface Tos {
+  /**
+   * Version of the agreement in effect (date-based `YYYY-MM-DD`, which is also
+   * its effective date). Echo it back when accepting so the server can reject
+   * acceptance of stale text.
+   */
+  version: string;
+  /** Canonical URL of the full agreement. */
+  url: string;
+  /**
+   * Short affirmation the customer ticks to accept — the clickwrap checkbox
+   * label, including the 911/E911 acknowledgement.
+   */
+  content: string;
+  /** Full agreement text (HTML) to render as the body. */
+  body: string;
+  /** The current acceptance, or null if the account has not accepted. */
+  acceptance: TosAcceptance | null;
+  /**
+   * The account's agreed pricing. Present only when `expand: ['pricing']` is
+   * requested; null when pricing has not been set.
+   */
+  pricing?: AccountPricing | null;
+}
+
+export type TosExpand = 'pricing';
+
+export interface TosAcceptParams {
+  /** The version being accepted; must match the current one. */
+  version: string;
+}
+
+/**
  * A webhook endpoint receives event notifications. Endpoints are mode-scoped:
  * an endpoint created with a live key (and `livemode: true`) only receives
  * events from live accounts; one created with a test key only receives events
@@ -295,6 +373,11 @@ export interface User {
   do_not_disturb: boolean;
   created_at: string;
   updated_at: string;
+  /**
+   * Extensions assigned to this user. Present only when the request includes
+   * `expand: ['extensions']`.
+   */
+  extensions?: ListResponse<Extension>;
 }
 
 export interface UserCreateParams {
@@ -317,7 +400,13 @@ export interface UserUpdateParams {
 export interface UserListParams {
   limit?: number;
   page?: string;
+  /** Filter by name or email (case-insensitive partial match). */
+  search?: string;
+  /** Related resources to include inline. Supported values: `extensions`. */
+  expand?: UserExpand[];
 }
+
+export type UserExpand = 'extensions';
 
 export interface PhoneNumber {
   id: string;
@@ -411,6 +500,869 @@ export interface Transcript {
   call_id: string;
   status: TranscriptStatus;
   text: string | null;
+  /**
+   * Sentiment derived from the transcript. Null while transcription is
+   * incomplete, or when the analysis did not produce a usable result.
+   */
+  sentiment?: Sentiment | null;
+}
+
+export type SentimentLabel = 'positive' | 'neutral' | 'negative';
+
+/** Sentiment for one speaker on a two-party call. */
+export interface ChannelSentiment {
+  sentiment: SentimentLabel;
+  /** This speaker's emotional leaning, from -1.0 to +1.0. */
+  score: number;
+  /** How strongly this speaker expressed feeling, 0.0 to 1.0. */
+  magnitude: number;
+}
+
+/**
+ * AI-derived sentiment of a call or voicemail transcript.
+ *
+ * Two independent axes: `score` is the emotional leaning (-1.0 to +1.0, with
+ * `overall` derived from it), and `magnitude` is how strongly feeling was
+ * expressed at all (0.0 to 1.0, unsigned). Read them together — a call where
+ * one side was angry and the other delighted scores near 0 with a *high*
+ * magnitude, while a routine call scores near 0 with a low one.
+ */
+export interface Sentiment {
+  overall: SentimentLabel;
+  score: number;
+  magnitude: number;
+  /** Your user's side of the conversation. Absent for single-channel audio. */
+  local?: ChannelSentiment;
+  /** The other party's side. Absent for single-channel audio. */
+  remote?: ChannelSentiment;
+}
+
+// Call log types
+
+/** Which leg of the call a set of quality metrics describes. */
+export type QualityMetricLegType = 'pstn' | 'endpoint';
+
+/** RTP quality metrics for a single call leg. */
+export interface QualityMetricLeg {
+  leg: QualityMetricLegType;
+  /** The endpoint id for endpoint legs; null for PSTN legs. */
+  endpoint?: string | null;
+  jitter_ms?: number | null;
+  jitter_min_ms?: number | null;
+  jitter_max_ms?: number | null;
+  jitter_stddev_ms?: number | null;
+  packet_loss_pct?: number | null;
+  rtt_ms?: number | null;
+  rtt_min_ms?: number | null;
+  rtt_max_ms?: number | null;
+  rtt_stddev_ms?: number | null;
+  rx_count?: number | null;
+  tx_count?: number | null;
+  mos?: number | null;
+}
+
+/**
+ * Compact phone number reference embedded in a call log or fax when
+ * `expand: ['did']` is requested. Deliberately limited to identity and the
+ * dialable number — the full resource is available via `phoneNumbers`.
+ */
+export interface DIDSummary {
+  id: string;
+  /** The DID in E.164 format. */
+  phone_number: string;
+}
+
+export type CallDirection = 'inbound' | 'outbound' | 'internal';
+
+export type CallStatus = 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
+
+/**
+ * Record of a completed or attempted call. The `id` is an opaque call log
+ * identifier — one call log may span several underlying legs, so it does not
+ * correspond to any single leg.
+ *
+ * The record is lifecycle-spanning: it can be retrieved while the call is still
+ * live, in which case it is a sparse projection. `status`, `to_label`,
+ * `ended_at`, `duration_seconds`, `answered_at`, `connected_at`,
+ * `hangup_cause`, `summary`, and `recording_url` are null until the call
+ * completes, and `quality_metrics` is empty. `to_number` is present live for
+ * outbound and internal calls but null for inbound ones, whose routed
+ * destination is resolved later.
+ */
+export interface CallLog {
+  id: string;
+  user: string | null;
+  endpoint: string | null;
+  /**
+   * The phone number associated with this call — its id by default, or a
+   * compact {@link DIDSummary} when `expand: ['did']` is requested. Null for
+   * calls without a DID.
+   */
+  did: string | DIDSummary | null;
+  direction: CallDirection;
+  from_number: string;
+  /**
+   * The caller's display name, or null when none is available. For external
+   * callers this is the raw CNAM, which may be a locality ("LA MESA CA"), a
+   * placeholder ("WIRELESS CALLER"), or a restatement of `from_number` —
+   * check for the latter before rendering it beside the number.
+   */
+  from_label: string | null;
+  to_number: string | null;
+  to_label: string | null;
+  started_at: string;
+  /**
+   * When the call was answered at the signalling level. A greeting, menu, or
+   * voice app answering the media path counts, so for inbound calls this is
+   * often the platform answer rather than when a person picked up — use
+   * `connected_at` for that.
+   */
+  answered_at: string | null;
+  /**
+   * When the winning leg answered, i.e. when live conversation began. Null when
+   * the call never reached a person (abandoned during the greeting or while
+   * ringing, or answered by voicemail).
+   */
+  connected_at: string | null;
+  ended_at: string | null;
+  duration_seconds: number | null;
+  /** Final status, derived once the call ends. Null while the call is live. */
+  status: CallStatus | null;
+  /** Q.850 hangup cause of the destination leg when the call couldn't connect. */
+  hangup_cause: number | null;
+  summary: string | null;
+  sentiment?: Sentiment | null;
+  /** Signed recording download URL, valid for 10 minutes. */
+  recording_url: string | null;
+  quality_metrics: QualityMetricLeg[];
+}
+
+export type CallExpand = 'did';
+
+/**
+ * Filters accepted by `GET /v1/calls`.
+ *
+ * These names mirror what the handler actually parses, which is not always what
+ * the reference documents — an unrecognized filter is ignored rather than
+ * rejected, so a wrong name returns a 200 with unfiltered results. Verify
+ * against the handler before adding one here.
+ */
+export interface CallListParams {
+  limit?: number;
+  page?: string;
+  user_id?: string;
+  /** Filter by the phone number (DID) associated with the call, by its id. */
+  did?: string;
+  direction?: CallDirection;
+  /** Caller's phone number (exact match). */
+  from_number?: string;
+  /** The call's destination (exact match) — as dialed or as routed. */
+  to_number?: string;
+  status?: CallStatus;
+  /** Return calls started on or after this date (ISO 8601). */
+  from_date?: string;
+  /** Return calls started before this date (ISO 8601). */
+  to_date?: string;
+  /** Related resources to include inline. Supported values: `did`. */
+  expand?: CallExpand[];
+}
+
+export interface CallCreateParams {
+  /** The user whose endpoints ring first; the destination is dialed on answer. */
+  user: string;
+  /** Phone number, extension, or emergency number to dial after the user answers. */
+  dial_string: string;
+}
+
+/** Call recording metadata with a signed download URL. */
+export interface Recording {
+  call_id: string;
+  duration_seconds?: number | null;
+  file_size_bytes?: number | null;
+  /** Signed download URL. Expires after 10 minutes. */
+  download_url: string;
+  expires_at: string;
+}
+
+/** Which audio channel(s) a listener streams. */
+export type ListenerChannel = 'caller' | 'callee' | 'both';
+
+/**
+ * A listener streams real-time audio from an active call to your server over a
+ * WebSocket. Audio flows one way, and the call itself is unaffected — neither
+ * party is aware of it.
+ */
+export interface Listener {
+  id: string;
+  call_id: string;
+  url: string;
+  channel: ListenerChannel;
+  created_at: string;
+}
+
+export interface ListenerCreateParams {
+  /** Secure WebSocket URL to stream to. `ws://` is rejected with 422. */
+  url: string;
+  /** Defaults to `both`, delivered as separate tagged messages. */
+  channel?: ListenerChannel;
+}
+
+export interface ListenerListParams {
+  limit?: number;
+  page?: string;
+}
+
+// Voicemail types
+
+/**
+ * A voicemail message with its audio recording. Each voicemail has exactly one
+ * owner — either a user or a shared voicemail box.
+ */
+export interface Voicemail {
+  id: string;
+  /** The user who received the voicemail, or the shared box it was left in. */
+  owner: string;
+  from_number: string;
+  from_name: string | null;
+  duration_seconds: number;
+  /** Audio format, e.g. `mp3`. */
+  format: string;
+  audio_url: string;
+  is_read: boolean;
+  created_at: string;
+  read_at: string | null;
+  summary: string | null;
+  /**
+   * Sentiment of the voicemail transcript. Voicemail audio is single-channel,
+   * so this never carries the `local`/`remote` breakdown a call does.
+   */
+  sentiment?: Sentiment | null;
+  /**
+   * The call that produced this voicemail — its id by default, or the full
+   * {@link CallLog} when `expand: ['call']` is requested. Always present; null
+   * for voicemails with no resolvable call (a direct-to-mailbox drop, or a row
+   * predating the linkage).
+   */
+  call: string | CallLog | null;
+}
+
+export interface VoicemailTranscript {
+  voicemail: string;
+  status: TranscriptStatus;
+  text: string | null;
+  sentiment?: Sentiment | null;
+}
+
+export type VoicemailExpand = 'call';
+
+export interface VoicemailListParams {
+  limit?: number;
+  page?: string;
+  /** Scope to one owner — a user id or a shared voicemail box id. */
+  owner?: string;
+  is_read?: boolean;
+  /** Return voicemails created on or after this date (ISO 8601). */
+  from_date?: string;
+  /** Related resources to include inline. Supported values: `call`. */
+  expand?: VoicemailExpand[];
+}
+
+export interface VoicemailUpdateParams {
+  is_read?: boolean;
+}
+
+/**
+ * The greeting variant. Today only `unavailable` is supported: the full custom
+ * greeting that replaces the system prompts, played when the owner doesn't
+ * answer.
+ */
+export type VoicemailGreetingType = 'unavailable';
+
+/**
+ * A custom greeting that replaces the system-default prompts for a user mailbox
+ * or shared voicemail box. Each (owner, type) pair has at most one greeting.
+ */
+export interface VoicemailGreeting {
+  /** The user whose mailbox this belongs to, or the shared voicemail box. */
+  owner: string;
+  greeting_type: VoicemailGreetingType;
+  /** Audio format of the stored greeting. */
+  format: 'wav';
+  duration_seconds: number;
+  /** Size of the stored audio in bytes, post-transcode. */
+  size_bytes: number;
+  /** Short-lived (5 minute) signed URL for downloading the audio. */
+  url?: string;
+  updated_at?: string;
+}
+
+// Fax types
+
+/**
+ * An uploaded file scoped to an account, returned inline when a resource that
+ * references it is expanded (e.g. a fax under `expand: ['file']`).
+ */
+export interface FileObject {
+  object: 'file';
+  id: string;
+  /** What the file is used for, e.g. `fax_source`. */
+  purpose: string;
+  filename: string | null;
+  /** Short type derived from the MIME type (e.g. `pdf`), or null if unrecognized. */
+  type: string | null;
+  mime_type: string;
+  /** Size in bytes. */
+  size: number;
+  /**
+   * Time-limited signed URL for the file's bytes, populated at response time
+   * only. Null unless the file was returned via an expand.
+   */
+  url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type FaxDirection = 'inbound' | 'outbound';
+
+export type FaxStatus = 'pending' | 'delivered' | 'failed' | 'received';
+
+/** Transport the fax leg negotiated. */
+export type FaxTransport = 't38' | 'g711';
+
+export interface Fax {
+  id: string;
+  direction: FaxDirection;
+  status: FaxStatus;
+  /**
+   * The fax document — the file's id by default, or the full
+   * {@link FileObject} with a signed `url` when `expand: ['file']` is
+   * requested. Null until the document exists (an inbound row before receipt,
+   * or a failed fax).
+   */
+  file: string | FileObject | null;
+  /**
+   * Your own number on the fax — the source DID outbound, the terminating DID
+   * inbound. Its id by default, or a {@link DIDSummary} when
+   * `expand: ['did']` is requested.
+   */
+  did: string | DIDSummary;
+  /** Sender's number in E.164. Null inbound when caller ID was withheld. */
+  from_number: string | null;
+  to_number: string | null;
+  call_id: string | null;
+  /** Pages transmitted, once known. */
+  pages: number | null;
+  /**
+   * Page count of the source document (outbound only). Pair with `pages` to
+   * show progress while sending, e.g. "15 of 30 sent".
+   */
+  source_pages: number | null;
+  transport: FaxTransport | null;
+  error_code: string | null;
+  attempts: number;
+  /** When the fax was marked read. Read state is the null-ness of this field. */
+  read_at: string | null;
+  submitted_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type FaxExpand = 'file' | 'did';
+
+export interface FaxListParams {
+  limit?: number;
+  page?: string;
+  direction?: FaxDirection;
+  status?: FaxStatus;
+  /** Filter by your own associated phone number, by its id. */
+  did?: string;
+  /**
+   * Substring filter on the sender or recipient number. Non-digit characters
+   * are stripped, then matched anywhere in the stored E.164 value — `415`
+   * returns every fax to or from a 415 number.
+   */
+  number?: string;
+  /** Pass `false` to show only unread faxes. */
+  is_read?: boolean;
+  /** Related resources to include inline. Supported values: `file`, `did`. */
+  expand?: FaxExpand[];
+}
+
+export interface FaxSendParams {
+  /** Id of a file uploaded with purpose `fax_source`. */
+  file: string;
+  /** Destination fax number. Normalized to E.164. */
+  to: string;
+  /** Id of the phone number to send from. Must be active and fax-enabled. */
+  did: string;
+}
+
+export interface FaxUpdateParams {
+  is_read?: boolean;
+}
+
+// Button template types
+
+export type { ButtonCompatibilityVerdict, ButtonParams, ButtonTarget, ButtonType, ButtonTemplate };
+
+export type ButtonCompatibilityReason =
+  'vendor_does_not_support_type' | 'position_out_of_range_for_model' | 'device_has_no_owning_user';
+
+/** Programmable-key compatibility for a device's effective button set. */
+export interface ButtonCompatibilitySummary {
+  device: {
+    vendor: string;
+    model: string;
+    kind: 'deskphone' | 'dect_base' | 'dect_handset';
+    /** Highest programmable key position known for this device model. */
+    max_position: number;
+  };
+  supported_count: number;
+  unsupported: Array<{
+    template_button?: string;
+    override?: string;
+    position: number;
+    type: ButtonType;
+    reason: ButtonCompatibilityReason;
+  }>;
+}
+
+/** A button row defined on a reusable template. */
+export interface TemplateButton {
+  id: string;
+  template: string;
+  position: number;
+  label: string;
+  type: ButtonType;
+  target: ButtonTarget;
+  created_at: string;
+}
+
+export interface ButtonTemplateWithDetails extends ButtonTemplate {
+  /** Present only when `expand: ['buttons']` is requested. */
+  buttons?: TemplateButton[];
+  /** Present only when `for_device` is supplied. */
+  compatibility?: ButtonCompatibilitySummary;
+}
+
+/** A per-device button override, or a suppression tombstone. */
+export interface DeviceButtonOverride {
+  id: string;
+  device: string;
+  position: number;
+  /** When true, hides any template button at this position. */
+  suppressed: boolean;
+  label?: string | null;
+  type?: ButtonType | null;
+  target?: ButtonTarget;
+  created_at: string;
+}
+
+/** The effective button after template rows and per-device overrides merge. */
+export interface MaterializedButton {
+  position: number;
+  label: string;
+  type: ButtonType;
+  target: ButtonTarget;
+  /**
+   * Where the button came from. `model_default` is one the device model gets for
+   * free because its hardware has no other way to reach the function — it is
+   * stored nowhere, so it carries neither `template_button` nor `override`, but
+   * a device override at the same position still shadows or suppresses it.
+   */
+  source: 'template' | 'override' | 'template_overridden' | 'model_default';
+  template_button?: string | null;
+  override?: string | null;
+  compatibility: ButtonCompatibilityVerdict;
+}
+
+export type ButtonTemplateCreateParams = CreateButtonTemplateRequest;
+export type ButtonTemplateUpdateParams = UpdateButtonTemplateRequest;
+export type TemplateButtonCreateParams = CreateTemplateButtonRequest;
+export type TemplateButtonUpdateParams = UpdateTemplateButtonRequest;
+
+export type ButtonTemplateExpand = 'buttons';
+
+export interface ButtonTemplateListParams {
+  limit?: number;
+  page?: string;
+}
+
+export interface ButtonTemplateRetrieveOptions {
+  /**
+   * Evaluate the template against a specific device and include a
+   * `compatibility` summary in the response.
+   */
+  for_device?: string;
+  /** Related resources to include inline. Supported values: `buttons`. */
+  expand?: ButtonTemplateExpand[];
+}
+
+export interface TemplateButtonListParams {
+  limit?: number;
+  page?: string;
+}
+
+// Device types
+//
+// Declared from the OpenAPI schemas rather than reused from src/types/device.ts,
+// which carries deprecated `*_id` aliases for older clients. `display_name` is
+// likewise omitted throughout: the spec marks it `deprecated: true` as an alias
+// of `name`, and `name` is canonical for every device type.
+export type { CreateDeviceResponse, DeviceSettings, DeviceStatus, DeviceType };
+
+export type DeviceRegistrationStatus = 'registered' | 'not_registered';
+
+export type DeviceMulticellRole = 'single' | 'data_master' | 'secondary';
+
+/** A SIP line assignment on a deskphone, mapping a line key to an endpoint. */
+export interface DeviceLine {
+  id: string;
+  device: string;
+  endpoint: string;
+  /** Physical line key number on the device (1-24). */
+  line_number: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** A SIP line assignment on a DECT handset. */
+export interface HandsetLine {
+  id: string;
+  handset: string;
+  display_name?: string | null;
+  endpoint_id: string;
+  /**
+   * The full endpoint object. Included on list responses; the id is always
+   * available as `endpoint_id`.
+   */
+  endpoint?: {
+    id: string;
+    user?: string;
+    name?: string | null;
+    status?: 'online' | 'offline';
+    created_at?: string;
+    updated_at?: string;
+  } | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type DECTHandsetStatus = 'unpaired' | 'pending-sync' | 'registered' | 'provisioned';
+
+/** A DECT handset paired with a base station. */
+export interface DECTHandset {
+  id: string;
+  /** Parent base, or null while the handset is stocked but unpaired. */
+  base?: string | null;
+  /** International Portable Equipment Identity. */
+  ipei: string;
+  status: DECTHandsetStatus;
+  display_name?: string | null;
+  slot_number: number;
+  model?: string | null;
+  firmware_version?: string | null;
+  registered_at?: string | null;
+  /** SIP line assignments on this handset. */
+  extensions?: HandsetLine[];
+  created_at: string;
+  updated_at: string;
+}
+
+/** A user assigned to a device. */
+export interface DeviceUserAssignment {
+  user: string;
+  device: string;
+  /** Physical line key number assigned to this user (1-24). */
+  line_number?: number;
+  created_at: string;
+}
+
+/**
+ * A provisioned device — desk phone, DECT base station, or DECT handset. `type`
+ * indicates the kind, and type-specific fields are present only for that kind.
+ */
+export interface Device {
+  id: string;
+  type: DeviceType;
+  mac_address: string;
+  /** Auto-detected from the MAC address. */
+  vendor: string;
+  model?: string | null;
+  name?: string | null;
+  /**
+   * Physical E911 location. Set on deskphones and DECT bases; handsets have
+   * none of their own and inherit from the paired base, reporting null here.
+   */
+  location?: string | null;
+  status: DeviceStatus;
+  overrides?: DeviceSettings;
+  current_ip_address?: string | null;
+  last_provisioned_at?: string | null;
+  /**
+   * Whether the device is currently reachable, derived live from its assigned
+   * lines. Distinct from `status`, which only reflects whether the device has
+   * fetched its configuration. A device with no lines is `not_registered`.
+   */
+  registration_status: DeviceRegistrationStatus;
+  last_registered_at: string | null;
+  /**
+   * The latest call attempt involving the device, any outcome. Null until its
+   * first call: presence means it has carried a call, recency means it is
+   * still in use.
+   */
+  last_call_at: string | null;
+  created_at: string;
+  updated_at: string;
+
+  // Deskphone only
+  primary_line?: string | null;
+  lines?: DeviceLine[];
+
+  // DECT base only
+  multicell_role?: DeviceMulticellRole | null;
+  max_handsets?: number | null;
+  handsets?: DECTHandset[];
+
+  // DECT base and handset
+  firmware_version?: string | null;
+
+  // DECT handset only
+  base?: string | null;
+  ipei?: string | null;
+  display_name?: string | null;
+  slot_number?: number | null;
+  registered_at?: string | null;
+  extensions?: HandsetLine[];
+
+  /** User assignments. Present only when `expand: ['users']` is requested. */
+  assignments?: DeviceUserAssignment[];
+  /** Programmable-key compatibility for the current effective button set. */
+  compatibility?: ButtonCompatibilitySummary;
+  /** The bound template's id, or null when none is bound. */
+  button_template_id?: string | null;
+  /**
+   * The full bound template. Present only when
+   * `expand: ['button_template']` is requested; the id is always available as
+   * `button_template_id`.
+   */
+  button_template?: ButtonTemplate | null;
+}
+
+export interface DeviceCreateParams {
+  /**
+   * The kind to create. Optional for MAC-addressable devices: omit it and the
+   * type is detected from `mac_address` via the vendor catalog. Rejected if the
+   * MAC cannot be classified, or if a supplied `type` contradicts a positive
+   * catalog match. `dect_handset` is IPEI-identified and must always be given.
+   */
+  type?: DeviceType;
+  /** Required for deskphones and DECT bases. */
+  mac_address?: string;
+  model?: string;
+  name?: string;
+  overrides?: DeviceSettings;
+  /** DECT base only; defaults to `single`. */
+  multicell_role?: DeviceMulticellRole;
+  /** E911 location, deskphone or DECT base only. Can be set later. */
+  location?: string;
+  /** Parent DECT base, handset only. Omit to stock the handset unpaired. */
+  base?: string;
+  /** Required for DECT handsets. */
+  ipei?: string;
+}
+
+/**
+ * `name`, `location`, `base`, and `button_template` are tri-state: omit for no
+ * change, send a value to set, or send explicit `null` to clear.
+ */
+export interface DeviceUpdateParams {
+  model?: string;
+  name?: string | null;
+  /** Deskphones and DECT bases only. */
+  status?: DeviceStatus;
+  overrides?: DeviceSettings;
+  /** DECT handset only. */
+  ipei?: string;
+  /** E911 location, deskphone or DECT base only. */
+  location?: string | null;
+  /**
+   * Paired DECT base, handset only — re-pair to a different base on the same
+   * account, or `null` to unpair (it stays in inventory).
+   */
+  base?: string | null;
+  button_template?: string | null;
+}
+
+export interface DeviceAssignUserParams {
+  user: string;
+}
+
+/** Expansions available on a single-device read. */
+export type DeviceExpand = 'users' | 'button_template';
+
+/**
+ * Expansions available on the device *list*, which is narrower than
+ * {@link DeviceExpand}: the list endpoint hydrates `users` only. Requesting
+ * `button_template` there is silently ignored rather than rejected, so it is not
+ * offered here — read the device individually to get the template object, or use
+ * the always-present `button_template_id`.
+ */
+export type DeviceListExpand = 'users';
+
+export interface DeviceListParams {
+  limit?: number;
+  page?: string;
+  /** Return only devices of this kind. */
+  type?: DeviceType;
+  /**
+   * Return only devices assigned to this location. DECT handsets have no
+   * location of their own and are omitted.
+   */
+  location?: string;
+  /**
+   * Related resources to include inline. `users` populates `assignments`.
+   */
+  expand?: DeviceListExpand[];
+}
+
+/**
+ * 409 body for an assignment that violates the at-most-one-device-per-user
+ * rule. `code` is stable, so branch on it rather than string-matching `error`.
+ */
+export interface DeviceUserConflictResponse {
+  error: string;
+  code:
+    | 'user_already_assigned'
+    | 'user_already_has_device'
+    | 'user_already_has_endpoint'
+    | 'handset_already_assigned'
+    | 'device_full'
+    | 'base_full';
+  /** The device the user is already on. Present on `user_already_has_device`. */
+  existing_device?: string;
+}
+
+export interface DeviceCheckSyncParams {
+  /**
+   * Reboot the device immediately after applying config, interrupting any
+   * active call. The default performs a non-disruptive in-place reload.
+   */
+  reboot?: boolean;
+}
+
+export type DeviceCheckSyncLineStatus = 'delivered' | 'not_registered' | 'unreachable' | 'error';
+
+export interface DeviceCheckSyncLine {
+  /** 1-indexed line identifier; `0` on the device-level entry. */
+  line_number: number;
+  status: DeviceCheckSyncLineStatus;
+  /**
+   * True on the device-level reprovision attempt, used to reach a device with
+   * no assigned line yet. Paired with `line_number: 0`.
+   */
+  management?: boolean;
+}
+
+export interface DeviceCheckSyncResponse {
+  success: boolean;
+  lines_notified: number;
+  /**
+   * Per-line outcome. Individual lines may be `unreachable` or
+   * `not_registered` even when the overall request succeeded.
+   */
+  lines: DeviceCheckSyncLine[];
+}
+
+export interface DeviceButtonListParams {
+  limit?: number;
+  page?: string;
+}
+
+export type DeviceButtonOverrideCreateParams = CreateDeviceButtonOverrideRequest;
+
+// Hardware order types
+
+export interface HardwareCatalogItem {
+  id: string;
+  manufacturer: string;
+  model: string;
+  sku: string | null;
+  /** `accessory` never becomes a device (e.g. a power supply). */
+  device_type: 'deskphone' | 'dect_base' | 'dect_handset' | 'accessory';
+  /** Whether the item is available for selection. */
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * A single physical unit on a hardware order. Requests speak quantity;
+ * responses expose one item per unit — aggregate client-side for display.
+ */
+export interface HardwareOrderItem {
+  id: string;
+  /** Pre-assignment intent: the user this unit is destined for. */
+  user: string | null;
+  /** Pre-staging intent: the location this unit is destined for. */
+  location: string | null;
+  /**
+   * Pre-pairing intent (handsets only): the ordered base this handset will
+   * pair with. Auto-set when the order has exactly one base.
+   */
+  base_item: string | null;
+  /**
+   * The device this unit materialized into at fulfillment — its id by default,
+   * or the full {@link Device} when `expand: ['items.device']` is requested.
+   * Null until fulfilled.
+   */
+  device: string | Device | null;
+  fulfilled_at: string | null;
+  hardware_catalog: HardwareCatalogItem;
+  created_at: string;
+  updated_at: string;
+}
+
+export type HardwareOrderStatus =
+  'draft' | 'submitted' | 'approved' | 'rejected' | 'fulfilled' | 'cancelled';
+
+export interface HardwareOrder {
+  id: string;
+  status: HardwareOrderStatus;
+  /** Why the order was declined at review. Only set when `rejected`. */
+  rejection_reason: string | null;
+  items: HardwareOrderItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export type HardwareOrderExpand = 'items.device';
+
+export interface HardwareOrderParams {
+  /** At least one line; quantity is 1-100 per line. */
+  items: Array<{ hardware_catalog: string; quantity: number }>;
+}
+
+export interface HardwareOrderListParams {
+  /**
+   * Return only orders with a unit staged to this location. Useful for finding
+   * which orders block a location delete.
+   */
+  location?: string;
+  /** Related resources to include inline. Supported values: `items.device`. */
+  expand?: HardwareOrderExpand[];
+}
+
+/**
+ * Assignment intent for one ordered unit. Each field is tri-state: omit to
+ * leave unchanged, pass a value to set, or pass `null` to clear. At least one
+ * must be present.
+ */
+export interface HardwareOrderItemUpdateParams {
+  user?: string | null;
+  location?: string | null;
+  base_item?: string | null;
 }
 
 // AI Agent types
@@ -438,6 +1390,11 @@ export interface AIAgent {
   scheduling?: SchedulingConfig | null;
   created_at: string;
   updated_at: string;
+  /**
+   * Extensions assigned to this agent. Present only when the request includes
+   * `expand: ['extensions']`.
+   */
+  extensions?: ListResponse<Extension>;
 }
 
 export interface AIAgentCreateParams {
@@ -461,9 +1418,25 @@ export interface AIAgentUpdateParams {
 
 export interface AIAgentListParams {
   limit?: number;
+  /** Opaque cursor from a previous response's `next_page_url`. */
+  page?: string;
+  /**
+   * @deprecated The API accepts no bare cursor parameters — `parseListParams`
+   * reads only `limit` and `page`, and this value is discarded. Use `page` with
+   * the cursor from the previous response's `next_page_url`.
+   */
   starting_after?: string;
+  /**
+   * @deprecated The API accepts no bare cursor parameters — `parseListParams`
+   * reads only `limit` and `page`, and this value is discarded. Use `page` with
+   * the cursor from the previous response's `next_page_url`.
+   */
   ending_before?: string;
+  /** Related resources to include inline. Supported values: `extensions`. */
+  expand?: AIAgentExpand[];
 }
+
+export type AIAgentExpand = 'extensions';
 
 // Voice App types
 export interface VoiceApp {
@@ -474,6 +1447,11 @@ export interface VoiceApp {
   secret: string;
   created_at: string;
   updated_at: string;
+  /**
+   * Extensions routing to this voice app. Present only when the request
+   * includes `expand: ['extensions']`.
+   */
+  extensions?: ListResponse<Extension>;
 }
 
 export interface VoiceAppCreateParams {
@@ -490,7 +1468,11 @@ export interface VoiceAppUpdateParams {
 export interface VoiceAppListParams {
   limit?: number;
   page?: string;
+  /** Related resources to include inline. Supported values: `extensions`. */
+  expand?: VoiceAppExpand[];
 }
+
+export type VoiceAppExpand = 'extensions';
 
 // Schedule types
 export interface TimeRange {
@@ -593,6 +1575,11 @@ export interface DialPlan {
   nodes: DialPlanNode[];
   created_at: string;
   updated_at: string;
+  /**
+   * Extensions routing to this dial plan. Present only when the request
+   * includes `expand: ['extensions']`.
+   */
+  extensions?: ListResponse<Extension>;
 }
 
 export interface DialPlanCreateParams {
@@ -604,7 +1591,11 @@ export interface DialPlanCreateParams {
 export interface DialPlanListParams {
   limit?: number;
   page?: string;
+  /** Related resources to include inline. Supported values: `extensions`. */
+  expand?: DialPlanExpand[];
 }
+
+export type DialPlanExpand = 'extensions';
 
 // Extension types
 export type ExtensionStatus = 'active' | 'inactive';
@@ -633,6 +1624,7 @@ export interface ExtensionUpdateParams {
 
 export interface ExtensionListParams {
   limit?: number;
+  page?: string;
   target?: string;
 }
 
@@ -656,6 +1648,11 @@ export interface RingGroup {
   members: RingGroupMember[];
   created_at: string;
   updated_at: string;
+  /**
+   * Extensions routing to this ring group. Present only when the request
+   * includes `expand: ['extensions']`.
+   */
+  extensions?: ListResponse<Extension>;
 }
 
 export interface RingGroupMember {
@@ -688,7 +1685,11 @@ export interface RingGroupUpdateParams {
 export interface RingGroupListParams {
   limit?: number;
   page?: string;
+  /** Related resources to include inline. Supported values: `extensions`. */
+  expand?: RingGroupExpand[];
 }
+
+export type RingGroupExpand = 'extensions';
 
 export interface RingGroupAddMemberParams {
   extension?: string;
@@ -759,9 +1760,15 @@ export interface Queue {
   max_queue_length: number;
   join_empty: string;
   leave_when_empty: string;
-  /** Populated only when the request includes `expand[]=members`. */
+  /**
+   * The first members of the queue, always embedded and capped at 10. Use
+   * `queues.listMembers()` for the full, paginated set.
+   */
   members?: ListResponse<QueueMember>;
-  /** Populated only when the request includes `expand[]=extensions`. */
+  /**
+   * Extensions routing to this queue. Present only when the request includes
+   * `expand: ['extensions']`.
+   */
   extensions?: ListResponse<Extension>;
   created_at: string;
   updated_at: string;
@@ -809,7 +1816,11 @@ export interface QueueUpdateParams {
 export interface QueueListParams {
   limit?: number;
   page?: string;
+  /** Related resources to include inline. Supported values: `extensions`. */
+  expand?: QueueExpand[];
 }
+
+export type QueueExpand = 'extensions';
 
 export interface QueueAddMemberParams {
   user_id: string;
@@ -819,7 +1830,19 @@ export interface QueueAddMemberParams {
 
 export interface QueueListMembersParams {
   limit?: number;
+  /** Opaque cursor from a previous response's `next_page_url`. */
+  page?: string;
+  /**
+   * @deprecated The API accepts no bare cursor parameters — `parseListParams`
+   * reads only `limit` and `page`, and this value is discarded. Use `page` with
+   * the cursor from the previous response's `next_page_url`.
+   */
   starting_after?: string;
+  /**
+   * @deprecated The API accepts no bare cursor parameters — `parseListParams`
+   * reads only `limit` and `page`, and this value is discarded. Use `page` with
+   * the cursor from the previous response's `next_page_url`.
+   */
   ending_before?: string;
 }
 
@@ -1135,6 +2158,34 @@ export interface TestEventResponse {
 }
 
 // ============================================================================
+// Query-string helpers
+// ============================================================================
+
+/**
+ * Append an `expand[]` pair per requested expansion.
+ *
+ * The API reads `expand[]` as a repeated key, so each value gets its own pair —
+ * a single comma-joined value is not recognized and the expansion is silently
+ * skipped.
+ */
+function appendExpand(queryParams: URLSearchParams, expand?: readonly string[]): void {
+  for (const value of expand ?? []) {
+    queryParams.append('expand[]', value);
+  }
+}
+
+/**
+ * Build the query string for a request whose only parameter is `expand[]`.
+ * Returns an empty string when nothing is expanded.
+ */
+function expandQuery(expand?: readonly string[]): string {
+  const queryParams = new URLSearchParams();
+  appendExpand(queryParams, expand);
+  const query = queryParams.toString();
+  return query ? `?${query}` : '';
+}
+
+// ============================================================================
 // DialStack Client
 // ============================================================================
 
@@ -1231,11 +2282,19 @@ export class DialStack {
     const timeout = options?.timeout ?? this._timeout;
     const maxRetries = options?.maxNetworkRetries ?? this._maxNetworkRetries;
 
+    // A FormData body is passed through untouched and without a Content-Type,
+    // so fetch can set multipart/form-data with its own boundary. Used by the
+    // file-upload endpoints.
+    const isMultipart = typeof FormData !== 'undefined' && body instanceof FormData;
+
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
       Authorization: `Bearer ${this._apiKey}`,
       'User-Agent': this.getUserAgent(),
     };
+
+    if (!isMultipart) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     if (options?.idempotencyKey) {
       headers['Idempotency-Key'] = options.idempotencyKey;
@@ -1265,10 +2324,17 @@ export class DialStack {
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
         try {
+          let requestBody: BodyInit | undefined;
+          if (isMultipart) {
+            requestBody = body as FormData;
+          } else if (body) {
+            requestBody = JSON.stringify(body);
+          }
+
           response = await fetch(url, {
             method,
             headers,
-            body: body ? JSON.stringify(body) : undefined,
+            body: requestBody,
             signal: controller.signal,
           });
         } finally {
@@ -1341,8 +2407,22 @@ export class DialStack {
 
       try {
         const errorData = await response.json();
-        rawError = errorData.error || errorData;
-        errorMessage = rawError?.message || errorMessage;
+
+        // Two body shapes are in play. Most handlers return the message as a
+        // *string* under `error`, alongside siblings like `code` and
+        // `existing_device` — so the envelope itself is the raw error. A few
+        // (via echo.NewHTTPError) return `{ message }`, and some nest an object
+        // under `error`. Treating a string `error` as the raw object would drop
+        // `code` and every sibling field, and lose the message.
+        const nested =
+          typeof errorData?.error === 'object' && errorData.error !== null
+            ? errorData.error
+            : undefined;
+        rawError = nested ?? errorData;
+        errorMessage =
+          rawError?.message ??
+          (typeof errorData?.error === 'string' ? errorData.error : undefined) ??
+          errorMessage;
       } catch {
         // Use statusText if we can't parse error
       }
@@ -1414,7 +2494,7 @@ export class DialStack {
 
     list: (params?: AccountListParams, options?: RequestOptions): PaginatedList<Account> => {
       const queryParams = new URLSearchParams();
-      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
       if (params?.page) queryParams.set('page', params.page);
 
       const query = queryParams.toString();
@@ -1442,6 +2522,37 @@ export class DialStack {
       options?: RequestOptions
     ): Promise<AccountPricing> => {
       return this._request('POST', `/v1/accounts/${accountId}/pricing`, params, options);
+    },
+
+    /**
+     * Retrieve the account's subscription agreement and its acceptance state.
+     * Pass `expand: ['pricing']` to include the pricing the customer is
+     * accepting.
+     */
+    retrieveTos: (
+      accountId: string,
+      options?: RequestOptions & { expand?: TosExpand[] }
+    ): Promise<Tos> => {
+      const path = `/v1/accounts/${accountId}/tos${expandQuery(options?.expand)}`;
+      return this._request('GET', path, undefined, options);
+    },
+
+    /**
+     * Record the account owner's acceptance of the agreement. Calling this with
+     * your secret key asserts that you presented the agreement to the owner and
+     * they accepted; the evidence (timestamp, IP, user agent) is derived from
+     * the request, never taken from the body.
+     *
+     * `version` must match the current agreement (409 otherwise), and the
+     * account's pricing must already be set since the agreement embeds it (422
+     * otherwise). Re-accepting the same version is idempotent.
+     */
+    acceptTos: (
+      accountId: string,
+      params: TosAcceptParams,
+      options?: RequestOptions
+    ): Promise<Tos> => {
+      return this._request('POST', `/v1/accounts/${accountId}/tos`, params, options);
     },
   };
 
@@ -1484,7 +2595,7 @@ export class DialStack {
       options?: RequestOptions
     ): PaginatedList<WebhookEndpoint> => {
       const queryParams = new URLSearchParams();
-      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
       if (params?.page) queryParams.set('page', params.page);
 
       const query = queryParams.toString();
@@ -1508,9 +2619,10 @@ export class DialStack {
 
     retrieve: (
       userId: string,
-      options: RequestOptions & { dialstackAccount: string }
+      options: RequestOptions & { dialstackAccount: string; expand?: UserExpand[] }
     ): Promise<User> => {
-      return this._request('GET', `/v1/users/${userId}`, undefined, options);
+      const path = `/v1/users/${userId}${expandQuery(options.expand)}`;
+      return this._request('GET', path, undefined, options);
     },
 
     update: (
@@ -1533,8 +2645,10 @@ export class DialStack {
       options: RequestOptions & { dialstackAccount: string }
     ): PaginatedList<User> => {
       const queryParams = new URLSearchParams();
-      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
       if (params?.page) queryParams.set('page', params.page);
+      if (params?.search) queryParams.set('search', params.search);
+      appendExpand(queryParams, params?.expand);
 
       const query = queryParams.toString();
       const path = `/v1/users${query ? `?${query}` : ''}`;
@@ -1623,7 +2737,7 @@ export class DialStack {
       options: RequestOptions & { dialstackAccount: string }
     ): PaginatedList<PhoneNumber> => {
       const queryParams = new URLSearchParams();
-      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
       if (params?.page) queryParams.set('page', params.page);
       if (params?.status) queryParams.set('status', params.status);
 
@@ -1657,6 +2771,57 @@ export class DialStack {
   };
 
   calls = {
+    /**
+     * Place an outbound call. The user's endpoints ring first; when the user
+     * answers, `dial_string` is dialed. Accepted asynchronously — the call
+     * progresses over webhooks, so there is no response body.
+     */
+    create: (
+      params: CallCreateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request('POST', '/v1/calls', params, options);
+    },
+
+    list: (
+      params: CallListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
+    ): PaginatedList<CallLog> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
+      if (params?.user_id) queryParams.set('user_id', params.user_id);
+      if (params?.did) queryParams.set('did', params.did);
+      if (params?.direction) queryParams.set('direction', params.direction);
+      if (params?.from_number) queryParams.set('from_number', params.from_number);
+      if (params?.to_number) queryParams.set('to_number', params.to_number);
+      if (params?.status) queryParams.set('status', params.status);
+      if (params?.from_date) queryParams.set('from_date', params.from_date);
+      if (params?.to_date) queryParams.set('to_date', params.to_date);
+      appendExpand(queryParams, params?.expand);
+
+      const query = queryParams.toString();
+      const path = `/v1/calls${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<CallLog>> => {
+        return this._request('GET', url, undefined, options);
+      };
+
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+
+    /**
+     * Retrieve a call log. Safe to call while the call is still live, in which
+     * case the completion-only fields are null — see {@link CallLog}.
+     */
+    retrieve: (
+      callId: string,
+      options: RequestOptions & { dialstackAccount: string; expand?: CallExpand[] }
+    ): Promise<CallLog> => {
+      const path = `/v1/calls/${callId}${expandQuery(options.expand)}`;
+      return this._request('GET', path, undefined, options);
+    },
+
     update: (
       callId: string,
       params: CallUpdateParams,
@@ -1665,8 +2830,80 @@ export class DialStack {
       return this._request('POST', `/v1/calls/${callId}`, params, options);
     },
 
-    retrieveTranscript: (callId: string, options?: RequestOptions): Promise<Transcript> => {
+    retrieveTranscript: (
+      callId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<Transcript> => {
       return this._request('GET', `/v1/calls/${callId}/transcript`, undefined, options);
+    },
+
+    /**
+     * Retrieve recording metadata with a signed download URL. The URL expires
+     * after 10 minutes, so fetch it when you are ready to download.
+     */
+    retrieveRecording: (
+      callId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<Recording> => {
+      return this._request('GET', `/v1/calls/${callId}/recording`, undefined, options);
+    },
+
+    /**
+     * Start streaming live audio from an active call to your WebSocket server.
+     * Neither party is aware of the listener.
+     */
+    createListener: (
+      callId: string,
+      params: ListenerCreateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<Listener> => {
+      return this._request('POST', `/v1/calls/${callId}/listeners`, params, options);
+    },
+
+    listListeners: (
+      callId: string,
+      params: ListenerListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
+    ): PaginatedList<Listener> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
+
+      const query = queryParams.toString();
+      const path = `/v1/calls/${callId}/listeners${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<Listener>> => {
+        return this._request('GET', url, undefined, options);
+      };
+
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+
+    retrieveListener: (
+      callId: string,
+      listenerId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<Listener> => {
+      return this._request(
+        'GET',
+        `/v1/calls/${callId}/listeners/${listenerId}`,
+        undefined,
+        options
+      );
+    },
+
+    /** Stop a listener and close its WebSocket. */
+    delListener: (
+      callId: string,
+      listenerId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request(
+        'DELETE',
+        `/v1/calls/${callId}/listeners/${listenerId}`,
+        undefined,
+        options
+      );
     },
 
     /**
@@ -1691,6 +2928,582 @@ export class DialStack {
       options: RequestOptions & { dialstackAccount: string }
     ): Promise<void> => {
       return this._request('POST', `/v1/calls/${callId}/recording/resume`, undefined, options);
+    },
+  };
+
+  voicemails = {
+    list: (
+      params: VoicemailListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
+    ): PaginatedList<Voicemail> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
+      if (params?.owner) queryParams.set('owner', params.owner);
+      if (params?.is_read !== undefined) queryParams.set('is_read', String(params.is_read));
+      if (params?.from_date) queryParams.set('from_date', params.from_date);
+      appendExpand(queryParams, params?.expand);
+
+      const query = queryParams.toString();
+      const path = `/v1/voicemails${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<Voicemail>> => {
+        return this._request('GET', url, undefined, options);
+      };
+
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+
+    retrieve: (
+      voicemailId: string,
+      options: RequestOptions & { dialstackAccount: string; expand?: VoicemailExpand[] }
+    ): Promise<Voicemail> => {
+      const path = `/v1/voicemails/${voicemailId}${expandQuery(options.expand)}`;
+      return this._request('GET', path, undefined, options);
+    },
+
+    /** Mark a voicemail read or unread. */
+    update: (
+      voicemailId: string,
+      params: VoicemailUpdateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<Voicemail> => {
+      return this._request('POST', `/v1/voicemails/${voicemailId}`, params, options);
+    },
+
+    del: (
+      voicemailId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request('DELETE', `/v1/voicemails/${voicemailId}`, undefined, options);
+    },
+
+    retrieveTranscript: (
+      voicemailId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<VoicemailTranscript> => {
+      return this._request('GET', `/v1/voicemails/${voicemailId}/transcript`, undefined, options);
+    },
+  };
+
+  /**
+   * Custom greetings that replace the system-default prompts for a user mailbox
+   * or a shared voicemail box, keyed by owner and greeting type.
+   */
+  voicemailGreetings = {
+    /**
+     * Upload (or replace) the greeting for an owner. Audio is validated and
+     * transcoded server-side to mono µ-law 8 kHz WAV. Limits: 5 MB and 90
+     * seconds; accepts WAV (PCM s16 / µ-law / A-law), MP3, AAC, Ogg Vorbis, and
+     * Opus. Re-uploading overwrites.
+     */
+    upload: (
+      owner: string,
+      greetingType: VoicemailGreetingType,
+      file: Blob,
+      options: RequestOptions & { dialstackAccount: string; filename?: string }
+    ): Promise<VoicemailGreeting> => {
+      const form = new FormData();
+      form.append('file', file, options.filename ?? 'greeting');
+      return this._request(
+        'POST',
+        `/v1/voicemail_greetings/${owner}/${greetingType}`,
+        form,
+        options
+      );
+    },
+
+    /** Throws 404 when no custom greeting is set for this owner and type. */
+    retrieve: (
+      owner: string,
+      greetingType: VoicemailGreetingType,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<VoicemailGreeting> => {
+      return this._request(
+        'GET',
+        `/v1/voicemail_greetings/${owner}/${greetingType}`,
+        undefined,
+        options
+      );
+    },
+
+    /**
+     * Remove the custom greeting, reverting the mailbox to the system-default
+     * prompts. Idempotent — succeeds whether or not a greeting was set.
+     */
+    del: (
+      owner: string,
+      greetingType: VoicemailGreetingType,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request(
+        'DELETE',
+        `/v1/voicemail_greetings/${owner}/${greetingType}`,
+        undefined,
+        options
+      );
+    },
+  };
+
+  faxes = {
+    /**
+     * Send an outbound fax. Upload the document first to the dedicated files
+     * host (`POST https://files.dialstack.ai/v1/files`, purpose `fax_source`),
+     * then reference the resulting file id here. The fax is created `pending`
+     * and progresses to `delivered` or `failed`; sends are rate-limited per
+     * account over a rolling hour.
+     */
+    send: (
+      params: FaxSendParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<Fax> => {
+      return this._request('POST', '/v1/faxes', params, options);
+    },
+
+    list: (
+      params: FaxListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
+    ): PaginatedList<Fax> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
+      if (params?.direction) queryParams.set('direction', params.direction);
+      if (params?.status) queryParams.set('status', params.status);
+      if (params?.did) queryParams.set('did', params.did);
+      if (params?.number) queryParams.set('number', params.number);
+      if (params?.is_read !== undefined) queryParams.set('is_read', String(params.is_read));
+      appendExpand(queryParams, params?.expand);
+
+      const query = queryParams.toString();
+      const path = `/v1/faxes${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<Fax>> => {
+        return this._request('GET', url, undefined, options);
+      };
+
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+
+    retrieve: (
+      faxId: string,
+      options: RequestOptions & { dialstackAccount: string; expand?: FaxExpand[] }
+    ): Promise<Fax> => {
+      const path = `/v1/faxes/${faxId}${expandQuery(options.expand)}`;
+      return this._request('GET', path, undefined, options);
+    },
+
+    /** Mark a received fax read or unread. */
+    update: (
+      faxId: string,
+      params: FaxUpdateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<Fax> => {
+      return this._request('POST', `/v1/faxes/${faxId}`, params, options);
+    },
+
+    /** Delete the fax record. The referenced file keeps its own lifecycle. */
+    del: (faxId: string, options: RequestOptions & { dialstackAccount: string }): Promise<void> => {
+      return this._request('DELETE', `/v1/faxes/${faxId}`, undefined, options);
+    },
+  };
+
+  /**
+   * Reusable sets of programmable buttons for desk phones. A template is
+   * assigned to devices; per-device deviations live in the device's button
+   * overrides.
+   */
+  buttonTemplates = {
+    create: (
+      params: ButtonTemplateCreateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<ButtonTemplate> => {
+      return this._request('POST', '/v1/button_templates', params, options);
+    },
+
+    list: (
+      params: ButtonTemplateListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
+    ): PaginatedList<ButtonTemplate> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
+
+      const query = queryParams.toString();
+      const path = `/v1/button_templates${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<ButtonTemplate>> => {
+        return this._request('GET', url, undefined, options);
+      };
+
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+
+    /**
+     * Retrieve a template. Pass `expand: ['buttons']` to embed its buttons, and
+     * `for_device` to have the response carry a compatibility summary for that
+     * device's vendor, model, and position range.
+     */
+    retrieve: (
+      buttonTemplateId: string,
+      options: RequestOptions & { dialstackAccount: string } & ButtonTemplateRetrieveOptions
+    ): Promise<ButtonTemplateWithDetails> => {
+      const queryParams = new URLSearchParams();
+      if (options.for_device) queryParams.set('for_device', options.for_device);
+      appendExpand(queryParams, options.expand);
+
+      const query = queryParams.toString();
+      const path = `/v1/button_templates/${buttonTemplateId}${query ? `?${query}` : ''}`;
+      return this._request('GET', path, undefined, options);
+    },
+
+    update: (
+      buttonTemplateId: string,
+      params: ButtonTemplateUpdateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<ButtonTemplate> => {
+      return this._request('POST', `/v1/button_templates/${buttonTemplateId}`, params, options);
+    },
+
+    del: (
+      buttonTemplateId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request(
+        'DELETE',
+        `/v1/button_templates/${buttonTemplateId}`,
+        undefined,
+        options
+      );
+    },
+
+    listButtons: (
+      buttonTemplateId: string,
+      params: TemplateButtonListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
+    ): PaginatedList<TemplateButton> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
+
+      const query = queryParams.toString();
+      const path = `/v1/button_templates/${buttonTemplateId}/buttons${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<TemplateButton>> => {
+        return this._request('GET', url, undefined, options);
+      };
+
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+
+    /**
+     * Add a button to a template. `type` narrows the required `target` shape, so
+     * a mismatched payload is a compile-time error.
+     */
+    createButton: (
+      buttonTemplateId: string,
+      params: TemplateButtonCreateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<TemplateButton> => {
+      return this._request(
+        'POST',
+        `/v1/button_templates/${buttonTemplateId}/buttons`,
+        params,
+        options
+      );
+    },
+
+    /** Move a button. Position is the only updatable field. */
+    updateButton: (
+      buttonTemplateId: string,
+      buttonId: string,
+      params: TemplateButtonUpdateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<TemplateButton> => {
+      return this._request(
+        'POST',
+        `/v1/button_templates/${buttonTemplateId}/buttons/${buttonId}`,
+        params,
+        options
+      );
+    },
+
+    delButton: (
+      buttonTemplateId: string,
+      buttonId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request(
+        'DELETE',
+        `/v1/button_templates/${buttonTemplateId}/buttons/${buttonId}`,
+        undefined,
+        options
+      );
+    },
+  };
+
+  /**
+   * Deskphones, DECT bases, and DECT handsets. This is the unified device
+   * surface — prefer it over the per-kind endpoints.
+   */
+  devices = {
+    /**
+     * Register a device. `type` is optional for MAC-addressable devices: omit
+     * it and the kind is detected from `mac_address` via the vendor catalog.
+     * Returns only the new id and type — call {@link retrieve} for the rest.
+     */
+    create: (
+      params: DeviceCreateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<CreateDeviceResponse> => {
+      return this._request('POST', '/v1/devices', params, options);
+    },
+
+    list: (
+      params: DeviceListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
+    ): PaginatedList<Device> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
+      if (params?.type) queryParams.set('type', params.type);
+      if (params?.location) queryParams.set('location', params.location);
+      appendExpand(queryParams, params?.expand);
+
+      const query = queryParams.toString();
+      const path = `/v1/devices${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<Device>> => {
+        return this._request('GET', url, undefined, options);
+      };
+
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+
+    retrieve: (
+      deviceId: string,
+      options: RequestOptions & { dialstackAccount: string; expand?: DeviceExpand[] }
+    ): Promise<Device> => {
+      const path = `/v1/devices/${deviceId}${expandQuery(options.expand)}`;
+      return this._request('GET', path, undefined, options);
+    },
+
+    /**
+     * Update a device. `name`, `location`, `base`, and `button_template` are
+     * tri-state: omit to leave unchanged, pass a string to set, or pass `null`
+     * to clear. Throws with a {@link DeviceUserConflictResponse} body on 409.
+     */
+    update: (
+      deviceId: string,
+      params: DeviceUpdateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<Device> => {
+      return this._request('POST', `/v1/devices/${deviceId}`, params, options);
+    },
+
+    del: (
+      deviceId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request('DELETE', `/v1/devices/${deviceId}`, undefined, options);
+    },
+
+    /** Button templates whose buttons all fit this device's vendor and model. */
+    listCompatibleButtonTemplates: (
+      deviceId: string,
+      params: ButtonTemplateListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
+    ): PaginatedList<ButtonTemplate> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
+
+      const query = queryParams.toString();
+      const path = `/v1/devices/${deviceId}/compatible_button_templates${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<ButtonTemplate>> => {
+        return this._request('GET', url, undefined, options);
+      };
+
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+
+    /**
+     * The device's effective buttons — the bound template's buttons with this
+     * device's overrides applied, plus any model defaults. Not paginated.
+     */
+    listButtons: (
+      deviceId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<ListResponse<MaterializedButton>> => {
+      return this._request('GET', `/v1/devices/${deviceId}/buttons`, undefined, options);
+    },
+
+    listButtonOverrides: (
+      deviceId: string,
+      params: DeviceButtonListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
+    ): PaginatedList<DeviceButtonOverride> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
+
+      const query = queryParams.toString();
+      const path = `/v1/devices/${deviceId}/button_overrides${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<DeviceButtonOverride>> => {
+        return this._request('GET', url, undefined, options);
+      };
+
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+
+    /**
+     * Override one position on this device: either suppress the template's
+     * button there, or replace it with a different one.
+     */
+    createButtonOverride: (
+      deviceId: string,
+      params: DeviceButtonOverrideCreateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<DeviceButtonOverride> => {
+      return this._request('POST', `/v1/devices/${deviceId}/button_overrides`, params, options);
+    },
+
+    /** Drop an override, restoring the template's button at that position. */
+    delButtonOverride: (
+      deviceId: string,
+      overrideId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request(
+        'DELETE',
+        `/v1/devices/${deviceId}/button_overrides/${overrideId}`,
+        undefined,
+        options
+      );
+    },
+
+    /**
+     * Assign a user to the device. This provisions the endpoint's SIP
+     * credentials and the device line/extension server-side. Throws with a
+     * {@link DeviceUserConflictResponse} body on 409.
+     */
+    assignUser: (
+      deviceId: string,
+      params: DeviceAssignUserParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<DeviceUserAssignment> => {
+      return this._request('POST', `/v1/devices/${deviceId}/users`, params, options);
+    },
+
+    listUsers: (
+      deviceId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<ListResponse<DeviceUserAssignment>> => {
+      return this._request('GET', `/v1/devices/${deviceId}/users`, undefined, options);
+    },
+
+    removeUser: (
+      deviceId: string,
+      userId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request('DELETE', `/v1/devices/${deviceId}/users/${userId}`, undefined, options);
+    },
+
+    /**
+     * Tell the device to fetch and apply its latest configuration. On a DECT
+     * system one request reaches every handset paired with the base.
+     *
+     * Call this when configuration actually changed, not on every admin
+     * interaction. With `reboot: true` the device drops active calls and goes
+     * offline for roughly 30–90 seconds.
+     */
+    checkSync: (
+      deviceId: string,
+      params: DeviceCheckSyncParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<DeviceCheckSyncResponse> => {
+      return this._request(
+        'POST',
+        `/v1/devices/${deviceId}/status/check-sync`,
+        params ?? {},
+        options
+      );
+    },
+  };
+
+  /**
+   * Orders for physical hardware. An order is placed with quantities and comes
+   * back as one item per unit, each of which can be pre-assigned to a user,
+   * location, or base before it is fulfilled into a device.
+   */
+  hardwareOrders = {
+    create: (
+      params: HardwareOrderParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<HardwareOrder> => {
+      return this._request('POST', '/v1/hardware-orders', params, options);
+    },
+
+    /**
+     * List the account's orders with their items embedded.
+     *
+     * Not paginated: the API returns every order in one envelope with no page
+     * URLs, so this is a plain {@link ListResponse} rather than a
+     * `PaginatedList`.
+     */
+    list: (
+      params: HardwareOrderListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<ListResponse<HardwareOrder>> => {
+      const queryParams = new URLSearchParams();
+      if (params?.location) queryParams.set('location', params.location);
+      appendExpand(queryParams, params?.expand);
+
+      const query = queryParams.toString();
+      const path = `/v1/hardware-orders${query ? `?${query}` : ''}`;
+      return this._request('GET', path, undefined, options);
+    },
+
+    retrieve: (
+      hardwareOrderId: string,
+      options: RequestOptions & { dialstackAccount: string; expand?: HardwareOrderExpand[] }
+    ): Promise<HardwareOrder> => {
+      const path = `/v1/hardware-orders/${hardwareOrderId}${expandQuery(options.expand)}`;
+      return this._request('GET', path, undefined, options);
+    },
+
+    /**
+     * Replace the order's line items.
+     *
+     * Only a `draft` order can be changed; anything else returns 409. Note that
+     * orders are currently created as `submitted` and no endpoint moves one back
+     * to `draft`, so this returns 409 in practice until the editable-cart flow
+     * exists. Bound here because the endpoint is published, not because it is
+     * usable yet.
+     */
+    update: (
+      hardwareOrderId: string,
+      params: HardwareOrderParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<HardwareOrder> => {
+      return this._request('POST', `/v1/hardware-orders/${hardwareOrderId}`, params, options);
+    },
+
+    /** Set or clear a single unit's user, location, or base pre-assignment. */
+    updateItem: (
+      hardwareOrderId: string,
+      itemId: string,
+      params: HardwareOrderItemUpdateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<HardwareOrderItem> => {
+      return this._request(
+        'POST',
+        `/v1/hardware-orders/${hardwareOrderId}/items/${itemId}`,
+        params,
+        options
+      );
     },
   };
 
@@ -1739,9 +3552,10 @@ export class DialStack {
 
     retrieve: (
       voiceAppId: string,
-      options: RequestOptions & { dialstackAccount: string }
+      options: RequestOptions & { dialstackAccount: string; expand?: VoiceAppExpand[] }
     ): Promise<VoiceApp> => {
-      return this._request('GET', `/v1/voice-apps/${voiceAppId}`, undefined, options);
+      const path = `/v1/voice-apps/${voiceAppId}${expandQuery(options.expand)}`;
+      return this._request('GET', path, undefined, options);
     },
 
     update: (
@@ -1764,8 +3578,9 @@ export class DialStack {
       options: RequestOptions & { dialstackAccount: string }
     ): PaginatedList<VoiceApp> => {
       const queryParams = new URLSearchParams();
-      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
       if (params?.page) queryParams.set('page', params.page);
+      appendExpand(queryParams, params?.expand);
 
       const query = queryParams.toString();
       const path = `/v1/voice-apps${query ? `?${query}` : ''}`;
@@ -1788,9 +3603,10 @@ export class DialStack {
 
     retrieve: (
       aiAgentId: string,
-      options: RequestOptions & { dialstackAccount: string }
+      options: RequestOptions & { dialstackAccount: string; expand?: AIAgentExpand[] }
     ): Promise<AIAgent> => {
-      return this._request('GET', `/v1/ai-agents/${aiAgentId}`, undefined, options);
+      const path = `/v1/ai-agents/${aiAgentId}${expandQuery(options.expand)}`;
+      return this._request('GET', path, undefined, options);
     },
 
     update: (
@@ -1813,9 +3629,12 @@ export class DialStack {
       options: RequestOptions & { dialstackAccount: string }
     ): PaginatedList<AIAgent> => {
       const queryParams = new URLSearchParams();
-      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
+      // Forwarded for compatibility only; the API discards bare cursor params.
       if (params?.starting_after) queryParams.set('starting_after', params.starting_after);
       if (params?.ending_before) queryParams.set('ending_before', params.ending_before);
+      appendExpand(queryParams, params?.expand);
 
       const query = queryParams.toString();
       const path = `/v1/ai-agents${query ? `?${query}` : ''}`;
@@ -1848,7 +3667,7 @@ export class DialStack {
       options: RequestOptions & { dialstackAccount: string }
     ): PaginatedList<Schedule> => {
       const queryParams = new URLSearchParams();
-      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
       if (params?.page) queryParams.set('page', params.page);
 
       const query = queryParams.toString();
@@ -1872,9 +3691,10 @@ export class DialStack {
 
     retrieve: (
       dialPlanId: string,
-      options: RequestOptions & { dialstackAccount: string }
+      options: RequestOptions & { dialstackAccount: string; expand?: DialPlanExpand[] }
     ): Promise<DialPlan> => {
-      return this._request('GET', `/v1/dialplans/${dialPlanId}`, undefined, options);
+      const path = `/v1/dialplans/${dialPlanId}${expandQuery(options.expand)}`;
+      return this._request('GET', path, undefined, options);
     },
 
     list: (
@@ -1882,8 +3702,9 @@ export class DialStack {
       options: RequestOptions & { dialstackAccount: string }
     ): PaginatedList<DialPlan> => {
       const queryParams = new URLSearchParams();
-      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
       if (params?.page) queryParams.set('page', params.page);
+      appendExpand(queryParams, params?.expand);
 
       const query = queryParams.toString();
       const path = `/v1/dialplans${query ? `?${query}` : ''}`;
@@ -1931,7 +3752,8 @@ export class DialStack {
       options: RequestOptions & { dialstackAccount: string }
     ): PaginatedList<Extension> => {
       const queryParams = new URLSearchParams();
-      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
       if (params?.target) queryParams.set('target', params.target);
 
       const query = queryParams.toString();
@@ -1955,9 +3777,10 @@ export class DialStack {
 
     retrieve: (
       ringGroupId: string,
-      options: RequestOptions & { dialstackAccount: string }
+      options: RequestOptions & { dialstackAccount: string; expand?: RingGroupExpand[] }
     ): Promise<RingGroup> => {
-      return this._request('GET', `/v1/ring_groups/${ringGroupId}`, undefined, options);
+      const path = `/v1/ring_groups/${ringGroupId}${expandQuery(options.expand)}`;
+      return this._request('GET', path, undefined, options);
     },
 
     update: (
@@ -1980,8 +3803,9 @@ export class DialStack {
       options: RequestOptions & { dialstackAccount: string }
     ): PaginatedList<RingGroup> => {
       const queryParams = new URLSearchParams();
-      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
       if (params?.page) queryParams.set('page', params.page);
+      appendExpand(queryParams, params?.expand);
 
       const query = queryParams.toString();
       const path = `/v1/ring_groups${query ? `?${query}` : ''}`;
@@ -2025,9 +3849,10 @@ export class DialStack {
 
     retrieve: (
       queueId: string,
-      options: RequestOptions & { dialstackAccount: string }
+      options: RequestOptions & { dialstackAccount: string; expand?: QueueExpand[] }
     ): Promise<Queue> => {
-      return this._request('GET', `/v1/queues/${queueId}`, undefined, options);
+      const path = `/v1/queues/${queueId}${expandQuery(options.expand)}`;
+      return this._request('GET', path, undefined, options);
     },
 
     update: (
@@ -2050,8 +3875,9 @@ export class DialStack {
       options: RequestOptions & { dialstackAccount: string }
     ): PaginatedList<Queue> => {
       const queryParams = new URLSearchParams();
-      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
       if (params?.page) queryParams.set('page', params.page);
+      appendExpand(queryParams, params?.expand);
 
       const query = queryParams.toString();
       const path = `/v1/queues${query ? `?${query}` : ''}`;
@@ -2069,7 +3895,9 @@ export class DialStack {
       options: RequestOptions & { dialstackAccount: string }
     ): PaginatedList<QueueMember> => {
       const queryParams = new URLSearchParams();
-      if (params?.limit) queryParams.set('limit', String(params.limit));
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
+      // Forwarded for compatibility only; the API discards bare cursor params.
       if (params?.starting_after) queryParams.set('starting_after', params.starting_after);
       if (params?.ending_before) queryParams.set('ending_before', params.ending_before);
 

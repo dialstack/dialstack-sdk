@@ -17,6 +17,13 @@ export interface RawError {
   type?: RawErrorType;
   code?: string;
   message?: string;
+  /**
+   * The human-readable message as most endpoints return it. The API's own error
+   * bodies carry it under `error`; `message` is used by a smaller set of
+   * responses. {@link DialStackError.message} is populated from whichever is
+   * present, so read that rather than either field.
+   */
+  error?: string;
   param?: string;
   doc_url?: string;
 }
