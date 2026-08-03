@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@dialstack/sdk": "^1.2.0",
-    "@google/genai": "^2.13.0",
+    "@google/genai": "^2.15.0",
     "alawmulaw": "^6.0.0",
     "dotenv": "^17.0.0",
     "express": "^5.0.0",
@@ -31,7 +31,7 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.1.2",
     "@types/ws": "^8.5.0",
     "eslint": "^10.8.0",
     "prettier": "^3.9.6",
