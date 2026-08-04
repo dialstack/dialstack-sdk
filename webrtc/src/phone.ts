@@ -2,12 +2,13 @@ import { createPaginatedList, type PaginatedList } from '../../js/src/shared/pag
 import { Call } from './call';
 import { ConnectHandshake } from './connect-handshake';
 import { devicePhoneError, NotImplementedError, PhoneError } from './errors';
-import { logError } from './logger';
+import { logError, logWarn } from './logger';
 import {
   enumerateDevices,
   getUserMedia,
   onDeviceChange,
   storage as defaultStorage,
+  supportsPranswer,
 } from './platform';
 import type { PlatformStorage } from './platform';
 import type { RTCIceServer, RTCSessionDescriptionInit } from './platform';
@@ -400,6 +401,16 @@ export class DialStackPhone {
     // Claim the in-flight slot with a fresh token. A disconnect() during the ICE
     // fetch below clears it (no socket exists yet to cancel), so on resume we bail.
     const token = this.handshake.begin();
+
+    // Warm the pranswer capability probe once per session, off the call path, so
+    // the first early-media frame doesn't pay for it. Cheap but not inert: it
+    // builds throwaway PeerConnections and setLocalDescription starts host-candidate
+    // gathering (DTLS cert generation, and on Chrome an mDNS registration for the
+    // host candidate). No ICE servers are configured, so no STUN/TURN traffic, and
+    // no getUserMedia, so no mic prompt. Deliberately not awaited: the probe
+    // resolves rather than rejects, and a stalled WebRTC stack must never block or
+    // fail connect().
+    void supportsPranswer();
 
     let iceServers: RTCIceServer[];
     try {
@@ -1162,17 +1173,20 @@ export class DialStackPhone {
         // Network early media (carrier 183): apply it as a provisional answer
         // so audio plays during ringing. The final sdp.answer replaces it at
         // pickup. Opaque to the app — no separate event.
+        //
+        // A provisional answer is an enhancement, never a precondition: the call
+        // proceeds on the 200 OK's sdp.answer whether or not this lands. So a
+        // failure here must NOT surface as 'call_failed' — that painted a "Call
+        // failed" chip over a call that was connecting normally (every Firefox
+        // outbound call hit it). Log it and let the call run;
+        // acceptRemoteProvisionalAnswer already reports an unsupported stack once.
         const call = this.getCall(msg.call_id);
         if (call) {
           void call.acceptRemoteProvisionalAnswer(msg.sdp).catch((e) =>
-            this.emit(
-              'error',
-              new PhoneError({
-                code: 'call_failed',
-                message: `Failed to apply provisional answer: ${(e as Error).message}`,
-                callId: msg.call_id,
-              })
-            )
+            logWarn('Failed to apply provisional answer; continuing without early media', {
+              callId: msg.call_id,
+              error: (e as Error).message,
+            })
           );
         }
         return;

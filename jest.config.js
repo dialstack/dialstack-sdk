@@ -1,7 +1,13 @@
 /** @type {import('jest').Config} */
 export default {
   // One suite spanning src/ plus each per-audience tree the sources moved into.
-  roots: ['<rootDir>/src', '<rootDir>/js/src', '<rootDir>/react/src', '<rootDir>/webrtc/src', '<rootDir>/server/src'],
+  roots: [
+    '<rootDir>/src',
+    '<rootDir>/js/src',
+    '<rootDir>/react/src',
+    '<rootDir>/webrtc/src',
+    '<rootDir>/server/src',
+  ],
   testMatch: ['**/__tests__/**/*.+(ts|tsx)', '**/*.test.+(ts|tsx)'],
   transform: {
     '^.+\\.(ts|tsx)$': [
@@ -23,7 +29,7 @@ export default {
     '^@dialstack/sdk/react$': '<rootDir>/src/react.ts',
   },
   testEnvironment: 'jsdom',
-  setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
+  setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts', '<rootDir>/webrtc/src/setupTests.ts'],
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
     'js/src/**/*.{ts,tsx}',
@@ -33,6 +39,7 @@ export default {
     '!src/server/**',
     '!server/src/**',
     '!src/setupTests.ts',
+    '!webrtc/src/setupTests.ts',
   ],
   coverageThreshold: {
     global: {

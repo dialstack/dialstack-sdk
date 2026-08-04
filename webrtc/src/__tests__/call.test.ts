@@ -1,4 +1,5 @@
 import { Call, type CallInit } from '../call';
+import { resetPranswerSupportForTests } from '../platform';
 
 // Regression coverage for the inbound-answer media direction. The browser
 // auto-creates a track-less sender for each offered m-line at
@@ -84,6 +85,11 @@ class FakeRTCPeerConnection {
   createAnswer(): Promise<RTCSessionDescriptionInit> {
     return Promise.resolve({ type: 'answer', sdp: 'fake-answer-sdp' });
   }
+  createOffer(): Promise<RTCSessionDescriptionInit> {
+    return Promise.resolve({ type: 'offer', sdp: 'fake-offer-sdp' });
+  }
+  addTransceiver(): void {}
+  close(): void {}
   setLocalDescription(d: RTCSessionDescriptionInit): Promise<void> {
     this.localDescription = { type: d.type as string, sdp: d.sdp ?? '' };
     return Promise.resolve();
@@ -92,6 +98,68 @@ class FakeRTCPeerConnection {
     this.iceAdded++;
     return Promise.resolve();
   }
+}
+
+// Enforces the signaling-state precondition webrtc-pc puts on a REMOTE pranswer:
+// legal only from have-local-offer (or have-remote-pranswer), NOT from
+// have-remote-offer. Without this, a probe that applies the pranswer in the wrong
+// state passes here while real Chrome rejects it with InvalidStateError — which is
+// exactly the bug that made supportsPranswer() report false on Chrome.
+class StatefulRTCPeerConnection extends FakeRTCPeerConnection {
+  signalingState = 'stable';
+
+  setLocalDescription(d: RTCSessionDescriptionInit): Promise<void> {
+    if (d.type === 'offer') this.signalingState = 'have-local-offer';
+    return super.setLocalDescription(d);
+  }
+
+  setRemoteDescription(desc: { type: string; sdp?: string }): Promise<void> {
+    if (desc.type === 'offer') {
+      this.signalingState = 'have-remote-offer';
+      return super.setRemoteDescription(desc);
+    }
+    if (desc.type === 'pranswer' || desc.type === 'answer') {
+      if (
+        this.signalingState !== 'have-local-offer' &&
+        this.signalingState !== 'have-remote-pranswer'
+      ) {
+        return Promise.reject(
+          Object.assign(
+            new Error(
+              `Failed to set remote ${desc.type} sdp: Called in wrong state: ${this.signalingState}`
+            ),
+            { name: 'InvalidStateError' }
+          )
+        );
+      }
+      this.signalingState = desc.type === 'pranswer' ? 'have-remote-pranswer' : 'stable';
+    }
+    return super.setRemoteDescription(desc);
+  }
+}
+
+// Models Firefox: a pranswer applied from a LEGAL state is still refused, because
+// Firefox has never implemented it ("pranswer not yet implemented", Mozilla bug
+// 1004510). Extends the stateful fake so an illegal-state probe is rejected for
+// the state reason instead — letting the tests tell the two failures apart.
+class FirefoxRTCPeerConnection extends StatefulRTCPeerConnection {
+  setRemoteDescription(desc: { type: string; sdp?: string }): Promise<void> {
+    if (desc.type === 'pranswer' && this.signalingState === 'have-local-offer') {
+      return Promise.reject(
+        Object.assign(new Error('pranswer not yet implemented'), { name: 'NotSupportedError' })
+      );
+    }
+    return super.setRemoteDescription(desc);
+  }
+}
+
+// Puts the Call's peer connection into have-local-offer, the state a real
+// outbound call is in when a pranswer/answer arrives (startOutbound has done
+// createOffer + setLocalDescription). Required by StatefulRTCPeerConnection, which
+// enforces that precondition; harmless on the permissive fake.
+async function withLocalOffer(call: Call): Promise<void> {
+  const pc = call.peerConnection;
+  await pc.setLocalDescription(await pc.createOffer());
 }
 
 function makeInit(): CallInit {
@@ -201,6 +269,7 @@ describe('Call early-media provisional answer', () => {
   beforeEach(() => {
     (globalThis as Record<string, unknown>).RTCPeerConnection = FakeRTCPeerConnection;
     (globalThis as Record<string, unknown>).MediaStream = FakeMediaStream;
+    resetPranswerSupportForTests();
   });
 
   function outboundInit(): CallInit {
@@ -249,6 +318,131 @@ describe('Call early-media provisional answer', () => {
     // The provisional answer is a remote description → buffered candidate flushes.
     await call.acceptRemoteProvisionalAnswer('early-media-sdp');
     expect(pc.iceAdded).toBe(1);
+  });
+
+  it('reports the provisional answer as applied on a supporting stack', async () => {
+    const call = new Call(outboundInit());
+    await expect(call.acceptRemoteProvisionalAnswer('early-media-sdp')).resolves.toBe(true);
+  });
+
+  // Regression: the probe must apply its test pranswer from have-local-offer.
+  // An earlier version fed its own offer back as the REMOTE description, landing
+  // in have-remote-offer where a remote pranswer is an illegal transition — real
+  // Chrome rejected it with InvalidStateError and the probe misread that as "no
+  // pranswer support", silently disabling early media on every supporting browser.
+  // StatefulRTCPeerConnection enforces that precondition, so a regression here
+  // makes this assertion fail rather than passing against a permissive fake.
+  it('detects support on a spec-accurate stack that enforces signaling state', async () => {
+    (globalThis as Record<string, unknown>).RTCPeerConnection = StatefulRTCPeerConnection;
+    resetPranswerSupportForTests();
+
+    const call = new Call(outboundInit());
+    const pc = call.peerConnection as unknown as FakeRTCPeerConnection;
+    await withLocalOffer(call);
+
+    await expect(call.acceptRemoteProvisionalAnswer('early-media-sdp')).resolves.toBe(true);
+    expect(pc.remoteDescriptions).toEqual([{ type: 'pranswer', sdp: 'early-media-sdp' }]);
+  });
+});
+
+// Firefox has never implemented JSEP provisional answers (Mozilla bug 1004510):
+// setRemoteDescription({type:'pranswer'}) rejects with "pranswer not yet
+// implemented". Network early media is therefore unavailable there, but the CALL
+// must still work — it proceeds on the 200 OK's final answer. Before the fix, the
+// rejection surfaced as a 'call_failed' error and painted "Call failed" over a
+// perfectly healthy connecting call.
+describe('Call early-media on a stack without pranswer support (Firefox)', () => {
+  beforeEach(() => {
+    (globalThis as Record<string, unknown>).RTCPeerConnection = FirefoxRTCPeerConnection;
+    (globalThis as Record<string, unknown>).MediaStream = FakeMediaStream;
+    resetPranswerSupportForTests();
+  });
+
+  function outboundInit(): CallInit {
+    return { ...makeInit(), direction: 'outbound', initialState: 'trying' };
+  }
+
+  it('skips the provisional answer instead of rejecting', async () => {
+    const call = new Call(outboundInit());
+    // Resolves false (skipped) rather than throwing — the caller must not treat
+    // this as a call failure.
+    await expect(call.acceptRemoteProvisionalAnswer('early-media-sdp')).resolves.toBe(false);
+  });
+
+  it('never applies a pranswer description to the peer connection', async () => {
+    const call = new Call(outboundInit());
+    const pc = call.peerConnection as unknown as FakeRTCPeerConnection;
+
+    await call.acceptRemoteProvisionalAnswer('early-media-sdp');
+
+    expect(pc.remoteDescriptions).toEqual([]);
+  });
+
+  it('still applies the final answer after a skipped provisional', async () => {
+    // The whole point: the call connects normally on the 200 OK.
+    const call = new Call(outboundInit());
+    const pc = call.peerConnection as unknown as FakeRTCPeerConnection;
+    await withLocalOffer(call);
+
+    await call.acceptRemoteProvisionalAnswer('early-media-sdp');
+    await call.acceptRemoteAnswer('final-answer-sdp');
+
+    expect(pc.remoteDescriptions).toEqual([{ type: 'answer', sdp: 'final-answer-sdp' }]);
+  });
+
+  it('keeps ICE candidates buffered until the final answer, not lost', async () => {
+    // A skipped pranswer sets no remote description, so candidates must stay
+    // buffered — flushing them early would throw inside addIceCandidate.
+    const call = new Call(outboundInit());
+    const pc = call.peerConnection as unknown as FakeRTCPeerConnection;
+    await withLocalOffer(call);
+
+    await call.addRemoteCandidate('candidate:1', null, 0);
+    await call.acceptRemoteProvisionalAnswer('early-media-sdp');
+    expect(pc.iceAdded).toBe(0);
+
+    // The final answer IS a remote description → the buffered candidate flushes.
+    await call.acceptRemoteAnswer('final-answer-sdp');
+    expect(pc.iceAdded).toBe(1);
+  });
+
+  it('substitutes local ringback for the early media it cannot render', async () => {
+    // A 183-only call emits no call.ringing (no 180), so without this the caller
+    // would hear dead air from dial to pickup on Firefox.
+    const call = new Call(outboundInit());
+    const ringback = withRingbackStub(call);
+
+    await call.acceptRemoteProvisionalAnswer('early-media-sdp');
+
+    expect(ringback.starts).toBe(1);
+    expect(ringback.isPlaying).toBe(true);
+  });
+
+  it('does not start ringback once real remote audio is already flowing', async () => {
+    const call = new Call(outboundInit());
+    const ringback = withRingbackStub(call);
+    const pc = call.peerConnection as unknown as FakeRTCPeerConnection;
+
+    pc.emit('track', trackEvent(new FakeRemoteAudioTrack(false)));
+    await call.acceptRemoteProvisionalAnswer('early-media-sdp');
+
+    expect(ringback.starts).toBe(0);
+  });
+
+  it('does not start ringback after the call has ended', async () => {
+    const call = new Call(outboundInit());
+    const ringback = withRingbackStub(call);
+
+    call.handleServerMessage({
+      type: 'call.ended',
+      call_id: call.id,
+      reason: 'no-answer',
+      duration_seconds: null,
+    });
+    await call.acceptRemoteProvisionalAnswer('early-media-sdp');
+
+    expect(ringback.starts).toBe(0);
+    expect(ringback.isPlaying).toBe(false);
   });
 });
 
@@ -413,14 +607,17 @@ describe('Call local ringback arbitration', () => {
     expect(ringback.isPlaying).toBe(true);
   });
 
-  it('never starts a tone for a 183-only call (early media, no call.ringing)', () => {
+  it('never starts a tone for a 183-only call (early media, no call.ringing)', async () => {
     // No alerting (180), so no call.ringing is emitted and no synthetic tone
-    // starts — the forwarded early media is what's audible.
+    // starts — the forwarded early media is what's audible. Awaited rather than
+    // fire-and-forget: acceptRemoteProvisionalAnswer awaits the capability probe,
+    // so `void` would defer its work past these assertions and pass on timing
+    // alone rather than on behaviour.
     const call = new Call(makeOutboundInit());
     const ringback = withRingbackStub(call);
     const pc = call.peerConnection as unknown as FakeRTCPeerConnection;
 
-    void call.acceptRemoteProvisionalAnswer('early-media-sdp');
+    await call.acceptRemoteProvisionalAnswer('early-media-sdp');
     pc.emit('track', trackEvent(new FakeRemoteAudioTrack(true)));
 
     expect(ringback.starts).toBe(0);

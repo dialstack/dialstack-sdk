@@ -1,6 +1,11 @@
 import { devicePhoneError, isRetryableWithoutDevice, PhoneError } from './errors';
 import { logWarn } from './logger';
-import { createMediaStream, createPeerConnection, getUserMedia } from './platform';
+import {
+  createMediaStream,
+  createPeerConnection,
+  getUserMedia,
+  supportsPranswer,
+} from './platform';
 import { RingbackTone, type Ringback } from './ringback';
 import type {
   MediaStream,
@@ -51,6 +56,23 @@ function stopTrack(track: MediaStreamTrack): void {
   } catch {
     // Some hosts throw on a second stop.
   }
+}
+
+// Fires at most once per process. Network early media (the carrier's pre-answer
+// ringback/announcement) can't be rendered on a stack without JSEP pranswer
+// support — Firefox, which has never implemented it (Mozilla bug 1004510). The
+// call itself is unaffected; the caller hears local synthetic ringback instead of
+// the carrier's audio, so this is a logged degradation, not a call failure.
+let warnedPranswerUnsupported = false;
+function warnPranswerUnsupportedOnce(): void {
+  if (warnedPranswerUnsupported) return;
+  warnedPranswerUnsupported = true;
+  logWarn(
+    'Network early media (carrier pre-answer audio) is unavailable: this browser ' +
+      'does not implement JSEP provisional answers (setRemoteDescription with ' +
+      "type:'pranswer') — known Firefox limitation, Mozilla bug 1004510. Calls " +
+      'still connect normally and play local ringback while alerting.'
+  );
 }
 
 type CallEventMap = {
@@ -595,10 +617,62 @@ export class Call {
   // chain (WebRTC 1.0 §4.4.1) serializes the setRemoteDescription calls FIFO and
   // the WS handler dispatches them in arrival order, so they apply in order
   // without overlapping. Setting remoteDescriptionSet lets buffered ICE flow.
-  async acceptRemoteProvisionalAnswer(sdp: string): Promise<void> {
+  //
+  // Ordering precondition: the FIFO argument holds from the point
+  // setRemoteDescription is ENQUEUED on the operations chain, and the
+  // supportsPranswer() await below delays enqueueing by at least a microtask —
+  // whereas acceptRemoteAnswer enqueues synchronously. That is safe only because
+  // the probe has already settled by the time any 18x can arrive: connect() warms
+  // it before the ICE fetch and the WS authenticate round trip, dialling is
+  // refused until connected, and the probe is purely local. A settled promise
+  // yields only microtasks, which drain between WS frames. If the probe ever
+  // becomes slow or moves later than connect(), a pranswer could be enqueued
+  // after a subsequent final answer — gate on a synchronously-readable verdict
+  // instead of relying on this timing.
+  //
+  // Returns whether the provisional answer was applied. `false` means this stack
+  // cannot do pranswer at all (Firefox — see supportsPranswer) and the frame was
+  // skipped: the call is unaffected and proceeds to the final sdp.answer, it just
+  // plays local synthetic ringback in place of whatever the carrier was sending
+  // (see the trade-off note below — that audio is not always ringback). Skipping
+  // must NOT touch remoteDescriptionSet — no remote description was applied, so
+  // buffered ICE candidates have to keep waiting for the final answer, and
+  // flushing them here would throw inside addIceCandidate.
+  async acceptRemoteProvisionalAnswer(sdp: string): Promise<boolean> {
+    if (!(await supportsPranswer())) {
+      warnPranswerUnsupportedOnce();
+      // Substitute local ringback for the carrier audio we can't render. Without
+      // this a 183-only call (early media, no 180 — so no call.ringing ever fires;
+      // see the outbound_early_media server test) would be dead air from dial to
+      // pickup on a pranswer-less stack.
+      //
+      // Early media is NOT always ringback: a 183 can carry a SIT tone, a
+      // "number you dialed is not in service" announcement, or a pre-answer IVR.
+      // A pranswer-less stack can't render any of it, and SDP describes only
+      // codec/direction — never the audio's meaning — so we cannot tell which
+      // case this is. We therefore play ringback unconditionally, which means a
+      // failure announcement is replaced by a ringing tone until the carrier
+      // tears the call down. That is the accepted trade: dead air during
+      // alerting reads as "the call broke" and is the worse failure, so ringing
+      // when we shouldn't beats silence when we should — the same ordering the
+      // local-ringback arbitration settled on.
+      //
+      // Same guards as the call.ringing path: an outbound call still pre-answer,
+      // not ended, with no real remote audio.
+      if (
+        this.direction === 'outbound' &&
+        this.answeredAt === null &&
+        !this.endedSettled &&
+        !this.remoteAudioFlowing
+      ) {
+        this.ringback.start();
+      }
+      return false;
+    }
     await this.peerConnection.setRemoteDescription({ type: 'pranswer', sdp });
     this.remoteDescriptionSet = true;
     await this.flushPendingRemoteCandidates();
+    return true;
   }
 
   async acceptRemoteAnswer(sdp: string): Promise<void> {
