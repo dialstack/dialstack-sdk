@@ -31,7 +31,10 @@ function cssRawPlugin(): Plugin {
 }
 
 const config: StorybookConfig = {
-  stories: ['../src/**/__stories__/*.stories.@(ts|tsx)'],
+  stories: [
+    '../js/src/**/__stories__/*.stories.@(ts|tsx)',
+    '../react/src/**/__stories__/*.stories.@(ts|tsx)',
+  ],
   addons: [],
   framework: '@storybook/react-vite',
   viteFinal: (config) => {

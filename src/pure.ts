@@ -13,7 +13,7 @@
  */
 
 // Core exports (pure - no component auto-registration)
-export { loadDialstackAndInitialize, registerComponents } from './core/initialize-pure';
+export { loadDialstackAndInitialize, registerComponents } from '../js/src/core/initialize-pure';
 
 export type {
   DialStackInitParams,
@@ -78,10 +78,10 @@ export type {
   AccountPricing,
   TosAcceptance,
   Tos,
-} from './types';
+} from '../js/src/types';
 
 // Default icons (can be used to customize or extend)
-export { defaultIcons } from './components/base-component';
+export { defaultIcons } from '../js/src/components/base-component';
 
 // Type-only re-exports (safe for SSR)
-export type { DateRange } from './components/call-logs';
+export type { DateRange } from '../js/src/components/call-logs';

@@ -1,0 +1,1399 @@
+import { createPaginatedList, type PaginatedList } from '../../js/src/shared/pagination';
+import { Call } from './call';
+import { ConnectHandshake } from './connect-handshake';
+import { devicePhoneError, NotImplementedError, PhoneError } from './errors';
+import { logError } from './logger';
+import {
+  enumerateDevices,
+  getUserMedia,
+  onDeviceChange,
+  storage as defaultStorage,
+} from './platform';
+import type { PlatformStorage } from './platform';
+import type { RTCIceServer, RTCSessionDescriptionInit } from './platform';
+import type { Ringback } from './ringback';
+import { Transport, type AppResumeSubscribe, type SignalingSocketFactory } from './transport';
+import type {
+  AudioDevice,
+  AudioDeviceList,
+  DirectoryEntry,
+  DirectoryEntryWire,
+  EmergencyAddress,
+  EmergencyAddressInput,
+  IceServersResponse,
+  ListResponse,
+  PhoneOptions,
+  PresenceEntry,
+  PresenceUpdate,
+  ServerMessage,
+  SettablePresenceStatus,
+} from './types';
+
+const DEFAULT_API_BASE_URL = 'https://api.dialstack.ai';
+
+// Max users a single presence.subscribe may watch; mirrors the server's
+// maxPresenceTargets (a standing dialog per user is per-session cost). The
+// server rejects an over-cap list, so we reject client-side first.
+const MAX_PRESENCE_TARGETS = 100;
+
+// How long to wait for the server's call.trying (or an error) after sending
+// call.create before giving up on an outbound call. Generous — it covers a real
+// PSTN setup round-trip — but finite, so a wedged session surfaces as a failure
+// instead of a promise that never settles.
+const OUTBOUND_CALL_TIMEOUT_MS = 30_000;
+
+// How long to wait for the server's `authenticated` frame after the socket opens
+// before failing connect(). A dead/half-open socket otherwise leaves connect()
+// pending forever.
+const CONNECT_TIMEOUT_MS = 20_000;
+
+// How long to wait for the ICE-servers HTTP fetch before failing connect(). This
+// runs before the socket opens, so CONNECT_TIMEOUT_MS (which only arms after) does
+// not cover it — a stalled/half-open fetch would otherwise leave connect() (and a
+// rebind awaiting it) pending forever with no error.
+const ICE_FETCH_TIMEOUT_MS = 10_000;
+
+// How far ahead of the token's `exp` to fire onTokenExpiring and refresh in-band.
+// The server enforces `exp` for the whole connection; refreshing this far before
+// it leaves headroom for the consumer's re-mint round-trip and the auth.refresh
+// exchange so the swap completes before the server's expiry timer would fire. A
+// token already inside this window at connect time refreshes (near-)immediately
+// (the scheduled delay is clamped to >= 0).
+const TOKEN_REFRESH_LEAD_MS = 60_000;
+
+// Floor on the scheduled refresh delay. A token whose remaining life is already
+// within the lead window would otherwise schedule at 0, and if the consumer keeps
+// minting short-lived tokens (the mint API enforces no minimum TTL) each refresh
+// would re-arm at 0 — a tight loop hammering the consumer's mint endpoint and the
+// server. The floor bounds a misconfigured consumer to one refresh per interval
+// instead of a spin; a well-behaved (hours/days) token is unaffected.
+const TOKEN_REFRESH_MIN_DELAY_MS = 5_000;
+
+// How long to wait for `auth.refreshed` after sending `auth.refresh` before
+// treating the refresh as lost. Without this, a dropped reply on an otherwise-open
+// socket would leave the refresh pending forever and permanently stop the refresh
+// cadence — the token would then lapse to a fatal auth_expired, the exact outcome
+// this feature prevents. On expiry we surface an error and re-schedule so a single
+// lost reply can't wedge the cadence. Mirrors the bounded-wait pattern used by
+// connect() and outbound calls (armTimeout).
+const TOKEN_REFRESH_TIMEOUT_MS = 15_000;
+
+/**
+ * A one-shot timeout for a request awaiting a server reply. `onExpire` runs once
+ * if nothing settles within `ms`; `settle()` (called from the resolve/reject
+ * paths) cancels the timer and blocks a later expiry. Centralizes the
+ * settled-flag + setTimeout/clearTimeout bookkeeping shared by connect() and the
+ * outbound-call promise so the two can't drift.
+ */
+function armTimeout(ms: number, onExpire: () => void): { settle: () => void } {
+  let settled = false;
+  const timer = setTimeout(() => {
+    if (settled) return;
+    settled = true;
+    onExpire();
+  }, ms);
+  return {
+    settle: () => {
+      settled = true;
+      clearTimeout(timer);
+    },
+  };
+}
+
+// AbortSignal that fires after `ms`. Falls back to AbortController + setTimeout
+// because AbortSignal.timeout is absent on some React Native runtimes and throws
+// synchronously there — which would fail every connect() at the ICE fetch.
+function timeoutSignal(ms: number): AbortSignal {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(ms);
+  }
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
+// localStorage key prefix for the persisted emergency-address id.
+// Lets a softphone re-present the same address across reconnects/sessions so a
+// returning device re-binds without re-prompting the user. Namespaced by the
+// user id (the token's `sub` claim) so two users sharing a browser don't
+// inherit each other's saved address — the server would reject a foreign id
+// anyway (user-scoped), but presenting it would trigger a spurious
+// `network.changed` prompt.
+const EMERGENCY_ADDRESS_STORAGE_KEY_PREFIX = 'dialstack.webrtc.emergency_address_id.';
+
+type PhoneEventMap = {
+  connected: () => void;
+  // error is set when the disconnect was a fatal, non-reconnecting close — e.g.
+  // session_replaced (a newer tab took over) or session_revoked — so the app can
+  // show the right message instead of a generic "disconnected". Undefined for an
+  // ordinary drop (auto-reconnect will follow) or a user-initiated disconnect.
+  disconnected: (error?: PhoneError) => void;
+  reconnected: () => void;
+  reconnecting: (attempt: number, delayMs: number) => void;
+  incoming: (call: Call) => void;
+  presenceList: (entries: PresenceEntry[]) => void;
+  presenceUpdate: (update: PresenceUpdate) => void;
+  'network.changed': () => void;
+  audioDevicesChanged: (devices: AudioDeviceList) => void;
+  error: (err: PhoneError) => void;
+};
+
+type Listener<K extends keyof PhoneEventMap> = PhoneEventMap[K];
+
+interface PendingOutbound {
+  // The creating frame's req_id. call.trying (the direct reply to a
+  // call-creating frame — call.create or the consult step of
+  // call.transfer.attended) echoes it, as does an error reply; it is the
+  // sole match key for resolving or rejecting this pending call.
+  reqId: string;
+  destination: string;
+  resolve: (call: Call) => void;
+  reject: (err: PhoneError) => void;
+}
+
+export class DialStackPhone {
+  isConnected = false;
+  readonly activeCalls: Call[] = [];
+
+  private token: string;
+  private apiBaseUrl: string;
+  private signalingUrl: string;
+  private autoReconnect: boolean;
+  private iceServersOverride: RTCIceServer[] | null;
+  // Consumer hook that mints a fresh user token (see PhoneOptions). null when
+  // not supplied — then no in-band refresh is scheduled and the token simply
+  // expires (the server evicts with a fatal auth_expired and the app must
+  // reconnect with a new token).
+  private onTokenExpiring: (() => Promise<string>) | null;
+  // Shared outbound ringback threaded into each Call (see PhoneOptions.ringback).
+  // null → Call falls back to its default WebAudio RingbackTone.
+  private ringback: Ringback | null;
+  // Signaling-socket factory passed to Transport (see
+  // PhoneOptions.createSignalingSocket). null → Transport opens a bare WebSocket.
+  private createSignalingSocket: SignalingSocketFactory | null;
+  // App-resume subscription passed to Transport (see PhoneOptions.onAppResume).
+  // null → Transport uses its web DOM-lifecycle default.
+  private onAppResume: AppResumeSubscribe | null;
+
+  private transport: Transport | null = null;
+  // All state for the connect() currently in flight (ICE-window token, the
+  // authenticate req_id, and the promise waiter). See ConnectHandshake.
+  private readonly handshake = new ConnectHandshake();
+  private iceServers: RTCIceServer[] = [];
+  private listeners: { [K in keyof PhoneEventMap]?: Set<Listener<K>> } = {};
+  private pendingOutbound: PendingOutbound | null = null;
+  private pendingCall: Call | null = null;
+  private hasConnectedOnce = false;
+  private reqSeq = 0;
+  // Armed pre-`exp` refresh timer, and the in-flight refresh awaiting an
+  // auth.refreshed reply. `pendingRefresh` carries the req_id we correlate the
+  // reply against, the exact token we sent (so a success adopts that token, never
+  // a different one), and `settle` to cancel the reply-timeout once the exchange
+  // resolves (success or a correlated error). A reply for a stale req is ignored.
+  private tokenRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingRefresh: { reqId: string; token: string; settle: () => void } | null = null;
+  private emergencyAddressId: string | null;
+  // The emergency-address id actually sent in the CURRENT socket's authenticate
+  // frame — latched in transport.on('open'), NOT the mutable selection above.
+  // The E911 gate keys off this so "presented this session" means what the live
+  // socket carried, not what happens to be selected right now.
+  private presentedEmergencyAddressId_: string | null = null;
+  // User id (token `sub` claim) used to namespace localStorage persistence.
+  // null when the token can't be decoded — persistence is then disabled and
+  // the app must supply PhoneOptions.emergencyAddressId itself.
+  private storageUserId: string | null;
+  // Persistence for the E911 address id. Defaults to the platform seam's store
+  // (localStorage on web; a non-persisting in-memory store on native — the SDK
+  // takes no persistence dependency), overridable via PhoneOptions.storage. The
+  // React Native softphone provider requires the host to inject a real store.
+  private storage: PlatformStorage;
+  private audioInputDeviceId_: string | null;
+  private audioOutputDeviceId_: string | null;
+  private deviceChangeUnsubscribe: (() => void) | null = null;
+
+  constructor(options: PhoneOptions) {
+    this.token = options.token;
+    this.apiBaseUrl = options.apiBaseUrl ?? DEFAULT_API_BASE_URL;
+    this.signalingUrl = resolveSignalingUrl(options.signalingBaseUrl, this.apiBaseUrl);
+    this.autoReconnect = options.autoReconnect ?? true;
+    this.iceServersOverride = options.iceServers ?? null;
+    this.storage = options.storage ?? defaultStorage;
+    this.storageUserId = userIdFromToken(options.token);
+    this.emergencyAddressId =
+      options.emergencyAddressId ??
+      loadStoredId(this.storage, this.storageUserId, EMERGENCY_ADDRESS_STORAGE_KEY_PREFIX);
+    this.onTokenExpiring = options.onTokenExpiring ?? null;
+    this.ringback = options.ringback ?? null;
+    this.createSignalingSocket = options.createSignalingSocket ?? null;
+    this.onAppResume = options.onAppResume ?? null;
+    this.audioInputDeviceId_ = options.audioInputDeviceId ?? null;
+    this.audioOutputDeviceId_ = options.audioOutputDeviceId ?? null;
+  }
+
+  /** The microphone `deviceId` new calls capture, or null for the OS default. */
+  get audioInputDeviceId(): string | null {
+    return this.audioInputDeviceId_;
+  }
+
+  /** The speaker `deviceId` the ringback plays through, or null for the OS default. */
+  get audioOutputDeviceId(): string | null {
+    return this.audioOutputDeviceId_;
+  }
+
+  /**
+   * Record a microphone preference WITHOUT acquiring it — for a host restoring a saved
+   * selection at construction time. `setAudioInputDevice` probes the device, which
+   * prompts for permission when no call is up; this doesn't, so a returning user isn't
+   * asked for the mic on page load. An id that no longer resolves falls back to the
+   * default at the next call's acquisition.
+   */
+  seedAudioInputDevice(deviceId: string | null): void {
+    if (this.activeCalls.length > 0) return;
+    this.audioInputDeviceId_ = deviceId;
+  }
+
+  /**
+   * Select the microphone: seeds future calls and live-switches calls already up. Held
+   * for this phone's lifetime only — saving the choice across sessions is the host's
+   * (the React softphone does it). Rejects without recording the id when the device
+   * can't be acquired. A single live call's failure surfaces on `error` rather than
+   * rejecting, so one bad call can't leave the others behind.
+   */
+  async setAudioInputDevice(deviceId: string | null): Promise<void> {
+    // Probe so a broken id can't be recorded and then fail every future call — but only
+    if (deviceId !== null && this.activeCalls.length === 0) {
+      try {
+        const probe = await getUserMedia({ audio: { deviceId: { exact: deviceId } } });
+        probe.getTracks().forEach((t) => {
+          try {
+            t.stop();
+          } catch {
+            // Some hosts throw on a second stop.
+          }
+        });
+      } catch (e) {
+        throw devicePhoneError({ cause: e, deviceId });
+      }
+    }
+
+    // Include the pending outbound call: it isn't in `activeCalls` until `call.trying`
+    // lands (up to OUTBOUND_CALL_TIMEOUT_MS), and skipping it committed the preference
+    // while that call kept the old mic for its whole duration. `Call.setAudioInputDevice`
+    // awaits `localMediaReady` rather than racing the initial acquisition.
+    const targets = new Set<Call>(this.activeCalls);
+    if (this.pendingCall) targets.add(this.pendingCall);
+    const results = await Promise.allSettled(
+      [...targets].map((call) => call.setAudioInputDevice(deviceId))
+    );
+    results.forEach((result) => {
+      if (result.status !== 'rejected') return;
+      this.emit(
+        'error',
+        result.reason instanceof PhoneError
+          ? result.reason
+          : new PhoneError({
+              code: 'call_failed',
+              message: `Could not switch microphone on a live call: ${
+                (result.reason as Error)?.message ?? 'unknown error'
+              }`,
+            })
+      );
+    });
+
+    const allRejected = results.length > 0 && results.every((r) => r.status === 'rejected');
+    if (allRejected) {
+      const first = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+      throw first.reason instanceof PhoneError
+        ? first.reason
+        : new PhoneError({ code: 'call_failed', message: 'Could not switch microphone' });
+    }
+
+    this.audioInputDeviceId_ = deviceId;
+  }
+
+  /**
+   * Select the speaker for the ringback tone. Does NOT route remote call audio — that
+   * plays through a media element the host owns, and only its owner can call
+   * `setSinkId`. Void-returning because nothing here is verified or awaited.
+   */
+  setAudioOutputDevice(deviceId: string | null): void {
+    this.audioOutputDeviceId_ = deviceId;
+    // Same pending-call reasoning as setAudioInputDevice above.
+    const targets = new Set<Call>(this.activeCalls);
+    if (this.pendingCall) targets.add(this.pendingCall);
+    targets.forEach((call) => call.setAudioOutputDevice(deviceId));
+  }
+
+  /**
+   * The available audio devices. Deliberately does not prompt for mic access — opening
+   * a picker shouldn't spring a permission dialog — so names stay hidden until
+   * permission has been granted once (`labelsAvailable: false`).
+   */
+  async listAudioDevices(): Promise<AudioDeviceList> {
+    const all = await enumerateDevices();
+    const pick = (kind: string): AudioDevice[] =>
+      all
+        .filter((d) => d.kind === kind)
+        .map((d) => ({
+          deviceId: d.deviceId,
+          label: d.label ?? '',
+          groupId: d.groupId ?? '',
+          isDefault: d.deviceId === 'default',
+        }));
+
+    const inputs = pick('audioinput');
+    return {
+      inputs,
+      outputs: pick('audiooutput'),
+      labelsAvailable: inputs.length > 0 && inputs.some((d) => d.label !== ''),
+      // A working mediaDevices always reports at least a default placeholder, so empty
+      supported: all.length > 0,
+    };
+  }
+
+  on<K extends keyof PhoneEventMap>(event: K, handler: Listener<K>): void {
+    let set = this.listeners[event] as Set<Listener<K>> | undefined;
+    if (!set) {
+      set = new Set<Listener<K>>();
+      (this.listeners as Record<string, Set<Listener<K>>>)[event] = set;
+    }
+    set.add(handler);
+    this.syncDeviceChangeSubscription();
+  }
+
+  off<K extends keyof PhoneEventMap>(event: K, handler?: Listener<K>): void {
+    if (!handler) {
+      delete this.listeners[event];
+      this.syncDeviceChangeSubscription();
+      return;
+    }
+    (this.listeners[event] as Set<Listener<K>> | undefined)?.delete(handler);
+    this.syncDeviceChangeSubscription();
+  }
+
+  /**
+   * Reference-counted off the existing listener set.
+   *
+   * Deliberately NOT tied to connect/disconnect: `reconnect()` calls `disconnect()`, so
+   * releasing there would permanently kill device events after any reconnect.
+   */
+  private syncDeviceChangeSubscription(): void {
+    const wanted = (this.listeners.audioDevicesChanged?.size ?? 0) > 0;
+    if (wanted && !this.deviceChangeUnsubscribe) {
+      this.deviceChangeUnsubscribe = onDeviceChange(() => {
+        void this.listAudioDevices().then((devices) => {
+          this.emit('audioDevicesChanged', devices);
+        });
+      });
+    } else if (!wanted && this.deviceChangeUnsubscribe) {
+      this.deviceChangeUnsubscribe();
+      this.deviceChangeUnsubscribe = null;
+    }
+  }
+
+  async connect(): Promise<void> {
+    if (this.transport)
+      throw new PhoneError({ code: 'invalid_message', message: 'Phone is already connected' });
+    if (this.handshake.inFlight)
+      throw new PhoneError({ code: 'invalid_message', message: 'Phone is already connecting' });
+
+    // Claim the in-flight slot with a fresh token. A disconnect() during the ICE
+    // fetch below clears it (no socket exists yet to cancel), so on resume we bail.
+    const token = this.handshake.begin();
+
+    let iceServers: RTCIceServer[];
+    try {
+      iceServers = this.iceServersOverride ?? (await this.fetchIceServers());
+    } catch (e) {
+      this.handshake.releaseToken(token);
+      throw e;
+    }
+
+    if (!this.handshake.isTokenCurrent(token)) {
+      throw new PhoneError({
+        code: 'transport_closed',
+        message: 'Disconnected before the softphone finished connecting',
+      });
+    }
+    this.iceServers = iceServers;
+
+    const transport = new Transport(
+      this.signalingUrl,
+      this.autoReconnect,
+      this.createSignalingSocket ?? undefined,
+      this.onAppResume ?? undefined
+    );
+    this.transport = transport;
+
+    // A superseded transport (after disconnect()/reconnect() swapped in a new
+    // one) can still fire async callbacks — its `closed` in particular. Ignore
+    // any callback from a transport that is no longer the current one, or a late
+    // close from the old socket would flip `isConnected`/emit `disconnected`
+    // over a freshly-authenticated new socket.
+    const isCurrent = () => this.transport === transport;
+
+    transport.on('open', () => {
+      if (!isCurrent()) return;
+      // Fresh req_id per authenticate (fires on initial connect and every
+      // auto-reconnect); the `authenticated` echoing it is ours. Snapshot the
+      // presented id so presentedEmergencyAddressId reflects this frame.
+      const reqId = this.nextReqId();
+      this.handshake.stampAuth(reqId);
+      this.presentedEmergencyAddressId_ = this.emergencyAddressId;
+      transport.send({
+        type: 'authenticate',
+        req_id: reqId,
+        token: this.token,
+        ...(this.emergencyAddressId ? { emergency_address_id: this.emergencyAddressId } : {}),
+      });
+    });
+
+    transport.on('message', (msg) => {
+      if (!isCurrent()) return;
+      this.handleMessage(msg);
+    });
+
+    transport.on('reconnecting', (attempt, delayMs) => {
+      if (!isCurrent()) return;
+      this.isConnected = false;
+      this.emit('reconnecting', attempt, delayMs);
+    });
+
+    transport.on('closed', (reason) => {
+      if (!isCurrent()) return;
+      this.isConnected = false;
+      // Forward the fatal error (session_replaced / session_revoked) so the app
+      // can distinguish a takeover/revocation from an ordinary drop. Undefined
+      // for a non-fatal close (a reconnect will follow) or a user disconnect.
+      this.emit('disconnected', reason?.error);
+    });
+
+    return new Promise<void>((resolve, reject) => {
+      // Bound the wait for `authenticated`. A dead/half-open socket (or a server
+      // that accepts the TCP connection but never completes the handshake) would
+      // otherwise leave connect() pending forever with no rejection.
+      const timeout = armTimeout(CONNECT_TIMEOUT_MS, () => {
+        logError('Timed out connecting to the softphone', { timeoutMs: CONNECT_TIMEOUT_MS });
+        // Settle through the handshake waiter (which nulls it), so a racing
+        // disconnect() can't also reject with transport_closed regardless of order.
+        this.handshake.reject(
+          new PhoneError({ code: 'auth_failed', message: 'Timed out connecting to the softphone' })
+        );
+        this.disconnect();
+      });
+
+      this.handshake.awaitAuth(resolve, reject, () => {
+        timeout.settle();
+        this.handshake.releaseToken(token);
+      });
+      transport.connect();
+    });
+  }
+
+  disconnect(): void {
+    // Abort any in-flight connect(): clears the ICE-window token (a resumed
+    // connect() bails), clears the outstanding authenticate id (no late frame
+    // matches), and rejects the promise waiter with transport_closed now (else it
+    // hangs until CONNECT_TIMEOUT ~20s later with a misleading auth_failed).
+    this.handshake.abort();
+    // Stop the refresh timer first so it can't fire against the socket we're
+    // about to tear down (or leak past it).
+    this.clearTokenRefreshTimer();
+    // Settle an in-flight outbound (awaiting call.trying) that isn't in
+    // activeCalls yet — otherwise its promise hangs forever and its timeout
+    // timer + Call leak until it fires. reject() clears the timer, disposes the
+    // Call, and nulls pendingOutbound/pendingCall.
+    this.pendingOutbound?.reject(
+      new PhoneError({
+        code: 'transport_closed',
+        message: 'Disconnected before the call connected',
+      })
+    );
+    for (const call of [...this.activeCalls]) {
+      try {
+        call.hangup();
+      } catch {
+        // Ignore: transport may already be closed.
+      }
+      call.dispose();
+    }
+    this.activeCalls.length = 0;
+    this.transport?.close();
+    this.transport = null;
+    this.isConnected = false;
+  }
+
+  /**
+   * Tear down and reconnect, re-running the `authenticate` handshake. The new
+   * session presents the current `emergencyAddressId`, which is where the server
+   * binds the emergency address to the connection's network — so this is how an
+   * app applies a just-selected/created address (or re-binds after a network
+   * move). Safe to call while idle; any live calls are torn down.
+   */
+  async reconnect(): Promise<void> {
+    // Emit an explicit `reconnecting` before tearing down. The old transport's
+    // async `closed` no longer surfaces `disconnected` (the transport-staleness
+    // guard drops it once disconnect() nulls this.transport), so without this the
+    // connection state would never leave `connected` across a reconnect — and a
+    // consumer watching for a connected→…→connected transition (e.g. the E911
+    // binding re-check) would never see one. This drives the observable
+    // transition that the subsequent `authenticated` (→ `reconnected`) completes.
+    this.emit('reconnecting', 0, 0);
+    this.isConnected = false;
+    this.disconnect();
+    try {
+      await this.connect();
+    } catch (e) {
+      // connect() can reject before a transport exists (ICE-fetch failure), so no
+      // `closed` fires to move the state off 'reconnecting' — emit it here.
+      this.emit('disconnected');
+      throw e;
+    }
+  }
+
+  /**
+   * Re-present a chosen `emergencyAddressId` on a fresh authenticate handshake, in
+   * one call. Rebinding requires a fresh socket (the server binds E911 once per
+   * connection, after REGISTER), so this tears down and reconnects like
+   * `reconnect()`; resolves once the server confirms the new binding.
+   */
+  reconnectWithEmergency(emergencyAddressId: string): Promise<void> {
+    this.selectEmergencyAddress(emergencyAddressId);
+    return this.reconnect();
+  }
+
+  call(destination: string): Promise<Call> {
+    const reqId = this.nextReqId();
+    return this.placeOutbound(destination, reqId, (offerSdp) => {
+      this.transport!.send({
+        type: 'call.create',
+        req_id: reqId,
+        destination,
+        sdp: offerSdp,
+      });
+    });
+  }
+
+  // startConsult dials the consult leg of an attended transfer:
+  // same outbound machinery as call(), but signalled via
+  // call.transfer.attended{step:consult} so the server holds the parent
+  // first. The consult's call.trying is the direct reply to the consult
+  // frame and echoes its req_id, so it resolves exactly like a normal
+  // outbound call.
+  private startConsult(parent: Call, destination: string): Promise<Call> {
+    const reqId = this.nextReqId();
+    return this.placeOutbound(destination, reqId, (offerSdp) => {
+      this.transport!.send({
+        type: 'call.transfer.attended',
+        req_id: reqId,
+        call_id: parent.id,
+        step: 'consult',
+        destination,
+        sdp: offerSdp,
+      });
+    });
+  }
+
+  private async placeOutbound(
+    destination: string,
+    reqId: string,
+    sendCreate: (offerSdp: string) => void
+  ): Promise<Call> {
+    if (!this.transport || !this.isConnected) {
+      throw new PhoneError({ code: 'transport_closed', message: 'Phone is not connected' });
+    }
+    if (this.pendingOutbound) {
+      throw new PhoneError({
+        code: 'rate_limited',
+        message: 'Another outbound call is still being placed',
+      });
+    }
+
+    const call = new Call({
+      // Provisional id until call.trying delivers the server-assigned one.
+      id: reqId,
+      direction: 'outbound',
+      from: '',
+      fromName: null,
+      to: destination,
+      initialState: 'trying',
+      transport: this.transport,
+      iceServers: this.iceServers,
+      startConsult: (p, d) => this.startConsult(p, d),
+      ringback: this.ringback ?? undefined,
+      audioInputDeviceId: this.audioInputDeviceId_ ?? undefined,
+      audioOutputDeviceId: this.audioOutputDeviceId_ ?? undefined,
+    });
+
+    // startOutbound acquires the mic (getUserMedia) internally and gathers ICE
+    // before returning the offer; surface a mic-denied / no-SDP failure as a
+    // PhoneError and tear the call down.
+    let offer: RTCSessionDescriptionInit;
+    try {
+      offer = await call.startOutbound();
+    } catch (e) {
+      call.dispose();
+      throw devicePhoneError({
+        cause: e,
+        deviceId: this.audioInputDeviceId,
+        permissionMessage: 'Microphone permission is required to place a call',
+        fallbackMessage: 'Could not start the call',
+      });
+    }
+    if (!offer.sdp) {
+      call.dispose();
+      throw new PhoneError({
+        code: 'call_failed',
+        message: 'RTCPeerConnection.createOffer produced no SDP',
+      });
+    }
+    const offerSdp = offer.sdp;
+
+    return new Promise<Call>((resolve, reject) => {
+      // Bound the wait for the server's call.trying (or an error) reply. Without
+      // this, a wedged/half-open session (socket open, server silent) leaves the
+      // promise pending forever — placeCall's caller never learns the dial failed
+      // and the UI silently no-ops. On expiry we reject so the failure surfaces.
+      const timeout = armTimeout(OUTBOUND_CALL_TIMEOUT_MS, () => {
+        // Only fire if THIS outbound is still the pending one (a later dial may
+        // have replaced it).
+        if (this.pendingOutbound?.reqId !== reqId) return;
+        logError('Timed out waiting for the server to accept the call', {
+          timeoutMs: OUTBOUND_CALL_TIMEOUT_MS,
+        });
+        this.pendingOutbound.reject(
+          new PhoneError({
+            code: 'call_failed',
+            message: 'Timed out waiting for the server to accept the call',
+          })
+        );
+      });
+
+      this.pendingOutbound = {
+        reqId,
+        destination,
+        resolve: (placed) => {
+          timeout.settle();
+          this.pendingOutbound = null;
+          this.pendingCall = null;
+          this.activeCalls.push(placed);
+          resolve(placed);
+        },
+        reject: (err) => {
+          timeout.settle();
+          this.pendingOutbound = null;
+          this.pendingCall = null;
+          call.dispose();
+          reject(err);
+        },
+      };
+
+      sendCreate(offerSdp);
+
+      this.pendingCall = call;
+    });
+  }
+
+  getCall(callId: string): Call | undefined {
+    return this.activeCalls.find((c) => c.id === callId);
+  }
+
+  /**
+   * Subscribe to presence (BLF) for an explicit, bounded set of users. The
+   * watch set is required and non-empty — there is no whole-account default —
+   * and is capped at {@link MAX_PRESENCE_TARGETS}; both bounds mirror the
+   * server, which rejects a bad list with a non-fatal `invalid_message` error.
+   *
+   * The server replies with a `presence.list` snapshot (emitted as
+   * `presenceList`), always before any `presence.update` delta
+   * (`presenceUpdate`) for the users that snapshot introduces. Deltas follow as
+   * those users' status changes.
+   *
+   * A status is `available`, `on_call`, or `offline` — `offline` meaning the user
+   * has no registered device and so cannot currently receive calls. The first
+   * delta after a snapshot may restate a status the snapshot already reported, so
+   * key the roster by `userId` and upsert.
+   *
+   * Users whose subscription can't be established are omitted from the snapshot
+   * and named in a non-fatal `presence_unavailable` error (its `PhoneError`
+   * carries no user list; listen on `error` for the code).
+   */
+  subscribePresence(userIds: string[]): void {
+    if (!this.transport || !this.isConnected) {
+      throw new PhoneError({ code: 'transport_closed', message: 'Phone is not connected' });
+    }
+    if (userIds.length === 0) {
+      throw new PhoneError({
+        code: 'invalid_message',
+        message: 'subscribePresence requires a non-empty users list',
+      });
+    }
+    if (userIds.length > MAX_PRESENCE_TARGETS) {
+      throw new PhoneError({
+        code: 'invalid_message',
+        message: `subscribePresence accepts at most ${MAX_PRESENCE_TARGETS} users (got ${userIds.length})`,
+      });
+    }
+    this.transport.send({ type: 'presence.subscribe', req_id: this.nextReqId(), users: userIds });
+  }
+
+  setPresence(_status: SettablePresenceStatus, _statusText?: string): Promise<void> {
+    throw new NotImplementedError('DialStackPhone.setPresence');
+  }
+
+  /**
+   * Register and validate an emergency (E911) address. Creates the
+   * resource via the REST API (validated against the carrier MSAG), persists
+   * its id, and presents it on the next connect so the server binds it to the
+   * device's network. To bind a new address immediately (e.g. responding to a
+   * `network.changed` event), call this then `disconnect()` + `connect()`.
+   *
+   * Rejects with a `PhoneError` (code `invalid_message`) when the address
+   * can't be validated.
+   */
+  async setEmergencyAddress(address: EmergencyAddressInput): Promise<EmergencyAddress> {
+    const created = await this.apiRequest<EmergencyAddress>(
+      'POST',
+      '/v1/me/emergency-addresses',
+      address
+    );
+    this.emergencyAddressId = created.id;
+    persistId(this.storage, this.storageUserId, EMERGENCY_ADDRESS_STORAGE_KEY_PREFIX, created.id);
+    return created;
+  }
+
+  /**
+   * Select an already-saved emergency address to present on the next
+   * (re)connect (sets + persists it). The server binds it at the authenticate
+   * handshake, so call `reconnect()` afterwards for it to take effect.
+   */
+  selectEmergencyAddress(id: string): void {
+    this.emergencyAddressId = id;
+    persistId(this.storage, this.storageUserId, EMERGENCY_ADDRESS_STORAGE_KEY_PREFIX, id);
+  }
+
+  /**
+   * The emergency-address id actually sent in the CURRENT socket's authenticate
+   * frame (latched at send time), or null. This is what the E911 gate keys off —
+   * a saved address's `registered_ip`, or a selection made without a reconnect,
+   * does NOT mean this session bound it.
+   */
+  get presentedEmergencyAddressId(): string | null {
+    return this.presentedEmergencyAddressId_;
+  }
+
+  /** Fetch a saved emergency address (defaults to the one this phone uses). */
+  getEmergencyAddress(id?: string): Promise<EmergencyAddress> {
+    const target = id ?? this.emergencyAddressId;
+    if (!target) {
+      return Promise.reject(
+        new PhoneError({ code: 'invalid_message', message: 'No emergency address id' })
+      );
+    }
+    return this.apiRequest<EmergencyAddress>(
+      'GET',
+      `/v1/me/emergency-addresses/${encodeURIComponent(target)}`
+    );
+  }
+
+  /**
+   * List the user's saved emergency addresses (location profiles).
+   *
+   * Auto-paginating: `await` it for the first page envelope, or iterate the
+   * full collection with `autoPagingEach()` / `autoPagingToArray()` —
+   * subsequent pages are fetched lazily.
+   */
+  listEmergencyAddresses(): PaginatedList<ListResponse<EmergencyAddress>> {
+    const fetchPage = (url: string) => this.apiRequest<ListResponse<EmergencyAddress>>('GET', url);
+    return createPaginatedList(fetchPage('/v1/me/emergency-addresses'), fetchPage);
+  }
+
+  /**
+   * List the account directory — the colleagues this user may see, by name
+   * (`GET /v1/me/directory`). Resolved from the session token alone (no account
+   * context needed), so a softphone can discover who to watch for presence, or
+   * populate a contact / transfer picker, without its backend supplying the set.
+   *
+   * Auto-paginates the whole directory and returns a flat list. To watch every
+   * colleague's presence: `phone.subscribePresence((await phone.listDirectory()).map(e => e.user))`.
+   * Note presence subscription accepts at most 100 users at once, so watching a
+   * very large directory means subscribing to a subset.
+   */
+  async listDirectory(): Promise<DirectoryEntry[]> {
+    const fetchPage = (url: string) =>
+      this.apiRequest<ListResponse<DirectoryEntryWire>>('GET', url);
+    const rows = await createPaginatedList(
+      fetchPage('/v1/me/directory'),
+      fetchPage
+    ).autoPagingToArray();
+    return rows.map((r) => ({ user: r.user, displayName: r.display_name }));
+  }
+
+  /** Delete a saved emergency address. Clears the local selection if it matched. */
+  async deleteEmergencyAddress(id: string): Promise<void> {
+    await this.apiRequest<void>('DELETE', `/v1/me/emergency-addresses/${encodeURIComponent(id)}`);
+    if (this.emergencyAddressId === id) {
+      this.emergencyAddressId = null;
+      persistId(this.storage, this.storageUserId, EMERGENCY_ADDRESS_STORAGE_KEY_PREFIX, null);
+    }
+  }
+
+  /**
+   * Clear an address's network binding (registered_ip) via the REST API. The
+   * next connect re-registers the current network. Useful after a move so the
+   * address re-binds where the device now is.
+   */
+  clearEmergencyAddressRegisteredIp(id: string): Promise<void> {
+    return this.apiRequest<void>(
+      'DELETE',
+      `/v1/me/emergency-addresses/${encodeURIComponent(id)}/registered_ip`
+    );
+  }
+
+  private nextReqId(): string {
+    this.reqSeq += 1;
+    return `req_${Date.now().toString(36)}_${this.reqSeq}`;
+  }
+
+  // adoptToken makes a new token the current one: it re-derives the token-scoped
+  // local state (localStorage namespace) and re-arms the pre-`exp` refresh off the
+  // new expiry, from a SINGLE decode. Scheduling is folded in so "a new token is
+  // live" always implies "its refresh is scheduled" — the two can't drift apart.
+  private adoptToken(token: string): void {
+    this.token = token;
+    const { userId, exp } = decodeTokenClaims(token);
+    // Only overwrite the persistence namespace when the new token yields a usable
+    // user id. A consumer's refresh token could be opaque/undecodable here; nulling
+    // a previously-valid storageUserId would silently disable emergency-address
+    // persistence for the rest of an otherwise-healthy session.
+    if (userId !== null) this.storageUserId = userId;
+    this.scheduleTokenRefresh(exp);
+  }
+
+  // Arm the pre-`exp` refresh. Idempotent: clears any prior timer/pending refresh
+  // first. No-ops when onTokenExpiring is unset (back-compat) or the token has no
+  // decodable exp (nothing to schedule against). `exp` may be passed by adoptToken
+  // (which already decoded it); otherwise it's read from the current token — this
+  // is the path taken on every `authenticated`, re-arming after each (re)connect.
+  private scheduleTokenRefresh(exp: number | null = decodeTokenClaims(this.token).exp): void {
+    this.clearTokenRefreshTimer();
+    if (!this.onTokenExpiring) return;
+    if (exp === null) return;
+    // Floor the delay: a token already inside the lead window would otherwise
+    // schedule at 0 and, if the consumer keeps minting short-lived tokens, re-arm
+    // at 0 on each adoption — a spin. The floor bounds that to one refresh per
+    // interval while leaving normal (hours/days) tokens scheduled far out.
+    const delay = Math.max(
+      TOKEN_REFRESH_MIN_DELAY_MS,
+      exp * 1000 - Date.now() - TOKEN_REFRESH_LEAD_MS
+    );
+    this.tokenRefreshTimer = setTimeout(() => {
+      this.tokenRefreshTimer = null;
+      void this.fireTokenRefresh();
+    }, delay);
+  }
+
+  // Timer body: ask the consumer for a fresh token and hand it to the server via
+  // an in-band auth.refresh. The new token is NOT adopted here — only on the
+  // matching auth.refreshed (handleMessage) — so a rejected refresh never swaps
+  // the live token, and the server's original expiry timer keeps governing.
+  private async fireTokenRefresh(): Promise<void> {
+    if (!this.onTokenExpiring || !this.transport || !this.isConnected) return;
+    // Capture the transport this refresh is for. A reconnect during the await
+    // below swaps in a new transport that runs its own scheduleTokenRefresh on
+    // re-auth; sending this stale refresh on it would race that fresh cadence.
+    const transport = this.transport;
+    let fresh: string;
+    try {
+      fresh = await this.onTokenExpiring();
+    } catch (e) {
+      // The connection is still valid; do NOT tear it down. Surface the failure
+      // so the app can trigger its sign-in flow; the server's expiry timer still
+      // governs, and a later reconnect can re-mint.
+      this.emit(
+        'error',
+        new PhoneError({
+          code: 'auth_failed',
+          message: `onTokenExpiring failed; token was not refreshed: ${(e as Error).message}`,
+        })
+      );
+      return;
+    }
+    // Bail if the socket was torn down/replaced while awaiting: transport identity
+    // must still match (guards against a reconnect), and it must still be live.
+    if (this.transport !== transport || !this.isConnected) return;
+    const reqId = this.nextReqId();
+    // Bound the wait for auth.refreshed. If the server accepts the frame but the
+    // reply is lost on an otherwise-open socket, without this the pending refresh
+    // would stick forever and the cadence would stop for good. On expiry, surface
+    // an error and re-schedule off the current (still-live) token so one lost
+    // reply can't permanently defeat the refresh.
+    const timeout = armTimeout(TOKEN_REFRESH_TIMEOUT_MS, () => {
+      if (this.pendingRefresh?.reqId !== reqId) return;
+      this.pendingRefresh = null;
+      logError('Timed out waiting for auth.refreshed', { timeoutMs: TOKEN_REFRESH_TIMEOUT_MS });
+      this.emit(
+        'error',
+        new PhoneError({
+          code: 'auth_failed',
+          message: 'Timed out waiting for the server to confirm the token refresh',
+        })
+      );
+      // Re-arm off the current token so the refresh cadence resumes (the token was
+      // never swapped — a lost reply never extends the session).
+      if (this.isConnected) this.scheduleTokenRefresh();
+    });
+    this.pendingRefresh = { reqId, token: fresh, settle: timeout.settle };
+    transport.send({ type: 'auth.refresh', req_id: reqId, token: fresh });
+  }
+
+  private clearTokenRefreshTimer(): void {
+    if (this.tokenRefreshTimer !== null) {
+      clearTimeout(this.tokenRefreshTimer);
+      this.tokenRefreshTimer = null;
+    }
+    // Cancel the reply-timeout for any in-flight refresh so it can't fire after
+    // the exchange has been torn down or resolved elsewhere.
+    this.pendingRefresh?.settle();
+    this.pendingRefresh = null;
+  }
+
+  // apiRequest is the shared REST helper for the /v1/me/emergency-addresses
+  // surface (Bearer auth, JSON). A 422 (carrier MSAG validation failure)
+  // surfaces as invalid_message carrying the server detail; 204 returns void.
+  private async apiRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
+    let resp: Response;
+    try {
+      resp = await fetch(`${this.apiBaseUrl}${path}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
+    } catch (e) {
+      throw new PhoneError({
+        code: 'internal_error',
+        message: `request failed: ${(e as Error).message}`,
+      });
+    }
+    if (resp.status === 422) {
+      const detail = await resp.text().catch(() => '');
+      throw new PhoneError({
+        code: 'invalid_message',
+        message: `emergency address validation failed: ${detail || resp.statusText}`,
+      });
+    }
+    if (!resp.ok) {
+      throw new PhoneError({
+        code: 'internal_error',
+        message: `request failed: status ${resp.status}`,
+      });
+    }
+    if (resp.status === 204) return undefined as T;
+    return (await resp.json()) as T;
+  }
+
+  private async fetchIceServers(): Promise<RTCIceServer[]> {
+    try {
+      // Bound the fetch: it runs before the socket opens, so connect()'s
+      // authenticate timeout doesn't cover it — a stalled fetch would hang forever.
+      const resp = await fetch(`${this.apiBaseUrl}/v1/webrtc/ice-servers`, {
+        headers: { Authorization: `Bearer ${this.token}` },
+        signal: timeoutSignal(ICE_FETCH_TIMEOUT_MS),
+      });
+      if (!resp.ok) throw new Error(`status ${resp.status}`);
+      const body = (await resp.json()) as IceServersResponse;
+      return body.ice_servers;
+    } catch (e) {
+      throw new PhoneError({
+        code: 'ice_fetch_failed',
+        message: `Failed to fetch ICE servers: ${(e as Error).message}`,
+      });
+    }
+  }
+
+  private handleMessage(msg: ServerMessage): void {
+    switch (msg.type) {
+      case 'authenticated': {
+        // Ignore only a frame that echoes a DIFFERENT id than our outstanding
+        // authenticate — a stale reply from a superseded socket. A frame that omits
+        // req_id is accepted (the server may not echo it), so an unattributed
+        // authenticated can't hang connect() to its timeout.
+        if (this.handshake.isStaleEcho(msg.req_id)) return;
+        // Whether this frame answers an authenticate we actually sent (id stamped in
+        // on('open')). No outstanding id means no authenticate is pending, so don't
+        // treat the frame as our handshake reply.
+        const isOurHandshake = this.handshake.isAuthOutstanding;
+        this.handshake.clearAuth();
+        this.isConnected = true;
+        // A session just came up (initial connect or reconnect); the current
+        // token is unchanged, so this is a bare re-arm rather than an adoptToken.
+        this.scheduleTokenRefresh();
+        // Resolve the in-flight connect() when its authenticate is answered. A frame
+        // with no waiting connect is an auto-reconnect re-auth.
+        if (isOurHandshake && this.handshake.hasWaiter) {
+          this.handshake.resolve();
+        }
+        if (this.hasConnectedOnce) this.emit('reconnected');
+        else this.emit('connected');
+        this.hasConnectedOnce = true;
+        return;
+      }
+      case 'auth.refreshed': {
+        // Correlate against the in-flight refresh, then adopt the exact token we
+        // sent for this req_id (never a mismatched one) — adoptToken re-arms the
+        // next refresh off its new exp. A reply for a stale/unknown req_id is
+        // ignored.
+        if (this.pendingRefresh && msg.req_id === this.pendingRefresh.reqId) {
+          const token = this.pendingRefresh.token;
+          this.pendingRefresh.settle(); // cancel the reply-timeout; the reply arrived
+          this.pendingRefresh = null;
+          this.adoptToken(token);
+        }
+        return;
+      }
+      case 'network.changed': {
+        // The emergency address bound at connect no longer applies on this
+        // network. The session stays usable — 911/933 still go out —
+        // but non-emergency PSTN is gated until the app confirms/registers an
+        // address valid here. Surfaced as an event for the app to prompt on.
+        this.emit('network.changed');
+        return;
+      }
+      case 'error': {
+        const err = new PhoneError({
+          code: (msg.code as PhoneError['code']) ?? 'internal_error',
+          message: msg.message,
+          callId: msg.call_id ?? null,
+          fatal: msg.fatal ?? false,
+        });
+        logError('Softphone server error', {
+          code: err.code,
+          message: err.message,
+          fatal: err.fatal,
+        });
+        // A non-fatal error echoing the in-flight refresh's req_id is the server
+        // rejecting that refresh (bad/expired/cross-identity token). Clear the
+        // pending state so a late auth.refreshed can't adopt the rejected token;
+        // leave this.token and the (server's original) expiry timer untouched —
+        // a failed refresh never extends the session. The emitted `error` below
+        // surfaces it; the connection stays open.
+        if (this.pendingRefresh && msg.req_id === this.pendingRefresh.reqId) {
+          this.pendingRefresh.settle(); // cancel the reply-timeout; the reply arrived
+          this.pendingRefresh = null;
+        }
+        // Reject the in-flight connect() on a fatal error, or on one echoing our
+        // outstanding authenticate's req_id (the server rejecting it). Either way
+        // the socket is unusable, so tear it down — otherwise a stray later
+        // `authenticated` for this dead handshake could still flip isConnected.
+        // Detach the waiter first so disconnect()'s transport_closed doesn't win
+        // over the server's specific error we want the caller to see.
+        if (this.handshake.hasWaiter && (err.fatal || this.handshake.matches(msg.req_id))) {
+          const waiter = this.handshake.takeWaiter();
+          this.disconnect();
+          waiter?.reject(err);
+        }
+        // A pending outbound is rejected by an error echoing the creating
+        // frame's req_id (the server echoes it on every immediate create /
+        // consult failure), or by any fatal error — the connection is dying
+        // and call.trying will never arrive.
+        if (this.pendingOutbound && (msg.req_id === this.pendingOutbound.reqId || err.fatal)) {
+          // reject() clears the timer and nulls pendingOutbound/pendingCall.
+          this.pendingOutbound.reject(err);
+        }
+        this.emit('error', err);
+        return;
+      }
+      case 'call.trying': {
+        // call.trying is the direct reply to the call-creating frame
+        // (call.create or the consult step of call.transfer.attended) and
+        // echoes its req_id.
+        if (this.pendingOutbound && msg.req_id === this.pendingOutbound.reqId && this.pendingCall) {
+          const placed = this.pendingCall;
+          placed.id = msg.call_id;
+          // resolve() clears the timer and nulls pendingOutbound/pendingCall.
+          this.pendingOutbound.resolve(placed);
+          placed.handleServerMessage(msg);
+        } else {
+          this.getCall(msg.call_id)?.handleServerMessage(msg);
+        }
+        return;
+      }
+      case 'call.incoming': {
+        this.handleIncoming(msg);
+        return;
+      }
+      case 'call.restored': {
+        // Not yet implemented. Surface a non-fatal error so consumers know.
+        this.emit(
+          'error',
+          new PhoneError({
+            code: 'internal_error',
+            message: 'call.restored received but reconnect/restore is not yet implemented',
+            callId: msg.call_id,
+          })
+        );
+        return;
+      }
+      case 'sdp.offer': {
+        const call = this.getCall(msg.call_id);
+        // Surface non-mic prepare failures (e.g. createAnswer error) via the
+        // error event — otherwise the rejection is unhandled. The mic-permission
+        // failure is owned by handleIncoming (whenLocalMediaReady().catch) and
+        // is swallowed inside prepareAnswerForOffer, so it is not double-emitted
+        // here.
+        if (call) {
+          void call.prepareAnswerForOffer(msg.sdp).catch((e) =>
+            this.emit(
+              'error',
+              new PhoneError({
+                code: 'call_failed',
+                message: `Failed to prepare answer for incoming call: ${(e as Error).message}`,
+                callId: msg.call_id,
+              })
+            )
+          );
+        }
+        return;
+      }
+      case 'sdp.pranswer': {
+        // Network early media (carrier 183): apply it as a provisional answer
+        // so audio plays during ringing. The final sdp.answer replaces it at
+        // pickup. Opaque to the app — no separate event.
+        const call = this.getCall(msg.call_id);
+        if (call) {
+          void call.acceptRemoteProvisionalAnswer(msg.sdp).catch((e) =>
+            this.emit(
+              'error',
+              new PhoneError({
+                code: 'call_failed',
+                message: `Failed to apply provisional answer: ${(e as Error).message}`,
+                callId: msg.call_id,
+              })
+            )
+          );
+        }
+        return;
+      }
+      case 'sdp.answer': {
+        const call = this.getCall(msg.call_id);
+        if (call) {
+          // Surface a failed setRemoteDescription(answer) instead of a silent
+          // unhandled rejection — the browser may reject or ICE-restart on a
+          // final answer that's incompatible with the applied provisional.
+          void call.acceptRemoteAnswer(msg.sdp).catch((e) =>
+            this.emit(
+              'error',
+              new PhoneError({
+                code: 'call_failed',
+                message: `Failed to apply answer: ${(e as Error).message}`,
+                callId: msg.call_id,
+              })
+            )
+          );
+        }
+        return;
+      }
+      case 'ice.candidate': {
+        const call = this.getCall(msg.call_id);
+        if (call) void call.addRemoteCandidate(msg.candidate, msg.sdp_mid, msg.sdp_m_line_index);
+        return;
+      }
+      case 'ice.done':
+        return;
+      case 'call.ringing':
+      case 'call.answered':
+      case 'call.held':
+      case 'call.resumed':
+      case 'call.ended': {
+        const call = this.getCall(msg.call_id);
+        if (!call) return;
+        call.handleServerMessage(msg);
+        if (msg.type === 'call.ended') {
+          const idx = this.activeCalls.indexOf(call);
+          if (idx >= 0) this.activeCalls.splice(idx, 1);
+        }
+        return;
+      }
+      case 'presence.list': {
+        this.emit(
+          'presenceList',
+          msg.users.map((u) => ({
+            userId: u.user_id,
+            name: u.name,
+            status: u.status,
+            statusText: u.status_text ?? null,
+            updatedAt: u.updated_at,
+          }))
+        );
+        return;
+      }
+      case 'presence.update': {
+        this.emit('presenceUpdate', {
+          userId: msg.user_id,
+          name: msg.name,
+          status: msg.status,
+          statusText: msg.status_text ?? null,
+          updatedAt: msg.updated_at,
+        });
+        return;
+      }
+      default:
+        return;
+    }
+  }
+
+  private handleIncoming(msg: Extract<ServerMessage, { type: 'call.incoming' }>): void {
+    const call = new Call({
+      id: msg.call_id,
+      direction: 'inbound',
+      from: msg.from,
+      fromName: msg.from_name,
+      to: msg.to,
+      initialState: 'ringing',
+      transport: this.transport!,
+      iceServers: this.iceServers,
+      startConsult: (p, d) => this.startConsult(p, d),
+      ringback: this.ringback ?? undefined,
+      audioInputDeviceId: this.audioInputDeviceId_ ?? undefined,
+      audioOutputDeviceId: this.audioOutputDeviceId_ ?? undefined,
+    });
+    // Register the Call synchronously so the sdp.offer + ICE the server sends
+    // immediately after call.incoming are routed to it, not dropped via
+    // getCall() → undefined while the mic permission prompt is open. The Call
+    // acquires the mic itself and gates answer creation on it.
+    this.activeCalls.push(call);
+    this.emit('incoming', call);
+    call.whenLocalMediaReady().catch((e) => {
+      this.emit(
+        'error',
+        new PhoneError({
+          code: 'call_failed',
+          message: `Microphone unavailable for incoming call: ${(e as Error).message}`,
+          callId: msg.call_id,
+        })
+      );
+    });
+  }
+
+  private emit<K extends keyof PhoneEventMap>(
+    event: K,
+    ...args: Parameters<PhoneEventMap[K]>
+  ): void {
+    this.listeners[event]?.forEach((h) => {
+      (h as (...a: unknown[]) => void)(...(args as unknown[]));
+    });
+  }
+}
+
+// Resolves the WebSocket signaling URL the phone connects to.
+//
+// Precedence: a non-empty `signalingBaseUrl` wins; otherwise the default is
+// derived from `apiBaseUrl` by swapping the leading `api.` host label for
+// `webrtc.` (the signaling host is a separate, region-aware hostname). Hosts
+// that don't start with `api.` (self-host, proxies) are left unchanged. The
+// base is upgraded http(s)→ws(s) (case-insensitive) and gets the `/v1/webrtc`
+// path appended if it isn't already present.
+//
+// `||` (not `??`) so an explicit empty string falls back to the derived
+// default rather than producing a scheme-less relative URL.
+export function resolveSignalingUrl(
+  signalingBaseUrl: string | undefined,
+  apiBaseUrl: string
+): string {
+  const base = signalingBaseUrl || deriveDefaultSignalingBaseUrl(apiBaseUrl);
+  // Normalize the scheme token case-insensitively: http(s)->ws(s), lowercased.
+  // (A naive /^http/i would turn "HTTPS://" into the invalid "wsS://".)
+  let url = base
+    .replace(/^(https?|wss?):/i, (m) => {
+      const s = m.toLowerCase();
+      return s === 'http:' ? 'ws:' : s === 'https:' ? 'wss:' : s;
+    })
+    .replace(/\/+$/, '');
+  if (!url.endsWith('/v1/webrtc')) url += '/v1/webrtc';
+  return url;
+}
+
+function deriveDefaultSignalingBaseUrl(apiBaseUrl: string): string {
+  try {
+    const u = new URL(apiBaseUrl);
+    if (u.hostname.startsWith('api.')) {
+      u.hostname = 'webrtc.' + u.hostname.slice('api.'.length);
+    }
+    // Preserve any path prefix (e.g. a proxied `https://gw.example.com/api`)
+    // so the WS path matches where REST calls go; `.origin` would drop it.
+    // Trailing slashes are trimmed by resolveSignalingUrl.
+    return `${u.protocol}//${u.host}${u.pathname}`;
+  } catch {
+    // Not a parseable absolute URL (e.g. a relative base in a test harness) —
+    // fall back to the raw value; resolveSignalingUrl still normalises it.
+    return apiBaseUrl;
+  }
+}
+
+// Unverified base64url decode of a JWT's payload segment. Deliberately does NOT
+// verify the signature: the SDK never trusts these claims (the server verifies
+// the token independently), it only reads them for local bookkeeping —
+// namespacing localStorage by `sub`, and scheduling a refresh off `exp`. Returns
+// null for any token that isn't a decodable three-part JWT.
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    const parsed = JSON.parse(json) as unknown;
+    return typeof parsed === 'object' && parsed !== null
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+// decodeTokenClaims decodes both claims the SDK reads (`sub` → user id for the
+// localStorage namespace, `exp` → refresh scheduling) in a SINGLE unverified
+// payload decode, so adopting a token doesn't decode it twice. Each claim is null
+// when absent/ill-typed; callers treat a null `userId` as "persistence disabled"
+// and a null `exp` as "can't schedule a refresh".
+function decodeTokenClaims(token: string): { userId: string | null; exp: number | null } {
+  const payload = decodeJwtPayload(token);
+  const sub = payload?.sub;
+  const exp = payload?.exp;
+  return {
+    userId: typeof sub === 'string' && sub.startsWith('user_') ? sub : null,
+    exp: typeof exp === 'number' && Number.isFinite(exp) ? exp : null,
+  };
+}
+
+function userIdFromToken(token: string): string | null {
+  return decodeTokenClaims(token).userId;
+}
+
+// Persistence helpers for the emergency-address id, namespaced per user so
+// shared browsers don't leak one user's saved address into another's session.
+// Backed by the platform storage shim (localStorage on web, AsyncStorage-backed
+// cache on native), which is itself guarded so the SDK works in non-browser
+// hosts where storage is absent — there (or when the token can't be decoded)
+// the id must be supplied via PhoneOptions.emergencyAddressId.
+function loadStoredId(
+  storage: PlatformStorage,
+  userId: string | null,
+  prefix: string
+): string | null {
+  if (!userId) return null;
+  return storage.getItem(prefix + userId);
+}
+
+function persistId(
+  storage: PlatformStorage,
+  userId: string | null,
+  prefix: string,
+  id: string | null
+): void {
+  if (!userId) return;
+  const key = prefix + userId;
+  if (id) storage.setItem(key, id);
+  else storage.removeItem(key);
+}

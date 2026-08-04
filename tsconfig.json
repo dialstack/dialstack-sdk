@@ -8,7 +8,7 @@
     "declarationMap": true,
     "sourceMap": true,
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "removeComments": true,
     "strict": true,
     "noUnusedLocals": true,
@@ -27,10 +27,14 @@
       "@dialstack/sdk/react": ["./src/react.ts"]
     }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "js/src/**/*", "react/src/**/*", "webrtc/src/**/*", "server/src/**/*"],
   "exclude": [
     "node_modules",
     "dist",
+    "js/dist",
+    "react/dist",
+    "webrtc/dist",
+    "server/dist",
     "**/*.native.ts",
     "**/*.test.ts",
     "**/*.test.tsx",

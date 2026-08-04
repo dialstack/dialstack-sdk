@@ -5,8 +5,8 @@
  */
 
 // Core exports
-export { loadDialstackAndInitialize } from './core/initialize';
-export { ApiError } from './core/instance';
+export { loadDialstackAndInitialize } from '../js/src/core/initialize';
+export { ApiError } from '../js/src/core/instance';
 export type {
   DialStackInitParams,
   DialStackInstance,
@@ -104,10 +104,10 @@ export type {
   // Custom render types
   VoicemailRowRenderer,
   CallLogRowRenderer,
-} from './types';
+} from '../js/src/types';
 
 // Default icons (can be used to customize or extend)
-export { defaultIcons } from './components/base-component';
+export { defaultIcons } from '../js/src/components/base-component';
 
 // Note: Web Components (BaseComponent, CallLogsComponent, VoicemailsComponent)
 // are not exported from the main entry point to ensure SSR compatibility.
@@ -138,17 +138,17 @@ export type {
   DeviceListOptions,
   ProvisioningEvent,
   ProvisioningEventListOptions,
-} from './types';
-export { isDeskphone, isDECTBase } from './types';
+} from '../js/src/types';
+export { isDeskphone, isDECTBase } from '../js/src/types';
 
 // Device onboarding-readiness derivation (shared so all consumers agree)
-export { deviceReadiness } from './utils/device-readiness';
+export { deviceReadiness } from '../js/src/utils/device-readiness';
 export type {
   DeviceReadiness,
   DeviceReadinessInput,
   DeviceReadinessPrerequisite,
   DeviceReadinessStep,
-} from './utils/device-readiness';
+} from '../js/src/utils/device-readiness';
 
 // DECT types
 export type {
@@ -162,7 +162,7 @@ export type {
   CreateDECTHandsetRequest,
   UpdateDECTHandsetRequest,
   CreateDECTExtensionRequest,
-} from './types';
+} from '../js/src/types';
 
 // Number porting types
 export type {
@@ -175,10 +175,10 @@ export type {
   PortEligibilityResult,
   PortableNumber,
   NonPortableNumber,
-} from './types';
+} from '../js/src/types';
 
 // Type-only re-exports (safe for SSR)
-export type { DateRange } from './components/call-logs';
+export type { DateRange } from '../js/src/components/call-logs';
 
 // Note: Server SDK is exported from '@dialstack/sdk/server'
 // Do not import server SDK in browser code

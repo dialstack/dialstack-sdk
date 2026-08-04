@@ -23,6 +23,59 @@ function cssRawPlugin({ bundleNodeModulesCss = false } = {}) {
   };
 }
 
+// Sources live in per-audience trees (src/, webrtc/src, …), so the TypeScript
+// plugin's rootDir has to span the whole package — a narrower one rejects any
+// file outside it. That makes declarations land one level deep, under
+// dist/src/**, while package.json "exports" names dist/index.d.ts and friends.
+// Strip the leading src/ back off so the published type paths are unchanged;
+// the per-audience trees keep their own prefix (dist/webrtc/src/**), which
+// nothing external references.
+//
+// Hoisting the file also has to rewrite the specifiers inside it. A declaration
+// emitted at dist/src/react.d.ts reaches a sibling tree as '../react/src/x';
+// once the file moves up to dist/react.d.ts that same specifier escapes dist/
+// entirely and lands on the .tsx source. Consumers then get types pointing
+// outside the tarball, and in-repo typechecks (admin) follow the reference into
+// raw SDK source and fail on things dist/ never exposes. Re-anchor to './'.
+const SIBLING_TREES = ['js', 'react', 'webrtc', 'server'];
+
+function flattenSrcDeclarations() {
+  // Matches a specifier that climbs out of the file's own directory to reach a
+  // sibling tree, capturing the leading `../` run so one level can be dropped.
+  const climbing = new RegExp(
+    `(['"])((?:\\.\\./)+)(${SIBLING_TREES.join('|')})/src/`,
+    'g'
+  );
+  // Same for a .d.ts.map's "sources", which point back at the original .ts.
+  const climbingSources = /((?:\.\.\/)+)(src\/)/g;
+  return {
+    name: 'flatten-src-declarations',
+    generateBundle(_options, bundle) {
+      for (const [fileName, file] of Object.entries(bundle)) {
+        if (!fileName.startsWith('src/')) continue;
+        if (!/\.d\.ts(\.map)?$/.test(fileName)) continue;
+        if (typeof file.source === 'string') {
+          // Hoisting the file up one directory means every specifier that
+          // climbed out of it needs exactly one fewer `../`. A single remaining
+          // `../` becomes `./` so the path stays explicitly relative.
+          file.source = file.source
+            .replace(climbing, (_m, q, ups, tree) => {
+              const levels = ups.length / '../'.length - 1;
+              return `${q}${levels === 0 ? './' : '../'.repeat(levels)}${tree}/src/`;
+            })
+            .replace(climbingSources, (_m, ups, tail) => {
+              const levels = ups.length / '../'.length - 1;
+              return `${levels === 0 ? '' : '../'.repeat(levels)}${tail}`;
+            });
+        }
+        delete bundle[fileName];
+        file.fileName = fileName.slice('src/'.length);
+        bundle[file.fileName] = file;
+      }
+    },
+  };
+}
+
 // Shared plugins for browser builds
 const browserPlugins = ({ excludeServer = true, bundleNodeModulesCss = false } = {}) => [
   cssRawPlugin({ bundleNodeModulesCss }),
@@ -43,9 +96,10 @@ const browserPlugins = ({ excludeServer = true, bundleNodeModulesCss = false } =
     inlineSources: !production,
     declaration: true,
     declarationDir: 'dist',
-    rootDir: 'src',
-    exclude: excludeServer ? ['src/server/**'] : [],
+    rootDir: '.',
+    exclude: excludeServer ? ['src/server/**', 'server/src/**'] : [],
   }),
+  flattenSrcDeclarations(),
   babel({
     babelHelpers: 'bundled',
     exclude: 'node_modules/**',
@@ -197,14 +251,15 @@ export default [
         tsconfig: './tsconfig.json',
         sourceMap: true,
         declaration: true,
-        // rootDir is `src` (not `src/server`) so the bundle can import the
-        // shared auto-pagination helper from src/shared/. Declarations keep
-        // their source structure under dist: src/server/index.ts still emits
-        // to dist/server/index.d.ts — the package.json types entry point is
-        // unchanged; src/shared/*.d.ts lands alongside under dist/shared/.
+        // rootDir spans the package so the bundle can import both the shared
+        // auto-pagination helper and the per-audience trees. Declarations keep
+        // their source structure under dist and flattenSrcDeclarations() strips
+        // the src/ prefix, so src/server/index.ts still emits to
+        // dist/server/index.d.ts — the package.json types entry is unchanged.
         declarationDir: 'dist',
-        rootDir: 'src',
+        rootDir: '.',
       }),
+      flattenSrcDeclarations(),
     ],
   },
 ];

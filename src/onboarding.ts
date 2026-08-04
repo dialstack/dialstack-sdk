@@ -13,6 +13,6 @@
  * @packageDocumentation
  */
 
-export { OnboardingPortal } from './react/onboarding/OnboardingPortal';
+export { OnboardingPortal } from '../react/src/react/onboarding/OnboardingPortal';
 
-export type { OnboardingPortalProps } from './react/onboarding/OnboardingPortal';
+export type { OnboardingPortalProps } from '../react/src/react/onboarding/OnboardingPortal';

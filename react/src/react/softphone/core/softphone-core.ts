@@ -1,0 +1,100 @@
+/**
+ * Headless softphone core — the platform-agnostic React "brain" of the softphone:
+ * the shared call-state hooks, provider base, view-model, and framework-agnostic
+ * theme/icon/locale data used by BOTH the web `<Softphone>` and the React Native
+ * softphone. NO DOM / web component graph (`@xyflow/react`, dagre, custom elements,
+ * CSS), so it's safe to import from React Native where `@dialstack/sdk/react`
+ * would not resolve.
+ *
+ * @packageDocumentation
+ */
+
+export {
+  usePhone,
+  useCalls,
+  useCallActions,
+  useCallDuration,
+  useEmergencyBinding,
+  useLastError,
+  useDialInput,
+  isIncomingRinging,
+  shouldRingIncoming,
+  isCallActive,
+  canPlaceCall,
+  selectScreen,
+  selectLayout,
+  callPeerNumber,
+  callPeerName,
+  formatCallDuration,
+  formatDisplayNumber,
+  stripToDialString,
+  sanitizeDestination,
+  DIAL_COUNTRY,
+  callStateLabelKey,
+  errorMessageKey,
+} from '../hooks';
+export type {
+  UsePhoneOptions,
+  UsePhoneResult,
+  UseCallsOptions,
+  UseCallsResult,
+  SoftphoneConnectionState,
+  UseCallActions,
+  UseCallActionsOptions,
+  CallActions,
+  UseEmergencyBinding,
+  UseEmergencyBindingOptions,
+  UseLastError,
+  UseDialInput,
+  SoftphoneError,
+  SoftphoneScreen,
+  SoftphoneLayout,
+} from '../hooks';
+
+// The shared provider core (DOM/RN-free). Platform providers build on this.
+export {
+  SoftphoneProviderBase,
+  SoftphoneContext,
+  useSoftphoneBase,
+  selectIncomingCall,
+} from '../provider';
+export type {
+  SoftphoneContextBase,
+  SoftphoneCoreProps,
+  SoftphoneProviderBaseProps,
+} from '../provider';
+
+// The locale table + default, re-exported here so the React Native softphone can
+// resolve UI strings through the same `t()` accessor as the web softphone (this
+// RN-safe entry is the only SDK path RN imports from). Pure data — no DOM/RN dep.
+export { defaultLocale } from '../../../../../js/src/locales';
+export type { Locale } from '../../../../../js/src/locales';
+
+// Shared, framework-agnostic theme tokens. This entry is the SINGLE gateway the
+// React Native softphone imports from, so RN never deep-imports other subpaths.
+export { resolveSoftphonePalette, softphoneDimensions, dialPadKeys } from './theme';
+export type { SoftphonePalette } from './theme';
+
+// Shared softphone glyph set (pure SVG path data — no DOM/RN).
+export { softphoneGlyphs } from './icons';
+export type { SoftphoneGlyph } from './icons';
+
+// Shared emergency-address form helpers (pure — no DOM/RN).
+export { normalizeStateCode } from './emergency-address-form';
+
+// Headless WebRTC-core types the softphone UI needs. `PlatformStorage`,
+// `EmergencyAddressInput`, `Ringback`, and `SignalingSocketFactory` are also
+// needed by the native provider/host adapters (the RN provider supplies an
+// InCallManager-backed `Ringback` and a User-Agent-attaching signaling socket,
+// because WebAudio's `AudioContext` doesn't exist on RN and iOS's WebSocket
+// sends no `User-Agent`).
+export type {
+  Call,
+  CallState,
+  CallEndReason,
+  EmergencyAddressInput,
+  PlatformStorage,
+  Ringback,
+  SignalingSocketFactory,
+  AppResumeSubscribe,
+} from '../../../../../webrtc/src';

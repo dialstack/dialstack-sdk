@@ -1,0 +1,84 @@
+import type { NodeTypes, Edge } from '@xyflow/react';
+import type { NodeTypeRegistration } from './registry-types';
+import type { DialPlanNode } from '../../../../js/src/types/dial-plan';
+
+/** Edge type used for all dial plan connections */
+export const DIAL_PLAN_EDGE_TYPE = 'smoothstep' as const;
+
+export class NodeTypeRegistry {
+  private byType = new Map<string, NodeTypeRegistration>();
+  private byFlowType = new Map<string, NodeTypeRegistration>();
+  /** Maps legacy wire types (e.g. `sound_clip`) to their canonical replacement. */
+  private legacyTypeAliases = new Map<string, string>();
+
+  register(registration: NodeTypeRegistration): void {
+    this.byType.set(registration.type, registration);
+    this.byFlowType.set(registration.flowType, registration);
+  }
+
+  /**
+   * Map a legacy wire type to its canonical registration. Lookups for the
+   * legacy type land on the canonical reg, and the canonical reg's
+   * `normalizeFromAlias` rewrites the node into the new shape on first edit.
+   */
+  registerAlias(legacyType: string, canonicalType: string): void {
+    this.legacyTypeAliases.set(legacyType, canonicalType);
+  }
+
+  get(type: string): NodeTypeRegistration | undefined {
+    return this.byType.get(type);
+  }
+
+  /** Resolve which registration should render an API node, checking aliases. */
+  resolveType(node: DialPlanNode): NodeTypeRegistration | undefined {
+    let exact = this.byType.get(node.type);
+    if (!exact) {
+      const canonicalType = this.legacyTypeAliases.get(node.type);
+      if (canonicalType) exact = this.byType.get(canonicalType);
+    }
+    if (!exact?.resolveAlias) return exact;
+    return exact.resolveAlias(node) ?? exact;
+  }
+
+  getByFlowType(flowType: string): NodeTypeRegistration | undefined {
+    return this.byFlowType.get(flowType);
+  }
+
+  getAll(): NodeTypeRegistration[] {
+    return Array.from(this.byType.values());
+  }
+
+  getNodeTypesMap(): NodeTypes {
+    const map: NodeTypes = {};
+    for (const reg of this.byType.values()) {
+      map[reg.flowType] = reg.component;
+    }
+    return map;
+  }
+
+  createEdgesForNode(node: DialPlanNode, nodeMap: Map<string, DialPlanNode>): Edge[] {
+    const reg = this.resolveType(node);
+    if (!reg) return [];
+
+    // Use custom edge creation if the registration provides one (e.g., menu dynamic exits)
+    if (reg.createEdgesForNode) {
+      return reg.createEdgesForNode(node, nodeMap);
+    }
+
+    const edges: Edge[] = [];
+    for (const exit of reg.exits) {
+      const targetId = (node.config as unknown as Record<string, unknown>)[exit.configKey] as
+        string | undefined;
+      if (targetId && nodeMap.has(targetId)) {
+        edges.push({
+          id: `${node.id}-${exit.id}->${targetId}`,
+          source: node.id,
+          target: targetId,
+          sourceHandle: exit.id,
+          type: DIAL_PLAN_EDGE_TYPE,
+        });
+      }
+    }
+    return edges;
+  }
+}

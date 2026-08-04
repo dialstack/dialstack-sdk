@@ -10,7 +10,7 @@ export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ['src/**/*.{ts,tsx}'],
+    files: ['src/**/*.{ts,tsx}', 'js/src/**/*.{ts,tsx}', 'react/src/**/*.{ts,tsx}', 'webrtc/src/**/*.{ts,tsx}', 'server/src/**/*.{ts,tsx}'],
     plugins: {
       react: fixupPluginRules(reactPlugin),
       'react-hooks': fixupPluginRules(reactHooksPlugin),
@@ -48,7 +48,7 @@ export default tseslint.config(
     // component lands under "Components & variables" in the SDK reference, a `function`
     // lands under "Functions" — mixing the two scatters components across two doc
     // sections. Enforcing arrow form also keeps one declaration style across the tree.
-    files: ['src/**/*.tsx'],
+    files: ['src/**/*.tsx', 'js/src/**/*.tsx', 'react/src/**/*.tsx'],
     rules: {
       'react/function-component-definition': [
         'error',
@@ -66,7 +66,7 @@ export default tseslint.config(
     // `useRef(new Animated.Value(…)).current` (the standard Animated idiom) trips
     // `react-hooks/refs`, and resetting local input state when the active call
     // changes trips `react-hooks/set-state-in-effect`. Neither is a defect here.
-    files: ['src/react-native/**/*.{ts,tsx}'],
+    files: ['native/src/**/*.{ts,tsx}'],
     languageOptions: {
       globals: {
         ...globals['shared-node-browser'],

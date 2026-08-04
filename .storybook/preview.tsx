@@ -1,15 +1,15 @@
 import React from 'react';
 import type { Preview } from '@storybook/react';
-import { DialstackComponentsProvider } from '../src/react/DialstackComponentsProvider';
-import { createMockInstance } from '../src/__mocks__/mock-instance';
-import type { Theme, DIDItem } from '../src/types';
+import { DialstackComponentsProvider } from '../react/src/react/DialstackComponentsProvider';
+import { createMockInstance } from '../js/src/__mocks__/mock-instance';
+import type { Theme, DIDItem } from '../js/src/types';
 
 // Register all Web Components so React wrappers (which call dialstack.create()) can use them
-import '../src/components/call-logs';
-import '../src/components/voicemails';
-import '../src/components/call-history';
-import '../src/components/phone-numbers';
-import '../src/components/phone-number-ordering';
+import '../js/src/components/call-logs';
+import '../js/src/components/voicemails';
+import '../js/src/components/call-history';
+import '../js/src/components/phone-numbers';
+import '../js/src/components/phone-number-ordering';
 
 /**
  * Wraps an instance with a logging proxy that traces every API method call.

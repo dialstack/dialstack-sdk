@@ -12,36 +12,42 @@ export {
   DialstackComponentsProvider,
   useDialstackComponents,
   useDialstack,
-} from './react/DialstackComponentsProvider';
-export { useCreateComponent } from './react/useCreateComponent';
-export { useUpdateWithSetter } from './react/useUpdateWithSetter';
+} from '../react/src/react/DialstackComponentsProvider';
+export { useCreateComponent } from '../react/src/react/useCreateComponent';
+export { useUpdateWithSetter } from '../react/src/react/useUpdateWithSetter';
 
 // Components
-export { CallLogs } from './react/CallLogs';
-export { Voicemails } from './react/Voicemails';
-export { CallHistory } from './react/CallHistory';
-export { DialPlan } from './react/DialPlan';
-export { PhoneNumberOrdering } from './react/PhoneNumberOrdering';
-export { PhoneNumbers } from './react/PhoneNumbers';
-export { AIAgent } from './react/AIAgent';
+export { CallLogs } from '../react/src/react/CallLogs';
+export { Voicemails } from '../react/src/react/Voicemails';
+export { CallHistory } from '../react/src/react/CallHistory';
+export { DialPlan } from '../react/src/react/DialPlan';
+export { PhoneNumberOrdering } from '../react/src/react/PhoneNumberOrdering';
+export { PhoneNumbers } from '../react/src/react/PhoneNumbers';
+export { AIAgent } from '../react/src/react/AIAgent';
 
 // The whole softphone feature — the SoftphoneProvider (owns the connection), the
 // batteries-included <Softphone>, the composable pieces (DialPad / IncomingCall /
 // OngoingCall), and the shared call-state hooks + view-model helpers. Its single
 // front door is the softphone barrel; this forwards that surface verbatim.
-export * from './react/softphone';
+export * from '../react/src/react/softphone';
 
 // React prop types
-export type { DialstackComponentsProviderProps } from './react/DialstackComponentsProvider';
-export type { CallLogsProps } from './react/CallLogs';
-export type { VoicemailsProps } from './react/Voicemails';
-export type { CallHistoryProps } from './react/CallHistory';
-export type { DialPlanProps } from './react/DialPlan';
-export type { ListResourcesOptions, ResourceType } from './react/dial-plan/registry-types';
-export type { PhoneNumberOrderingProps } from './react/PhoneNumberOrdering';
-export type { PhoneNumbersProps } from './react/PhoneNumbers';
-export type { AIAgentProps } from './react/AIAgent';
-export { buildAIAgentPrefillFaq, shouldApplyPrefillFaq } from './components/ai-agent/prefill-faq';
+export type { DialstackComponentsProviderProps } from '../react/src/react/DialstackComponentsProvider';
+export type { CallLogsProps } from '../react/src/react/CallLogs';
+export type { VoicemailsProps } from '../react/src/react/Voicemails';
+export type { CallHistoryProps } from '../react/src/react/CallHistory';
+export type { DialPlanProps } from '../react/src/react/DialPlan';
+export type {
+  ListResourcesOptions,
+  ResourceType,
+} from '../react/src/react/dial-plan/registry-types';
+export type { PhoneNumberOrderingProps } from '../react/src/react/PhoneNumberOrdering';
+export type { PhoneNumbersProps } from '../react/src/react/PhoneNumbers';
+export type { AIAgentProps } from '../react/src/react/AIAgent';
+export {
+  buildAIAgentPrefillFaq,
+  shouldApplyPrefillFaq,
+} from '../js/src/components/ai-agent/prefill-faq';
 
 // AI agent resource types — re-exported here so consumers using only the
 // React entry point can type onSaved/onError handlers without reaching into
@@ -54,7 +60,7 @@ export type {
   AIAgentHostSubmitPayload,
   FAQItem,
   UpdateAIAgentRequest,
-} from './types/ai-agent';
+} from '../js/src/types/ai-agent';
 
 // Onboarding components are in their own entry point: '@dialstack/sdk/react/onboarding'
 // Import OnboardingPortal from there.
@@ -75,4 +81,4 @@ export type {
   VoiceAppNodeData,
   DialPlanMode,
   DialPlanHandle,
-} from './types/dial-plan';
+} from '../js/src/types/dial-plan';

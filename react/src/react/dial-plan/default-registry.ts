@@ -1,0 +1,62 @@
+import type { NodeProps } from '@xyflow/react';
+import type { ComponentType } from 'react';
+import { NodeTypeRegistry } from './registry';
+import { createDialPlanNode } from './DialPlanNode';
+import type { NodeDefinition } from './registry-types';
+import type { DialPlanNode } from '../../../../js/src/types/dial-plan';
+
+import { config as schedule } from './nodes/ScheduleNode';
+import { config as ringAllUsers } from './nodes/RingAllUsersNode';
+import { config as internalDial } from './nodes/InternalDialNode';
+import { config as externalDial } from './nodes/ExternalDialNode';
+import { config as voiceApp } from './nodes/VoiceAppNode';
+import { config as voicemail } from './nodes/VoicemailNode';
+import { config as menu } from './nodes/MenuNode';
+import { config as audioClip } from './nodes/AudioClipNode';
+import { config as hangUp } from './nodes/HangUpNode';
+
+export const defaultRegistry = new NodeTypeRegistry();
+
+const nodeComponent = createDialPlanNode(defaultRegistry) as unknown as ComponentType<NodeProps>;
+
+export const nodeDefinitions: NodeDefinition[] = [
+  schedule,
+  ringAllUsers,
+  internalDial,
+  externalDial,
+  voiceApp,
+  voicemail,
+  menu,
+  audioClip,
+  hangUp,
+];
+
+for (const def of nodeDefinitions) {
+  defaultRegistry.register({ ...def, component: nodeComponent });
+}
+
+// internal_dial resolves voicemail and (deprecated) voice_app aliases at load
+// time. Voice apps now have their own node type; va_ aliasing is
+// kept for backward compatibility while legacy plans still exist.
+const internalDialReg = defaultRegistry.get('internal_dial');
+if (internalDialReg) {
+  internalDialReg.resolveAlias = (node: DialPlanNode) => {
+    const config = node.config as unknown as Record<string, unknown>;
+    const targetId = config.target_id as string | undefined;
+    if (targetId?.startsWith('svm_') || (config.timeout === 0 && !config.next)) {
+      return defaultRegistry.get('voicemail');
+    }
+    // TODO: remove va_ aliasing once legacy usage drains.
+    if (targetId?.startsWith('va_')) {
+      return defaultRegistry.get('voice_app');
+    }
+    return undefined;
+  };
+}
+
+// `sound_clip` was renamed to `audio_clip`. The SQL migration rewrites
+// persisted rows; this alias keeps the editor functional for any legacy
+// payload the API still emits during the rollout window. AudioClipNode's
+// `normalizeFromAlias` rewrites the type field on first edit, so saves
+// round-trip as `audio_clip`. Drop once usage drains.
+defaultRegistry.registerAlias('sound_clip', 'audio_clip');

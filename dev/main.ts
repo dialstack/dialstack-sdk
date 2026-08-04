@@ -6,11 +6,11 @@
  */
 
 // Side-effect import: registers the <dialstack-phone-number-ordering> custom element
-import '../src/components/phone-number-ordering';
+import '../js/src/components/phone-number-ordering';
 
-import type { AvailablePhoneNumber, NumberOrder, SearchAvailableNumbersOptions } from '../src/types';
-import type { DialStackInstanceImpl } from '../src/types/core';
-import type { AppearanceOptions } from '../src/types/appearance';
+import type { AvailablePhoneNumber, NumberOrder, SearchAvailableNumbersOptions } from '../js/src/types';
+import type { DialStackInstanceImpl } from '../js/src/types/core';
+import type { AppearanceOptions } from '../js/src/types/appearance';
 
 // ---------------------------------------------------------------------------
 // Mock data
