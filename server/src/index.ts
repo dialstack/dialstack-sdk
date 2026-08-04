@@ -10,11 +10,13 @@
  *
  * const dialstack = new DialStack(process.env.DIALSTACK_API_KEY);
  *
- * // Create an account (owner email, contact name, billing address, and agreed pricing are required)
+ * // Create an account. Owner email, contact name, address, and agreed pricing
+ * // are required. The address becomes the account's main location — the default
+ * // location for emergency calling and for tax and fee jurisdiction.
  * const account = await dialstack.accounts.create({
  *   email: 'test@example.com',
  *   primary_contact_name: 'Jane Doe',
- *   billing_address: {
+ *   address: {
  *     street: '123 Main St',
  *     city: 'New York',
  *     state: 'NY',
@@ -213,17 +215,33 @@ export interface BillingAddress {
   country: string;
 }
 
-export interface AccountCreateParams {
+interface AccountCreateParamsBase {
   /** Account owner email. Required — identifies the account owner. */
   email: string;
   /** Account owner's name. Required. */
   primary_contact_name: string;
   config?: AccountConfig;
-  /** Billing address for the account. Required when creating an account. */
-  billing_address: BillingAddress;
   /** Agreed monthly rates, in cents. Required when creating an account. */
   pricing: AccountPricingParams;
 }
+
+/**
+ * Exactly one address is required at creation and becomes the account's main
+ * location — the default location for E911 and for tax and fee jurisdiction, so
+ * a single-site account is immediately set up for 911 and taxes and fees. Use
+ * `address`; `billing_address` is the deprecated alias, kept for backwards
+ * compatibility. Modeled as a union so omitting both (or sending both) is a
+ * compile error rather than a 400.
+ */
+type AccountCreateAddress =
+  | { address: BillingAddress; billing_address?: never }
+  | {
+      /** @deprecated Use `address`. Accepted for backwards compatibility; no longer authoritative. */
+      billing_address: BillingAddress;
+      address?: never;
+    };
+
+export type AccountCreateParams = AccountCreateParamsBase & AccountCreateAddress;
 
 export interface AccountUpdateParams {
   email?: string;
