@@ -408,6 +408,48 @@ export interface UserListParams {
 
 export type UserExpand = 'extensions';
 
+/**
+ * A person who can administer an account in the admin portal.
+ *
+ * Admin portal users are a different population from voice {@link User}s: they
+ * are identified by email and need not have phone service. An account owner
+ * usually has none, and so never appears in `users.list()`. Most voice users,
+ * conversely, are not administrators. The two overlap only by email address,
+ * which {@link AdminUser.user} resolves for you.
+ */
+export interface AdminUser {
+  id: string;
+  /** Display name, shared across every account this person administers. */
+  name: string | null;
+  /** Portal login address, and the only link to a voice user. */
+  email: string;
+  /**
+   * Role granted on this account. `owner` is the account's mandatory signer and
+   * a superset of `account_admin`; there is exactly one per account.
+   */
+  role: 'account_admin' | 'owner';
+  /**
+   * This person's voice user in this account, or `null` when they have no phone
+   * service. The user's id by default; the full object when `expand: ['user']`
+   * is requested.
+   */
+  user: string | User | null;
+  /** When the role was granted on this account. */
+  created_at: string;
+}
+
+export interface AdminUserListParams {
+  limit?: number;
+  page?: string;
+  /** Related resources to inline. Supported values: `user`. */
+  expand?: string[];
+}
+
+export interface AdminUserRetrieveParams {
+  /** Related resources to inline. Supported values: `user`. */
+  expand?: string[];
+}
+
 export interface PhoneNumber {
   id: string;
   phone_number: string;
@@ -2157,6 +2199,29 @@ export interface TestEventResponse {
   event: string;
 }
 
+/**
+ * Serialize list/retrieve parameters into a query string, including the leading
+ * `?`, or `''` when there is nothing to send.
+ *
+ * `expand` is emitted as a repeated `expand[]` parameter — one entry per value —
+ * because that is the form the API parses. Joining the values into a single
+ * `expand[]=a,b` is silently ignored server-side, which reads as "expand does
+ * not work" rather than as an error.
+ */
+function buildQuery(params?: { limit?: number; page?: string; expand?: string[] }): string {
+  if (!params) return '';
+
+  const queryParams = new URLSearchParams();
+  if (params.limit) queryParams.set('limit', String(params.limit));
+  if (params.page) queryParams.set('page', params.page);
+  for (const value of params.expand ?? []) {
+    queryParams.append('expand[]', value);
+  }
+
+  const query = queryParams.toString();
+  return query ? `?${query}` : '';
+}
+
 // ============================================================================
 // Query-string helpers
 // ============================================================================
@@ -3538,6 +3603,60 @@ export class DialStack {
         options: RequestOptions & { dialstackAccount: string }
       ): Promise<TestEventResponse> => {
         return this._request('POST', '/v1/test_helpers/events', params, options);
+      },
+    },
+  };
+
+  /**
+   * Admin portal resources.
+   *
+   * Distinct from the voice platform resources above: these describe who can
+   * administer an account in the portal, not who has phone service. Read-only —
+   * roles are granted in the portal itself.
+   */
+  admin = {
+    users: {
+      /**
+       * List the people who can administer this account.
+       *
+       * This is not a subset of `users.list()` — it is a different population.
+       * Someone listed here may have no voice user at all (an account owner
+       * typically does not), and most voice users are not administrators. Read
+       * both collections to cover everyone on the account, and use each admin
+       * user's `user` field to link them rather than matching on email.
+       *
+       * Only explicit grants on this account are listed; platform-wide access
+       * does not appear. A role can be granted before its invitation is
+       * accepted, so someone listed may not yet have signed in.
+       *
+       * Pass `expand: ['user']` to inline the full voice user.
+       */
+      list: (
+        params: AdminUserListParams | undefined,
+        options: RequestOptions & { dialstackAccount: string }
+      ): PaginatedList<AdminUser> => {
+        const path = `/v1/admin/users${buildQuery(params)}`;
+
+        const fetchPage = (url: string): Promise<ListResponse<AdminUser>> => {
+          return this._request('GET', url, undefined, options);
+        };
+
+        return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+      },
+
+      /**
+       * Retrieve one of this account's admin portal users.
+       *
+       * Rejects with a 404 when no such person administers this account —
+       * including when they administer a different one.
+       */
+      retrieve: (
+        adminUserId: string,
+        params: AdminUserRetrieveParams | undefined,
+        options: RequestOptions & { dialstackAccount: string }
+      ): Promise<AdminUser> => {
+        const path = `/v1/admin/users/${adminUserId}${buildQuery(params)}`;
+        return this._request('GET', path, undefined, options);
       },
     },
   };
