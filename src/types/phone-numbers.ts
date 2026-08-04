@@ -38,9 +38,12 @@ export interface DIDItem {
   config?: DIDConfig;
   caller_id_name?: string | null;
   /**
-   * Prefix added to the inbound caller's display name shown on the answering
-   * device (e.g. `[Acme] John Smith`), for calls answered on behalf of a specific
-   * brand or business. Affects only the inbound display, not call records.
+   * Prefix added to the inbound caller's display name (e.g. `[Acme] John Smith`,
+   * or `[Acme] +14084806024` when the caller's name is unknown), for calls
+   * answered on behalf of a specific brand or business. Applies both to the
+   * device that answers and to calls forwarded out to an external number, so a
+   * forwarded business call can be told apart from a personal one. Affects only
+   * the caller ID presented for inbound calls, not call records.
    */
   caller_id_prefix?: string | null;
   directory_listing_name?: string | null;
@@ -105,8 +108,10 @@ export interface UpdatePhoneNumberRequest {
   directory_listing_location_id?: string;
   caller_id_name?: string;
   /**
-   * Prefix added to the inbound caller's display name shown on the answering
-   * device (e.g. `[Acme] John Smith`). Send `null` to clear.
+   * Prefix added to the inbound caller's display name (e.g. `[Acme] John Smith`,
+   * or `[Acme] +14084806024` when the caller's name is unknown). Applies both to
+   * the device that answers and to calls forwarded out to an external number.
+   * Send `null` to clear.
    */
   caller_id_prefix?: string | null;
   caller_id_visibility?: 'PUBLIC' | 'PRIVATE';
