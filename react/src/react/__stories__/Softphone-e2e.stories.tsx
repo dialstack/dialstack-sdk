@@ -62,10 +62,11 @@ export default meta;
 type Story = StoryObj;
 
 async function connected(canvas: ReturnType<typeof within>) {
-  // Wait for the provider to construct the mock phone (so ringIncoming can't race
-  // ahead of the mount), then until the dial pad's Call control exists (the
-  // connecting chip has cleared).
-  await currentController!.waitForPhone();
+  // Wait until the softphone has actually subscribed to the phone's events. The
+  // dial pad is NOT a usable gate for that: its Call control renders from the
+  // first commit (merely disabled until connected), so asserting it exists says
+  // nothing about the provider being wired.
+  await currentController!.waitForIncomingWired();
   await waitFor(() => expect(canvas.getByLabelText('Call')).toBeInTheDocument());
 }
 
@@ -76,6 +77,9 @@ export const DialAndCall: Story = {
     await connected(canvas);
 
     fireEvent.change(canvas.getByLabelText('Enter a number'), { target: { value: '5551234' } });
+    // Call stays disabled until the connection reports connected; clicking it
+    // before then is a silent no-op, so wait for it to actually be enabled.
+    await waitFor(() => expect(canvas.getByLabelText('Call')).toBeEnabled());
     await userEvent.click(canvas.getByLabelText('Call'));
 
     await waitFor(() => expect(canvas.getByLabelText('Hang up')).toBeInTheDocument());
@@ -92,7 +96,7 @@ export const IncomingAnswer: Story = {
     const controller = currentController!;
     await connected(canvas);
 
-    controller.ringIncoming('+14155552671', 'Alice');
+    await controller.ringIncoming('+14155552671', 'Alice');
     await waitFor(() => expect(canvas.getByText('Incoming call')).toBeInTheDocument());
     expect(canvas.getByText('Alice')).toBeInTheDocument();
 
@@ -111,7 +115,7 @@ export const IncomingDecline: Story = {
     const controller = currentController!;
     await connected(canvas);
 
-    controller.ringIncoming('+14155552671', 'Alice');
+    await controller.ringIncoming('+14155552671', 'Alice');
     await waitFor(() => expect(canvas.getByLabelText('Decline')).toBeInTheDocument());
 
     await userEvent.click(canvas.getByLabelText('Decline'));
@@ -127,13 +131,13 @@ export const CallWaiting: Story = {
     await connected(canvas);
 
     // First call, answered → in-call.
-    controller.ringIncoming('+14155550001', 'Alice');
+    await controller.ringIncoming('+14155550001', 'Alice');
     await waitFor(() => expect(canvas.getByLabelText('Answer')).toBeInTheDocument());
     await userEvent.click(canvas.getByLabelText('Answer'));
     await waitFor(() => expect(canvas.getByLabelText('Hang up')).toBeInTheDocument());
 
     // Second inbound interrupts — a call-waiting card appears over the in-call UI.
-    controller.ringIncoming('+14155550002', 'Bob');
+    await controller.ringIncoming('+14155550002', 'Bob');
     await waitFor(() => expect(canvas.getByText('Bob')).toBeInTheDocument());
     // The in-call screen is still there behind the waiting card.
     expect(canvas.getByLabelText('Hang up')).toBeInTheDocument();
@@ -148,7 +152,7 @@ export const AttendedTransfer: Story = {
     const controller = currentController!;
     await connected(canvas);
 
-    controller.ringIncoming('+14155552671', 'Alice');
+    await controller.ringIncoming('+14155552671', 'Alice');
     await waitFor(() => expect(canvas.getByLabelText('Answer')).toBeInTheDocument());
     await userEvent.click(canvas.getByLabelText('Answer'));
     await waitFor(() => expect(canvas.getByLabelText('Transfer')).toBeInTheDocument());

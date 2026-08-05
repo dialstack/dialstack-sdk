@@ -30,6 +30,11 @@ class Emitter {
   emit(event: string, ...args: unknown[]): void {
     this.listeners[event]?.forEach((h) => h(...args));
   }
+  /** Whether anything is currently subscribed — lets a play function wait for the
+   *  softphone to have wired an event before driving it. */
+  hasListeners(event: string): boolean {
+    return (this.listeners[event]?.size ?? 0) > 0;
+  }
 }
 
 export class MockCall extends Emitter {
@@ -200,8 +205,34 @@ export class MockPhoneController {
     return this.current;
   }
 
-  ringIncoming(from: string, fromName: string | null = null): MockCall {
-    if (!this.current) throw new Error('MockPhone not constructed yet');
-    return this.current.ringIncoming(from, fromName);
+  /**
+   * Resolve once the softphone has subscribed to `incoming` on the current phone.
+   *
+   * Constructing the phone is NOT enough of a gate: usePhone builds it inside its
+   * own effect and only then `setPhone`s it, so useCalls — which subscribes keyed
+   * on that phone — cannot have run until a later commit. Nor is "the dial pad is
+   * on screen" a gate: its Call button renders unconditionally (merely disabled
+   * until connected), so it is in the DOM from the very first render, before any
+   * phone exists. A ring emitted in that window has no subscriber, and since
+   * `incoming` is a plain synchronous emit it is dropped rather than queued — the
+   * UI then sits on the dial pad forever and the story fails on the incoming
+   * screen it was waiting for. Waiting for the subscription itself is the real
+   * precondition, so ringIncoming awaits this.
+   */
+  async waitForIncomingWired(timeoutMs = 5000): Promise<MockPhone> {
+    const phone = await this.waitForPhone(timeoutMs);
+    const start = Date.now();
+    while (!phone.hasListeners('incoming')) {
+      if (Date.now() - start > timeoutMs) {
+        throw new Error('softphone never subscribed to the phone’s incoming event');
+      }
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    return phone;
+  }
+
+  async ringIncoming(from: string, fromName: string | null = null): Promise<MockCall> {
+    const phone = await this.waitForIncomingWired();
+    return phone.ringIncoming(from, fromName);
   }
 }

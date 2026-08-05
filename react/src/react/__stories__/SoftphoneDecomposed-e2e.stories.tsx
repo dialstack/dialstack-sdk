@@ -83,13 +83,16 @@ export const IncomingAnswerHangup: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const controller = currentController!;
-    await controller.waitForPhone();
+    // Wait for the softphone to have subscribed to the phone's events, not merely
+    // for the phone to exist — the composed dial pad's Call control is in the DOM
+    // from the first render, so it can't tell us the provider is wired yet.
+    await controller.waitForIncomingWired();
 
     // Connected → the composed dial pad shows.
     await waitFor(() => expect(canvas.getByLabelText('Call')).toBeInTheDocument());
 
     // Ring an inbound: useIncomingCall must surface it → IncomingCall renders.
-    controller.ringIncoming('+14155552671', 'Alice');
+    await controller.ringIncoming('+14155552671', 'Alice');
     await waitFor(() => expect(canvas.getByText('Incoming call')).toBeInTheDocument());
     expect(canvas.getByText('Alice')).toBeInTheDocument();
 
