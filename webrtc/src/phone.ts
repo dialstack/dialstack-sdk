@@ -756,8 +756,9 @@ export class DialStackPhone {
    * Register and validate an emergency (E911) address. Creates the
    * resource via the REST API (validated against the carrier MSAG), persists
    * its id, and presents it on the next connect so the server binds it to the
-   * device's network. To bind a new address immediately (e.g. responding to a
-   * `network.changed` event), call this then `disconnect()` + `connect()`.
+   * device's network. This does not alter an already-authenticated session. To
+   * apply a new address there (e.g. responding to a `network.changed` event),
+   * pass the returned id to `reconnectWithEmergency()`.
    *
    * Rejects with a `PhoneError` (code `invalid_message`) when the address
    * can't be validated.
