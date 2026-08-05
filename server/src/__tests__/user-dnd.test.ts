@@ -43,14 +43,27 @@ describe('User do_not_disturb', () => {
   });
 
   it('exposes do_not_disturb on singleton and bulk presence', async () => {
-    mockJSON({ state: 'available', notifiable: false, do_not_disturb: true });
+    mockJSON({
+      object: 'user_presence',
+      state: 'available',
+      notifiable: false,
+      do_not_disturb: true,
+    });
     const single: UserPresence = await dialstack.users.retrievePresence('user_123', acct);
     expect(single.do_not_disturb).toBe(true);
 
     mockJSON({
       object: 'list',
       url: '/v1/presence',
-      data: [{ user: 'user_123', state: 'offline', notifiable: true, do_not_disturb: false }],
+      data: [
+        {
+          object: 'user_presence',
+          user: 'user_123',
+          state: 'offline',
+          notifiable: true,
+          do_not_disturb: false,
+        },
+      ],
     });
     const list = await dialstack.presence.list({ users: ['user_123'] }, acct);
     const item: UserPresenceItem = list.data[0];

@@ -1967,6 +1967,12 @@ export interface WebRTCReachability {
 }
 
 export interface UserPresence {
+  /**
+   * The resource this is. Always `'user_presence'`. Present on the singleton
+   * read as well as on every element of a presence list, which is what tells
+   * user presence apart from the other presentity types a list can carry.
+   */
+  object: 'user_presence';
   state: PresenceState;
   /**
    * Reachable by waking a backgrounded or parked device when not currently
@@ -1989,9 +1995,134 @@ export interface UserPresenceItem extends UserPresence {
   user: string;
 }
 
+/** The call occupying a park slot. */
+export interface ParkedCall {
+  /**
+   * The call this parked leg belongs to, or `null` if no call id was recorded
+   * when the call was parked. A `null` here does not mean the slot is free: an
+   * occupant can be present without a recorded call id. `parked_call` is what
+   * says whether the slot is occupied.
+   */
+  call: string | null;
+  /** The parked caller's number, same vocabulary as a call log's `from_number`. */
+  from_number: string;
+  /**
+   * The parked caller's display name, same vocabulary as a call log's
+   * `from_label`. Passed through as received — a locality or a placeholder like
+   * `WIRELESS CALLER` are both things carriers send, and whether to filter them
+   * is left to you.
+   */
+  from_label: string;
+  /**
+   * `'parked'` while the caller waits, `'ringing_back'` once the park has timed
+   * out and the parker's phones are being called. Both are occupied states — the
+   * caller stays on hold throughout — so `'ringing_back'` is not a slot that has
+   * been released. Use this instead of comparing `rings_back_at` against the
+   * clock.
+   */
+  status: 'parked' | 'ringing_back';
+  /**
+   * The user who parked the call, or `null` if no parker id was recorded, which
+   * likewise does not mean the slot is free.
+   */
+  parked_by: string | null;
+  /**
+   * The extension of the user who parked the call. Carried alongside
+   * `parked_by` so the parker can be identified without a second request. Absent
+   * for a user with no extension.
+   */
+  parked_by_extension?: string;
+  /** When the call was parked. */
+  parked_at: string;
+  /**
+   * When the call rings back to whoever parked it, if nobody retrieves it first.
+   * The caller is not disconnected at this moment provided somebody answers the
+   * ring-back; if nobody does, the call ends there. Watch `status` for which
+   * happened.
+   */
+  rings_back_at: string;
+}
+
+/**
+ * One park slot's current state.
+ *
+ * Describes state rather than a transition, so it fully replaces whatever was
+ * previously known about the slot, and receiving the same one twice changes
+ * nothing. A slot with nobody in it arrives as `parked_call: null`, which says
+ * the slot is now free rather than asserting that the slot durably exists. Slots
+ * absent from a snapshot are free.
+ */
+export interface ParkSlotPresence {
+  /** The resource this is. Always `'park_slot'`. */
+  object: 'park_slot';
+  /** The slot number, as dialled (`*68<slot>`). */
+  slot: number;
+  /**
+   * The occupant, or `null` when the slot is free. This is the only signal of
+   * occupancy — there is no separate boolean to agree with.
+   */
+  parked_call: ParkedCall | null;
+}
+
+/** Any presentity a presence response can carry, discriminated by `object`. */
+export type PresenceItem = UserPresenceItem | ParkSlotPresence;
+
 export interface PresenceListParams {
   /** The bounded set of users to read presence for. Capped per request. */
-  users: string[];
+  users?: string[];
+  /**
+   * Set true to include every call currently parked in the account. Park slots
+   * are not a configured inventory, so with this alone the response carries only
+   * the occupied slots and anything absent is free.
+   *
+   * Ignored when `parkSlotNumbers` is given: naming slots is the more specific
+   * request, and the two cannot be combined.
+   */
+  parkSlots?: boolean;
+  /**
+   * The specific slots to read. Each named slot comes back, free ones included,
+   * so the response covers the full set you asked for rather than only the
+   * occupied slots.
+   */
+  parkSlotNumbers?: number[];
+}
+
+/** Handlers for a park-slot subscription. All optional. */
+export interface ParkSlotSubscriptionHandlers {
+  /**
+   * Every slot's current state, delivered on connect and again after every
+   * reconnect. Replace whatever you had wholesale rather than merging.
+   */
+  onSnapshot?: (slots: ParkSlotPresence[]) => void;
+  /** One slot's new state. It supersedes what you had; there is no history. */
+  onSlot?: (slot: ParkSlotPresence) => void;
+  /**
+   * The server ended the subscription and a reconnect is needed — `reason` is
+   * why. Recovery is the same in every case: reconnect and take the fresh
+   * snapshot. Not called when you close the subscription yourself.
+   */
+  onTerminated?: (reason: string) => void;
+  /** Transport or parse failure. The subscription is no longer live. */
+  onError?: (error: Error) => void;
+}
+
+/** A live park-slot subscription. Call `close()` to stop it. */
+export interface ParkSlotSubscription {
+  close: () => void;
+}
+
+/** Options for `presence.subscribeParkSlots`. */
+export interface ParkSlotSubscriptionOptions {
+  /**
+   * The specific slots to watch. Naming them subscribes to exactly those, and
+   * every snapshot then carries each one — free slots included — so a snapshot
+   * covers the full set you asked for rather than only the occupied part.
+   *
+   * Omit to watch every slot in the account. Park slots are not provisioned (a
+   * slot exists only while a call sits in it), so with no slots named a snapshot
+   * carries only the occupied ones and anything absent is free.
+   */
+  slots?: number[];
 }
 
 // Call Control types
@@ -2353,6 +2484,125 @@ export class DialStack {
       parts.push(`${this._appInfo.name}/${this._appInfo.version || '0.0.0'}`);
     }
     return parts.join(' ');
+  }
+
+  /**
+   * Opens the park-slot event stream and dispatches frames to the handlers,
+   * reconnecting until closed.
+   *
+   * Uses fetch rather than EventSource because EventSource cannot set an
+   * Authorization header. Every reconnect re-reads the snapshot, which is what
+   * makes recovery from any gap a complete resync rather than a merge.
+   */
+  private _subscribeParkSlots(
+    handlers: ParkSlotSubscriptionHandlers,
+    options: RequestOptions & { dialstackAccount: string } & ParkSlotSubscriptionOptions
+  ): ParkSlotSubscription {
+    let closed = false;
+    let controller: AbortController | null = null;
+
+    // `all` and specific slots are mutually exclusive server-side (they disagree
+    // about whether free slots are emitted), so send one or the other.
+    const query = new URLSearchParams();
+    if (options.slots?.length) {
+      for (const slot of options.slots) {
+        query.append('park_slot[]', String(slot));
+      }
+    } else {
+      query.set('park_slot[]', 'all');
+    }
+    const url = `${this._apiUrl}/v1/presence?${query.toString()}`;
+
+    const run = async (): Promise<void> => {
+      // Reconnect delay, escalated on repeated failure so a persistent outage
+      // does not become a hot loop. Reset on every successful connect.
+      let backoffMs = 1000;
+
+      while (!closed) {
+        controller = new AbortController();
+        try {
+          const response = await fetch(url, {
+            headers: {
+              Authorization: `Bearer ${this._apiKey}`,
+              'DialStack-Account': options.dialstackAccount,
+              'User-Agent': this.getUserAgent(),
+              Accept: 'text/event-stream',
+            },
+            signal: controller.signal,
+          });
+
+          if (response.status === 429) {
+            // The server told us how long to wait; honour it rather than
+            // reconnecting into the same refusal. Escalate and report anyway:
+            // nothing guarantees an intermediary preserves Retry-After, and
+            // without both this would retry once a second forever with the caller
+            // told nothing.
+            const retryAfter = Number(response.headers.get('Retry-After'));
+            void response.body?.cancel();
+            handlers.onError?.(
+              new Error('presence stream refused: too many concurrent connections')
+            );
+            await delay(
+              Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : backoffMs
+            );
+            backoffMs = Math.min(backoffMs * 2, 30_000);
+            continue;
+          }
+          if (!response.ok || !response.body) {
+            void response.body?.cancel();
+            throw new Error(`presence stream failed with status ${response.status}`);
+          }
+
+          backoffMs = 1000;
+          await this._consumeParkSlotStream(response.body, handlers);
+        } catch (error) {
+          if (closed || (error as Error)?.name === 'AbortError') {
+            return;
+          }
+          handlers.onError?.(error instanceof Error ? error : new Error(String(error)));
+        }
+
+        if (closed) {
+          return;
+        }
+        await delay(backoffMs);
+        backoffMs = Math.min(backoffMs * 2, 30_000);
+      }
+    };
+
+    void run();
+
+    return {
+      close: () => {
+        closed = true;
+        controller?.abort();
+      },
+    };
+  }
+
+  /** Reads SSE frames off a response body until it ends. */
+  private async _consumeParkSlotStream(
+    body: ReadableStream<Uint8Array>,
+    handlers: ParkSlotSubscriptionHandlers
+  ): Promise<void> {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) {
+        return;
+      }
+      buffer += decoder.decode(value, { stream: true });
+
+      const frames = buffer.split('\n\n');
+      // The trailing element is an incomplete frame; keep it for the next read.
+      buffer = frames.pop() ?? '';
+      for (const frame of frames) {
+        dispatchParkSlotFrame(frame, handlers);
+      }
+    }
   }
 
   private async _request<T = unknown>(
@@ -2804,14 +3054,32 @@ export class DialStack {
     list: (
       params: PresenceListParams,
       options: RequestOptions & { dialstackAccount: string }
-    ): Promise<ListResponse<UserPresenceItem>> => {
-      const queryParams = new URLSearchParams();
-      for (const user of params.users) {
-        queryParams.append('user[]', user);
-      }
-      const path = `/v1/presence?${queryParams.toString()}`;
+    ): Promise<ListResponse<PresenceItem>> => {
+      const path = `/v1/presence?${presenceQuery(params).toString()}`;
       return this._request('GET', path, undefined, options);
     },
+
+    /**
+     * Subscribe to the account's park slots.
+     *
+     * Every slot's current state arrives immediately via `onSnapshot`, then one
+     * `onSlot` call per change. Frames carry state, not transitions: a slot
+     * being freed arrives as `parked_call: null`. A frame
+     * always says what the slot is now, so there is no log of parks and unparks
+     * to reconcile.
+     *
+     * Reconnects automatically, and every reconnect delivers a fresh snapshot —
+     * a complete resync, so there is no sequence number to track. If the server
+     * can no longer verify slot state it ends the subscription rather than let it
+     * drift silently; `onTerminated` reports why, and the reconnect that follows
+     * repairs it.
+     *
+     * Users cannot be subscribed to — read their presence with `list` instead.
+     */
+    subscribeParkSlots: (
+      handlers: ParkSlotSubscriptionHandlers,
+      options: RequestOptions & { dialstackAccount: string } & ParkSlotSubscriptionOptions
+    ): ParkSlotSubscription => this._subscribeParkSlots(handlers, options),
   };
 
   phoneNumbers = {
@@ -4157,3 +4425,61 @@ export type {
   MediaStreamMessage,
   MediaStreamEvents,
 } from './media-stream';
+
+/** Builds the /v1/presence query string from the per-type selectors. */
+function presenceQuery(params: PresenceListParams): URLSearchParams {
+  const query = new URLSearchParams();
+  for (const user of params.users ?? []) {
+    query.append('user[]', user);
+  }
+  // Named slots win over `parkSlots`. The two are mutually exclusive server-side
+  // — they disagree about whether free slots are emitted — so sending both would
+  // be a 400; prefer the more specific request rather than surfacing that.
+  if (params.parkSlotNumbers?.length) {
+    for (const slot of params.parkSlotNumbers) {
+      query.append('park_slot[]', String(slot));
+    }
+  } else if (params.parkSlots) {
+    query.append('park_slot[]', 'all');
+  }
+  return query;
+}
+
+/** Parses one SSE frame and calls the matching handler. */
+function dispatchParkSlotFrame(frame: string, handlers: ParkSlotSubscriptionHandlers): void {
+  let event = '';
+  let data = '';
+  for (const line of frame.split('\n')) {
+    if (line.startsWith('event: ')) {
+      event = line.slice(7).trim();
+    } else if (line.startsWith('data: ')) {
+      data = line.slice(6);
+    }
+    // ':' comment lines (heartbeats) and 'retry:' are ignored.
+  }
+  if (!event || !data) {
+    return;
+  }
+
+  try {
+    const parsed = JSON.parse(data);
+    switch (event) {
+      case 'snapshot':
+        handlers.onSnapshot?.((parsed.data ?? []) as ParkSlotPresence[]);
+        break;
+      case 'park_slot':
+        handlers.onSlot?.(parsed as ParkSlotPresence);
+        break;
+      case 'terminated':
+        handlers.onTerminated?.(String(parsed.reason ?? ''));
+        break;
+      // 'connected' carries no state and needs no handler.
+    }
+  } catch (error) {
+    handlers.onError?.(error instanceof Error ? error : new Error(String(error)));
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
