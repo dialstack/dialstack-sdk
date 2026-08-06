@@ -16,6 +16,8 @@ export const segmentedControlStyles = `
   }
 
   .segment-btn {
+    box-sizing: border-box;
+    min-height: var(--ds-control-height);
     padding: var(--ds-spacing-sm) var(--ds-spacing-md);
     font-size: var(--ds-font-size-base);
     font-family: var(--ds-font-family);
@@ -109,6 +111,8 @@ export const paginationStyles = `
   }
 
   .pagination-btn {
+    box-sizing: border-box;
+    min-height: var(--ds-control-height);
     padding: var(--ds-spacing-xs) var(--ds-spacing-md);
     font-size: var(--ds-font-size-base);
     font-weight: var(--ds-font-weight-medium);

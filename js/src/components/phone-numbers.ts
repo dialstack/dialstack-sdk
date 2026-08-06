@@ -21,7 +21,8 @@ import type {
 } from '../types';
 
 /**
- * PhoneNumbers component displays a unified list of all phone numbers
+ * PhoneNumbers component displays a unified list of all phone numbers, with status
+ * tabs, sortable columns, a client-side search box, and pagination.
  */
 type SortColumn =
   | 'phone_number'
@@ -68,6 +69,13 @@ const TAB_COLUMNS: Record<StatusFilter, ColumnId[]> = {
   cancelled: ['phone_number', 'cancelled_date'],
 };
 
+const SEARCH_INPUT_ID = 'ds-phone-numbers-search';
+
+// Debounce the search re-render. Filtering is in-memory, but render() rebuilds
+// the whole shadow tree, so debouncing cuts that churn; matches the admin
+// DevicesTable's 200ms.
+const SEARCH_DEBOUNCE_MS = 200;
+
 export class PhoneNumbersComponent extends BaseComponent {
   private limit: number = 10;
 
@@ -80,6 +88,8 @@ export class PhoneNumbersComponent extends BaseComponent {
 
   // Filtering
   private activeFilter: StatusFilter = 'active';
+  private searchQuery: string = '';
+  private searchDebounce: ReturnType<typeof setTimeout> | null = null;
 
   // Sorting
   private sortColumn: SortColumn = 'phone_number';
@@ -503,7 +513,49 @@ export class PhoneNumbersComponent extends BaseComponent {
 
   private get filteredItems(): PhoneNumberItem[] {
     const allowed = STATUS_FILTER_MAP[this.activeFilter];
-    return this.allItems.filter((item) => allowed.includes(item.status));
+    const needle = this.searchQuery.trim().toLowerCase();
+    return this.allItems.filter((item) => {
+      if (!allowed.includes(item.status)) return false;
+      return needle ? this.itemMatchesSearch(item, needle) : true;
+    });
+  }
+
+  /**
+   * Match against the fields a reader can see: the phone number (raw E.164 and
+   * formatted-national), caller ID, carrier, and the resolved routing-target
+   * name. Every whitespace-separated token in the query must match some field,
+   * so a mixed query like "sales 916" only matches a row where *both* land.
+   *
+   * A token made up solely of phone characters (digits and `( ) + . -`) also
+   * matches against the number's bare digits, so "(916) 237" or "916 237" find
+   * the formatted number. A token containing letters never digit-matches, so a
+   * name query can't surface an unrelated number that merely shares those digits.
+   */
+  private itemMatchesSearch(item: PhoneNumberItem, needle: string): boolean {
+    const routingName = item.routing_target
+      ? (this.resolvedTargetNames.get(item.routing_target) ?? '')
+      : '';
+    const haystack = [
+      item.phone_number,
+      this.formatPhoneNumber(item.phone_number),
+      item.caller_id_name,
+      item.carrier,
+      routingName,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    const phoneDigits = item.phone_number.replace(/\D/g, '');
+
+    return needle
+      .split(/\s+/)
+      .filter(Boolean)
+      .every((token) => {
+        if (haystack.includes(token)) return true;
+        const isPhoneToken = token.replace(/[\d()+.-]/g, '') === '';
+        const tokenDigits = token.replace(/\D/g, '');
+        return isPhoneToken && tokenDigits.length > 0 && phoneDigits.includes(tokenDigits);
+      });
   }
 
   private get sortedItems(): PhoneNumberItem[] {
@@ -580,6 +632,12 @@ export class PhoneNumbersComponent extends BaseComponent {
   protected render(): void {
     if (!this.shadowRoot) return;
 
+    // Replacing the whole shadow DOM below would drop focus from the search
+    // field mid-type, so capture focus + caret first and restore them after.
+    const focused = this.shadowRoot.activeElement;
+    const searchWasFocused = focused instanceof HTMLInputElement && focused.id === SEARCH_INPUT_ID;
+    const caret = searchWasFocused ? focused.selectionStart : null;
+
     const styles = this.applyAppearanceStyles();
 
     const html = this.buildComponentHtml(styles);
@@ -587,6 +645,15 @@ export class PhoneNumbersComponent extends BaseComponent {
     this.shadowRoot.innerHTML = html;
 
     this.attachEventListeners();
+
+    if (searchWasFocused) {
+      const input = this.shadowRoot.getElementById(SEARCH_INPUT_ID);
+      if (input instanceof HTMLInputElement) {
+        input.focus();
+        const pos = caret ?? input.value.length;
+        input.setSelectionRange(pos, pos);
+      }
+    }
   }
 
   private buildComponentHtml(styles: string): string {
@@ -788,6 +855,48 @@ export class PhoneNumbersComponent extends BaseComponent {
           color: var(--ds-color-warning);
         }
 
+        /* Search sits on its own row below the status tabs, left-aligned so it
+           lines up with the table, and grows up to ~384px (admin's max-w-sm). */
+        .pn-search-row {
+          max-width: 384px;
+          margin-bottom: var(--ds-layout-spacing-lg);
+        }
+
+        .pn-search-input {
+          width: 100%;
+          box-sizing: border-box;
+          height: var(--ds-control-height);
+          padding: var(--ds-spacing-sm) var(--ds-spacing-md);
+          font-family: var(--ds-font-family);
+          font-size: var(--ds-font-size-base);
+          line-height: var(--ds-line-height);
+          color: var(--ds-color-text);
+          background: var(--ds-color-input-background);
+          border: 1px solid var(--ds-color-border);
+          border-radius: var(--ds-border-radius);
+          outline: none;
+        }
+
+        .pn-search-input::placeholder {
+          color: var(--ds-color-placeholder);
+        }
+
+        /* :focus-visible (keyboard-only, like the admin inputs) and a two-stop
+           ring so a themed offset shows a surface-colored gap; at the default
+           offset of 0 the first stop collapses and it reads as a flush ring. */
+        .pn-search-input:focus-visible {
+          box-shadow:
+            0 0 0 var(--ds-focus-ring-offset) var(--ds-color-input-background),
+            0 0 0 calc(var(--ds-focus-ring-offset) + var(--ds-focus-ring-width))
+              var(--ds-focus-ring-color);
+        }
+
+        .pn-no-results td {
+          padding: var(--ds-spacing-xl);
+          text-align: center;
+          color: var(--ds-color-text-secondary);
+        }
+
         ${paginationStyles}
     `;
   }
@@ -843,6 +952,25 @@ export class PhoneNumbersComponent extends BaseComponent {
       .join('');
 
     return `<div class="segmented-control" part="filter-tabs" role="toolbar" aria-label="${this.t('phoneNumbers.filterLabel')}">${tabs}</div>`;
+  }
+
+  private renderToolbar(): string {
+    const placeholder = this.escapeHtml(this.t('phoneNumbers.search.placeholder'));
+    return `
+      ${this.renderFilterTabs()}
+      <div class="pn-search-row" part="search">
+        <input
+          id="${SEARCH_INPUT_ID}"
+          type="text"
+          class="pn-search-input"
+          part="search-input"
+          placeholder="${placeholder}"
+          aria-label="${placeholder}"
+          autocomplete="off"
+          value="${this.escapeHtml(this.searchQuery)}"
+        />
+      </div>
+    `;
   }
 
   private getColumnLabel(col: ColumnId): string {
@@ -973,19 +1101,26 @@ export class PhoneNumbersComponent extends BaseComponent {
       })
       .join('');
 
-    const start = this.currentPage * this.limit + 1;
-    const end = this.currentPage * this.limit + items.length;
     const total = this.filteredItems.length;
+    const start = total === 0 ? 0 : this.currentPage * this.limit + 1;
+    const end = this.currentPage * this.limit + items.length;
+
+    const emptyMessage = this.searchQuery.trim()
+      ? this.t('phoneNumbers.search.noResults')
+      : this.t('phoneNumbers.empty');
+    const body = items.length
+      ? rows
+      : `<tr class="pn-no-results"><td colspan="${columns.length}" part="empty" role="status">${emptyMessage}</td></tr>`;
 
     return `
-      ${this.renderFilterTabs()}
+      ${this.renderToolbar()}
       <div class="table-container" part="table-container">
         <table role="grid" aria-label="${this.t('phoneNumbers.title')}" part="table" class="${this.classes.table || ''}">
           <thead part="table-header">
             <tr role="row">${headerCells}</tr>
           </thead>
           <tbody part="table-body">
-            ${rows}
+            ${body}
           </tbody>
         </table>
       </div>
@@ -1024,6 +1159,32 @@ export class PhoneNumbersComponent extends BaseComponent {
         this.render();
       });
     });
+
+    // Search box: filter the in-memory list, debounced. Focus/caret are
+    // preserved across the re-render in render().
+    const searchInput = this.shadowRoot.getElementById(SEARCH_INPUT_ID);
+    if (searchInput instanceof HTMLInputElement) {
+      const applySearch = () => {
+        this.searchDebounce = null;
+        if (this.searchQuery === searchInput.value) return;
+        this.searchQuery = searchInput.value;
+        this.currentPage = 0;
+        this.render();
+      };
+      const scheduleApply = () => {
+        if (this.searchDebounce) clearTimeout(this.searchDebounce);
+        this.searchDebounce = setTimeout(applySearch, SEARCH_DEBOUNCE_MS);
+      };
+      // Don't schedule mid-IME-composition: render() replaces the whole shadow
+      // tree, which would destroy the <input> and drop the uncommitted candidate
+      // (so a multibyte name could never be typed). Apply the committed text on
+      // compositionend instead.
+      searchInput.addEventListener('input', (e) => {
+        if ((e as InputEvent).isComposing) return;
+        scheduleApply();
+      });
+      searchInput.addEventListener('compositionend', scheduleApply);
+    }
 
     // Sort headers
     const sortHeaders = this.shadowRoot.querySelectorAll('th.sortable[data-sort]');

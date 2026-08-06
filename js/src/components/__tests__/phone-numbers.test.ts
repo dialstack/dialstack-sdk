@@ -92,6 +92,21 @@ function routingCell(el: PhoneNumbersEl, phone: string): HTMLElement | null {
   return el.shadowRoot.querySelector<HTMLElement>(`td.routing-cell[data-routing-phone="${phone}"]`);
 }
 
+function searchInput(el: PhoneNumbersEl): HTMLInputElement {
+  const input = el.shadowRoot.getElementById('ds-phone-numbers-search');
+  expect(input).toBeInstanceOf(HTMLInputElement);
+  return input as HTMLInputElement;
+}
+
+async function typeSearch(el: PhoneNumbersEl, value: string) {
+  const input = searchInput(el);
+  input.focus();
+  input.value = value;
+  input.dispatchEvent(new Event('input'));
+  // Let the debounced (200ms) re-render fire.
+  await new Promise((resolve) => setTimeout(resolve, 230));
+}
+
 describe('PhoneNumbersComponent merge', () => {
   afterEach(() => {
     document.body.innerHTML = '';
@@ -330,5 +345,135 @@ describe('PhoneNumbersComponent merge', () => {
     const el = await mount(makeInstance([], [], [makePort({ status: 'exception' })]));
     clickFilter(el, 'in_progress');
     expect(rowsText(el)).toMatch(/Jun \d+, 2026/);
+  });
+});
+
+describe('PhoneNumbersComponent search', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+    jest.restoreAllMocks();
+  });
+
+  const activeDIDs = () => [
+    makeDID({
+      id: 'did_a',
+      phone_number: '+19162377753',
+      status: 'active',
+      caller_id_name: 'ARMSTRONG',
+    }),
+    makeDID({
+      id: 'did_b',
+      phone_number: '+15145559999',
+      status: 'active',
+      caller_id_name: 'Broccoli Co',
+    }),
+  ];
+
+  it('filters the active tab by phone-number digits', async () => {
+    const el = await mount(makeInstance(activeDIDs(), []));
+
+    await typeSearch(el, '9162');
+    expect(rowsText(el)).toContain('916) 237-7753');
+    expect(rowsText(el)).not.toContain('514) 555-9999');
+  });
+
+  it('matches on caller ID name, case-insensitively', async () => {
+    const el = await mount(makeInstance(activeDIDs(), []));
+
+    await typeSearch(el, 'broccoli');
+    expect(rowsText(el)).toContain('514) 555-9999');
+    expect(rowsText(el)).not.toContain('916) 237-7753');
+  });
+
+  it('matches a formatted/parenthesized number query via the digit fallback', async () => {
+    const el = await mount(makeInstance(activeDIDs(), []));
+
+    await typeSearch(el, '(916) 237');
+    expect(rowsText(el)).toContain('916) 237-7753');
+    expect(rowsText(el)).not.toContain('514) 555-9999');
+  });
+
+  it('composes within the active tab: a cancelled number is not surfaced from the Active tab', async () => {
+    const el = await mount(
+      makeInstance(
+        [
+          ...activeDIDs(),
+          makeDID({ id: 'did_c', phone_number: '+18005551234', status: 'released' }),
+        ],
+        []
+      )
+    );
+
+    // On the Active tab, searching a released number's digits yields nothing.
+    await typeSearch(el, '8005551234');
+    expect(rowsText(el)).toContain('No phone numbers match your search');
+
+    // Switching tabs preserves the query (no re-type), so the released number
+    // now shows — this pins that a tab switch does not clear the search.
+    clickFilter(el, 'cancelled');
+    expect(rowsText(el)).toContain('800) 555-1234');
+  });
+
+  it('requires every token to match: a mixed name + digit query excludes unrelated numbers', async () => {
+    const el = await mount(
+      makeInstance(
+        [
+          makeDID({
+            id: 'did_support',
+            phone_number: '+19167771234',
+            status: 'active',
+            caller_id_name: 'Support Line',
+          }),
+          makeDID({
+            id: 'did_sales',
+            phone_number: '+12025550142',
+            status: 'active',
+            caller_id_name: 'Sales - 916 Team',
+          }),
+        ],
+        []
+      )
+    );
+
+    // "sales 916" must not surface Support Line just because 916 is in its
+    // number — only the row where both tokens land (Sales) may show.
+    await typeSearch(el, 'sales 916');
+    expect(rowsText(el)).toContain('202) 555-0142');
+    expect(rowsText(el)).not.toContain('916) 777-1234');
+  });
+
+  it('defers filtering during IME composition and applies it on compositionend', async () => {
+    const el = await mount(makeInstance(activeDIDs(), []));
+    const input = searchInput(el);
+    input.focus();
+    input.value = 'broccoli';
+
+    // An input event fired mid-composition must not filter (or destroy the node).
+    const composing = new Event('input', { bubbles: true });
+    Object.defineProperty(composing, 'isComposing', { value: true });
+    input.dispatchEvent(composing);
+    expect(rowsText(el)).toContain('916) 237-7753');
+
+    // Committing the composition schedules the debounced apply.
+    input.dispatchEvent(new Event('compositionend'));
+    await new Promise((resolve) => setTimeout(resolve, 230));
+    expect(rowsText(el)).toContain('514) 555-9999');
+    expect(rowsText(el)).not.toContain('916) 237-7753');
+  });
+
+  it('shows a no-results message when nothing matches', async () => {
+    const el = await mount(makeInstance(activeDIDs(), []));
+
+    await typeSearch(el, 'zzzzz');
+    expect(rowsText(el)).toContain('No phone numbers match your search');
+  });
+
+  it('keeps focus and caret in the search box across the re-render', async () => {
+    const el = await mount(makeInstance(activeDIDs(), []));
+
+    await typeSearch(el, '916');
+    const input = searchInput(el);
+    expect(el.shadowRoot.activeElement).toBe(input);
+    expect(input.selectionStart).toBe(input.value.length);
   });
 });

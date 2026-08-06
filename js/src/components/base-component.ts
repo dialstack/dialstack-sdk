@@ -524,6 +524,9 @@ export abstract class BaseComponent extends getHTMLElementBase() {
     const colorText = vars.colorText || (isDark ? '#ffffff' : '#1a1a1a');
     const colorTextSecondary =
       vars.colorTextSecondary || (isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)');
+    const colorPlaceholder =
+      vars.colorPlaceholder ||
+      'color-mix(in srgb, var(--ds-color-text-secondary) 50%, transparent)';
     const colorDanger = vars.colorDanger || '#e5484d';
     const colorSuccess = vars.colorSuccess || '#30a46c';
     const colorWarning = vars.colorWarning || '#f5a623';
@@ -532,6 +535,7 @@ export abstract class BaseComponent extends getHTMLElementBase() {
     const colorBorder = vars.colorBorder || (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)');
     const colorBorderSubtle =
       vars.colorBorderSubtle || (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)');
+    const colorInputBackground = vars.colorInputBackground || colorBackground;
 
     // Typography
     const fontFamily =
@@ -562,6 +566,10 @@ export abstract class BaseComponent extends getHTMLElementBase() {
     const transitionDuration = vars.transitionDuration || '0.15s';
     const focusRingColor = vars.focusRingColor || colorPrimary;
     const focusRingWidth = vars.focusRingWidth || '2px';
+    const focusRingOffset = vars.focusRingOffset || '0';
+
+    // Controls
+    const controlHeight = vars.controlHeight || 'auto';
 
     // Icon sizes
     const iconSize = vars.iconSize || '24px';
@@ -608,6 +616,7 @@ export abstract class BaseComponent extends getHTMLElementBase() {
         --ds-color-background: ${colorBackground};
         --ds-color-text: ${colorText};
         --ds-color-text-secondary: ${colorTextSecondary};
+        --ds-color-placeholder: ${colorPlaceholder};
         --ds-color-danger: ${colorDanger};
         --ds-color-success: ${colorSuccess};
         --ds-color-warning: ${colorWarning};
@@ -616,6 +625,7 @@ export abstract class BaseComponent extends getHTMLElementBase() {
         --ds-color-surface-subtle: ${colorSurfaceSubtle};
         --ds-color-border: ${colorBorder};
         --ds-color-border-subtle: ${colorBorderSubtle};
+        --ds-color-input-background: ${colorInputBackground};
 
         /* Typography */
         --ds-font-family: ${fontFamily};
@@ -645,6 +655,12 @@ export abstract class BaseComponent extends getHTMLElementBase() {
         /* Effects */
         --ds-transition-duration: ${transitionDuration};
         --ds-focus-ring: 0 0 0 ${focusRingWidth} ${focusRingColor};
+        --ds-focus-ring-color: ${focusRingColor};
+        --ds-focus-ring-width: ${focusRingWidth};
+        --ds-focus-ring-offset: ${focusRingOffset};
+
+        /* Controls */
+        --ds-control-height: ${controlHeight};
 
         /* Icon sizes */
         --ds-icon-size: ${iconSize};

@@ -26,6 +26,9 @@ export interface AppearanceVariables {
   colorBackground?: string;
   colorText?: string;
   colorTextSecondary?: string;
+  /** Placeholder text in inputs. Defaults to `colorTextSecondary` at 50% so it
+   *  reads dimmer than real secondary text; override to control independently. */
+  colorPlaceholder?: string;
   colorDanger?: string;
   colorSuccess?: string;
   colorWarning?: string;
@@ -34,6 +37,9 @@ export interface AppearanceVariables {
   colorSurfaceSubtle?: string;
   colorBorder?: string;
   colorBorderSubtle?: string;
+  /** Fill for form inputs. Defaults to `colorBackground`; set separately when
+   *  the input fill should differ from the surface the component sits on. */
+  colorInputBackground?: string;
 
   // Typography
   fontFamily?: string;
@@ -63,6 +69,13 @@ export interface AppearanceVariables {
   transitionDuration?: string;
   focusRingColor?: string;
   focusRingWidth?: string;
+  /** Gap between the control edge and the focus ring. Defaults to `0` (flush). */
+  focusRingOffset?: string;
+
+  // Controls
+  /** Height of form controls (inputs, tabs, pagination buttons). Defaults to
+   *  `auto` (font-derived); set to a fixed value for consistent control heights. */
+  controlHeight?: string;
 
   // Icon sizes
   iconSize?: string;

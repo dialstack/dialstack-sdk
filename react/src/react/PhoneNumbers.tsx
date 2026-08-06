@@ -79,7 +79,8 @@ export interface PhoneNumbersProps {
 /**
  * PhoneNumbers component displays a unified list of all phone numbers for the authenticated account.
  *
- * Merges data from DIDs, number orders, and port orders into a single table with client-side pagination.
+ * Merges data from DIDs, number orders, and port orders into a single table with status tabs
+ * (Active / In Progress / Cancelled), sortable columns, a client-side search box, and pagination.
  *
  * Must be used within a DialstackComponentsProvider.
  *

@@ -71,6 +71,52 @@ export const InProgressWithPreAssignedRouting: Story = {
   },
 };
 
+export const Search: Story = {
+  args: {
+    dids: [
+      {
+        id: 'did_search_a',
+        phone_number: '+19162377753',
+        status: 'active',
+        outbound_enabled: true,
+        caller_id_name: 'ARMSTRONG',
+        created_at: '2026-06-16T10:00:00Z',
+        updated_at: '2026-06-16T10:00:00Z',
+      },
+      {
+        id: 'did_search_b',
+        phone_number: '+15145559999',
+        status: 'active',
+        outbound_enabled: true,
+        caller_id_name: 'Broccoli Co',
+        created_at: '2026-06-16T10:00:00Z',
+        updated_at: '2026-06-16T10:00:00Z',
+      },
+    ],
+  },
+  play: async ({ canvasElement, step }) => {
+    await step('Typing in the search box filters the list to matching rows', async () => {
+      // The story appends the element in an effect, so re-query it inside each
+      // waitFor rather than capturing it once (it may be absent on the first tick).
+      const input = await waitFor(() => {
+        const el = canvasElement.querySelector('dialstack-phone-numbers');
+        const found = el?.shadowRoot?.querySelector<HTMLInputElement>('#ds-phone-numbers-search');
+        expect(found).toBeTruthy();
+        return found as HTMLInputElement;
+      });
+      input.focus();
+      input.value = 'armstrong';
+      input.dispatchEvent(new Event('input'));
+      await waitFor(() => {
+        const el = canvasElement.querySelector('dialstack-phone-numbers');
+        const body = el?.shadowRoot?.querySelector('tbody')?.textContent ?? '';
+        expect(body).toContain('(916) 237-7753');
+        expect(body).not.toContain('(514) 555-9999');
+      });
+    });
+  },
+};
+
 export const WithTemporaryNumber: Story = {
   args: {
     dids: [

@@ -334,6 +334,10 @@ export const en = {
     loading: 'Loading phone numbers...',
     empty: 'No phone numbers',
     filterLabel: 'Filter by status',
+    search: {
+      placeholder: 'Search phone numbers...',
+      noResults: 'No phone numbers match your search',
+    },
     filters: {
       active: 'Active',
       in_progress: 'In Progress',
