@@ -266,6 +266,7 @@ export const SsaAcceptanceGate: React.FC<SsaAcceptanceGateProps> = ({
               rendering it raw is not an injection vector. Revisit if the body
               ever becomes per-account or templated. A missing body never reaches
               here — it fails closed above. */}
+          {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- first-party legal text from the tos API */}
           <div
             className="ssa-agreement"
             role="region"
