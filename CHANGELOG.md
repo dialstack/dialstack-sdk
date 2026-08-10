@@ -5,6 +5,97 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0](https://github.com/dialstack/dialstack-sdk/compare/v2.0.0...v2.1.0) (2026-08-10)
+
+### Features
+
+#### Softphone
+
+- **webrtc, react:** audio input and output device selection. The phone
+  enumerates the available microphones and speakers as `AudioDeviceList`
+  (`inputs` / `outputs` of `AudioDevice`), lets you pin either one, and switches
+  the microphone mid-call without dropping the call. A pinned microphone is
+  remembered across sessions; asking for the OS default clears the pin rather
+  than pinning the device that happens to be default. The React softphone ships
+  a device picker in the in-call controls, and re-enumerates once a call grants
+  microphone access — device labels are empty until then.
+
+#### Web components
+
+- **js:** the phone-numbers component takes a search bar, filtering the list as
+  you type and following the admin portal's search convention.
+- **js:** new appearance tokens for control height, input fill, placeholder
+  color, and focus-ring offset, so embedded components can be matched to a
+  surrounding form more closely.
+
+#### Server SDK
+
+- **server:** park slots. `presence.list` reads the calls currently parked in an
+  account — pass `parkSlots: true` for every occupied slot, or `parkSlotNumbers`
+  to read specific slots including free ones. A `ParkSlotPresence` carries the
+  slot number and its `parked_call` (`null` when free), and a parked call
+  reports the caller, who parked it, their extension, when it was parked, when
+  it rings back, and whether it is `'parked'` or `'ringing_back'`. Presence
+  responses are discriminated by `object`, and a park-slot subscription streams
+  slot changes as they happen. A refused presence stream is reported rather than
+  retried silently.
+- **server:** `admin.users.list` and `admin.users.retrieve` read the people who
+  can administer an account in the portal. This is a different population from
+  `users.list()` — an account owner typically has no voice user and so appears
+  only here — and the two overlap by email address, which `AdminUser.user`
+  resolves. Read-only, and expandable with `expand: ['user']`.
+- **server:** new resources — `voicemails`, `voicemailGreetings`, `faxes`,
+  `devices`, `buttonTemplates`, `hardwareOrders`, `callLogs`, `recordings`, and
+  `listeners`.
+- **server:** account subscription-agreement retrieval and acceptance. Read the
+  agreement in effect and its acceptance state, and record an acceptance with
+  the pricing it was agreed against.
+- **server:** `expand[]` is supported on voice apps, dial plans, ring groups,
+  queues, and AI agents, and forwarded along with `search` on `users.list` and
+  `users.retrieve`.
+- **server:** `accounts.create` takes an `address`, which becomes the account's
+  main location — the default location for emergency calling and for tax and fee
+  jurisdiction. `billing_address` is deprecated in its favor but still accepted;
+  exactly one of the two is required, enforced in the types so omitting both or
+  sending both is a compile error rather than a rejected request.
+
+### Bug Fixes
+
+#### Softphone
+
+- **webrtc:** a locked microphone — held by another application — is reported
+  separately from a missing one, instead of both surfacing as "no microphone".
+- **webrtc:** a microphone the live call rejects is no longer persisted as the
+  saved device, so a failed switch doesn't carry into the next call.
+- **webrtc:** an explicit device switch is requested with `exact`, so asking for
+  a specific microphone either gets that microphone or fails, rather than
+  silently capturing a different one.
+- **webrtc:** speaker "system default" and mid-call microphone switching now
+  work as documented.
+- **webrtc:** the browser's inability to enumerate audio devices is surfaced to
+  the user rather than presenting an empty picker.
+- **webrtc:** early media is skipped on stacks without `pranswer` support, and
+  support is probed at connect time in the correct signaling state. A missing
+  WebRTC stack is treated as inconclusive rather than unsupported.
+- **react:** the in-call controls wrap onto two rows so the device picker fits
+  alongside the native controls.
+
+#### Server SDK
+
+- **server:** `page` is reachable on every paginated list, `extensions.list`
+  paginates, and `limit=0` is no longer dropped.
+- **server:** errors carry the code and message from the API's error body
+  instead of a generic message.
+- **server:** `Voicemail.call` is typed as always present rather than optional —
+  it is `null`, not absent, for a voicemail with no resolvable call.
+- **server:** `calls.list` filters on the supported `did` (the phone number's
+  id) rather than the unsupported `endpoint_id`.
+- **server:** device and button types are declared from the API spec rather than
+  reused from the browser models, so the server surface no longer carries the
+  browser models' deprecated `*_id` aliases.
+- **server:** `devices.list` no longer advertises a `button_template` expansion
+  it does not support.
+
 ## [2.0.0](https://github.com/dialstack/dialstack-sdk/compare/v1.2.0...v2.0.0) (2026-07-31)
 
 ### Breaking changes
