@@ -1,6 +1,6 @@
 # DialStack basic softphone example
 
-Minimal Next.js softphone built **directly on the headless `@dialstack/sdk/webrtc`
+Minimal Next.js softphone built **directly on the headless `@dialstack/sdk-webrtc`
 core** — it wires `DialStackPhone` / `Call` by hand and renders its own UI. Mints a
 short-lived user session on the server (so your `sk_live_*` key never reaches the
 browser), opens the WebRTC signalling WebSocket, and lets you place and receive
@@ -8,7 +8,7 @@ calls.
 
 > Looking for the batteries-included UI instead? See
 > [`web-softphone-example`](../web-softphone-example), which renders the shared
-> React `<Softphone>` component from `@dialstack/sdk/react` — the web sibling of the
+> React `<Softphone>` component from `@dialstack/sdk-react` — the web sibling of the
 > [mobile examples](../mobile). Use this basic example when you want full control of
 > the call UI; use the web example when you want the drop-in component.
 

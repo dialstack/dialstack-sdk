@@ -20,7 +20,7 @@
     "format": "prettier --write 'src/**/*.ts'"
   },
   "dependencies": {
-    "@dialstack/sdk": "^1.2.0",
+    "@dialstack/sdk-server": "file:../../server",
     "@google/genai": "^2.15.0",
     "alawmulaw": "^6.0.0",
     "dotenv": "^17.0.0",

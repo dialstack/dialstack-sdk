@@ -6,7 +6,7 @@
  *
  * @example
  * ```typescript
- * import type { AppearanceOptions, DialStackInstance, CallLog } from '@dialstack/sdk';
+ * import type { AppearanceOptions, DialStackInstance, CallLog } from '@dialstack/sdk-js';
  * ```
  */
 
@@ -71,6 +71,8 @@ export type {
   CallHistoryElement,
   ComponentTagName,
   ComponentElement,
+  // Named by the React AI-agent form, which builds its fields from this shape.
+  AIAgentField,
 } from './components';
 
 // Phone number ordering types
@@ -190,6 +192,19 @@ export type {
   GraphNodeData,
   ScheduleExitType,
   InternalDialExitType,
+  // Editor-facing dial-plan types. Consumed by @dialstack/sdk-react — the editor
+  // props, its imperative handle, its locale shape and the node shapes its canvas
+  // renders — so they belong on this barrel rather than only in the module: a
+  // package boundary can only re-export what the barrel names.
+  VoiceAppNodeData,
+  DialPlanMode,
+  DialPlanHandle,
+  DialPlanLocale,
+  VoiceAppNode,
+  AudioClipNode,
+  HangUpNode,
+  MenuNode,
+  MenuOption,
   // Extension types
   ExtensionStatus,
   Extension,

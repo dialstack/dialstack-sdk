@@ -110,7 +110,12 @@ class FakePhone extends Emitter {
   }
 }
 
-jest.mock('../../../../webrtc/src', () => ({
+// Only the phone is faked. Spreading the real module keeps the rest of the
+// package's surface — notably `storage`, which the audio-device provider reads to
+// restore the user's last choice; replacing the module wholesale left it
+// undefined and every render threw.
+jest.mock('@dialstack/sdk-webrtc', () => ({
+  ...jest.requireActual('@dialstack/sdk-webrtc'),
   DialStackPhone: jest.fn().mockImplementation(() => new FakePhone()),
 }));
 

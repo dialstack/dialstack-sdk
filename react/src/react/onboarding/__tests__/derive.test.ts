@@ -1,7 +1,12 @@
 import { deriveOnboardingState, type OnboardingDataSnapshot } from '../derive';
-import type { Account, OnboardingLocation, OnboardingUser } from '../../../../../js/src/types';
-import type { DIDItem } from '../../../../../js/src/types/phone-numbers';
-import type { Device, DeviceUserAssignment } from '../../../../../js/src/types/device';
+import {
+  type Account,
+  type OnboardingLocation,
+  type OnboardingUser,
+  type DIDItem,
+  type Device,
+  type DeviceUserAssignment,
+} from '@dialstack/sdk-js';
 
 function mkAccount(overrides: Partial<Account> = {}): Account {
   return {

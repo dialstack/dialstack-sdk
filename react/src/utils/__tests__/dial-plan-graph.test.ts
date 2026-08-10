@@ -9,7 +9,7 @@ import {
   getNodeLabel,
   getEdgeLabel,
 } from '../dial-plan-graph';
-import type { DialPlan } from '../../../../js/src/types/dial-plan';
+import type { DialPlan } from '@dialstack/sdk-js';
 import { defaultRegistry } from '../../react/dial-plan/default-registry';
 
 describe('dial-plan-graph', () => {

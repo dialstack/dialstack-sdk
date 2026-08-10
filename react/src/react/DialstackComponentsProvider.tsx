@@ -2,9 +2,8 @@
  * React Context Provider for DialStack Components
  */
 
-import React, { createContext, useContext } from 'react';
-import type { ReactNode } from 'react';
-import type { DialStackInstance } from '../../../js/src/types';
+import React, { createContext, useContext, type ReactNode } from 'react';
+import type { DialStackInstance } from '@dialstack/sdk-js';
 
 interface DialstackComponentsContextValue {
   dialstack: DialStackInstance;

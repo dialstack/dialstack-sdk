@@ -9,17 +9,17 @@
 
 import React, { useReducer, useEffect, useCallback, useRef, useMemo } from 'react';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
-import type {
-  DIDItem,
-  NumberOrder,
-  PortOrder,
-  OnboardingLocation,
-  DialStackInstance,
-  SearchAvailableNumbersOptions,
-  CreatePortOrderRequest,
-  DialPlan,
-} from '../../../../../../js/src/types';
-import { ApiError } from '../../../../../../js/src/core/instance';
+import {
+  type DIDItem,
+  type NumberOrder,
+  type PortOrder,
+  type OnboardingLocation,
+  type DialStackInstance,
+  type SearchAvailableNumbersOptions,
+  type CreatePortOrderRequest,
+  type DialPlan,
+  isApiError,
+} from '@dialstack/sdk-js/pure';
 import { mergePhoneNumbers } from '../../merge-phone-numbers';
 import { CHECK_SVG_WHITE, CHECK_CIRCLE_SVG, ERROR_SVG, PHONE_SVG } from '../../icons';
 import { useOnboarding, findNextIncompleteStep } from '../../OnboardingContext';
@@ -29,8 +29,7 @@ import { OnboardingLayout } from '../../OnboardingLayout';
 import { CheckIcon } from '../../components/icons';
 import numbersStyles from '../../styles/numbers-styles.css';
 
-import type { NumState, CardMode } from './types';
-import { numReducer, INITIAL_STATE, E911_POLL_MAX } from './types';
+import { type NumState, type CardMode, numReducer, INITIAL_STATE, E911_POLL_MAX } from './types';
 import { getSidebarActiveKey, validateCallerIdName } from './helpers';
 import { PhoneCardStrip } from './content/PhoneCardStrip';
 import { OverviewContent } from './content/OverviewContent';
@@ -441,7 +440,7 @@ export const NumbersStep: React.FC = () => {
         dispatch({ type: 'caller_id_persist_name', didId, name: name.trim() });
         return { status: 'submitted' };
       } catch (err2) {
-        const isConflict = err2 instanceof ApiError && err2.status === 409;
+        const isConflict = isApiError(err2) && err2.status === 409;
         return {
           status: 'error',
           error: isConflict

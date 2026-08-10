@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import type { DecoratorArgs } from '../../../../../js/src/__storybook__/types';
+import type { DecoratorArgs } from '#storybook-fixtures/types';
 import { OnboardingPortal } from '../OnboardingPortal';
 
 const LOGO_HTML = `<div style="display:flex;align-items:center;gap:8px">

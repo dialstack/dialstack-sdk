@@ -9,15 +9,15 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
-import type { Call, CallState } from '@dialstack/sdk/react/core';
+import type { Call, CallState } from '@dialstack/sdk-react/core';
 import {
   callPeerNumber,
   callPeerName,
   callStateLabelKey,
   isCallActive,
   useDialInput,
-} from '@dialstack/sdk/react/core';
-import { dialPadKeys, softphoneDimensions as D, softphoneGlyphs } from '@dialstack/sdk/react/core';
+} from '@dialstack/sdk-react/core';
+import { dialPadKeys, softphoneDimensions as D, softphoneGlyphs } from '@dialstack/sdk-react/core';
 import { useSoftphone } from '../SoftphoneProvider';
 import { CallErrorChip } from './CallErrorChip';
 import { Glyph, ControlButton, chunk, makeStyles } from './primitives';
@@ -159,9 +159,7 @@ export function OngoingCall(): React.JSX.Element | null {
         <Text style={styles.peerName}>{name}</Text>
         {!!peerName && <Text style={styles.peerNumber}>{displayNumber(peerRaw)}</Text>}
         <View style={styles.callState}>
-          <Text style={styles.callStateText}>
-            {t(callStateLabelKey(call.state as CallState))}
-          </Text>
+          <Text style={styles.callStateText}>{t(callStateLabelKey(call.state as CallState))}</Text>
           {/* Duration ticks only while truly live; a held foreground call shows
               its "On hold" state + Resume control, never a running timer. */}
           {call.state === 'active' && <Text style={styles.duration}>{duration}</Text>}

@@ -1,5 +1,5 @@
-import { Transport, type AppResumeSubscribe } from '../transport';
-import { PhoneError } from '../errors';
+import { Transport, type AppResumeSubscribe } from '../transport.js';
+import { PhoneError } from '../errors.js';
 
 // Controllable app-resume seam injected into Transport (main injects platform
 // differences via constructor rather than a module-mocked ./platform). A test

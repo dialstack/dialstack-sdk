@@ -11,7 +11,7 @@
  * a data write; the next bootstrap re-derives from the source of truth.
  */
 
-import type { AccountOnboardingStep } from '../../../../js/src/types/account-onboarding';
+import type { AccountOnboardingStep } from '@dialstack/sdk-js';
 import {
   ONBOARDING_STEPS,
   ORDERED_SUBSTEPS,

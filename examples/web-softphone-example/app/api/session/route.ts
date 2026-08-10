@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { DialStack } from '@dialstack/sdk/server';
+import { DialStack } from '@dialstack/sdk-server';
 
 // Mint a short-lived WebRTC user session on the server, so the sk_live_ key
 // never reaches the browser. This mirrors how a real app would mint the token

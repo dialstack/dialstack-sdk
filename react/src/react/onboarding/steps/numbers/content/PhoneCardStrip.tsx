@@ -1,5 +1,5 @@
 import React from 'react';
-import type { DIDItem, PhoneNumberItem } from '../../../../../../../js/src/types';
+import type { DIDItem, PhoneNumberItem } from '@dialstack/sdk-js';
 import type { NumState, Dispatcher, TFn, CardMode } from '../types';
 import { formatPhone, getStatusBadgeClass } from '../helpers';
 import { PHONE_SVG, SUCCESS_SVG } from '../../../icons';

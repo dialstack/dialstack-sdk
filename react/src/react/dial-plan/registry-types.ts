@@ -1,5 +1,5 @@
 import type { NodeProps, Edge, Node } from '@xyflow/react';
-import type { DialPlanNode, DialPlanLocale } from '../../../../js/src/types/dial-plan';
+import type { DialPlanNode, DialPlanLocale } from '@dialstack/sdk-js';
 
 export interface ExitDefinition {
   /** Handle ID (e.g., "open", "closed", "next") */

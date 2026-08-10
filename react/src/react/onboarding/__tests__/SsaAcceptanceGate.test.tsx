@@ -7,10 +7,8 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { SsaAcceptanceGate, SsaGateLoadError } from '../SsaAcceptanceGate';
 import { DialstackComponentsProvider } from '../../DialstackComponentsProvider';
-import { ApiError } from '../../../../../js/src/core/instance';
-import { defaultLocale } from '../../../../../js/src/locales';
+import { ApiError, defaultLocale, type DialStackInstance, type Tos } from '@dialstack/sdk-js';
 import { createMockInstance, mockTos } from '../__test-helpers__/onboarding';
-import type { DialStackInstance, Tos } from '../../../../../js/src/types';
 
 const ssa = defaultLocale.accountOnboarding.ssa;
 

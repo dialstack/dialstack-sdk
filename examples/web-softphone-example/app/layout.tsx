@@ -11,7 +11,7 @@ const poppins = Poppins({
 
 export const metadata = {
   title: 'DialStack web softphone example',
-  description: 'Minimal WebRTC softphone using the shared <Softphone> component from @dialstack/sdk/react.',
+  description: 'Minimal WebRTC softphone using the shared <Softphone> component from @dialstack/sdk-react.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

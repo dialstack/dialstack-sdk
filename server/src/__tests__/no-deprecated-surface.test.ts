@@ -64,10 +64,12 @@ describe('server surface excludes deprecated and undocumented aliases', () => {
     // Importing these is what pulled the deprecated aliases in. Compared as
     // exact specifiers: CreateTemplateButtonRequest is legitimately imported and
     // must not be mistaken for TemplateButton.
+    //
+    // Matches every `import type` from the browser package rather than the two
+    // former module paths: this package now names it as a package, so the types
+    // arrive through one specifier instead of per-module ones.
     const specifiers = new Set<string>();
-    for (const block of source.matchAll(
-      /import type \{([^}]*)\} from '\.\.\/\.\.\/js\/src\/types\/(?:device|button)';/gs
-    )) {
+    for (const block of source.matchAll(/import type \{([^}]*)\} from '@dialstack\/sdk-js';/gs)) {
       for (const name of block[1].split(',')) {
         const trimmed = name.trim();
         if (trimmed) specifiers.add(trimmed);

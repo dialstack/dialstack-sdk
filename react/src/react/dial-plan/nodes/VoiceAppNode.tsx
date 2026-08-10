@@ -3,7 +3,7 @@ import type {
   DialPlanLocale,
   DialPlanNode,
   VoiceAppNode as VoiceAppNodeType,
-} from '../../../../../js/src/types/dial-plan';
+} from '@dialstack/sdk-js';
 import type {
   NodeDefinition,
   NodeTypeRegistration,

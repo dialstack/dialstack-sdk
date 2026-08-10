@@ -2,7 +2,7 @@
   "name": "dialstack-basic-softphone-example",
   "version": "0.1.0",
   "private": true,
-  "description": "Minimal Next.js softphone built directly on the headless @dialstack/sdk/webrtc core.",
+  "description": "Minimal Next.js softphone built directly on the headless @dialstack/sdk-webrtc core.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@dialstack/sdk": "file:../..",
+    "@dialstack/sdk-webrtc": "file:../../webrtc",
     "next": "^16.2.12",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

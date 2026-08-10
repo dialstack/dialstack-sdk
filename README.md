@@ -1,24 +1,57 @@
-# @dialstack/sdk
+# DialStack JavaScript SDK
 
 Official JavaScript SDK for [DialStack](https://dialstack.ai) - Business Voice for Vertical SaaS.
 
 Embed voice capabilities directly into your application with ready-to-use React components for call logs, voicemails, and more.
 
-## Installation
+## Packages
+
+Install only what you execute. Each package declares the narrowest dependency set
+its own consumers can justify.
+
+| Package                 | For                                                                                 | Dependencies        |
+| ----------------------- | ----------------------------------------------------------------------------------- | ------------------- |
+| `@dialstack/sdk-js`     | A plain HTML or JS page: initialization, the REST client, the web components        | `libphonenumber-js` |
+| `@dialstack/sdk-webrtc` | A softphone in Angular, Vue or vanilla JS — the headless phone, no UI               | **none**            |
+| `@dialstack/sdk-react`  | A React app: component wrappers, the dial-plan editor, the softphone UI, onboarding | React ecosystem     |
+| `@dialstack/sdk-server` | A Node backend: REST client and webhook types                                       | **none**            |
 
 ```bash
-npm install @dialstack/sdk
+# A React app installs both: sdk-react peers on sdk-js, matching how
+# @stripe/react-connect-js peers on @stripe/connect-js.
+npm install @dialstack/sdk-js @dialstack/sdk-react
+
+# A softphone-only consumer installs one package and gets nothing else.
+npm install @dialstack/sdk-webrtc
+
+# A Node backend, likewise.
+npm install @dialstack/sdk-server
 ```
+
+### Entry points are covered by semver
+
+Every path in a package's `exports` map is public API under semver, including
+`@dialstack/sdk-webrtc` and each `@dialstack/sdk-react` subpath. A minor release
+will not add a dependency to a package documented above as having none, and will
+not add an import that pulls React into `@dialstack/sdk-webrtc`. CI asserts both
+on every commit rather than leaving them to convention: the softphone and Node
+client fail the build if their manifests declare anything, or if any source file
+imports outside its own package.
+
+Migrating from `@dialstack/sdk`? It remains installable from npm forever, frozen.
+See the migration guide for the import mapping.
 
 ## Quick Start
 
 ### React
 
 ```tsx
-import { loadDialstackAndInitialize } from '@dialstack/sdk';
-import { DialstackComponentsProvider, CallLogs, Voicemails } from '@dialstack/sdk/react';
+import { loadDialstackAndInitialize } from '@dialstack/sdk-js';
+import { DialstackComponentsProvider } from '@dialstack/sdk-react';
+import { CallLogs } from '@dialstack/sdk-react/call-logs';
+import { Voicemails } from '@dialstack/sdk-react/voicemails';
 import { useEffect, useState } from 'react';
-import type { DialStackInstance } from '@dialstack/sdk';
+import type { DialStackInstance } from '@dialstack/sdk-js';
 
 function App() {
   const [dialstack, setDialstack] = useState<DialStackInstance | null>(null);
@@ -61,7 +94,7 @@ function App() {
 <!DOCTYPE html>
 <html>
   <head>
-    <script src="https://unpkg.com/@dialstack/sdk"></script>
+    <script src="https://unpkg.com/@dialstack/sdk-js"></script>
   </head>
   <body>
     <dialstack-call-logs></dialstack-call-logs>
@@ -175,7 +208,7 @@ All components inherit appearance from the SDK instance and automatically adjust
 Components support full internationalization via the `locale` prop:
 
 ```tsx
-import { en } from '@dialstack/sdk/locales';
+import { en } from '@dialstack/sdk-js';
 
 // Create a custom locale by extending the default
 const fr: typeof en = {

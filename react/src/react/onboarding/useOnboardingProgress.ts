@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { AccountOnboardingStep } from '../../../../js/src/types/account-onboarding';
+import type { AccountOnboardingStep } from '@dialstack/sdk-js';
 import { ONBOARDING_STEPS } from './constants';
 import { useOnboarding } from './OnboardingContext';
 

@@ -1,5 +1,4 @@
-import { DialStack } from '../index';
-import type { Device, DeviceExpand, DeviceListExpand } from '../index';
+import { DialStack, type Device, type DeviceExpand, type DeviceListExpand } from '../index.js';
 
 // Mock fetch globally
 const mockFetch = jest.fn();

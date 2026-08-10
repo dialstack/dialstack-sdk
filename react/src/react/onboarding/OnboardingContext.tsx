@@ -15,23 +15,22 @@
  * Consumers that need to navigate can call progressStore.setCurrentStep() directly.
  */
 
-import React, { createContext, useContext, useMemo } from 'react';
-import type { ReactNode } from 'react';
-import type { DialStackInstance } from '../../../../js/src/types';
-import type { Locale } from '../../../../js/src/locales';
-import type { FormattingOptions } from '../../../../js/src/types/components';
-import type { ComponentIcons } from '../../../../js/src/types/appearance';
-import type {
-  AccountOnboardingStep,
-  AccountConfig,
-  Account,
-  OnboardingCollectionOptions,
-  OnboardingUser,
-  OnboardingLocation,
-} from '../../../../js/src/types/account-onboarding';
-import type { Extension } from '../../../../js/src/types/dial-plan';
+import React, { createContext, useContext, useMemo, type ReactNode } from 'react';
+import {
+  type DialStackInstance,
+  type Locale,
+  type FormattingOptions,
+  type ComponentIcons,
+  type AccountOnboardingStep,
+  type AccountConfig,
+  type Account,
+  type OnboardingCollectionOptions,
+  type OnboardingUser,
+  type OnboardingLocation,
+  type Extension,
+} from '@dialstack/sdk-js';
 import type { OnboardingProgressStore } from './progress-store';
-import { useDialstackComponents } from '@dialstack/sdk/react';
+import { useDialstackComponents } from '@dialstack/sdk-react';
 
 /** The three steps a user navigates through (final_complete is not a nav target). */
 const NAVIGABLE_STEPS: AccountOnboardingStep[] = ['account', 'numbers', 'hardware'];

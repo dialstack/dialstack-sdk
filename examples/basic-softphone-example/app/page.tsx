@@ -10,7 +10,7 @@ import {
   type PresenceEntry,
   type PresenceStatus,
   type PresenceUpdate,
-} from '@dialstack/sdk/webrtc';
+} from '@dialstack/sdk-webrtc';
 import styles from './page.module.css';
 
 const EMPTY_E911_FORM: EmergencyAddressInput = {

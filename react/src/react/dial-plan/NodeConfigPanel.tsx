@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import type { DialPlanLocale } from '../../../../js/src/types/dial-plan';
+import type { DialPlanLocale } from '@dialstack/sdk-js';
 import type { NodeTypeRegistration, ConfigPanelProps } from './registry-types';
 
 export const trashIcon = (

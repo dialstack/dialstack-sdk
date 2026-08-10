@@ -1,5 +1,5 @@
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
-import type { PhoneNumberStatus } from '../../../../../../js/src/types';
+import type { PhoneNumberStatus } from '@dialstack/sdk-js';
 import type { NumSubStep } from '../../constants';
 
 export function formatPhone(phone: string): string {

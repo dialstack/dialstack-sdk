@@ -1,5 +1,5 @@
-import { Call, type CallInit } from '../call';
-import { resetPranswerSupportForTests } from '../platform';
+import { Call, type CallInit } from '../call.js';
+import { resetPranswerSupportForTests } from '../platform.js';
 
 // Regression coverage for the inbound-answer media direction. The browser
 // auto-creates a track-less sender for each offered m-line at

@@ -20,7 +20,7 @@ import type {
   MediaStream,
   MediaStreamAudioEvent,
   MediaStreamBeginEvent,
-} from '@dialstack/sdk/server';
+} from '@dialstack/sdk-server';
 
 const FRAME_MS = 20;
 const FRAME_BYTES_8K = 160; // 20 ms of μ-law @ 8 kHz

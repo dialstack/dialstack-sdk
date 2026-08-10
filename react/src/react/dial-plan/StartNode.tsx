@@ -7,7 +7,7 @@
 
 import React, { memo } from 'react';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
-import type { StartNodeData } from '../../../../js/src/types/dial-plan';
+import type { StartNodeData } from '@dialstack/sdk-js';
 
 type StartNodeType = Node<StartNodeData, 'start'>;
 

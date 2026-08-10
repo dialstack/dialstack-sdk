@@ -4,7 +4,7 @@ import {
   type PhoneE911Api,
   type UseEmergencyBindingOptions,
 } from '../useEmergencyBinding';
-import type { EmergencyAddress } from '../../../../../../webrtc/src';
+import type { EmergencyAddress } from '@dialstack/sdk-webrtc';
 
 // `registered_ip` null = never anchored (present + reconnect); non-null = anchored
 // in some session. The short-circuit-to-bound also requires that THIS session

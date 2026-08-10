@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": []
+  },
+  "exclude": ["**/__tests__/**", "**/*.test.ts", "**/setupTests.ts"],
+  "//exclude": "Test-only files are not part of the published surface. setupTests.ts is named explicitly because it sits in src/ rather than under __tests__/, and without this the publish build both fails on its missing jest types and would emit it into dist/."
+}

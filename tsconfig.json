@@ -1,4 +1,5 @@
 {
+  "//paths": "The per-audience trees are becoming separate packages, so they refer to each other by package name rather than by relative path. Mapped to source while this one program still spans every tree; once each package builds on its own, these move to the per-package tsconfigs and point at the sibling's dist/ instead \u2014 mapping to source there would pull a sibling into this program and break its rootDir.",
   "compilerOptions": {
     "target": "ES2015",
     "module": "ESNext",
@@ -24,10 +25,23 @@
     "isolatedModules": true,
     "types": ["node", "jest"],
     "paths": {
-      "@dialstack/sdk/react": ["./src/react.ts"]
-    }
+      "@dialstack/sdk-js": ["./js/src/index.ts"],
+      "@dialstack/sdk-js/pure": ["./js/src/pure.ts"],
+      "@dialstack/sdk-webrtc": ["./webrtc/src/index.ts"],
+      "#storybook-fixtures/types": ["./js/src/__storybook__/types.ts"],
+      "#storybook-fixtures/mock-instance": ["./js/src/__mocks__/mock-instance.ts"]
+    },
+    "noEmit": true,
+    "allowImportingTsExtensions": true
   },
-  "include": ["src/**/*", "js/src/**/*", "react/src/**/*", "webrtc/src/**/*", "server/src/**/*"],
+  "include": [
+    "src/**/*",
+    "scripts/**/*",
+    "js/src/**/*",
+    "react/src/**/*",
+    "webrtc/src/**/*",
+    "server/src/**/*"
+  ],
   "exclude": [
     "node_modules",
     "dist",
@@ -43,5 +57,6 @@
     "**/__mocks__/**",
     "**/__stories__/**",
     "**/__storybook__/**"
-  ]
+  ],
+  "//": "Tooling only. Each package under js/, webrtc/, server/ and react/ has its own tsconfig and is built and typechecked there; `npm run typecheck` at this level delegates to all four. This program covers what belongs to no single package: the guard scripts, the shared jest setup, and the tests and stories that reach across packages by name."
 }

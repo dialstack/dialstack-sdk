@@ -6,7 +6,7 @@ import React from 'react';
 import { renderHook, waitFor, render, screen } from '@testing-library/react';
 import { useCreateComponent } from '../useCreateComponent';
 import { DialstackComponentsProvider } from '../DialstackComponentsProvider';
-import type { DialStackInstance, ComponentElement } from '../../../../js/src/types';
+import type { DialStackInstance, ComponentElement } from '@dialstack/sdk-js';
 
 // Mock the version constant
 declare global {
@@ -29,6 +29,10 @@ const createMockDialstack = (mockElement?: ComponentElement['call-logs']): DialS
     create: jest.fn().mockReturnValue(element),
     update: jest.fn(),
     logout: jest.fn().mockResolvedValue(undefined),
+    // create() adds the element to the instance's component set, so the hook has to
+    // withdraw it when the upgrade assertion fails. The mock omitted this, which is
+    // why the leak went unnoticed.
+    removeAppearanceTarget: jest.fn(),
   };
 };
 
@@ -150,5 +154,87 @@ describe('useCreateComponent', () => {
 
     // The mock element should have been removed from its parent
     expect(mockElement.parentNode).toBeNull();
+  });
+  // The registration failure mode this hook exists to convert into an error.
+  //
+  // `document.createElement` succeeds for any tag name, so an unregistered element
+  // appends, renders nothing, and reports nothing — every setter the wrapper calls
+  // afterwards is a silent no-op. Registration is a side effect of importing
+  // @dialstack/sdk-js, which this package only PEERS on, so it goes missing when a
+  // consumer skips the peer or a bundler drops its side-effect imports.
+  describe('when the custom element was never registered', () => {
+    // An inert HTMLUnknownElement is what document.createElement returns for an
+    // unknown tag: a real node with none of the element's own methods.
+    const createUnupgradedElement = () =>
+      document.createElement('dialstack-call-logs') as unknown as ComponentElement['call-logs'];
+
+    it('throws instead of mounting a component that would render nothing', () => {
+      const mockDialstack = createMockDialstack(createUnupgradedElement());
+
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <DialstackComponentsProvider dialstack={mockDialstack}>
+          {children}
+        </DialstackComponentsProvider>
+      );
+      const { result } = renderHook(() => useCreateComponent(mockDialstack, 'call-logs'), {
+        wrapper,
+      });
+
+      expect(() => result.current.containerRef(document.createElement('div'))).toThrow(
+        /not a registered custom element/
+      );
+    });
+
+    // create() registers the element for appearance updates and dialstack-logout
+    // before returning it, so a throw that does not withdraw it leaves an inert
+    // element attached to the instance for as long as the instance lives.
+    it('withdraws the element it created before the error propagates', () => {
+      const element = createUnupgradedElement();
+      const mockDialstack = createMockDialstack(element);
+
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <DialstackComponentsProvider dialstack={mockDialstack}>
+          {children}
+        </DialstackComponentsProvider>
+      );
+      const { result } = renderHook(() => useCreateComponent(mockDialstack, 'call-logs'), {
+        wrapper,
+      });
+
+      expect(() => result.current.containerRef(document.createElement('div'))).toThrow();
+      expect(mockDialstack.removeAppearanceTarget).toHaveBeenCalledWith(element);
+    });
+
+    it('names the package the consumer has to install', () => {
+      const mockDialstack = createMockDialstack(createUnupgradedElement());
+
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <DialstackComponentsProvider dialstack={mockDialstack}>
+          {children}
+        </DialstackComponentsProvider>
+      );
+      const { result } = renderHook(() => useCreateComponent(mockDialstack, 'call-logs'), {
+        wrapper,
+      });
+
+      expect(() => result.current.containerRef(document.createElement('div'))).toThrow(
+        /@dialstack\/sdk-js/
+      );
+    });
+
+    it('accepts an element that carries setInstance, which upgraded ones do', () => {
+      const mockDialstack = createMockDialstack();
+
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <DialstackComponentsProvider dialstack={mockDialstack}>
+          {children}
+        </DialstackComponentsProvider>
+      );
+      const { result } = renderHook(() => useCreateComponent(mockDialstack, 'call-logs'), {
+        wrapper,
+      });
+
+      expect(() => result.current.containerRef(document.createElement('div'))).not.toThrow();
+    });
   });
 });

@@ -13,8 +13,8 @@
 
 import React, { useMemo, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
-import { dialPadKeys, softphoneDimensions as D, softphoneGlyphs } from '@dialstack/sdk/react/core';
-import { useDialInput, canPlaceCall, type Locale } from '@dialstack/sdk/react/core';
+import { dialPadKeys, softphoneDimensions as D, softphoneGlyphs } from '@dialstack/sdk-react/core';
+import { useDialInput, canPlaceCall, type Locale } from '@dialstack/sdk-react/core';
 import { useSoftphone, type ConnectionState } from '../SoftphoneProvider';
 import { CallErrorChip } from './CallErrorChip';
 import { Glyph, chunk, makeStyles } from './primitives';

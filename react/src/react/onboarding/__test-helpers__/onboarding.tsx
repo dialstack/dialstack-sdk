@@ -19,14 +19,14 @@ import { OnboardingProvider } from '../OnboardingContext';
 import { PortalActionsContext } from '../PortalActionsContext';
 import { OnboardingProgressStore } from '../progress-store';
 import { deriveOnboardingState } from '../derive';
-import { defaultLocale } from '../../../../../js/src/locales';
-import type {
-  DialStackInstance,
-  AccountConfig,
-  OnboardingCollectionOptions,
-  OnboardingUser,
-} from '../../../../../js/src/types';
-import type { Extension } from '../../../../../js/src/types/dial-plan';
+import {
+  defaultLocale,
+  type DialStackInstance,
+  type AccountConfig,
+  type OnboardingCollectionOptions,
+  type OnboardingUser,
+  type Extension,
+} from '@dialstack/sdk-js';
 
 // ============================================================================
 // Mock data constants — mirrors WC test fixtures

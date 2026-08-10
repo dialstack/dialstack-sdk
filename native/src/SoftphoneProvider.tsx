@@ -1,6 +1,6 @@
 /**
  * SoftphoneProvider (React Native), same API as the web provider. Shared wiring
- * lives in SoftphoneProviderBase (from `@dialstack/sdk/react/core`); this
+ * lives in SoftphoneProviderBase (from `@dialstack/sdk-react/core`); this
  * file adds only the native bits: the required `storage` adapter,
  * `locationProvider`, `appearance`/`defaultCountry`, and the InCallManager audio
  * session + ringtone.
@@ -28,7 +28,7 @@ import {
   type Ringback,
   type AppResumeSubscribe,
   type SignalingSocketFactory,
-} from '@dialstack/sdk/react/core';
+} from '@dialstack/sdk-react/core';
 
 // Derive the appearance type from the theme resolver rather than importing it
 // from the SDK root (which would pull the web component graph into RN).

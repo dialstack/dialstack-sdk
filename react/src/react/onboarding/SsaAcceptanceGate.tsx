@@ -13,13 +13,17 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { useDialstackComponents } from '@dialstack/sdk/react';
-import { ApiError } from '../../../../js/src/core/instance';
+import { useDialstackComponents } from '@dialstack/sdk-react';
+import {
+  isApiError,
+  type Locale,
+  type Tos,
+  type AccountPricing,
+  type FormattingOptions,
+} from '@dialstack/sdk-js/pure';
 import { computePortalCssVars, generateLayoutCssVars } from './design-tokens';
 import { ShadowContainer } from './ShadowRoot';
 import { useAppearance } from '../useAppearance';
-import type { Locale } from '../../../../js/src/locales';
-import type { Tos, AccountPricing, FormattingOptions } from '../../../../js/src/types';
 import SHARED_STYLES from './styles/styles.css';
 
 const GATE_CSS = `
@@ -213,7 +217,7 @@ export const SsaAcceptanceGate: React.FC<SsaAcceptanceGateProps> = ({
       await dialstack.account.tos.accept(currentTos.version);
       onAccepted();
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
+      if (isApiError(err) && err.status === 409) {
         // The agreement changed under us. Pull the current version so the user
         // reviews and affirms the latest text instead of re-posting the stale one.
         setError(ssa.errors.stale);
@@ -224,7 +228,7 @@ export const SsaAcceptanceGate: React.FC<SsaAcceptanceGateProps> = ({
         } catch {
           /* keep the stale message; a reload will recover */
         }
-      } else if (err instanceof ApiError && err.status === 422) {
+      } else if (isApiError(err) && err.status === 422) {
         setError(ssa.errors.pricingMissing);
       } else {
         setError(ssa.errors.generic);

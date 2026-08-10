@@ -16,10 +16,13 @@ import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffe
 import { create as createConfetti } from 'canvas-confetti';
 import { computePortalCssVars } from './design-tokens';
 import { ShadowContainer } from './ShadowRoot';
-import { OnboardingProvider, findNextIncompleteStep } from './OnboardingContext';
-import type { StepEntryMode } from './OnboardingContext';
+import {
+  OnboardingProvider,
+  findNextIncompleteStep,
+  type StepEntryMode,
+  useOnboarding,
+} from './OnboardingContext';
 import type { StepName } from './constants';
-import { useOnboarding } from './OnboardingContext';
 import { useOnboardingProgress } from './useOnboardingProgress';
 import { useStartedFlag } from './useStartedFlag';
 import { PortalSidebar } from './PortalSidebar';
@@ -33,19 +36,19 @@ import { SsaAcceptanceGate, SsaGateLoadError } from './SsaAcceptanceGate';
 import { PortalActionsContext } from './PortalActionsContext';
 import { mergePhoneNumbers } from './merge-phone-numbers';
 import { useAppearance } from '../useAppearance';
-import { defaultLocale } from '../../../../js/src/locales';
-import type {
-  OnboardingCollectionOptions,
-  FormattingOptions,
-  ComponentIcons,
-  AccountOnboardingStep,
-  PhoneNumberItem,
-  DIDItem,
-  NumberOrder,
-  PortOrder,
-} from '../../../../js/src/types';
-import type { Locale } from '../../../../js/src/locales';
-import type { Tos } from '../../../../js/src/types';
+import {
+  defaultLocale,
+  type OnboardingCollectionOptions,
+  type FormattingOptions,
+  type ComponentIcons,
+  type AccountOnboardingStep,
+  type PhoneNumberItem,
+  type DIDItem,
+  type NumberOrder,
+  type PortOrder,
+  type Locale,
+  type Tos,
+} from '@dialstack/sdk-js/pure';
 import PORTAL_STYLES from './styles/portal-styles.css';
 import SPLASH_STYLES from './styles/splash-styles.css';
 import OVERVIEW_STYLES from './styles/overview-styles.css';

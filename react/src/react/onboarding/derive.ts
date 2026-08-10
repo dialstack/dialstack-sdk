@@ -7,9 +7,13 @@
  * shortcut.
  */
 
-import type { Account, OnboardingLocation, OnboardingUser } from '../../../../js/src/types';
-import type { DIDItem } from '../../../../js/src/types/phone-numbers';
-import type { Device } from '../../../../js/src/types/device';
+import {
+  type Account,
+  type OnboardingLocation,
+  type OnboardingUser,
+  type DIDItem,
+  type Device,
+} from '@dialstack/sdk-js';
 import type { StepName } from './constants';
 
 export interface OnboardingDataSnapshot {

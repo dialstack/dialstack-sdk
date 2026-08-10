@@ -3,7 +3,7 @@ import type {
   DialPlanLocale,
   DialPlanNode,
   InternalDialNode as InternalDialNodeType,
-} from '../../../../../js/src/types/dial-plan';
+} from '@dialstack/sdk-js';
 import type {
   NodeDefinition,
   NodeTypeRegistration,

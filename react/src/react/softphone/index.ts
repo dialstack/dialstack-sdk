@@ -12,8 +12,8 @@
  * The provider owns the connection and token, so the pieces stay connected as
  * they mount/unmount. This barrel is the authority on the public softphone API:
  * it re-exports exactly what consumers need and nothing internal. `react.ts`
- * forwards it verbatim, so `@dialstack/sdk/react` exposes the same names — e.g.
- * `import { Softphone, SoftphoneProvider } from '@dialstack/sdk/react'`.
+ * forwards it verbatim, so `@dialstack/sdk-react` exposes the same names — e.g.
+ * `import { Softphone, SoftphoneProvider } from '@dialstack/sdk-react'`.
  *
  * Internals stay in the sibling folders and are NOT surfaced here: `provider/`
  * (SoftphoneProviderBase), `hooks/` (useEmergencyBinding), `core/` (the DOM/RN-free

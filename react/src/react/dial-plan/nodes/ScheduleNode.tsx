@@ -3,7 +3,7 @@ import type {
   DialPlanLocale,
   DialPlanNode,
   ScheduleNode as ScheduleNodeType,
-} from '../../../../../js/src/types/dial-plan';
+} from '@dialstack/sdk-js';
 import type {
   ConfigChangeContext,
   NodeDefinition,

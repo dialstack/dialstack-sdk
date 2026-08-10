@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { useCallActions } from '../useCallActions';
-import type { Call } from '../../../../../../webrtc/src';
+import type { Call } from '@dialstack/sdk-webrtc';
 
 function fakeCall(overrides: Partial<Record<string, unknown>> = {}): {
   call: Call;

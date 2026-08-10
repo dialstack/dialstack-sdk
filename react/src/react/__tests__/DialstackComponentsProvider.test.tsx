@@ -3,13 +3,12 @@
  */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
-import { renderHook } from '@testing-library/react';
+import { render, screen, renderHook } from '@testing-library/react';
 import {
   DialstackComponentsProvider,
   useDialstackComponents,
 } from '../DialstackComponentsProvider';
-import type { DialStackInstance } from '../../../../js/src/types';
+import type { DialStackInstance } from '@dialstack/sdk-js';
 
 // Mock DialStack instance
 const createMockDialstack = (): DialStackInstance => ({

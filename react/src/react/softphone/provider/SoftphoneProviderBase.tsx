@@ -22,27 +22,24 @@ import {
   shouldRingIncoming,
   isIncomingRinging,
   formatDisplayNumber,
+  type UseCallActions,
+  type UseCallOverlays,
+  type UseEmergencyBinding,
+  type SoftphoneConnectionState,
+  type UsePhoneOptions,
 } from '../hooks';
-import { createPaginatedList } from '../../../../../js/src/shared/pagination';
+import {
+  createPaginatedList,
+  type Call,
+  type CallEndReason,
+  type DialStackPhone,
+  type EmergencyAddress,
+  type ListResponse,
+  type PlatformStorage,
+} from '@dialstack/sdk-webrtc';
 import { resolveSoftphonePalette, type SoftphonePalette } from '../core/theme';
-import { defaultLocale, type Locale } from '../../../../../js/src/locales';
-import type { AppearanceOptions } from '../../../../../js/src/types/appearance';
+import { defaultLocale, type Locale, type AppearanceOptions } from '@dialstack/sdk-js/pure';
 import type { CountryCode } from 'libphonenumber-js';
-import type {
-  Call,
-  CallEndReason,
-  DialStackPhone,
-  EmergencyAddress,
-  ListResponse,
-  PlatformStorage,
-} from '../../../../../webrtc/src';
-import type {
-  UseCallActions,
-  UseCallOverlays,
-  UseEmergencyBinding,
-  SoftphoneConnectionState,
-  UsePhoneOptions,
-} from '../hooks';
 
 /** Context fields both platforms expose. Platforms add their own via `extra`. */
 export interface SoftphoneContextBase {

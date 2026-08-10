@@ -1,5 +1,4 @@
-import { DialStack } from '../index';
-import type { Device, HardwareOrder } from '../index';
+import { DialStack, type Device, type HardwareOrder } from '../index.js';
 
 // Mock fetch globally
 const mockFetch = jest.fn();

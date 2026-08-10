@@ -3,7 +3,7 @@ import type { ComponentType } from 'react';
 import { NodeTypeRegistry } from './registry';
 import { createDialPlanNode } from './DialPlanNode';
 import type { NodeDefinition } from './registry-types';
-import type { DialPlanNode } from '../../../../js/src/types/dial-plan';
+import type { DialPlanNode } from '@dialstack/sdk-js';
 
 import { config as schedule } from './nodes/ScheduleNode';
 import { config as ringAllUsers } from './nodes/RingAllUsersNode';

@@ -8,14 +8,12 @@
 
 import React from 'react';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
-import { useOnboarding } from './OnboardingContext';
+import { useOnboarding, type StepEntryMode } from './OnboardingContext';
 import { useOnboardingProgress } from './useOnboardingProgress';
 import { STEP_ICONS, STEP_DESC_KEYS, CHECK_SVG_WHITE } from './portal-constants';
 import { PHONE_SVG } from './icons';
 import type { StepName } from './progress-store';
-import type { PhoneNumberItem } from '../../../../js/src/types';
-
-import type { StepEntryMode } from './OnboardingContext';
+import type { PhoneNumberItem } from '@dialstack/sdk-js';
 
 export interface OverviewScreenProps {
   onGoToStep: (step: string, mode?: StepEntryMode) => void;

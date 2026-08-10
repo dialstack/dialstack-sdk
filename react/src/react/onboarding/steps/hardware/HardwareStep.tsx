@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useCallback, useMemo } from 'react';
-import type { OnboardingLocation } from '../../../../../../js/src/types';
+import type { OnboardingLocation } from '@dialstack/sdk-js';
 import { useOnboarding, findNextIncompleteStep } from '../../OnboardingContext';
 import { OnboardingLayout } from '../../OnboardingLayout';
 import { HeadsetIcon, LocationIcon } from '../../components/icons';

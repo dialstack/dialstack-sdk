@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-// The web softphone UI ships from `@dialstack/sdk/react` — it bundles the web
+// The web softphone UI ships from `@dialstack/sdk-react` — it bundles the web
 // components together with the shared headless "brain" (hooks + provider base).
 // React Native apps use the separate `@dialstack/sdk-native` package instead.
-import { SoftphoneProvider } from '@dialstack/sdk/react';
+import { SoftphoneProvider } from '@dialstack/sdk-react/softphone';
 import { BatteriesFlow } from './batteries/BatteriesFlow';
 import { ModularFlow } from './modular/ModularFlow';
 import styles from './page.module.css';

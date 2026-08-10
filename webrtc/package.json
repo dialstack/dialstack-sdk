@@ -1,0 +1,56 @@
+{
+  "name": "@dialstack/sdk-webrtc",
+  "version": "2.1.0",
+  "description": "Headless WebRTC softphone core for the DialStack SDK \u2014 no React, no runtime dependencies",
+  "license": "MIT",
+  "type": "module",
+  "author": "DialStack",
+  "homepage": "https://github.com/dialstack/dialstack-sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dialstack/dialstack-sdk.git",
+    "directory": "webrtc"
+  },
+  "bugs": {
+    "url": "https://github.com/dialstack/dialstack-sdk/issues"
+  },
+  "keywords": [
+    "dialstack",
+    "voice",
+    "telephony",
+    "sip",
+    "webrtc",
+    "softphone"
+  ],
+  "main": "./dist/index.cjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "//main": "Legacy entry points for resolvers that ignore `exports` \u2014 bundlers configured with exportsFields: [], older tooling, and anything reading the manifest directly. origin/main shipped both; the split dropped them and `resolve.sync` then failed outright rather than falling back.",
+  "module": "./dist/index.js",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && rollup -c",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "check:package": "publint && attw --pack .",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

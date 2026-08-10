@@ -12,9 +12,7 @@
  * Modeled on the jest doubles in `../../__tests__/Softphone.test.tsx`.
  */
 
-import type { Call } from '../../../../../webrtc/src';
-import type { DialStackPhone } from '../../../../../webrtc/src';
-import type { PhoneOptions } from '../../../../../webrtc/src';
+import { type Call, type DialStackPhone, type PhoneOptions } from '@dialstack/sdk-webrtc';
 
 type Handler = (...args: unknown[]) => void;
 

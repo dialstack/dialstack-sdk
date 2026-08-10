@@ -5,15 +5,15 @@
 import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenumber-js';
 import { BaseComponent } from './base-component';
 import { segmentedControlStyles, tableStyles } from './shared-styles';
-import { ROUTING_TARGET_TYPE_ORDER } from '../types';
-import type {
-  AvailablePhoneNumber,
-  DIDItem,
-  NumberOrder,
-  PhoneNumberOrderingClasses,
-  RoutingTarget,
-  SearchAvailableNumbersOptions,
-  SearchType,
+import {
+  ROUTING_TARGET_TYPE_ORDER,
+  type AvailablePhoneNumber,
+  type DIDItem,
+  type NumberOrder,
+  type PhoneNumberOrderingClasses,
+  type RoutingTarget,
+  type SearchAvailableNumbersOptions,
+  type SearchType,
 } from '../types';
 
 type Step = 'search' | 'results' | 'confirm' | 'route' | 'ordering' | 'complete' | 'error';

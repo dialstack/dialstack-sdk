@@ -1,13 +1,12 @@
 import React from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
 import { expect, within, userEvent, waitFor } from 'storybook/test';
-import type { DecoratorArgs } from '../../../../../js/src/__storybook__/types';
+import type { DecoratorArgs } from '#storybook-fixtures/types';
 import { SsaAcceptanceGate, SsaGateLoadError } from '../SsaAcceptanceGate';
 import { OnboardingPortal } from '../OnboardingPortal';
 import { DialstackComponentsProvider } from '../../DialstackComponentsProvider';
-import { createMockInstance } from '../../../../../js/src/__mocks__/mock-instance';
-import { defaultLocale } from '../../../../../js/src/locales';
-import type { Tos } from '../../../../../js/src/types';
+import { createMockInstance } from '#storybook-fixtures/mock-instance';
+import { defaultLocale, type Tos } from '@dialstack/sdk-js';
 
 const ssa = defaultLocale.accountOnboarding.ssa;
 

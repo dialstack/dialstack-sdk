@@ -24,7 +24,7 @@ import {
   DIAL_COUNTRY,
   isIncomingRinging,
 } from '../core/view-model';
-import type { Call, CallEndReason, DialStackPhone, PhoneError } from '../../../../../webrtc/src';
+import type { Call, CallEndReason, DialStackPhone, PhoneError } from '@dialstack/sdk-webrtc';
 import type { SoftphoneConnectionState } from './usePhone';
 import { useLatestRef } from './useLatestRef';
 

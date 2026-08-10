@@ -5,13 +5,12 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { AsYouType, parsePhoneNumberFromString } from 'libphonenumber-js';
-import type { OnboardingLocation, ResolvedAddress } from '../../../../../../js/src/types';
+import type { OnboardingLocation, ResolvedAddress } from '@dialstack/sdk-js';
 import { US_TIMEZONES } from '../../../../constants/us-timezones';
 import { useOnboarding } from '../../OnboardingContext';
 import { StepNavigation } from '../../StepNavigation';
 import { ErrorAlert } from '../../components/ErrorAlert';
-import { AddressSearch } from './AddressSearch';
-import type { ManualAddress, AddressMode } from './AddressSearch';
+import { AddressSearch, type ManualAddress, type AddressMode } from './AddressSearch';
 
 /**
  * Catches obvious address typos so the error lands in the field slot rather than

@@ -13,7 +13,7 @@ import {
   softphoneDimensions as D,
   type SoftphonePalette,
   type SoftphoneGlyph,
-} from '@dialstack/sdk/react/core';
+} from '@dialstack/sdk-react/core';
 
 /** Renders a shared softphone glyph as an SVG path, matching the web <Glyph>. */
 export function Glyph({

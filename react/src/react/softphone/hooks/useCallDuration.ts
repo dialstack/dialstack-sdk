@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import type { Call } from '../../../../../webrtc/src';
+import type { Call } from '@dialstack/sdk-webrtc';
 import { formatCallDuration, isCallActive } from '../core/view-model';
 
 /**

@@ -1,5 +1,5 @@
-import { devicePhoneError, PhoneError } from '../errors';
-import { DialStackPhone } from '../phone';
+import { devicePhoneError, PhoneError } from '../errors.js';
+import { DialStackPhone } from '../phone.js';
 
 function gumError(name: string, message = 'gum failed'): Error {
   return Object.assign(new Error(message), { name });

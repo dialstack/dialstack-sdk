@@ -14,8 +14,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { DialStackPhone } from '../../../../../webrtc/src';
-import type { PhoneError, PhoneOptions } from '../../../../../webrtc/src';
+import { DialStackPhone, type PhoneError, type PhoneOptions } from '@dialstack/sdk-webrtc';
 import { useLatestRef } from './useLatestRef';
 
 // Phone construction goes through this factory so tests and Storybook can inject

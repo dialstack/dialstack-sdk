@@ -1,4 +1,4 @@
-import { DialStackPhone } from '../phone';
+import { DialStackPhone } from '../phone.js';
 
 // A WebSocket double that completes the handshake: on `open` it sends back an
 // `authenticated` frame so connect() resolves. Lets a test reach a connected

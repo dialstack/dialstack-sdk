@@ -9,13 +9,18 @@
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
-import { useDialstackComponents } from '@dialstack/sdk/react';
+import { useDialstackComponents } from '@dialstack/sdk-react';
 import { OnboardingProgressStore } from './progress-store';
 import { deriveOnboardingState } from './derive';
-import type { Account, OnboardingUser, OnboardingLocation, Tos } from '../../../../js/src/types';
-import type { Extension } from '../../../../js/src/types/dial-plan';
-import type { DIDItem } from '../../../../js/src/types/phone-numbers';
-import type { Device } from '../../../../js/src/types/device';
+import {
+  type Account,
+  type OnboardingUser,
+  type OnboardingLocation,
+  type Tos,
+  type Extension,
+  type DIDItem,
+  type Device,
+} from '@dialstack/sdk-js';
 
 export interface OnboardingBootstrapResult {
   progressStore: OnboardingProgressStore;

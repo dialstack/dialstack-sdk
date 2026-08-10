@@ -12,15 +12,15 @@ import React, { useEffect, useLayoutEffect } from 'react';
 
 import { useDialstackComponents } from './DialstackComponentsProvider';
 import { useCreateComponent } from './useCreateComponent';
-import type {
-  AIAgent as AIAgentData,
-  AIAgentExtensionAvailabilityResult,
-  AIAgentFormValues,
-  AIAgentHostCreateResult,
-  AIAgentHostSubmitPayload,
-} from '../../../js/src/types/ai-agent';
-import type { AIAgentField } from '../../../js/src/types/components';
-import type { Locale } from '../../../js/src/locales';
+import {
+  type AIAgent as AIAgentData,
+  type AIAgentExtensionAvailabilityResult,
+  type AIAgentFormValues,
+  type AIAgentHostCreateResult,
+  type AIAgentHostSubmitPayload,
+  type AIAgentField,
+  type Locale,
+} from '@dialstack/sdk-js';
 
 export interface AIAgentProps {
   /** AI agent ID (`aia_…`) the host has resolved for the current account. */

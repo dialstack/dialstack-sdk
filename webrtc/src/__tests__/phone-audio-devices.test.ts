@@ -1,6 +1,6 @@
-import { DialStackPhone } from '../phone';
-import { PhoneError } from '../errors';
-import type { PlatformStorage } from '../platform';
+import { DialStackPhone } from '../phone.js';
+import { PhoneError } from '../errors.js';
+import type { PlatformStorage } from '../platform.js';
 
 // Coverage for the phone-level device selection: persistence (namespaced per user
 // so a shared workstation doesn't leak one person's mic choice into another's

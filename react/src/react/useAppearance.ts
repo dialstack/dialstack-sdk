@@ -9,7 +9,7 @@
 
 import { useEffect, useState } from 'react';
 
-import type { AppearanceOptions, DialStackInstance } from '../../../js/src/types';
+import type { AppearanceOptions, DialStackInstance } from '@dialstack/sdk-js';
 
 /**
  * Returns the current `AppearanceOptions` for the given instance and re-runs

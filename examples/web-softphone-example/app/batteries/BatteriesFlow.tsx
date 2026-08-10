@@ -5,7 +5,7 @@
 // The `<SoftphoneProvider>` lives one level up in `page.tsx`, so this flow
 // renders nothing but the component; swapping to the modular flow keeps the same
 // provider (and connection) mounted.
-import { Softphone } from '@dialstack/sdk/react';
+import { Softphone } from '@dialstack/sdk-react/softphone';
 import styles from './batteries.module.css';
 
 export const BatteriesFlow: React.FC = () => (

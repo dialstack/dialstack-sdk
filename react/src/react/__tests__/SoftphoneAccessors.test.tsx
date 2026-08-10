@@ -12,8 +12,11 @@
 
 import React from 'react';
 import { render, screen, act } from '@testing-library/react';
-import { SoftphoneProvider } from '../softphone/provider/SoftphoneProvider';
-import { useIncomingCall, useActiveCall } from '../softphone/provider/SoftphoneProvider';
+import {
+  SoftphoneProvider,
+  useIncomingCall,
+  useActiveCall,
+} from '../softphone/provider/SoftphoneProvider';
 
 // ---- fake core (mirrors Softphone.test.tsx) --------------------------------
 
@@ -79,7 +82,10 @@ class FakePhone extends Emitter {
   }
 }
 
-jest.mock('../../../../webrtc/src', () => ({
+// Only the phone is faked — see the note in Softphone.test.tsx: spreading the
+// real module keeps `storage`, which the audio-device provider reads on render.
+jest.mock('@dialstack/sdk-webrtc', () => ({
+  ...jest.requireActual('@dialstack/sdk-webrtc'),
   DialStackPhone: jest.fn().mockImplementation(() => new FakePhone()),
 }));
 

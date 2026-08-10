@@ -1,4 +1,4 @@
-import type { DialPlanLocale } from '../../../../../js/src/types/dial-plan';
+import type { DialPlanLocale } from '@dialstack/sdk-js';
 import type { ResourceMaps } from '../registry-types';
 
 export function resolveTargetType(targetId: string, locale: DialPlanLocale): string {

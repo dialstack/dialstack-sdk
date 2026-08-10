@@ -1,4 +1,4 @@
-import { RingbackTone } from '../ringback';
+import { RingbackTone } from '../ringback.js';
 
 class FakeParam {
   value = 0;

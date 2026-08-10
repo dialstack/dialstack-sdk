@@ -3,7 +3,7 @@ import type {
   DialPlanLocale,
   DialPlanNode,
   ExternalDialNode as ExternalDialNodeType,
-} from '../../../../../js/src/types/dial-plan';
+} from '@dialstack/sdk-js';
 import type { NodeDefinition, NodeTypeRegistration } from '../registry-types';
 import { NodeHeader, StaticExits } from '../DialPlanNode';
 import { ExternalDialConfigPanel } from '../config-panels/ExternalDialConfigPanel';

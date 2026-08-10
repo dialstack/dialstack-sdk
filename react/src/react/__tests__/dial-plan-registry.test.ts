@@ -6,7 +6,7 @@ import React from 'react';
 import type { NodeProps } from '@xyflow/react';
 import { DIAL_PLAN_EDGE_TYPE, NodeTypeRegistry } from '../dial-plan/registry';
 import type { NodeTypeRegistration, ConfigPanelProps } from '../dial-plan/registry-types';
-import type { DialPlanNode } from '../../../../js/src/types/dial-plan';
+import type { DialPlanNode } from '@dialstack/sdk-js';
 
 function createMockRegistration(type: string, flowType: string): NodeTypeRegistration {
   return {

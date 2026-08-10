@@ -1,6 +1,6 @@
 import type { NodeTypes, Edge } from '@xyflow/react';
 import type { NodeTypeRegistration } from './registry-types';
-import type { DialPlanNode } from '../../../../js/src/types/dial-plan';
+import type { DialPlanNode } from '@dialstack/sdk-js';
 
 /** Edge type used for all dial plan connections */
 export const DIAL_PLAN_EDGE_TYPE = 'smoothstep' as const;

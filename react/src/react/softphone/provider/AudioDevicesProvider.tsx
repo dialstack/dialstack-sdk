@@ -6,7 +6,7 @@
  */
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { storage as webStorage } from '../../../../../webrtc/src/platform';
+import { storage as webStorage } from '@dialstack/sdk-webrtc';
 import { useSoftphoneBase } from './SoftphoneProviderBase';
 
 const INPUT_DEVICE_KEY = 'dialstack.softphone.input_device_id';

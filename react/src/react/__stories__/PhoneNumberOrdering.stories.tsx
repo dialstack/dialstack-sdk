@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import type { DecoratorArgs } from '../../../../js/src/__storybook__/types';
+import type { DecoratorArgs } from '#storybook-fixtures/types';
 import { PhoneNumberOrdering } from '../PhoneNumberOrdering';
 
 type Props = React.ComponentProps<typeof PhoneNumberOrdering> & DecoratorArgs;

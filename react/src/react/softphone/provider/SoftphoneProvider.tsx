@@ -19,13 +19,14 @@ import { buildSoftphoneStyles } from '../core/styles';
 import { IncomingRingtone } from '../ui/ringtone';
 import { DialstackComponentsContext } from '../../DialstackComponentsProvider';
 import { useAppearance } from '../../useAppearance';
-import { defaultLocale, type Locale } from '../../../../../js/src/locales';
-import type {
-  AppearanceOptions,
-  DialStackInstance,
-  FormattingOptions,
-} from '../../../../../js/src/types';
-import type { Call, CallEndReason } from '../../../../../webrtc/src';
+import {
+  defaultLocale,
+  type Locale,
+  type AppearanceOptions,
+  type DialStackInstance,
+  type FormattingOptions,
+} from '@dialstack/sdk-js/pure';
+import type { Call, CallEndReason } from '@dialstack/sdk-webrtc';
 
 export type { SoftphoneConnectionState };
 

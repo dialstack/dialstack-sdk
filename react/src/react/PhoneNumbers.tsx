@@ -6,16 +6,16 @@ import React from 'react';
 import { useDialstackComponents } from './DialstackComponentsProvider';
 import { useCreateComponent } from './useCreateComponent';
 import { useUpdateWithSetter } from './useUpdateWithSetter';
-import type {
-  LoaderStart,
-  LoadError,
-  PhoneNumberRowClickEvent,
-  PhoneNumbersClasses,
-  FormattingOptions,
-  ComponentIcons,
-  LayoutVariant,
-} from '../../../js/src/types';
-import type { Locale } from '../../../js/src/locales';
+import {
+  type LoaderStart,
+  type LoadError,
+  type PhoneNumberRowClickEvent,
+  type PhoneNumbersClasses,
+  type FormattingOptions,
+  type ComponentIcons,
+  type LayoutVariant,
+  type Locale,
+} from '@dialstack/sdk-js';
 
 export interface PhoneNumbersProps {
   /**

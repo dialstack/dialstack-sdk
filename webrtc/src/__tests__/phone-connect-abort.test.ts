@@ -1,4 +1,4 @@
-import { DialStackPhone } from '../phone';
+import { DialStackPhone } from '../phone.js';
 
 // Let queued microtasks (awaited fetch → resp.json() chains) drain.
 const flushMicrotasks = async (): Promise<void> => {

@@ -5,7 +5,7 @@ import type {
   DialPlanNode,
   MenuOption,
   MenuNode as MenuNodeType,
-} from '../../../../../js/src/types/dial-plan';
+} from '@dialstack/sdk-js';
 import type {
   ConfigChangeContext,
   NodeDefinition,

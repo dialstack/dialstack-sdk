@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { DialPlanLocale } from '../../../../../../js/src/types/dial-plan';
+import type { DialPlanLocale } from '@dialstack/sdk-js';
 import type { ConfigPanelProps, ListResourcesOptions, ResourceType } from '../../registry-types';
 import type { ResourceGroup } from '../ResourceCombobox';
 

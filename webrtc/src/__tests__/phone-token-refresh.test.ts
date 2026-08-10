@@ -1,5 +1,5 @@
-import { DialStackPhone } from '../phone';
-import { PhoneError } from '../errors';
+import { DialStackPhone } from '../phone.js';
+import { PhoneError } from '../errors.js';
 
 // Scriptable WebSocket double. Captures instances so tests can drive server
 // events, and records every frame the SDK sends so we can assert on

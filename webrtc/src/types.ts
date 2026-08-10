@@ -1,6 +1,6 @@
-import type { PlatformStorage } from './platform';
-import type { Ringback } from './ringback';
-import type { AppResumeSubscribe, SignalingSocketFactory } from './transport';
+import type { PlatformStorage } from './platform.js';
+import type { Ringback } from './ringback.js';
+import type { AppResumeSubscribe, SignalingSocketFactory } from './transport.js';
 
 export type CallState = 'trying' | 'ringing' | 'active' | 'held' | 'ended';
 export type CallDirection = 'inbound' | 'outbound';

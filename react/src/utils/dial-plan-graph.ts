@@ -6,7 +6,7 @@
 
 import type { Node, Edge } from '@xyflow/react';
 import dagre from 'dagre';
-import type { DialPlan, DialPlanNode, StartNodeData } from '../../../js/src/types/dial-plan';
+import type { DialPlan, DialPlanNode, StartNodeData } from '@dialstack/sdk-js';
 import { DIAL_PLAN_EDGE_TYPE, type NodeTypeRegistry } from '../react/dial-plan/registry';
 import { defaultRegistry } from '../react/dial-plan/default-registry';
 

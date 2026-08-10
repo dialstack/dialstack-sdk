@@ -7,7 +7,7 @@
  * so a client that sent both would get a 400 instead of a board.
  */
 
-import { DialStack } from '../server';
+import { DialStack } from '../index.js';
 
 describe('park slots', () => {
   const mockFetch = jest.fn();

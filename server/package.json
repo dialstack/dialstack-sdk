@@ -1,0 +1,61 @@
+{
+  "name": "@dialstack/sdk-server",
+  "version": "2.1.0",
+  "description": "Node.js server client for the DialStack SDK \u2014 REST API, webhooks and media streams",
+  "license": "MIT",
+  "type": "module",
+  "author": "DialStack",
+  "homepage": "https://github.com/dialstack/dialstack-sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dialstack/dialstack-sdk.git",
+    "directory": "server"
+  },
+  "bugs": {
+    "url": "https://github.com/dialstack/dialstack-sdk/issues"
+  },
+  "keywords": [
+    "dialstack",
+    "voice",
+    "telephony",
+    "server",
+    "api",
+    "webhooks"
+  ],
+  "main": "./dist/index.cjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "//main": "Legacy entry points for resolvers that ignore `exports` \u2014 bundlers configured with exportsFields: [], older tooling, and anything reading the manifest directly. origin/main shipped both; the split dropped them and `resolve.sync` then failed outright rather than falling back.",
+  "module": "./dist/index.js",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && rollup -c",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "check:package": "publint && attw --pack .",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "@dialstack/sdk-js": "2.1.0"
+  },
+  "//devDependencies": "@dialstack/sdk-js is dev-only and type-only. This package names it in `import type` for the button and device shapes it shares with the browser SDK \u2014 the documented wire contract, which must not fork into two copies that drift. Those imports erase at build time, so nothing in dist/*.js references it and it is neither a dependency nor a peer. The declaration build inlines the type bodies, so a consumer installing only this package still resolves them.",
+  "//dependencies": "None. A Node REST client has no business installing a browser softphone: the only thing it needed from @dialstack/sdk-webrtc was the ~60-line auto-pagination helper, now duplicated as src/pagination.ts. Two copies of pure interfaces plus one factory cannot skew, whereas the dependency edge made `npm ls` show a backend pulling in WebRTC."
+}

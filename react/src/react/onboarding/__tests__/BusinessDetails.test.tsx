@@ -7,7 +7,7 @@
 import React from 'react';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { BusinessDetails } from '../steps/account/BusinessDetails';
-import type { AccountConfig } from '../../../../../js/src/types';
+import type { AccountConfig } from '@dialstack/sdk-js';
 import {
   renderWithOnboarding,
   mockAccount,

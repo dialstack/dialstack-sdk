@@ -1,6 +1,5 @@
 import { mergePhoneNumbers } from '../merge-phone-numbers';
-import type { PortOrder } from '../../../../../js/src/types/phone-number-ordering';
-import type { DIDItem } from '../../../../../js/src/types/phone-numbers';
+import { type PortOrder, type DIDItem } from '@dialstack/sdk-js';
 
 function mkDID(overrides: Partial<DIDItem> = {}): DIDItem {
   return {

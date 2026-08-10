@@ -13,7 +13,7 @@
  */
 
 import { useCallback, useState } from 'react';
-import type { Call, PhoneError } from '../../../../../webrtc/src';
+import type { Call, PhoneError } from '@dialstack/sdk-webrtc';
 import { sanitizeOrEmitInvalid } from '../core/view-model';
 
 export interface UseCallActionsOptions {

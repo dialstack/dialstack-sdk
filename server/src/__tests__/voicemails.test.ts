@@ -1,5 +1,4 @@
-import { DialStack } from '../index';
-import type { CallLog, Voicemail } from '../index';
+import { DialStack, type CallLog, type Voicemail } from '../index.js';
 
 // Mock fetch globally
 const mockFetch = jest.fn();

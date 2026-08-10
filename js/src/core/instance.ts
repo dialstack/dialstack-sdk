@@ -103,6 +103,32 @@ export class ApiError extends Error {
 }
 
 /**
+ * Structural check for an {@link ApiError}, for callers in other packages.
+ *
+ * Prefer this over `err instanceof ApiError` across a package boundary. The error
+ * is constructed here but caught elsewhere — `@dialstack/sdk-react` handles 409
+ * and 422 from the onboarding flow — and `instanceof` compares against one
+ * specific class object, so it silently returns false whenever the two sides
+ * resolve different module instances: a duplicated install, a bundler that fails
+ * to dedupe, or an error crossing a realm.
+ *
+ * Which is why there is no `instanceof Error` gate either. That would reintroduce
+ * the same failure one level up: `Error` is a per-realm intrinsic, so an error
+ * thrown in an iframe, a worker or a vm context is not an `instanceof Error` in
+ * the parent even though every field below is intact. The check reads only fields
+ * the error carries, so it cannot skew — and `message`/`stack` are not among them
+ * because nothing narrows on them.
+ */
+export function isApiError(err: unknown): err is ApiError {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    (err as ApiError).name === 'ApiError' &&
+    typeof (err as ApiError).status === 'number'
+  );
+}
+
+/**
  * Reads an error response body and extracts the API's `error` message and
  * stable `code` when the body is JSON-shaped (`{ "error": "...", "code": "..." }`),
  * falling back to the raw text or a provided default for the message. Lets

@@ -1,6 +1,9 @@
 {
-  "name": "@dialstack/sdk",
-  "version": "2.1.0",
+  "name": "@dialstack/sdk-dev",
+  "//name": "Not \"@dialstack/sdk\". This root is a private tooling workspace \u2014 jest for every package, storybook, eslint, prettier \u2014 and keeping the published name here made npm link node_modules/@dialstack/sdk, so a stray `from \"@dialstack/sdk\"` anywhere in the monorepo silently resolved to a package with no exports map instead of failing. The published packages are js/, react/, server/ and webrtc/. @dialstack/sdk stays on npm, frozen, for anyone already installing it.",
+  "private": true,
+  "//private": "Never published. Its version is not a release version; the four packages below carry their own.",
+  "version": "2.0.0",
   "description": "Official JavaScript SDK for DialStack - Business Voice for Vertical SaaS",
   "keywords": [
     "dialstack",
@@ -22,59 +25,19 @@
   "bugs": {
     "url": "https://github.com/dialstack/dialstack-sdk/issues"
   },
-  "main": "dist/sdk.cjs",
-  "module": "dist/sdk.mjs",
-  "unpkg": "dist/sdk.umd.js",
-  "types": "dist/index.d.ts",
-  "exports": {
-    "./package.json": "./package.json",
-    ".": {
-      "import": "./dist/sdk.mjs",
-      "require": "./dist/sdk.cjs",
-      "types": "./dist/index.d.ts"
-    },
-    "./pure": {
-      "import": "./dist/pure.mjs",
-      "require": "./dist/pure.cjs",
-      "types": "./dist/pure.d.ts"
-    },
-    "./react": {
-      "import": "./dist/react.mjs",
-      "require": "./dist/react.cjs",
-      "types": "./dist/react.d.ts"
-    },
-    "./react/onboarding": {
-      "import": "./dist/onboarding.mjs",
-      "require": "./dist/onboarding.cjs",
-      "types": "./dist/onboarding.d.ts"
-    },
-    "./server": {
-      "import": "./dist/server/index.js",
-      "require": "./dist/server/index.js",
-      "types": "./dist/server/index.d.ts"
-    },
-    "./webrtc": {
-      "import": "./dist/webrtc.mjs",
-      "require": "./dist/webrtc.cjs",
-      "types": "./dist/webrtc/index.d.ts"
-    }
-  },
-  "files": [
-    "dist"
-  ],
   "scripts": {
-    "build": "rollup -c",
-    "dev": "rollup -c -w",
-    "clean": "rm -rf dist",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint src js/src react/src webrtc/src server/src",
-    "lint:fix": "eslint src js/src react/src webrtc/src server/src --fix",
-    "format": "prettier --write src js/src react/src webrtc/src server/src",
-    "format:check": "prettier --check src js/src react/src webrtc/src server/src",
+    "build": "npm run build --prefix js && npm run build --prefix webrtc && npm run build --prefix server && npm run build --prefix react",
+    "clean": "rm -rf dist js/dist webrtc/dist server/dist react/dist",
+    "typecheck": "npm run typecheck --prefix js && npm run typecheck --prefix webrtc && npm run typecheck --prefix server && npm run typecheck --prefix react && tsc --noEmit -p tsconfig.json",
+    "check:deps": "node scripts/check-dependency-free.ts",
+    "check:package": "npm run check:package --prefix js && npm run check:package --prefix webrtc && npm run check:package --prefix server && npm run check:package --prefix react",
+    "lint": "eslint src scripts js/src react/src webrtc/src server/src native/src",
+    "lint:fix": "eslint src scripts js/src react/src webrtc/src server/src native/src --fix",
+    "format": "prettier --write src scripts js/src react/src webrtc/src server/src native/src",
+    "format:check": "prettier --check src scripts js/src react/src webrtc/src server/src native/src",
     "precommit": "npm run format && npm run lint && npm run typecheck",
     "test": "jest",
     "test:watch": "jest --watch",
-    "prepublishOnly": "npm run clean && npm run lint && npm run typecheck && npm run test && npm run build",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build -o storybook-static",
     "test-storybook": "test-storybook",
@@ -83,18 +46,6 @@
     "test:e2e:webkit": "test-storybook --url http://localhost:6006 --testTimeout 120000 --browsers webkit",
     "test:e2e:all": "npm run test:e2e && npm run test:e2e:firefox && npm run test:e2e:webkit"
   },
-  "peerDependencies": {
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
-  },
-  "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    },
-    "react-dom": {
-      "optional": true
-    }
-  },
   "browserslist": [
     "last 2 Chrome versions",
     "last 2 Firefox versions",
@@ -102,6 +53,7 @@
     "last 2 Edge versions"
   ],
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
     "@babel/core": "^8.0.1",
     "@babel/preset-env": "^8.0.2",
     "@babel/preset-react": "^8.0.1",
@@ -128,28 +80,31 @@
     "@typescript-eslint/parser": "^8.65.0",
     "@xyflow/react": "^12.11.2",
     "canvas-confetti": "^1.9.4",
+    "cmdk": "^1.1.1",
     "dagre": "^0.8.5",
     "eslint": "^10.8.0",
     "eslint-plugin-compat": "^7.0.2",
+    "eslint-plugin-import-x": "^4.17.1",
     "eslint-plugin-react": "^7.0.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.8.0",
     "http-server": "^14.1.1",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
+    "libphonenumber-js": "^1.13.10",
     "prettier": "^3.9.6",
+    "publint": "^0.3.23",
     "rollup": "^4.62.3",
+    "rollup-plugin-dts": "^6.5.1",
+    "semver": "^7.8.5",
     "storybook": "^10.2.13",
     "ts-jest": "^29.4.12",
     "tslib": "^2.8.1",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.65.0"
   },
+  "//engines": "The tooling root, not a published package \u2014 this is the floor for running the repo's own scripts, not a consumer contract. 22.18 because check:deps executes a .ts file directly and Node strips types unflagged only from there; the .nvmrc pins 24, which is what CI uses. The four published packages declare their own, lower floors.",
   "engines": {
-    "node": ">=20.0.0"
-  },
-  "dependencies": {
-    "cmdk": "^1.1.1",
-    "libphonenumber-js": "^1.13.10"
+    "node": ">=22.18.0"
   }
 }

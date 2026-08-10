@@ -17,7 +17,7 @@
 
 import React, { useContext, useMemo } from 'react';
 import { useWindowDimensions, View } from 'react-native';
-import { selectLayout } from '@dialstack/sdk/react/core';
+import { selectLayout } from '@dialstack/sdk-react/core';
 import { SoftphoneContext, useSoftphone } from '../SoftphoneProvider';
 import { DialPad } from './DialPad';
 import { EmergencyBanner } from './EmergencyBanner';
@@ -49,7 +49,11 @@ function SoftphoneScreens({
   const layout = selectLayout(calls);
 
   const base =
-    layout.base === 'in-call' ? <OngoingCall /> : <DialScreen autoFocusDestination={autoFocusDestination} />;
+    layout.base === 'in-call' ? (
+      <OngoingCall />
+    ) : (
+      <DialScreen autoFocusDestination={autoFocusDestination} />
+    );
 
   let body: React.JSX.Element;
   if (layout.base === 'dial' && layout.incoming.length > 0) {
@@ -85,7 +89,11 @@ function SoftphoneScreens({
  * above <DialPad>. Mirrors the web <Softphone>'s DialScreen so the two platforms
  * share one modular contract. The banner self-hides when E911 doesn't apply.
  */
-function DialScreen({ autoFocusDestination }: { autoFocusDestination?: boolean }): React.JSX.Element {
+function DialScreen({
+  autoFocusDestination,
+}: {
+  autoFocusDestination?: boolean;
+}): React.JSX.Element {
   return (
     <>
       <EmergencyBanner />

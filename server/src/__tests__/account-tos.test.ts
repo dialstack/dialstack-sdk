@@ -1,5 +1,4 @@
-import { DialStack } from '../index';
-import type { Tos } from '../index';
+import { DialStack, type Tos } from '../index.js';
 
 // Mock fetch globally
 const mockFetch = jest.fn();

@@ -1,6 +1,6 @@
-import { PhoneError } from './errors';
-import { logError } from './logger';
-import type { ClientMessage, ServerMessage } from './types';
+import { PhoneError } from './errors.js';
+import { logError } from './logger.js';
+import type { ClientMessage, ServerMessage } from './types.js';
 
 /**
  * Opens the signaling WebSocket. Defaults to a bare `new WebSocket(url,

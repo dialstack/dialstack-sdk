@@ -2,8 +2,21 @@ import type { StorybookConfig } from '@storybook/react-vite';
 import type { Plugin } from 'vite';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// The react package's own exports map is the source of truth for which subpaths
+// exist, so the alias list below cannot fall behind it.
+const reactSubpaths: string[] = Object.keys(
+  (
+    JSON.parse(
+      readFileSync(resolve(__dirname, '../react/package.json'), 'utf8')
+    ) as { exports: Record<string, unknown> }
+  ).exports
+)
+  .filter((key) => key.startsWith('./') && key !== './package.json')
+  .map((key) => key.slice(2));
 
 // Redirect .css imports to use Vite's ?inline query, which returns CSS as a
 // default-exported string instead of injecting it into the page.  This matches
@@ -38,13 +51,40 @@ const config: StorybookConfig = {
   addons: [],
   framework: '@storybook/react-vite',
   viteFinal: (config) => {
-    // Resolve @dialstack/sdk/* imports to source files so Storybook's
-    // DialstackComponentsProvider shares the same React context as components.
+    // Resolve the package specifiers to source so Storybook's
+    // DialstackComponentsProvider shares the same React context as components —
+    // two copies of that module would give two createContext calls and a provider
+    // the stories could not see.
+    //
+    // Longest specifier first: '@dialstack/sdk-react/softphone' has to match
+    // before the bare '@dialstack/sdk-react', or the bare entry swallows it.
     config.resolve = {
       ...config.resolve,
       alias: {
         ...(config.resolve?.alias ?? {}),
-        '@dialstack/sdk/react': resolve(__dirname, '../src/react.ts'),
+        // Every react subpath, derived from the exports map rather than listed, so a
+        // new component entry cannot arrive without its alias. Without one, Vite
+        // resolves the subpath through node_modules to the built dist while the
+        // provider resolves to source — two createContext calls, and a story that
+        // renders blank with no error. The comment above promised this and the map
+        // did not have it.
+        ...Object.fromEntries(
+          reactSubpaths.map((sub) => [
+            `@dialstack/sdk-react/${sub}`,
+            resolve(__dirname, `../react/src/${sub}.ts`),
+          ])
+        ),
+        '@dialstack/sdk-js/pure': resolve(__dirname, '../js/src/pure.ts'),
+        '@dialstack/sdk-js': resolve(__dirname, '../js/src/index.ts'),
+        '@dialstack/sdk-webrtc': resolve(__dirname, '../webrtc/src/index.ts'),
+        '@dialstack/sdk-react': resolve(__dirname, '../react/src/index.ts'),
+        // Internals the stories borrow from the browser package: story arg types
+        // and the mock instance. The `#` form marks them as not public API.
+        '#storybook-fixtures/types': resolve(__dirname, '../js/src/__storybook__/types.ts'),
+        '#storybook-fixtures/mock-instance': resolve(
+          __dirname,
+          '../js/src/__mocks__/mock-instance.ts'
+        ),
       },
     };
     config.define = {

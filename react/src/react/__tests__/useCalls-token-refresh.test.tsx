@@ -3,12 +3,12 @@
  * without letting a changing callback identity retrigger the connect effect
  * (which would tear down + reconnect the socket). The refresh mechanism itself
  * is covered at the phone layer in
- * `../../../../webrtc/src/__tests__/phone-token-refresh.test.ts`; here we only
+ * the softphone package's own `phone-token-refresh.test.ts`; here we only
  * assert the hook plumbs the option through the factory correctly.
  */
 
 import { renderHook } from '@testing-library/react';
-import type { DialStackPhone, PhoneOptions } from '../../../../webrtc/src';
+import type { DialStackPhone, PhoneOptions } from '@dialstack/sdk-webrtc';
 import { usePhone, __setPhoneFactory } from '../softphone/hooks/usePhone';
 
 class FakePhone {

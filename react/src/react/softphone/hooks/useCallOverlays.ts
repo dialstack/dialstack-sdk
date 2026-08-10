@@ -11,7 +11,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import type { Call } from '../../../../../webrtc/src';
+import type { Call } from '@dialstack/sdk-webrtc';
 
 export interface UseCallOverlays {
   /** Whether the in-call DTMF keypad overlay is showing. */

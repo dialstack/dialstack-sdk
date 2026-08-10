@@ -1,9 +1,5 @@
 import React from 'react';
-import type {
-  DialPlanLocale,
-  DialPlanNode,
-  HangUpNode as HangUpNodeType,
-} from '../../../../../js/src/types/dial-plan';
+import type { DialPlanLocale, DialPlanNode, HangUpNode as HangUpNodeType } from '@dialstack/sdk-js';
 import type { ConfigPanelProps, NodeDefinition, NodeTypeRegistration } from '../registry-types';
 import { NodeHeader } from '../DialPlanNode';
 import { PhoneOffIcon } from '../icons';

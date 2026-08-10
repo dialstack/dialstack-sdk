@@ -33,7 +33,14 @@ import xyflowStyles from '@xyflow/react/dist/style.css';
 
 import { useDialstackComponents } from './DialstackComponentsProvider';
 import { useAppearance } from './useAppearance';
-import type { DialStackInstance } from '../../../js/src/types';
+import {
+  type DialStackInstance,
+  type DialPlan as DialPlanData,
+  type DialPlanNode,
+  type DialPlanLocale,
+  type DialPlanMode,
+  type DialPlanHandle,
+} from '@dialstack/sdk-js';
 import {
   transformDialPlanToGraph,
   transformGraphToDialPlan,
@@ -50,16 +57,13 @@ import { NodeConfigPanel, trashIcon } from './dial-plan/NodeConfigPanel';
 import { EditorToolbar } from './dial-plan/EditorToolbar';
 import { dialPlanStyles } from './dial-plan/styles';
 import { ShadowContainer } from './onboarding/ShadowRoot';
-import type { ListResourcesOptions, ResourceType } from './dial-plan/registry-types';
-import type {
-  DialPlan as DialPlanData,
-  DialPlanNode,
-  DialPlanLocale,
-  DialPlanMode,
-  DialPlanHandle,
-} from '../../../js/src/types/dial-plan';
-import { defaultDialPlanLocale } from '../../../js/src/locales/en';
-import type { ConfigPanelProps, ResourceMaps } from './dial-plan/registry-types';
+import {
+  type ListResourcesOptions,
+  type ResourceType,
+  type ConfigPanelProps,
+  type ResourceMaps,
+} from './dial-plan/registry-types';
+import { defaultDialPlanLocale } from '../locales/dial-plan-en';
 import { formatValidationError } from '../utils/format-validation-error';
 
 // ============================================================================

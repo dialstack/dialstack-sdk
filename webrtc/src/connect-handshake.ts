@@ -1,4 +1,4 @@
-import { PhoneError } from './errors';
+import { PhoneError } from './errors.js';
 
 // All state for the single in-flight connect(), in one object so the three guards
 // that used to be loose fields on DialStackPhone move together. connect() spans

@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import React from 'react';
 import { Softphone } from '../softphone/ui/Softphone';
 import { SoftphoneProvider } from '../softphone/provider/SoftphoneProvider';
-import type { AppearanceOptions } from '../../../../js/src/types';
+import type { AppearanceOptions } from '@dialstack/sdk-js';
 
 // <Softphone> is a pure consumer of <SoftphoneProvider> (which owns the
 // connection + token). The provider opens a WebSocket for a live phone, so these

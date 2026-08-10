@@ -4,20 +4,19 @@
  */
 
 import React, { useEffect, useCallback, useState, useMemo, useRef } from 'react';
-import type {
-  Device,
-  DECTBase,
-  DECTHandset,
-  DeviceUserAssignment,
-  OnboardingLocation,
-} from '../../../../../../js/src/types';
-import type { Extension } from '../../../../../../js/src/types/dial-plan';
+import {
+  type Device,
+  type DECTBase,
+  type DECTHandset,
+  type DeviceUserAssignment,
+  type OnboardingLocation,
+  type Extension,
+} from '@dialstack/sdk-js';
 import { useOnboarding } from '../../OnboardingContext';
 import { StepNavigation } from '../../StepNavigation';
 import { ErrorAlert } from '../../components/ErrorAlert';
 import { SkeletonLine, SkeletonCircle, SkeletonCard } from '../../components/Skeleton';
-import { DeviceCard } from './DeviceCard';
-import type { AssignableDevice } from './DeviceCard';
+import { DeviceCard, type AssignableDevice } from './DeviceCard';
 
 // ============================================================================
 // Pure helpers

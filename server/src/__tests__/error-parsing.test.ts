@@ -1,5 +1,4 @@
-import { DialStack, DialStackError } from '../index';
-import type { DeviceUserConflictResponse } from '../index';
+import { DialStack, DialStackError, type DeviceUserConflictResponse } from '../index.js';
 
 // Mock fetch globally
 const mockFetch = jest.fn();

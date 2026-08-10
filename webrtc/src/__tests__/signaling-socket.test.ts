@@ -5,7 +5,7 @@
 // lives in the native package; here we verify Transport's contract — it opens a
 // bare socket by default and otherwise defers verbatim to an injected factory.
 
-import { Transport } from '../transport';
+import { Transport } from '../transport.js';
 
 class CapturingWebSocket {
   static OPEN = 1;

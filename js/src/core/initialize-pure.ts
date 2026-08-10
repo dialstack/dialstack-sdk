@@ -20,7 +20,7 @@ import { DialStackInstanceImplClass } from './instance';
  * Load and initialize the DialStack SDK (pure, no side effects)
  *
  * This is the pure version that doesn't auto-register Web Components.
- * Use the regular loadDialstackAndInitialize() from '@dialstack/sdk' if you
+ * Use the regular loadDialstackAndInitialize() from '@dialstack/sdk-js' if you
  * want automatic component registration.
  *
  * @param initParams - Initialization parameters
@@ -28,7 +28,7 @@ import { DialStackInstanceImplClass } from './instance';
  *
  * @example
  * ```typescript
- * import { loadDialstackAndInitialize } from '@dialstack/sdk/pure';
+ * import { loadDialstackAndInitialize } from '@dialstack/sdk-js/pure';
  *
  * // For SSR/testing - components won't be registered
  * const dialstack = await loadDialstackAndInitialize({
@@ -136,31 +136,43 @@ export async function loadDialstackAndInitialize(
 }
 
 /**
- * Register Web Components manually
+ * Register Web Components manually.
  *
- * Call this to register the DialStack Web Components when using the pure entry point.
- * This is only needed in browser environments where you want to use dialstack.create().
+ * Call this when using the pure entry point, in a browser, before
+ * `dialstack.create()`. **Await it**: registration happens through dynamic
+ * imports, so a component created in the same tick may not be upgraded yet —
+ * `document.createElement` would hand back an inert `HTMLUnknownElement` whose
+ * setters silently do nothing.
+ *
+ * Every tag in `ComponentTagName` is registered here. A tag missing from this list
+ * is not a partial success: the React wrapper for it throws, because an
+ * unregistered element cannot be driven.
  *
  * @example
  * ```typescript
- * import { loadDialstackAndInitialize, registerComponents } from '@dialstack/sdk/pure';
+ * import { loadDialstackAndInitialize, registerComponents } from '@dialstack/sdk-js/pure';
  *
  * // Register components when ready (e.g., after hydration)
  * if (typeof window !== 'undefined') {
- *   registerComponents();
+ *   await registerComponents();
  * }
  * ```
  */
-export function registerComponents(): void {
+export async function registerComponents(): Promise<void> {
   if (typeof window === 'undefined') {
     console.warn('DialStack: registerComponents() called in non-browser environment');
     return;
   }
 
-  // Dynamically import components to trigger registration
-  import('../components/call-logs');
-  import('../components/voicemails');
-  import('../components/phone-number-ordering');
-  import('../components/phone-numbers');
-  import('../components/ai-agent');
+  // Awaited together, so the promise settles only once every element is defined.
+  // Dispatching these without awaiting made the completion time unobservable, and
+  // a caller that created a component immediately got an un-upgraded element.
+  await Promise.all([
+    import('../components/call-logs'),
+    import('../components/voicemails'),
+    import('../components/call-history'),
+    import('../components/phone-number-ordering'),
+    import('../components/phone-numbers'),
+    import('../components/ai-agent'),
+  ]);
 }

@@ -12,7 +12,7 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { OnboardingPortal } from '../OnboardingPortal';
 import { DialstackComponentsProvider } from '../../DialstackComponentsProvider';
-import { defaultLocale } from '../../../../../js/src/locales';
+import { defaultLocale } from '@dialstack/sdk-js';
 import {
   createMockInstance,
   mockAccount,

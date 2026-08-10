@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { useCallOverlays } from '../useCallOverlays';
-import type { Call } from '../../../../../../webrtc/src';
+import type { Call } from '@dialstack/sdk-webrtc';
 
 function fakeCall(): Call {
   return { state: 'active', isMuted: false } as unknown as Call;

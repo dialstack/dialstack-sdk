@@ -11,7 +11,7 @@ const poppins = Poppins({
 
 export const metadata = {
   title: 'DialStack basic softphone example',
-  description: 'Minimal WebRTC softphone built directly on the headless @dialstack/sdk/webrtc core.',
+  description: 'Minimal WebRTC softphone built directly on the headless @dialstack/sdk-webrtc core.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

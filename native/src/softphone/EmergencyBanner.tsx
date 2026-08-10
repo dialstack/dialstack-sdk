@@ -27,7 +27,7 @@ import {
   softphoneGlyphs,
   normalizeStateCode,
   type EmergencyAddressInput,
-} from '@dialstack/sdk/react/core';
+} from '@dialstack/sdk-react/core';
 import { useSoftphone } from '../SoftphoneProvider';
 import { Glyph, makeStyles } from './primitives';
 
@@ -133,7 +133,11 @@ export function EmergencyBanner(): React.JSX.Element | null {
             <View style={styles.e911Sheet}>
               <View style={styles.e911Header}>
                 <Text style={styles.e911Title}>{t('emergencyPrompt')}</Text>
-                <Pressable onPress={closeModal} hitSlop={12} accessibilityLabel={t('emergencyBack')}>
+                <Pressable
+                  onPress={closeModal}
+                  hitSlop={12}
+                  accessibilityLabel={t('emergencyBack')}
+                >
                   <Text style={styles.e911Close}>✕</Text>
                 </Pressable>
               </View>
@@ -206,23 +210,27 @@ export function EmergencyBanner(): React.JSX.Element | null {
                     <Text style={styles.e911Error}>{emergency.error ?? locateError}</Text>
                   )}
                   <View style={styles.e911FooterBtns}>
-                  {emergency.savedAddresses.length > 0 && (
+                    {emergency.savedAddresses.length > 0 && (
+                      <Pressable
+                        onPress={() => setChoosing(true)}
+                        style={[styles.e911BtnSecondary, styles.e911FooterBtn]}
+                      >
+                        <Text style={styles.e911BtnSecondaryText}>{t('emergencyBack')}</Text>
+                      </Pressable>
+                    )}
                     <Pressable
-                      onPress={() => setChoosing(true)}
-                      style={[styles.e911BtnSecondary, styles.e911FooterBtn]}
+                      disabled={emergency.submitting}
+                      onPress={submit}
+                      style={[
+                        styles.e911Btn,
+                        styles.e911FooterBtn,
+                        emergency.submitting && styles.e911BtnDisabled,
+                      ]}
                     >
-                      <Text style={styles.e911BtnSecondaryText}>{t('emergencyBack')}</Text>
+                      <Text style={styles.e911BtnText}>
+                        {emergency.submitting ? t('emergencySaving') : t('emergencySave')}
+                      </Text>
                     </Pressable>
-                  )}
-                  <Pressable
-                    disabled={emergency.submitting}
-                    onPress={submit}
-                    style={[styles.e911Btn, styles.e911FooterBtn, emergency.submitting && styles.e911BtnDisabled]}
-                  >
-                    <Text style={styles.e911BtnText}>
-                      {emergency.submitting ? t('emergencySaving') : t('emergencySave')}
-                    </Text>
-                  </Pressable>
                   </View>
                 </View>
               )}

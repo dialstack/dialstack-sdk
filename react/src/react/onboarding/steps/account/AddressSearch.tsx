@@ -4,11 +4,7 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import type {
-  AddressSuggestion,
-  ResolvedAddress,
-  OnboardingLocation,
-} from '../../../../../../js/src/types';
+import type { AddressSuggestion, ResolvedAddress, OnboardingLocation } from '@dialstack/sdk-js';
 import { US_STATES } from '../../../../constants/us-states';
 
 export interface ManualAddress {

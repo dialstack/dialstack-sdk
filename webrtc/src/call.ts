@@ -1,23 +1,21 @@
-import { devicePhoneError, isRetryableWithoutDevice, PhoneError } from './errors';
-import { logWarn } from './logger';
+import { devicePhoneError, isRetryableWithoutDevice, PhoneError } from './errors.js';
+import { logWarn } from './logger.js';
 import {
   createMediaStream,
   createPeerConnection,
   getUserMedia,
   supportsPranswer,
-} from './platform';
-import { RingbackTone, type Ringback } from './ringback';
-import type {
-  MediaStream,
-  MediaStreamConstraints,
-  MediaStreamTrack,
-  RTCDTMFSender,
-  RTCIceCandidateInit,
-  RTCIceServer,
-  RTCPeerConnection,
-  RTCSessionDescriptionInit,
-} from './platform';
-import type { Transport } from './transport';
+  type MediaStream,
+  type MediaStreamConstraints,
+  type MediaStreamTrack,
+  type RTCDTMFSender,
+  type RTCIceCandidateInit,
+  type RTCIceServer,
+  type RTCPeerConnection,
+  type RTCSessionDescriptionInit,
+} from './platform.js';
+import { RingbackTone, type Ringback } from './ringback.js';
+import type { Transport } from './transport.js';
 import type {
   CallDirection,
   CallEndReason,
@@ -25,7 +23,7 @@ import type {
   HeldBy,
   RejectReason,
   ServerMessage,
-} from './types';
+} from './types.js';
 
 // Fires at most once per process: an audio sender with no `.dtmf` on React Native
 // means the app resolved react-native-webrtc to a build without the DialStack fork

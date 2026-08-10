@@ -3,9 +3,12 @@ import React from 'react';
 import { DialPad } from '../softphone/ui/DialPad';
 import { IncomingCall } from '../softphone/ui/IncomingCall';
 import { OngoingCall } from '../softphone/ui/OngoingCall';
-import { SoftphoneProvider } from '../softphone/provider/SoftphoneProvider';
-import { useActiveCall, useIncomingCall } from '../softphone/provider/SoftphoneProvider';
-import type { AppearanceOptions } from '../../../../js/src/types';
+import {
+  SoftphoneProvider,
+  useActiveCall,
+  useIncomingCall,
+} from '../softphone/provider/SoftphoneProvider';
+import type { AppearanceOptions } from '@dialstack/sdk-js';
 
 // The "build your own" path: instead of the batteries-included <Softphone>, a
 // host composes the exported pieces (DialPad / IncomingCall / OngoingCall) under

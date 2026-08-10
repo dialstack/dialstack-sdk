@@ -2,7 +2,7 @@ import type { DialStackInstanceImpl } from '../types/core';
 import type { AppearanceOptions, UpdateOptions } from '../types/appearance';
 import type { SearchAvailableNumbersOptions, NumberOrder } from '../types/phone-number-ordering';
 import type { DIDItem, PaginatedResponse } from '../types';
-import type { DialPlan } from '../types/dial-plan';
+import { type DialPlan, type Extension } from '../types/dial-plan';
 import type { CallEventMap, CallEventHandler } from '../types/callbacks';
 import type { ComponentTagName, ComponentElement } from '../types/components';
 import type {
@@ -10,15 +10,19 @@ import type {
   ApprovePortOrderRequest,
   PortOrder,
 } from '../types/number-porting';
-import type {
-  CreateDeskphoneRequest,
-  UpdateDeskphoneRequest,
-  CreateDeviceRequest,
-  CreateDeviceResponse,
-  UpdateDeviceRequest,
-  DeviceListOptions,
-  ProvisioningEventListOptions,
-  Device,
+import {
+  type CreateDeskphoneRequest,
+  type UpdateDeskphoneRequest,
+  type CreateDeviceRequest,
+  type CreateDeviceResponse,
+  type UpdateDeviceRequest,
+  type DeviceListOptions,
+  type ProvisioningEventListOptions,
+  type Device,
+  type CreateDeskphoneLineRequest,
+  type DeviceLine,
+  type DeviceUserAssignment,
+  type AssignDeviceUserRequest,
 } from '../types/device';
 import type {
   CreateButtonTemplateRequest,
@@ -45,13 +49,6 @@ import type {
   CreateLocationRequest,
   UpdateLocationRequest,
 } from '../types/account-onboarding';
-import type { Extension } from '../types/dial-plan';
-import type {
-  CreateDeskphoneLineRequest,
-  DeviceLine,
-  DeviceUserAssignment,
-  AssignDeviceUserRequest,
-} from '../types/device';
 import {
   MOCK_CALLS,
   MOCK_VOICEMAILS,

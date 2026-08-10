@@ -1,5 +1,5 @@
 import React from 'react';
-import type { DialPlanLocale } from '../../../../js/src/types/dial-plan';
+import type { DialPlanLocale } from '@dialstack/sdk-js';
 import type { NodeTypeRegistry } from './registry';
 
 interface NodeLibraryProps {

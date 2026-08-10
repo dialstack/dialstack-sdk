@@ -5,7 +5,13 @@
 import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenumber-js';
 import { BaseComponent } from './base-component';
 import { segmentedControlStyles, tableStyles, paginationStyles } from './shared-styles';
+// Two statements on purpose, and no-duplicates is disabled for them. The bare
+// import is a side effect — routing-target.ts ends in customElements.define — and
+// merging it into the type import erases it, so the element never registers and
+// every setter on it silently no-ops. eslint's autofix did exactly that once.
+// eslint-disable-next-line import-x/no-duplicates
 import './routing-target';
+// eslint-disable-next-line import-x/no-duplicates
 import type { RoutingTargetComponent } from './routing-target';
 import type {
   PhoneNumberItem,

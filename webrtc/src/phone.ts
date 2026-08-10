@@ -1,19 +1,20 @@
-import { createPaginatedList, type PaginatedList } from '../../js/src/shared/pagination';
-import { Call } from './call';
-import { ConnectHandshake } from './connect-handshake';
-import { devicePhoneError, NotImplementedError, PhoneError } from './errors';
-import { logError, logWarn } from './logger';
+import { createPaginatedList, type PaginatedList } from './pagination.js';
+import { Call } from './call.js';
+import { ConnectHandshake } from './connect-handshake.js';
+import { devicePhoneError, NotImplementedError, PhoneError } from './errors.js';
+import { logError, logWarn } from './logger.js';
 import {
   enumerateDevices,
   getUserMedia,
   onDeviceChange,
   storage as defaultStorage,
   supportsPranswer,
-} from './platform';
-import type { PlatformStorage } from './platform';
-import type { RTCIceServer, RTCSessionDescriptionInit } from './platform';
-import type { Ringback } from './ringback';
-import { Transport, type AppResumeSubscribe, type SignalingSocketFactory } from './transport';
+  type PlatformStorage,
+  type RTCIceServer,
+  type RTCSessionDescriptionInit,
+} from './platform.js';
+import type { Ringback } from './ringback.js';
+import { Transport, type AppResumeSubscribe, type SignalingSocketFactory } from './transport.js';
 import type {
   AudioDevice,
   AudioDeviceList,
@@ -28,7 +29,7 @@ import type {
   PresenceUpdate,
   ServerMessage,
   SettablePresenceStatus,
-} from './types';
+} from './types.js';
 
 const DEFAULT_API_BASE_URL = 'https://api.dialstack.ai';
 

@@ -1,10 +1,10 @@
 import React from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
 import { expect, within, userEvent, waitFor } from 'storybook/test';
-import type { DecoratorArgs } from '../../../../../js/src/__storybook__/types';
+import type { DecoratorArgs } from '#storybook-fixtures/types';
 import { OnboardingPortal } from '../OnboardingPortal';
 import { DialstackComponentsProvider } from '../../DialstackComponentsProvider';
-import { createMockInstance } from '../../../../../js/src/__mocks__/mock-instance';
+import { createMockInstance } from '#storybook-fixtures/mock-instance';
 
 const LOGO_HTML = `<div style="display:flex;align-items:center;gap:8px">
 <svg width="28" height="24" viewBox="0 0 34 37" fill="none" xmlns="http://www.w3.org/2000/svg">

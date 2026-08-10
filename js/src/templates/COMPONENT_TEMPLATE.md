@@ -4,16 +4,23 @@ This guide outlines how to add new components to the DialStack SDK, following th
 
 ## Overview
 
-Each component has two parts:
-1. **Web Component** (`src/components/`) - The native custom element with Shadow DOM
-2. **React Wrapper** (`src/react/`) - A React component that wraps the Web Component
+Each component has two parts, and they now live in **two different packages**:
+
+1. **Web Component** (`@dialstack/sdk-js`, `js/src/components/`) — the native custom
+   element with Shadow DOM
+2. **React Wrapper** (`@dialstack/sdk-react`, `react/src/react/`) — a React component
+   that wraps it
+
+The wrapper reaches the element's types by importing `@dialstack/sdk-js` by package
+name, never by a relative path across the tree — eslint fails the build otherwise,
+because a relative path would not survive publishing.
 
 ## Step 1: Create the Web Component
 
-Create a new file in `src/components/`:
+Create a new file in `js/src/components/`:
 
 ```typescript
-// src/components/new-component.ts
+// js/src/components/new-component.ts
 
 import { BaseComponent } from './base-component';
 import type { FormattingOptions, LoaderStart, LoadError } from '../core/types';
@@ -112,7 +119,7 @@ export class NewComponentComponent extends BaseComponent {
       return `<div class="error">${this.error}</div>`;
     }
     // Render items
-    return this.items.map(item => `<div>${item.id}</div>`).join('');
+    return this.items.map((item) => `<div>${item.id}</div>`).join('');
   }
 
   private attachEventListeners(): void {
@@ -128,17 +135,25 @@ if (typeof window !== 'undefined' && !customElements.get('dialstack-new-componen
 
 ## Step 2: Update Types
 
-Add to `src/core/types.ts`:
+Add to `js/src/types/components.ts`:
 
 ```typescript
 // Add to ComponentTagName union
 export type ComponentTagName = 'call-logs' | 'voicemails' | 'new-component';
 
-// Add to ComponentElement interface
+// Declare the element's own interface beside the others, then add it to the map.
+// Each extends BaseComponentElement rather than inlining `HTMLElement & { … }`.
+export interface NewComponentElement extends BaseComponentElement {
+  setItems: (items: string[]) => void;
+}
+
+// Add to the ComponentElement map. Keys are quoted because every tag name is
+// hyphenated — that is also why `document.createElement` cannot validate them, and
+// why an unregistered element fails silently rather than throwing.
 export interface ComponentElement {
-  'call-logs': HTMLElement & { setInstance: (instance: DialStackInstanceImpl) => void };
-  'voicemails': HTMLElement & { setInstance: (instance: DialStackInstanceImpl) => void };
-  'new-component': HTMLElement & { setInstance: (instance: DialStackInstanceImpl) => void };
+  'call-logs': CallLogsElement;
+  voicemails: VoicemailsElement;
+  'new-component': NewComponentElement;
 }
 
 // Add callbacks interface
@@ -149,9 +164,9 @@ export interface NewComponentCallbacks extends CommonComponentCallbacks {
 
 ## Step 3: Create React Wrapper
 
-Create a new file in `src/react/`:
+Create a new file in `react/src/react/`:
 
-```typescript
+````typescript
 // src/react/NewComponent.tsx
 
 import React from 'react';
@@ -221,19 +236,48 @@ export const NewComponent: React.FC<NewComponentProps> = ({
 
   return <div ref={containerRef} className={className} style={style} />;
 };
-```
+````
 
 ## Step 4: Export the Component
 
-Add to `src/index.ts`:
+Three edits, because the two halves publish separately.
+
+**Register the element** — add a bare import to `js/src/core/initialize.ts` beside the
+others. That side effect is what defines the element; without it
+`document.createElement` returns an inert node that renders nothing, and
+`useCreateComponent` throws to say so.
+
+```typescript
+import '../components/new-component';
+```
+
+**Give the React wrapper its own entry point** — create `react/src/new-component.ts`:
 
 ```typescript
 export { NewComponent } from './react/NewComponent';
+export type { NewComponentProps } from './react/NewComponent';
 ```
+
+**Declare that entry** in `react/package.json` under `exports`, with `types` first:
+
+```json
+"./new-component": {
+  "types": "./dist/new-component.d.ts",
+  "import": "./dist/new-component.mjs",
+  "require": "./dist/new-component.cjs"
+}
+```
+
+Do **not** add it to `react/src/index.ts`. Components are deliberately absent from
+the package root: a barrel makes the whole module graph reachable from any single
+import, which is what made a softphone-only consumer pay for the dial-plan editor.
+The rollup config generates the new entry from `COMPONENT_ENTRIES`, and
+`scripts/sdk-release/config.go` needs a matching `SubpathLabels` entry or the release
+will refuse to run.
 
 ## Step 5: Add Locale Strings
 
-Update `src/locales/index.ts`:
+Update `js/src/locales/en.ts`:
 
 ```typescript
 export const defaultLocale = {
@@ -248,7 +292,7 @@ export const defaultLocale = {
 
 ## Step 6: Write Tests
 
-Create `src/react/__tests__/NewComponent.test.tsx`:
+Create `react/src/react/__tests__/NewComponent.test.tsx`:
 
 ```typescript
 import React from 'react';

@@ -1,7 +1,7 @@
 # DialStack web softphone example
 
 A minimal Next.js app that renders the SDK's batteries-included **`<Softphone>`**
-component from `@dialstack/sdk/react` — the web sibling of the
+component from `@dialstack/sdk-react` — the web sibling of the
 [mobile examples](../mobile). It mints a short-lived user session on the server
 (so your `sk_live_*` key never reaches the browser), hands the token to
 `<SoftphoneProvider>`, and the component owns everything else: connecting, the
@@ -9,7 +9,7 @@ dial pad, incoming/ongoing call UI, audio, mute/hold/transfer/DTMF, and the E911
 flow.
 
 > **This vs. the [basic example](../basic-softphone-example):** the basic example
-> wires the headless `@dialstack/sdk/webrtc` core (`DialStackPhone` / `Call`) by
+> wires the headless `@dialstack/sdk-webrtc` core (`DialStackPhone` / `Call`) by
 > hand and renders its own UI — use it when you want full control. This example
 > drops in the shared component — use it when you want the batteries-included web
 > softphone with almost no code.
@@ -45,7 +45,7 @@ and receive calls. The browser prompts for microphone access on the first call.
 token:
 
 ```ts
-import { DialStack } from '@dialstack/sdk/server';
+import { DialStack } from '@dialstack/sdk-server';
 
 const dialstack = new DialStack(process.env.DIALSTACK_SECRET_KEY, {
   apiUrl: process.env.DIALSTACK_API_BASE_URL,
@@ -61,10 +61,10 @@ can only ever mint a session for the one configured user.
 
 ## Which import?
 
-Import the web components from **`@dialstack/sdk/react`**:
+Import the web components from **`@dialstack/sdk-react`**:
 
 ```tsx
-import { SoftphoneProvider, Softphone } from '@dialstack/sdk/react';
+import { SoftphoneProvider, Softphone } from '@dialstack/sdk-react/softphone';
 ```
 
 This bundles both the web `<Softphone>` UI and the shared headless "brain" (the

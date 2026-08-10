@@ -8,19 +8,19 @@
 // runs inside the SAME `<SoftphoneProvider>` as the batteries flow (owned by
 // `page.tsx`), so switching between the two never reconnects.
 //
-// Everything here imports from the public `@dialstack/sdk/react` entry only.
+// Everything here imports from the public `@dialstack/sdk-react` entry only.
 import {
-  DialPad,
-  OngoingCall,
-  IncomingStack,
-  EmergencyBanner,
-  useSoftphone,
-  useActiveCall,
-  useIncomingCall,
-  useCallDuration,
   callPeerName,
   callPeerNumber,
-} from '@dialstack/sdk/react';
+  DialPad,
+  EmergencyBanner,
+  IncomingStack,
+  OngoingCall,
+  useActiveCall,
+  useCallDuration,
+  useIncomingCall,
+  useSoftphone,
+} from '@dialstack/sdk-react/softphone';
 import styles from './modular.module.css';
 
 export const ModularFlow: React.FC = () => (

@@ -27,7 +27,7 @@ import type {
   EmergencyAddressInput,
   PaginatedList,
   ListResponse,
-} from '../../../../../webrtc/src';
+} from '@dialstack/sdk-webrtc';
 import type { SoftphoneConnectionState } from './usePhone';
 import { useLatestRef } from './useLatestRef';
 

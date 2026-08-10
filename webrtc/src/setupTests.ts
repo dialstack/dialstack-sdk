@@ -6,7 +6,7 @@
  * the react/server/js suites too, and shouldn't reach across into these internals.
  */
 
-import { resetPranswerSupportForTests } from './platform';
+import { resetPranswerSupportForTests } from './platform.js';
 
 // The pranswer capability probe memoizes its verdict in module state, keyed to
 // whatever globalThis.RTCPeerConnection was when it first ran. A suite that

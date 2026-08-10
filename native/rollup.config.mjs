@@ -6,12 +6,13 @@ import dts from 'rollup-plugin-dts';
 
 // The shared headless core is authored once in the web package (`sdk/src`) and
 // published there only as an internal source; it is NOT a public subpath of
-// `@dialstack/sdk`. This RN package inlines its own compiled copy of the core so
-// it stays self-contained — a consumer installs `@dialstack/sdk-native` alone,
-// with no runtime dependency on `@dialstack/sdk`. The specifier below is what
-// the source still writes (`import … from '@dialstack/sdk/react/core'`); we map
+// `@dialstack/sdk-react` — deliberately absent from its exports map. This RN package
+// inlines its own compiled copy of the core so it stays self-contained: a consumer
+// installs `@dialstack/sdk-native` alone, with no runtime dependency on any sibling.
+// The specifier below is what
+// the source still writes (`import … from '@dialstack/sdk-react/core'`); we map
 // it to the core's source entry so rollup pulls the graph in and bundles it.
-const CORE_SPECIFIER = '@dialstack/sdk/react/core';
+const CORE_SPECIFIER = '@dialstack/sdk-react/core';
 const CORE_SOURCE = fileURLToPath(new URL('../react/src/react/softphone/core/index.ts', import.meta.url));
 
 function inlineCore() {
@@ -56,7 +57,7 @@ export default [
   },
   // Self-contained type bundle: rollup-plugin-dts follows the same graph through
   // the core inline mapping and flattens it into one `dist/index.d.ts` with no
-  // dangling `@dialstack/sdk/react/core` specifier (which plain tsc cannot do).
+  // dangling `@dialstack/sdk-react/core` specifier (which plain tsc cannot do).
   {
     input: 'src/index.ts',
     external,

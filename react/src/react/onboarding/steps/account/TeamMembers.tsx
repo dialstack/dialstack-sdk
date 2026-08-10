@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import type { Extension } from '../../../../../../js/src/types/dial-plan';
+import type { Extension } from '@dialstack/sdk-js';
 import { useOnboarding } from '../../OnboardingContext';
 import { StepNavigation } from '../../StepNavigation';
 import { UserIcon, TrashIcon } from '../../components/icons';

@@ -8,7 +8,7 @@
 import http from 'node:http';
 import express from 'express';
 import { WebSocketServer } from 'ws';
-import { MediaStream } from '@dialstack/sdk/server';
+import { MediaStream } from '@dialstack/sdk-server';
 import { logger } from './logger.js';
 import { makeWebhookHandler, type WebhookConfig } from './webhook.js';
 import { runSession } from './session.js';

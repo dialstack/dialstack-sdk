@@ -1,7 +1,16 @@
-// Auto-pagination helper shared by the server client and the WebRTC phone
-// SDK. Every SDK list method should return a PaginatedList so callers can
-// either `await` the first page envelope or iterate the full collection with
+// Auto-pagination for this package's list methods: `await` the returned value for
+// the first page envelope, or iterate the whole collection with
 // `autoPagingEach()` / `autoPagingToArray()`.
+//
+// Deliberately duplicated rather than shared. This package publishes with no
+// runtime dependencies and builds with plain tsc, which leaves imports as
+// imports — so importing this from a sibling would either add a dependency edge
+// or emit a path outside the tarball. Duplication is safe *here* because the
+// file is pure: interfaces plus one factory, no module state, nothing compared
+// by identity, so two copies cannot skew.
+//
+// It does not scale. If a second helper wants sharing, or anything
+// identity-bearing does, publish a real shared core instead of copying again.
 
 /** The minimal list-envelope shape auto-pagination needs. */
 export interface Page<I> {

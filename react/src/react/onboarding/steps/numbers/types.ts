@@ -7,7 +7,7 @@ import type {
   PhoneNumberItem,
   SearchType,
   OnboardingLocation,
-} from '../../../../../../js/src/types';
+} from '@dialstack/sdk-js';
 import type { NumSubStep } from '../../constants';
 
 export type { NumSubStep };

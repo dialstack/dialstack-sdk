@@ -13,7 +13,7 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { usePhone, type UsePhoneOptions } from '../usePhone';
 import { useCalls, type UseCallsOptions } from '../useCalls';
-import type { Call, CallEndReason } from '../../../../../../webrtc/src';
+import type { Call, CallEndReason } from '@dialstack/sdk-webrtc';
 
 // ---- fakes -----------------------------------------------------------------
 
@@ -122,7 +122,7 @@ class FakePhone extends Emitter {
   }
 }
 
-jest.mock('../../../../../../webrtc/src', () => ({
+jest.mock('@dialstack/sdk-webrtc', () => ({
   DialStackPhone: jest.fn().mockImplementation((options: unknown) => new FakePhone(options)),
 }));
 

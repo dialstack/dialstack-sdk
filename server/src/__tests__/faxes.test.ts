@@ -1,5 +1,4 @@
-import { DialStack } from '../index';
-import type { DIDSummary, Fax, FileObject } from '../index';
+import { DialStack, type DIDSummary, type Fax, type FileObject } from '../index.js';
 
 // Mock fetch globally
 const mockFetch = jest.fn();

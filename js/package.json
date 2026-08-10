@@ -1,0 +1,87 @@
+{
+  "name": "@dialstack/sdk-js",
+  "version": "2.1.0",
+  "description": "DialStack browser SDK \u2014 initialisation, REST client and the self-registering web components",
+  "license": "MIT",
+  "type": "module",
+  "author": "DialStack",
+  "homepage": "https://github.com/dialstack/dialstack-sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dialstack/dialstack-sdk.git",
+    "directory": "js"
+  },
+  "bugs": {
+    "url": "https://github.com/dialstack/dialstack-sdk/issues"
+  },
+  "keywords": [
+    "dialstack",
+    "voice",
+    "telephony",
+    "web-components",
+    "custom-elements"
+  ],
+  "types": "./dist/index.d.ts",
+  "unpkg": "dist/dialstack.umd.js",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./pure": {
+      "import": {
+        "types": "./dist/pure.d.ts",
+        "default": "./dist/pure.mjs"
+      },
+      "require": {
+        "types": "./dist/pure.d.cts",
+        "default": "./dist/pure.cjs"
+      }
+    }
+  },
+  "//main": "Legacy entry points for resolvers that ignore `exports` \u2014 bundlers configured with exportsFields: [], older tooling, and anything reading the manifest directly. origin/main shipped both; the split dropped them and `resolve.sync` then failed outright rather than falling back.",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "//typesVersions": "node10 is TypeScript's pre-`exports` resolver: it looks for <pkg>/<subpath>.d.ts on disk and never reads the exports map, so every subpath resolved to nothing and its types silently degraded to `any`. The published @dialstack/sdk had the same gap on all five of its subpaths. typesVersions is the documented way to answer that resolver.",
+  "typesVersions": {
+    "*": {
+      "pure": [
+        "./dist/pure.d.ts"
+      ]
+    }
+  },
+  "//sideEffects": "The main entry registers the custom elements on import (core/initialize.ts imports each component for customElements.define), so it must not be tree-shaken. The component sources are listed too: tools that consume this package from source rather than from dist \u2014 Storybook and jest both do \u2014 resolve to src/, and a dist-only list lets them drop the registration silently. ./pure exists precisely to be side-effect-free, so neither it nor its source is listed.",
+  "sideEffects": [
+    "./dist/index.mjs",
+    "./dist/index.cjs",
+    "./dist/dialstack.umd.js",
+    "./src/index.ts",
+    "./src/components/*.ts"
+  ],
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "check:package": "publint && attw --pack .",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "dependencies": {
+    "libphonenumber-js": "^1.13.9"
+  },
+  "devDependencies": {
+    "rollup-plugin-dts": "^6.5.1"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

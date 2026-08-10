@@ -9,7 +9,7 @@ import type {
   PortOrder,
   PhoneNumberItem,
   PhoneNumberStatus,
-} from '../../../../js/src/types';
+} from '@dialstack/sdk-js';
 
 export function mergePhoneNumbers(
   dids: DIDItem[],

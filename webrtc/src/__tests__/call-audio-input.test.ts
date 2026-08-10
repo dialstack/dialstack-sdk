@@ -1,4 +1,4 @@
-import { Call, type CallInit } from '../call';
+import { Call, type CallInit } from '../call.js';
 
 class FakeTrack {
   kind = 'audio';

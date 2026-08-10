@@ -7,12 +7,11 @@
  */
 
 import React, { useEffect, useMemo, useRef } from 'react';
-import { useOnboarding } from './OnboardingContext';
+import { useOnboarding, type StepEntryMode } from './OnboardingContext';
 import { useOnboardingProgress } from './useOnboardingProgress';
 import { CIRCUMFERENCE } from './portal-constants';
 import { CheckIconWhite, HelpIcon, OverviewIcon, STEP_ICON_COMPONENTS } from './portal-icons';
 import type { StepName } from './progress-store';
-import type { StepEntryMode } from './OnboardingContext';
 
 // Mounts SDK-consumer-supplied logo markup. logoHtml comes from the integrating
 // developer (e.g. admin's buildLogoHtml — platform name is HTML-escaped, logo

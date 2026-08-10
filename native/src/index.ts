@@ -55,4 +55,4 @@ export { EmergencyBanner } from './softphone/EmergencyBanner';
 
 // The persistence adapter interface the host implements for the required
 // `storage` prop (an MMKV- or AsyncStorage-backed store; see the example apps).
-export type { PlatformStorage, EmergencyAddressInput } from '@dialstack/sdk/react/core';
+export type { PlatformStorage, EmergencyAddressInput } from '@dialstack/sdk-react/core';

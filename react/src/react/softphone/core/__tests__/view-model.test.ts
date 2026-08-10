@@ -16,7 +16,7 @@ import {
   callStateLabelKey,
   errorMessageKey,
 } from '../view-model';
-import type { Call, CallDirection, CallState } from '../../../../../../webrtc/src';
+import type { Call, CallDirection, CallState } from '@dialstack/sdk-webrtc';
 
 // A minimal Call-shaped stub — the view-model only reads these fields.
 function fakeCall(partial: Partial<Call> = {}): Call {

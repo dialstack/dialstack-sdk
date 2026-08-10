@@ -1,5 +1,4 @@
-import { DialStack } from '../index';
-import type { ButtonTemplateWithDetails } from '../index';
+import { DialStack, type ButtonTemplateWithDetails } from '../index.js';
 
 // Mock fetch globally
 const mockFetch = jest.fn();

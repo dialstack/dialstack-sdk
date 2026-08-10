@@ -4,8 +4,11 @@ import { expect, within, userEvent, waitFor } from 'storybook/test';
 import { DialPad } from '../softphone/ui/DialPad';
 import { IncomingCall } from '../softphone/ui/IncomingCall';
 import { OngoingCall } from '../softphone/ui/OngoingCall';
-import { SoftphoneProvider } from '../softphone/provider/SoftphoneProvider';
-import { useActiveCall, useIncomingCall } from '../softphone/provider/SoftphoneProvider';
+import {
+  SoftphoneProvider,
+  useActiveCall,
+  useIncomingCall,
+} from '../softphone/provider/SoftphoneProvider';
 import { __setPhoneFactory } from '../softphone/hooks/usePhone';
 import { MockPhoneController } from './support/mock-phone';
 

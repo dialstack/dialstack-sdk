@@ -1,4 +1,4 @@
-import { resolveSignalingUrl } from '../phone';
+import { resolveSignalingUrl } from '../phone.js';
 
 describe('resolveSignalingUrl', () => {
   it('derives the signaling host from a prod apiBaseUrl (api. -> webrtc.)', () => {

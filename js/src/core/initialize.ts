@@ -2,7 +2,7 @@
  * DialStack SDK initialization
  *
  * This is the standard entry point that auto-registers Web Components.
- * For SSR/testing without side effects, use '@dialstack/sdk/pure' instead.
+ * For SSR/testing without side effects, use '@dialstack/sdk-js/pure' instead.
  */
 
 // Import components to ensure they self-register (browser-guarded internally)

@@ -4,7 +4,7 @@
 
 import { act, renderHook } from '@testing-library/react';
 
-import type { AppearanceOptions, DialStackInstance } from '../../../../js/src/types';
+import type { AppearanceOptions, DialStackInstance } from '@dialstack/sdk-js';
 import { useAppearance } from '../useAppearance';
 
 function createFakeInstance(initial?: AppearanceOptions) {

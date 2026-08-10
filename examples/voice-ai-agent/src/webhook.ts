@@ -3,8 +3,8 @@
 // action that points DialStack back at our /media WebSocket.
 
 import type { Request, Response } from 'express';
-import { DialStack } from '@dialstack/sdk/server';
-import type { WebhookEvent } from '@dialstack/sdk/server';
+import { DialStack } from '@dialstack/sdk-server';
+import type { WebhookEvent } from '@dialstack/sdk-server';
 import { logger } from './logger.js';
 
 export interface WebhookConfig {

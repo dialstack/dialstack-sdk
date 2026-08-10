@@ -6,7 +6,7 @@
  *
  * @example
  * ```typescript
- * import { DialStack } from '@dialstack/sdk/server';
+ * import { DialStack } from '@dialstack/sdk-server';
  *
  * const dialstack = new DialStack(process.env.DIALSTACK_API_KEY);
  *
@@ -47,11 +47,8 @@ import {
   DialStackConnectionError,
   DialStackRateLimitError,
   type RawError,
-} from './errors';
-import {
-  createPaginatedList,
-  type PaginatedList as SharedPaginatedList,
-} from '../../js/src/shared/pagination';
+} from './errors.js';
+import { createPaginatedList, type PaginatedList as SharedPaginatedList } from './pagination.js';
 // Shared with the browser SDK where the shape is identical to the documented
 // wire contract. Type-only imports, so they erase at build time and pull no
 // runtime code into the server bundle — unlike src/types/components.ts, which
@@ -75,9 +72,11 @@ import type {
   CreateTemplateButtonRequest,
   UpdateButtonTemplateRequest,
   UpdateTemplateButtonRequest,
-} from '../../js/src/types/button';
-import type { CreateDeviceResponse, DeviceStatus, DeviceType } from '../../js/src/types/device';
-import type { DeviceSettings } from '../../js/src/types/provisioning';
+  CreateDeviceResponse,
+  DeviceStatus,
+  DeviceType,
+  DeviceSettings,
+} from '@dialstack/sdk-js';
 
 // Re-export error classes for consumers
 export {
@@ -91,7 +90,7 @@ export {
   DialStackRateLimitError,
   DialStackAPIError,
   DialStackConnectionError,
-} from './errors';
+} from './errors.js';
 
 // ============================================================================
 // Types
@@ -2303,9 +2302,10 @@ export interface ListResponse<T> {
 // ============================================================================
 // Auto-Pagination Iterator
 // ============================================================================
-// Implementation lives in shared/pagination.ts so the WebRTC phone SDK's list
-// methods get the same auto-pagination surface. The public PaginatedList<T>
-// shape (single type parameter over the item) is preserved via this alias.
+// Implementation lives in ./pagination.ts — a copy, not a shared import: this
+// package publishes with no runtime dependencies, so it cannot reach into a
+// sibling for it. The public PaginatedList<T> shape (single type parameter over
+// the item) is preserved via this alias.
 
 export type PaginatedList<T> = SharedPaginatedList<ListResponse<T>>;
 
@@ -4416,7 +4416,7 @@ export class DialStack {
 }
 
 // Re-export MediaStream for WebSocket handling
-export { MediaStream } from './media-stream';
+export { MediaStream } from './media-stream.js';
 export type {
   WebSocketLike,
   AudioFormat,
@@ -4424,7 +4424,7 @@ export type {
   MediaStreamAudioEvent,
   MediaStreamMessage,
   MediaStreamEvents,
-} from './media-stream';
+} from './media-stream.js';
 
 /** Builds the /v1/presence query string from the per-type selectors. */
 function presenceQuery(params: PresenceListParams): URLSearchParams {

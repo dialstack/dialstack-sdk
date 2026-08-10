@@ -3,7 +3,7 @@
  * the shared call-state hooks, provider base, view-model, and framework-agnostic
  * theme/icon/locale data used by BOTH the web `<Softphone>` and the React Native
  * softphone. NO DOM / web component graph (`@xyflow/react`, dagre, custom elements,
- * CSS), so it's safe to import from React Native where `@dialstack/sdk/react`
+ * CSS), so it's safe to import from React Native where `@dialstack/sdk-react`
  * would not resolve.
  *
  * @packageDocumentation
@@ -67,8 +67,13 @@ export type {
 // The locale table + default, re-exported here so the React Native softphone can
 // resolve UI strings through the same `t()` accessor as the web softphone (this
 // RN-safe entry is the only SDK path RN imports from). Pure data — no DOM/RN dep.
-export { defaultLocale } from '../../../../../js/src/locales';
-export type { Locale } from '../../../../../js/src/locales';
+//
+// `/pure`, never the package root: the root registers all seven custom elements on
+// import, which is the one thing this entry promises above it does not do. Through
+// the root, React Native throws `customElements is not defined` on import. The
+// surface is identical — both entries re-export the same shared base.
+export { defaultLocale } from '@dialstack/sdk-js/pure';
+export type { Locale } from '@dialstack/sdk-js/pure';
 
 // Shared, framework-agnostic theme tokens. This entry is the SINGLE gateway the
 // React Native softphone imports from, so RN never deep-imports other subpaths.
@@ -97,4 +102,4 @@ export type {
   Ringback,
   SignalingSocketFactory,
   AppResumeSubscribe,
-} from '../../../../../webrtc/src';
+} from '@dialstack/sdk-webrtc';

@@ -3,7 +3,7 @@ import type {
   DialPlanLocale,
   DialPlanNode,
   RingAllUsersNode as RingAllUsersNodeType,
-} from '../../../../../js/src/types/dial-plan';
+} from '@dialstack/sdk-js';
 import type { NodeDefinition, NodeTypeRegistration } from '../registry-types';
 import { NodeHeader, StaticExits } from '../DialPlanNode';
 import { RingAllUsersConfigPanel } from '../config-panels/RingAllUsersConfigPanel';

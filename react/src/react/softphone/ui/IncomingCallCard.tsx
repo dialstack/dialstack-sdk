@@ -16,7 +16,7 @@ import { useSoftphone } from '../provider/SoftphoneProvider';
 import { softphoneGlyphs } from '../core/icons';
 import { callPeerName, callPeerNumber } from '../hooks';
 import { Glyph } from './Glyph';
-import type { Call } from '../../../../../webrtc/src';
+import type { Call } from '@dialstack/sdk-webrtc';
 
 export const IncomingCallCard: React.FC<{
   call: Call;

@@ -18,7 +18,7 @@ import { useSoftphone } from '../provider/SoftphoneProvider';
 import { softphoneGlyphs } from '../core/icons';
 import { normalizeStateCode } from '../core/emergency-address-form';
 import { Glyph } from './Glyph';
-import type { EmergencyAddressInput } from '../../../../../webrtc/src';
+import type { EmergencyAddressInput } from '@dialstack/sdk-webrtc';
 
 const EMPTY_FORM: EmergencyAddressInput = {
   address_number: '',

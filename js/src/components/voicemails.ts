@@ -4,15 +4,15 @@
 
 import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenumber-js';
 import { BaseComponent } from './base-component';
-import type {
-  VoicemailDisplayOptions,
-  VoicemailBehaviorOptions,
-  VoicemailRowRenderer,
-  VoicemailsClasses,
-  CallLog,
+import {
+  type VoicemailDisplayOptions,
+  type VoicemailBehaviorOptions,
+  type VoicemailRowRenderer,
+  type VoicemailsClasses,
+  type CallLog,
+  type TranscriptStatus,
+  type Sentiment,
 } from '../types';
-
-import type { TranscriptStatus, Sentiment } from '../types';
 
 /**
  * Magnitude at or above which a neutral score is read as "Mixed" rather than

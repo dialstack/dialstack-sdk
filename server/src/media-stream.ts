@@ -6,7 +6,7 @@
  *
  * @example
  * ```typescript
- * import { MediaStream } from '@dialstack/sdk/server';
+ * import { MediaStream } from '@dialstack/sdk-server';
  * import { WebSocketServer } from 'ws';
  *
  * const wss = new WebSocketServer({ port: 8080 });

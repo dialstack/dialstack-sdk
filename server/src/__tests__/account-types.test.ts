@@ -1,8 +1,5 @@
-import type { Account, AccountUpdateParams } from '../index';
-import type {
-  Account as OnboardingAccount,
-  UpdateAccountRequest,
-} from '../../../js/src/types/account-onboarding';
+import type { Account, AccountUpdateParams } from '../index.js';
+import type { Account as OnboardingAccount, UpdateAccountRequest } from '@dialstack/sdk-js';
 
 describe('account default button template types', () => {
   it('exposes the public field on both SDK account surfaces', () => {

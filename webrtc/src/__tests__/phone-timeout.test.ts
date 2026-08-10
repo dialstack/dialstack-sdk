@@ -1,5 +1,5 @@
-import { DialStackPhone } from '../phone';
-import { PhoneError } from '../errors';
+import { DialStackPhone } from '../phone.js';
+import { PhoneError } from '../errors.js';
 
 // Minimal WebSocket double: opens on demand, never delivers an `authenticated`
 // frame, so connect() can only settle via its timeout. Captures instances so the

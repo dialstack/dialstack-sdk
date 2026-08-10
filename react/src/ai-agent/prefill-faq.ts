@@ -1,4 +1,4 @@
-import type { FAQItem } from '../../types/ai-agent';
+import type { FAQItem } from '@dialstack/sdk-js';
 
 export interface TimeRange {
   day: number;
