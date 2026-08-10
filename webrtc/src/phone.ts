@@ -1239,6 +1239,7 @@ export class DialStackPhone {
             userId: u.user_id,
             name: u.name,
             status: u.status,
+            doNotDisturb: u.do_not_disturb ?? false,
             statusText: u.status_text ?? null,
             updatedAt: u.updated_at,
           }))
@@ -1250,6 +1251,7 @@ export class DialStackPhone {
           userId: msg.user_id,
           name: msg.name,
           status: msg.status,
+          doNotDisturb: msg.do_not_disturb ?? false,
           statusText: msg.status_text ?? null,
           updatedAt: msg.updated_at,
         });

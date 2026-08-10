@@ -164,6 +164,17 @@ export interface PresenceEntry {
   userId: string;
   name: string;
   status: PresenceStatus;
+  /**
+   * Whether the user has server-side Do Not Disturb enabled. A separate axis
+   * from `status`: a user can be `available` but decline calls because DND is on.
+   *
+   * The two answer different questions. DND is configuration — it persists until
+   * someone changes it. `status` is a lossy summary of currently observed
+   * signals, reduced to one value by the precedence on_call > available >
+   * offline, so a user on a call reports `on_call` even with no registered
+   * device. DND is never reported as a `status` value.
+   */
+  doNotDisturb: boolean;
   statusText: string | null;
   updatedAt: string;
 }
@@ -172,6 +183,17 @@ export interface PresenceUpdate {
   userId: string;
   name: string;
   status: PresenceStatus;
+  /**
+   * Whether the user has server-side Do Not Disturb enabled. A separate axis
+   * from `status`: a user can be `available` but decline calls because DND is on.
+   *
+   * The two answer different questions. DND is configuration — it persists until
+   * someone changes it. `status` is a lossy summary of currently observed
+   * signals, reduced to one value by the precedence on_call > available >
+   * offline, so a user on a call reports `on_call` even with no registered
+   * device. DND is never reported as a `status` value.
+   */
+  doNotDisturb: boolean;
   statusText: string | null;
   updatedAt: string;
 }
@@ -246,6 +268,9 @@ interface PresenceEntryWire {
   user_id: string;
   name: string;
   status: PresenceStatus;
+  // Always present from the server (asyncapi marks it required); optional here only
+  // so a client built against a newer SDK still parses an older server's frames.
+  do_not_disturb?: boolean;
   status_text?: string | null;
   updated_at: string;
 }

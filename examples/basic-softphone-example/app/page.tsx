@@ -209,6 +209,7 @@ export default function Page() {
             userId: update.userId,
             name: update.name || prev[update.userId]?.name || update.userId,
             status: update.status,
+            doNotDisturb: update.doNotDisturb,
             statusText: update.statusText,
             updatedAt: update.updatedAt,
           },
