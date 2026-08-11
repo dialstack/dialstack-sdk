@@ -37,7 +37,6 @@
       }
     }
   },
-  "//main": "Legacy entry points for resolvers that ignore `exports` \u2014 bundlers configured with exportsFields: [], older tooling, and anything reading the manifest directly. origin/main shipped both; the split dropped them and `resolve.sync` then failed outright rather than falling back.",
   "module": "./dist/index.js",
   "sideEffects": false,
   "files": [

@@ -46,10 +46,8 @@
       }
     }
   },
-  "//main": "Legacy entry points for resolvers that ignore `exports` \u2014 bundlers configured with exportsFields: [], older tooling, and anything reading the manifest directly. origin/main shipped both; the split dropped them and `resolve.sync` then failed outright rather than falling back.",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
-  "//typesVersions": "node10 is TypeScript's pre-`exports` resolver: it looks for <pkg>/<subpath>.d.ts on disk and never reads the exports map, so every subpath resolved to nothing and its types silently degraded to `any`. The published @dialstack/sdk had the same gap on all five of its subpaths. typesVersions is the documented way to answer that resolver.",
   "typesVersions": {
     "*": {
       "pure": [
@@ -57,7 +55,6 @@
       ]
     }
   },
-  "//sideEffects": "The main entry registers the custom elements on import (core/initialize.ts imports each component for customElements.define), so it must not be tree-shaken. The component sources are listed too: tools that consume this package from source rather than from dist \u2014 Storybook and jest both do \u2014 resolve to src/, and a dist-only list lets them drop the registration silently. ./pure exists precisely to be side-effect-free, so neither it nor its source is listed.",
   "sideEffects": [
     "./dist/index.mjs",
     "./dist/index.cjs",

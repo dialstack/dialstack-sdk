@@ -1,8 +1,6 @@
 {
   "name": "@dialstack/sdk-dev",
-  "//name": "Not \"@dialstack/sdk\". This root is a private tooling workspace \u2014 jest for every package, storybook, eslint, prettier \u2014 and keeping the published name here made npm link node_modules/@dialstack/sdk, so a stray `from \"@dialstack/sdk\"` anywhere in the monorepo silently resolved to a package with no exports map instead of failing. The published packages are js/, react/, server/ and webrtc/. @dialstack/sdk stays on npm, frozen, for anyone already installing it.",
   "private": true,
-  "//private": "Never published. Its version is not a release version; the four packages below carry their own.",
   "version": "2.0.0",
   "description": "Official JavaScript SDK for DialStack - Business Voice for Vertical SaaS",
   "keywords": [
@@ -103,7 +101,6 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.65.0"
   },
-  "//engines": "The tooling root, not a published package \u2014 this is the floor for running the repo's own scripts, not a consumer contract. 22.18 because check:deps executes a .ts file directly and Node strips types unflagged only from there; the .nvmrc pins 24, which is what CI uses. The four published packages declare their own, lower floors.",
   "engines": {
     "node": ">=22.18.0"
   }

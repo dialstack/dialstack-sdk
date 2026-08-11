@@ -37,7 +37,6 @@
       }
     }
   },
-  "//main": "Legacy entry points for resolvers that ignore `exports` \u2014 bundlers configured with exportsFields: [], older tooling, and anything reading the manifest directly. origin/main shipped both; the split dropped them and `resolve.sync` then failed outright rather than falling back.",
   "module": "./dist/index.js",
   "sideEffects": false,
   "files": [
@@ -55,7 +54,5 @@
   },
   "devDependencies": {
     "@dialstack/sdk-js": "2.1.0"
-  },
-  "//devDependencies": "@dialstack/sdk-js is dev-only and type-only. This package names it in `import type` for the button and device shapes it shares with the browser SDK \u2014 the documented wire contract, which must not fork into two copies that drift. Those imports erase at build time, so nothing in dist/*.js references it and it is neither a dependency nor a peer. The declaration build inlines the type bodies, so a consumer installing only this package still resolves them.",
-  "//dependencies": "None. A Node REST client has no business installing a browser softphone: the only thing it needed from @dialstack/sdk-webrtc was the ~60-line auto-pagination helper, now duplicated as src/pagination.ts. Two copies of pure interfaces plus one factory cannot skew, whereas the dependency edge made `npm ls` show a backend pulling in WebRTC."
+  }
 }

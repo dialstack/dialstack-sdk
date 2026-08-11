@@ -126,10 +126,8 @@
       }
     }
   },
-  "//main": "Legacy entry points for resolvers that ignore `exports` \u2014 bundlers configured with exportsFields: [], older tooling, and anything reading the manifest directly. origin/main shipped both; the split dropped them and `resolve.sync` then failed outright rather than falling back.",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
-  "//typesVersions": "node10 is TypeScript's pre-`exports` resolver: it looks for <pkg>/<subpath>.d.ts on disk and never reads the exports map, so every subpath resolved to nothing and its types silently degraded to `any`. The published @dialstack/sdk had the same gap on all five of its subpaths. typesVersions is the documented way to answer that resolver.",
   "typesVersions": {
     "*": {
       "softphone": [
@@ -179,7 +177,6 @@
     "dagre": "^0.8.5",
     "libphonenumber-js": "^1.13.9"
   },
-  "//peerDependencies": "@dialstack/sdk-js is a peer, matching @stripe/react-connect-js \u2014 the consumer installs both and calls the initializer itself. That is only honest because the runtime edge here is two duplication-safe values: `defaultLocale` (plain data nobody compares by identity) and `isApiError` (a structural predicate, no class identity). Getting there is why the React-only values moved out of sdk-js: US_STATES, US_TIMEZONES, defaultDialPlanLocale and the AI-agent prefill helpers now live here, and ApiError is narrowed with isApiError rather than instanceof. Never catch our errors with `instanceof ApiError` across this boundary \u2014 a second copy of sdk-js in the tree makes it silently false. A missing peer is a runtime failure rather than an install failure, so useCreateComponent throws a named error when the web components were never registered. The react/react-dom range is `^18 || ^19` rather than `^19`: nothing in the tree needs React 19 \u2014 no use()/useOptimistic/useActionState/useFormStatus, and the only react-dom import is createPortal (React 16+). @xyflow/react itself accepts >=17, so a 19 floor made us stricter than our own dependency. Validated by running the full suite and typecheck against react 18.3.1 with @types/react@18, not just by reading the source. @xyflow/react stays REQUIRED, deliberately: marking it optional was tried and reverted. The entry-point split already does that job \u2014 it is referenced only by ./dial-plan, and the other nine bundles reference it zero times, so a consumer importing ./softphone never has that module in their graph and never resolves the specifier whatever this field says. Optional therefore saves them nothing while costing the loud failure: npm stops warning, and a ./dial-plan consumer who omits it gets an unresolved-module error at bundle time instead of at install. No surveyed library marks a heavy feature dependency optional either \u2014 MUI's optional peers are alternative styling engines.",
   "peerDependencies": {
     "@dialstack/sdk-js": ">=2.1.0 <3",
     "@xyflow/react": "^12.0.0",
@@ -191,6 +188,5 @@
   },
   "devDependencies": {
     "rollup-plugin-dts": "^6.5.1"
-  },
-  "//exports": "One entry point per component, and none of them on the root. The root barrel re-exported every component, which made the whole module graph behind it reachable from any single import: a softphone-only app measured ~144 KB and pulled @xyflow/react, dagre and cmdk, against ~58 KB and none of them when imported directly. `sideEffects: false` cannot help, because the code is genuinely reachable rather than dead, and emitting per-module files instead of a bundle changed nothing \u2014 splitting the entry point is the only lever. The root keeps what every component shares: the provider and the hooks that read it. `types` is first in each entry because TypeScript resolves conditions in key order, so an `import` listed first wins and TS then looks for an adjacent .d.ts the build never emits."
+  }
 }
