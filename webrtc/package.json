@@ -1,6 +1,6 @@
 {
   "name": "@dialstack/sdk-webrtc",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "description": "Headless WebRTC softphone core for the DialStack SDK \u2014 no React, no runtime dependencies",
   "license": "MIT",
   "type": "module",

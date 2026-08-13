@@ -1,6 +1,6 @@
 {
   "name": "@dialstack/sdk-js",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "description": "DialStack browser SDK \u2014 initialisation, REST client and the self-registering web components",
   "license": "MIT",
   "type": "module",

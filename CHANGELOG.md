@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0](https://github.com/dialstack/dialstack-sdk/compare/v2.1.0...v3.0.0) (2026-08-11)
+
+`@dialstack/sdk` is now four packages, one per audience.
+
+### Breaking changes
+
+- **`@dialstack/sdk` is replaced by four packages.** Update your imports:
+
+  | Before | After |
+  | --- | --- |
+  | `@dialstack/sdk` | `@dialstack/sdk-js` |
+  | `@dialstack/sdk/react` | `@dialstack/sdk-react` |
+  | `@dialstack/sdk/webrtc` | `@dialstack/sdk-webrtc` |
+  | `@dialstack/sdk/server` | `@dialstack/sdk-server` |
+
+  Subpaths follow their package: `@dialstack/sdk/pure` becomes
+  `@dialstack/sdk-js/pure`, and `@dialstack/sdk/react/onboarding` becomes
+  `@dialstack/sdk-react/onboarding`.
+
+  The exported names are unchanged, so this is a find-and-replace on specifiers.
+  `@dialstack/sdk` is no longer published.
+
+  `@dialstack/sdk-webrtc` and `@dialstack/sdk-server` install with **no
+  dependencies and no peers at all** — a headless softphone or a Node client no
+  longer pulls in React, a component library or the dial-plan editor.
+
+  `@dialstack/sdk-react` peers `react`, `react-dom`, `@dialstack/sdk-js` and
+  `@xyflow/react`.
+
+- **Each React component has its own entry point, and the package root no longer
+  exports them.** `@dialstack/sdk-react` exports the provider and hooks; import a
+  component from its own subpath so a bundler can drop the ones you don't use:
+
+  ```js
+  import { Softphone } from '@dialstack/sdk-react/softphone';
+  import { DialPlan } from '@dialstack/sdk-react/dial-plan';
+  ```
+
+  Available subpaths: `softphone`, `dial-plan`, `onboarding`, `ai-agent`,
+  `call-logs`, `voicemails`, `call-history`, `phone-numbers`,
+  `phone-number-ordering`.
+
 ## [2.1.0](https://github.com/dialstack/dialstack-sdk/compare/v2.0.0...v2.1.0) (2026-08-10)
 
 ### Features
