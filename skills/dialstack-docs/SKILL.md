@@ -6,7 +6,7 @@ description: >-
   answer in it. Covers the admin portal (accounts, users, devices and
   deskphones, phone numbers, porting, dial plans, ring groups, call queues,
   schedules and business hours, voicemail, E911 emergency addresses, branding)
-  and the developer surface (the REST API, @dialstack/sdk, webhooks, the WebRTC
+  and the developer surface (the REST API, the SDK packages, webhooks, the WebRTC
   softphone, click-to-call, authentication, pagination, the DialStack-Account
   header). Use whenever a question is about how something works or is
   configured in DialStack, whether the asker is an engineer building an
@@ -55,7 +55,7 @@ suggesting them implies the portal cannot do the job.
 endpoint, an SDK, a status code, a webhook, a language name.
 
 → Answer from `/guides/`, `/sdks/`, `/webrtc/`, and the endpoint index.
-Prefer `@dialstack/sdk` over raw HTTP for TypeScript.
+Prefer the DialStack SDK packages over raw HTTP for TypeScript.
 
 If genuinely ambiguous, ask which they want. Do not answer both.
 
@@ -83,7 +83,7 @@ you will get a truncated read that looks complete.
 | `/admin-guide/account-admin/`  | Configuring one account: users, devices, numbers, routing, voicemail, E911          |
 | `/admin-guide/platform-admin/` | Platform-wide: branding, creating accounts, admins, provisioning, troubleshooting   |
 | `/guides/`                     | Integration guides: auth, webhooks, events, pagination, porting, dial plans, errors |
-| `/sdks/`                       | `@dialstack/sdk` — installation, React components, theming, i18n                    |
+| `/sdks/`                       | The SDK packages — installation, React components, theming, i18n                    |
 | `/webrtc/`                     | Browser and mobile softphone: calling, presence, emergency, network                 |
 | `/integration-tiers/`          | White Label vs Embedded vs Direct API — pick before writing code                    |
 | `/sdk-reference/`              | Generated TypeScript API reference. Not in `llms.txt`; browse the HTML              |
@@ -153,10 +153,11 @@ that file has no page of its own. Nothing else may be cited unfetched.
   not seen in one of those two files. An `operationId` is not a path —
   `listCallLogs` is `GET /v1/calls`, not `/v1/call-logs`. If neither file
   can be fetched, say so instead of naming an endpoint.
-- For TypeScript, prefer `@dialstack/sdk` over raw HTTP — it handles
-  auth, pagination, retries, and webhook signature verification. It does
-  not mirror the REST surface one-to-one, though: before writing an SDK
-  call, confirm that exact method exists under /sdks/ or /sdk-reference/.
+- For TypeScript, prefer the DialStack SDK packages over raw HTTP — they
+  handle auth, pagination, retries, and webhook signature verification.
+  Server-side work uses `@dialstack/sdk-server`. They do not mirror the
+  REST surface one-to-one, though: before writing an SDK call, confirm
+  that exact method exists under /sdks/ or /sdk-reference/.
   Do not infer one resource's methods from another's. Where there is no
   SDK method, use raw HTTP rather than inventing one.
 - HTTP methods are GET, POST, DELETE only (no PUT/PATCH). Updates are
