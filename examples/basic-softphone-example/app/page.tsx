@@ -611,7 +611,7 @@ export default function Page() {
                   <div className={styles.callPeer}>
                     <span className={styles.callPeerNumber}>{u.name}</span>
                   </div>
-                  <span className={styles.callState}>{presenceLabel(u.status)}</span>
+                  <span className={styles.callState}>{presenceLabel(u.status, u.doNotDisturb)}</span>
                 </div>
                 {u.statusText && <div className={styles.e911Status}>{u.statusText}</div>}
               </div>
@@ -782,7 +782,14 @@ function snapshot(call: Call, parentId?: string): CallView {
   };
 }
 
-function presenceLabel(status: PresenceStatus): string {
+// `doNotDisturb` is a separate axis from `status` — the server never reports DND
+// as a `status` value, so the client picks the precedence. Offline wins because
+// it is about reachability: a DND badge on a user with no registered device
+// implies a presence that isn't there. Below that DND wins, being the strongest
+// interrupt signal this roster exists to convey.
+function presenceLabel(status: PresenceStatus, doNotDisturb: boolean): string {
+  if (doNotDisturb && status !== 'offline') return '⛔ Do not disturb';
+
   switch (status) {
     case 'available':
       return '🟢 Available';

@@ -91,6 +91,14 @@ the backend — then subscribes to their presence over the signalling WebSocket.
 The **Team presence** panel shows each one's status (`available` or `on_call`),
 updating live as they take and end calls, and re-subscribes on reconnect.
 
+Do Not Disturb is a separate axis: it arrives as a `doNotDisturb` boolean rather
+than a `status` value, because it is configuration that persists until someone
+changes it, while `status` summarises currently observed signals. The panel
+collapses the two into one indicator with the precedence
+`offline > dnd > on_call > away > available`, which is the mapping most presence
+UIs use — offline first because it is about reachability, then DND as the
+strongest interrupt signal.
+
 > The push path reports `available` / `on_call` only; it does not emit
 > `offline`, so an unregistered user still shows as available. Presence
 > subscription accepts at most 100 users at once, so a very large directory is
