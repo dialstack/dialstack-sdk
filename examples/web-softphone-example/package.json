@@ -13,14 +13,14 @@
     "@dialstack/sdk-js": "file:../../js",
     "@dialstack/sdk-react": "file:../../react",
     "@dialstack/sdk-server": "file:../../server",
-    "next": "^16.2.12",
+    "next": "^16.3.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@types/node": "^26.1.2",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "typescript": "^5.6.0"
   },
   "browserslist": [
