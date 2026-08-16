@@ -6,12 +6,23 @@
  * never user input.
  */
 
-import React, { useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AsYouType } from 'libphonenumber-js';
+import {
+  classifyPhoneNumberRows,
+  formatOnBlur,
+  formatWhileTyping,
+  isPhoneNumberListReady,
+  parsePhoneNumberRows,
+} from '@dialstack/sdk-js/pure';
 import type { NumState, Dispatcher, TFn } from '../types';
+import { MAX_PHONE_NUMBERS_PER_ORDER, REASON_KEY } from '../port-numbers';
 import { formatPhone } from '../helpers';
 import { US_STATES } from '../../../../../constants/us-states';
-import { SUCCESS_SVG, CHECK_CIRCLE_SVG } from '../../../icons';
+import { SUCCESS_SVG, CHECK_CIRCLE_SVG, CLOSE_SVG, PLUS_CIRCLE_SVG } from '../../../icons';
+
+/** Stable React keys, so editing one row never remounts another. */
+let nextRowId = 0;
 
 export const PortNumbersContent = ({
   state,
@@ -28,53 +39,239 @@ export const PortNumbersContent = ({
     dispatch({ type: 'port_reset' });
     dispatch({ type: 'set_substep', subStep: 'overview' });
   };
+
+  const values = state.portPhoneValues;
+  const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
+  const pendingFocus = useRef<number | null>(null);
+
+  // One id per row, held in state rather than a ref because it is read during
+  // render. Re-synced when values change from outside (a reset, a restored
+  // draft); the structural edits below keep the two in step themselves.
+  const [rowIds, setRowIds] = useState<number[]>(() => values.map(() => nextRowId++));
+  if (rowIds.length !== values.length) {
+    setRowIds((ids) => {
+      const next = [...ids];
+      while (next.length < values.length) next.push(nextRowId++);
+      return next.slice(0, values.length);
+    });
+  }
+
+  // Focus lands after the row exists, so it applies once the render that
+  // created it has committed.
+  useEffect(() => {
+    if (pendingFocus.current === null) return;
+    const target = pendingFocus.current;
+    pendingFocus.current = null;
+    inputsRef.current[target]?.focus();
+  });
+
+  const rows = classifyPhoneNumberRows(values, state.portNumberIssues);
+  // readyCount and overCap drive the count line and the cap message; whether the
+  // step may advance is the shared rule, not a local restatement of it.
+  const readyCount = rows.filter((r) => r.status === 'ok').length;
+  const overCap = readyCount > MAX_PHONE_NUMBERS_PER_ORDER;
+  // Each blocking row is marked in place, but the gate also says how many there
+  // are next to the button it disables: on a long list the rows that block are
+  // easily off-screen, and a dead button with nothing visible to fix is the one
+  // state this step must never present.
+  const needsAttention = rows.filter(
+    (r) => r.status === 'problem' || r.status === 'server' || r.status === 'duplicate'
+  ).length;
+  const canContinue =
+    isPhoneNumberListReady(values, state.portNumberIssues, MAX_PHONE_NUMBERS_PER_ORDER) &&
+    !state.portIsCheckingEligibility;
+
+  const commit = (next: string[], ids?: number[], focusIndex?: number) => {
+    // Never leave the step with nothing to type into.
+    const rowValues = next.length > 0 ? next : [''];
+    if (ids) setRowIds(next.length > 0 ? ids : [nextRowId++]);
+    dispatch({ type: 'port_set_phone_values', values: rowValues });
+    if (focusIndex !== undefined) pendingFocus.current = focusIndex;
+  };
+
+  const setRow = (index: number, value: string) => {
+    const next = [...values];
+    next[index] = value;
+    commit(next);
+  };
+
+  const addRowAfter = (index: number) => {
+    const next = [...values];
+    next.splice(index + 1, 0, '');
+    const ids = [...rowIds];
+    ids.splice(index + 1, 0, nextRowId++);
+    commit(next, ids, index + 1);
+  };
+
+  const removeRow = (index: number) => {
+    if (values.length <= 1) {
+      commit([''], [nextRowId++]);
+      return;
+    }
+    // Focus the row that moves up into this slot, not the one above: a list is
+    // worked top to bottom, so after deleting a bad row the caret should already
+    // be on the next one to look at. Deleting the last row falls back to the new
+    // last row, since there is nothing below it.
+    commit(
+      values.filter((_, i) => i !== index),
+      rowIds.filter((_, i) => i !== index),
+      Math.min(index, values.length - 2)
+    );
+  };
+
+  /**
+   * A list arriving at a row — however it was written, and however it got here.
+   * Each entry becomes its own row, including the ones we could not read: those
+   * keep their text so they can be corrected rather than disappearing.
+   */
+  const insertList = (index: number, text: string, event: { preventDefault(): void }) => {
+    const parsed = parsePhoneNumberRows(text);
+    if (parsed.length === 0) return;
+
+    // A single number pasted onto a row that already holds one is another
+    // number, not a correction — letting the field insert it would run the two
+    // together into one unreadable row. A row still being corrected keeps the
+    // native paste, so completing a half-typed number still works.
+    const targetComplete = classifyPhoneNumberRows([values[index] ?? ''])[0]?.status === 'ok';
+    if (parsed.length <= 1 && !targetComplete) return;
+
+    event.preventDefault();
+    const incoming = parsed.map((row) => row.value);
+    const replacing = values[index]?.trim() === '';
+    const at = replacing ? index : index + 1;
+    const next = [...values];
+    next.splice(at, replacing ? 1 : 0, ...incoming);
+    const ids = [...rowIds];
+    ids.splice(at, replacing ? 1 : 0, ...incoming.map(() => nextRowId++));
+    commit(next, ids, at + incoming.length - 1);
+  };
+
   return (
     <>
       <h2 className="section-title">{t('accountOnboarding.numbers.port.numbersTitle')}</h2>
       <p className="section-subtitle">{t('accountOnboarding.numbers.port.numbersSubtitle')}</p>
-      {state.portPhoneInputs.map((val, i) => {
-        const err = state.portPhoneErrors[i];
-        return (
-          <div key={i}>
-            <div className="num-phone-input-row">
-              <input
-                className={`form-input${err ? ' error' : ''}`}
-                type="tel"
-                value={val}
-                placeholder={t('accountOnboarding.numbers.port.phonePlaceholder')}
-                onChange={(e) => {
-                  const fmt = new AsYouType('US');
-                  dispatch({
-                    type: 'port_set_phone_input',
-                    index: i,
-                    value: fmt.input(e.target.value),
-                  });
-                }}
-              />
-              {state.portPhoneInputs.length > 1 && (
+
+      <div className="num-port-rows">
+        {values.map((value, index) => {
+          const row = rows[index];
+          const message =
+            row?.status === 'problem'
+              ? t(REASON_KEY[row.reason])
+              : row?.status === 'duplicate'
+                ? t('accountOnboarding.numbers.port.duplicateOfRow', {
+                    row: row.firstSeenIndex + 1,
+                  })
+                : row?.status === 'server'
+                  ? row.message
+                  : null;
+
+          return (
+            <div key={rowIds[index]} className="num-port-row">
+              <div className="num-port-row-fields">
+                <span className="num-port-row-index">{index + 1}</span>
+                <input
+                  className={`form-input${message ? ' error' : ''}`}
+                  type="tel"
+                  value={value}
+                  placeholder={t('accountOnboarding.numbers.port.phonePlaceholder')}
+                  aria-label={t('accountOnboarding.numbers.port.numberLabel', { row: index + 1 })}
+                  aria-invalid={message ? true : undefined}
+                  onChange={(e) => setRow(index, formatWhileTyping(e.target.value, value))}
+                  ref={(el) => {
+                    inputsRef.current[index] = el;
+                  }}
+                  onBlur={() => {
+                    // Only write when blur actually changes the value. A commit
+                    // no longer wipes server-reported issues, so this is no
+                    // longer load-bearing — but writing an identical value still
+                    // costs a render of every row on the list.
+                    const settled = formatOnBlur(value);
+                    if (settled !== value) setRow(index, settled);
+                  }}
+                  onPaste={(e) => insertList(index, e.clipboardData.getData('text'), e)}
+                  onDrop={(e) => insertList(index, e.dataTransfer.getData('text'), e)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addRowAfter(index);
+                    } else if (e.key === 'Backspace' && value === '' && values.length > 1) {
+                      e.preventDefault();
+                      removeRow(index);
+                    }
+                  }}
+                />
                 <button
-                  className="btn-danger-ghost"
-                  onClick={() => dispatch({ type: 'port_remove_phone', index: i })}
+                  className="num-port-row-remove"
+                  type="button"
+                  aria-label={t('accountOnboarding.numbers.port.removeNumber', { row: index + 1 })}
+                  // Keep the caret where it is until the click has landed.
+                  // Pressing here would otherwise blur the field first, and blur
+                  // settles the value — a row holding `+15145551258` became
+                  // `+1 514 555 1258`, which re-rendered the list out from under
+                  // the gesture and swallowed the click. The row survived, now
+                  // reformatted, and only a second press removed it.
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => removeRow(index)}
+                  disabled={values.length === 1 && value === ''}
                 >
-                  {t('accountOnboarding.numbers.port.removeNumber')}
+                  {/* SAFETY: CLOSE_SVG is a static SVG constant */}
+                  {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- static icon constant */}
+                  <span aria-hidden="true" dangerouslySetInnerHTML={{ __html: CLOSE_SVG }} />
                 </button>
-              )}
-            </div>
-            {err && (
-              <div className="form-error" style={{ marginBottom: 'var(--ds-spacing-sm)' }}>
-                {err}
               </div>
-            )}
-          </div>
-        );
-      })}
+              {message && <div className="form-error num-port-row-error">{message}</div>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* A button, not a link: it acts on this form rather than navigating, and
+          the admin portal's equivalent control is a button too — the two
+          surfaces are the same screen to a customer who sees both. */}
       <button
-        className="btn-link"
-        style={{ marginBottom: 'var(--ds-layout-spacing-md)' }}
-        onClick={() => dispatch({ type: 'port_add_phone' })}
+        type="button"
+        className="btn btn-secondary num-port-add"
+        onClick={() => addRowAfter(values.length - 1)}
       >
+        {/* SAFETY: PLUS_SVG is a static SVG constant */}
+        {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- static icon constant */}
+        <span aria-hidden="true" dangerouslySetInnerHTML={{ __html: PLUS_CIRCLE_SVG }} />
         {t('accountOnboarding.numbers.port.addAnother')}
       </button>
+
+      <p className="num-port-summary-ok">
+        {t(
+          readyCount === 0
+            ? 'accountOnboarding.numbers.port.readyCountZero'
+            : readyCount === 1
+              ? 'accountOnboarding.numbers.port.readyCountOne'
+              : 'accountOnboarding.numbers.port.readyCountOther',
+          { count: readyCount }
+        )}
+      </p>
+      <p className="num-port-summary-note">{t('accountOnboarding.numbers.port.pasteHint')}</p>
+
+      {needsAttention > 0 && (
+        <div className="inline-alert error">
+          {t(
+            needsAttention === 1
+              ? 'accountOnboarding.numbers.port.needsAttentionOne'
+              : 'accountOnboarding.numbers.port.needsAttentionOther',
+            { count: needsAttention }
+          )}
+        </div>
+      )}
+
+      {overCap && (
+        <div className="inline-alert error">
+          {t('accountOnboarding.numbers.port.maxPerOrder', {
+            count: readyCount,
+            max: MAX_PHONE_NUMBERS_PER_ORDER,
+            excess: readyCount - MAX_PHONE_NUMBERS_PER_ORDER,
+          })}
+        </div>
+      )}
+
       {state.portEligibilityError && (
         <div className="inline-alert error">{state.portEligibilityError}</div>
       )}
@@ -82,11 +279,7 @@ export const PortNumbersContent = ({
         <button className="btn btn-secondary" onClick={backToOverview}>
           {t('accountOnboarding.numbers.nav.cancel')}
         </button>
-        <button
-          className="btn btn-primary"
-          disabled={state.portIsCheckingEligibility}
-          onClick={onCheck}
-        >
+        <button className="btn btn-primary" disabled={!canContinue} onClick={onCheck}>
           {state.portIsCheckingEligibility
             ? t('accountOnboarding.numbers.port.checking')
             : t('accountOnboarding.numbers.port.checkEligibility')}

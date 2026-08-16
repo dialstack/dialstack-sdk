@@ -9,6 +9,7 @@ import type {
   OnboardingLocation,
 } from '@dialstack/sdk-js';
 import type { NumSubStep } from '../../constants';
+import type { NumberIssue } from '@dialstack/sdk-js/pure';
 
 export type { NumSubStep };
 
@@ -28,8 +29,10 @@ export interface NumState {
   orderIsPlacing: boolean;
   orderError: string | null;
   orderPollCount: number;
-  portPhoneInputs: string[];
-  portPhoneErrors: Record<number, string>;
+  /** One entry per number, so each carries its own value and status. */
+  portPhoneValues: string[];
+  /** Per-number problems the API reported, keyed by the number itself. */
+  portNumberIssues: NumberIssue[];
   portEligibilityResult: PortEligibilityResult | null;
   portIsCheckingEligibility: boolean;
   portEligibilityError: string | null;
@@ -97,10 +100,8 @@ export type NumAction =
   | { type: 'order_place_error'; error: string }
   | { type: 'order_poll_update'; order: NumberOrder; pollCount: number }
   | { type: 'order_reset' }
-  | { type: 'port_set_phone_input'; index: number; value: string }
-  | { type: 'port_add_phone' }
-  | { type: 'port_remove_phone'; index: number }
-  | { type: 'port_set_phone_errors'; errors: Record<number, string> }
+  | { type: 'port_set_phone_values'; values: string[] }
+  | { type: 'port_set_number_issues'; issues: NumberIssue[] }
   | { type: 'port_check_eligibility_start' }
   | { type: 'port_check_eligibility_success'; result: PortEligibilityResult }
   | { type: 'port_check_eligibility_error'; error: string }
@@ -119,7 +120,9 @@ export type NumAction =
   | { type: 'port_carrier_submitted'; carrier: string; orderId: string; status: string }
   | { type: 'port_submit_start' }
   | { type: 'port_submit_success' }
-  | { type: 'port_submit_error'; error: string }
+  // `null` clears the order-wide error: a conflict whose numbers are marked
+  // against their own rows has nothing left for a banner to say.
+  | { type: 'port_submit_error'; error: string | null }
   | { type: 'port_reset' }
   | { type: 'load_dids_start' }
   | { type: 'load_dids_success'; dids: DIDItem[] }
@@ -160,6 +163,7 @@ export type NumAction =
 
 export type Dispatcher = React.Dispatch<NumAction>;
 export type TFn = (key: string, params?: Record<string, string | number>) => string;
+
 export type CardMode = 'overview' | 'caller-id' | 'directory-listing';
 
 export const E911_POLL_MAX = 5;
@@ -186,8 +190,8 @@ export const INITIAL_STATE: NumState = {
   orderIsPlacing: false,
   orderError: null,
   orderPollCount: 0,
-  portPhoneInputs: [''],
-  portPhoneErrors: {},
+  portPhoneValues: [''],
+  portNumberIssues: [],
   portEligibilityResult: null,
   portIsCheckingEligibility: false,
   portEligibilityError: null,
@@ -316,28 +320,35 @@ export function numReducer(state: NumState, action: NumAction): NumState {
         orderError: null,
         orderPollCount: 0,
       };
-    case 'port_set_phone_input': {
-      const inputs = [...state.portPhoneInputs];
-      inputs[action.index] = action.value;
-      return { ...state, portPhoneInputs: inputs };
-    }
-    case 'port_add_phone':
-      return { ...state, portPhoneInputs: [...state.portPhoneInputs, ''] };
-    case 'port_remove_phone': {
-      if (state.portPhoneInputs.length <= 1) return state;
+    case 'port_set_phone_values':
+      // Server-reported issues deliberately survive an edit. They are keyed by
+      // number, so one whose row was corrected or deleted stops matching and
+      // stops showing on its own — while the verdict on every number the reader
+      // did *not* touch is still true. Clearing the set wholesale said the
+      // opposite: deleting one of five rejected numbers wiped the other four,
+      // re-opened the gate, and sent the reader back to the same refusal.
+      //
+      // There is no deadlock in keeping them: each is cleared by fixing or
+      // deleting its own row, and a fresh check starts from empty
+      // (`port_check_eligibility_start`).
       return {
         ...state,
-        portPhoneInputs: state.portPhoneInputs.filter((_, i) => i !== action.index),
+        portPhoneValues: action.values.length > 0 ? action.values : [''],
+        // The order-wide failure is not keyed to anything, so it cannot expire
+        // by itself and would sit stale over rows the reader has since fixed.
+        portEligibilityError: null,
       };
-    }
-    case 'port_set_phone_errors':
-      return { ...state, portPhoneErrors: action.errors };
+    case 'port_set_number_issues':
+      // A terminal outcome of the eligibility check, so it ends the in-flight
+      // state too — the check returns here instead of dispatching success, and
+      // leaving the flag set strands the button on "Checking...".
+      return { ...state, portNumberIssues: action.issues, portIsCheckingEligibility: false };
     case 'port_check_eligibility_start':
       return {
         ...state,
         portIsCheckingEligibility: true,
         portEligibilityError: null,
-        portPhoneErrors: {},
+        portNumberIssues: [],
       };
     case 'port_check_eligibility_success':
       return {
@@ -435,8 +446,8 @@ export function numReducer(state: NumState, action: NumAction): NumState {
     case 'port_reset':
       return {
         ...state,
-        portPhoneInputs: [''],
-        portPhoneErrors: {},
+        portPhoneValues: [''],
+        portNumberIssues: [],
         portEligibilityResult: null,
         portIsCheckingEligibility: false,
         portEligibilityError: null,

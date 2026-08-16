@@ -286,15 +286,93 @@
   color: var(--ds-color-border);
 }
 
-.num-phone-input-row {
-  display: flex;
-  align-items: center;
-  gap: var(--ds-spacing-sm);
+/*
+ * No inner scroll: the list grows and the page scrolls with it. A scroll box
+ * here clipped the focus ring on the first and last rows, and — worse — hid
+ * the very rows that block the step, so a long paste could leave the visible
+ * form looking clean while the button stayed disabled.
+ */
+.num-port-rows {
   margin-bottom: var(--ds-spacing-sm);
 }
 
-.num-phone-input-row .form-input {
+.num-port-row {
+  margin-bottom: var(--ds-spacing-xs);
+}
+
+.num-port-row-fields {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-spacing-sm);
+}
+
+.num-port-row-index {
+  flex: 0 0 1.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--ds-font-size-small, 0.875rem);
+  color: var(--ds-color-text-muted, rgba(0, 0, 0, 0.55));
+}
+
+.num-port-row-fields .form-input {
   flex: 1;
+  font-family: var(--ds-font-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+.num-port-row-error {
+  padding-left: 2rem;
+}
+
+/*
+ * Sits under the row list and adds one more. Sized down from the footer's
+ * primary actions so it reads as a secondary control on the list rather than a
+ * step action, and kept a real button — it was a text link, which gave a
+ * form action the affordance of navigation.
+ */
+.num-port-add {
+  padding: 6px 14px;
+  font-size: var(--ds-font-size-small);
+  margin-bottom: var(--ds-layout-spacing-md);
+}
+
+.num-port-add svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* An icon, not a sentence: the row it belongs to is obvious from position, and
+   a per-row text button would repeat itself down the whole list. The label is
+   still there for screen readers. */
+.num-port-row-remove {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ds-radius-md, 6px);
+  background: transparent;
+  color: var(--ds-color-text-muted, rgba(0, 0, 0, 0.55));
+  cursor: pointer;
+}
+
+.num-port-row-remove:hover:not(:disabled) {
+  background: var(--ds-color-surface-muted, rgba(0, 0, 0, 0.05));
+  color: inherit;
+}
+
+.num-port-row-remove:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.num-port-summary-ok,
+.num-port-summary-note {
+  font-size: var(--ds-font-size-small);
+  color: var(--ds-color-text-muted, inherit);
+  margin: 0 0 var(--ds-spacing-sm);
 }
 
 .num-eligibility-table {

@@ -19,6 +19,7 @@ import {
   type CreatePortOrderRequest,
   type DialPlan,
   isApiError,
+  readyPhoneNumbers,
 } from '@dialstack/sdk-js/pure';
 import { mergePhoneNumbers } from '../../merge-phone-numbers';
 import { CHECK_SVG_WHITE, CHECK_CIRCLE_SVG, ERROR_SVG, PHONE_SVG } from '../../icons';
@@ -29,6 +30,7 @@ import { OnboardingLayout } from '../../OnboardingLayout';
 import { CheckIcon } from '../../components/icons';
 import numbersStyles from '../../styles/numbers-styles.css';
 
+import { conflictNumberIssues, CONFLICT_KEY, mapNonPortableToIssues } from './port-numbers';
 import { type NumState, type CardMode, numReducer, INITIAL_STATE, E911_POLL_MAX } from './types';
 import { getSidebarActiveKey, validateCallerIdName } from './helpers';
 import { PhoneCardStrip } from './content/PhoneCardStrip';
@@ -244,42 +246,57 @@ export const NumbersStep: React.FC = () => {
     [dialstack, startOrderPoll]
   );
 
+  // A conflict from the port paths carries a stable `code`; the `error` beside
+  // it is written for a log. Decode the code so the customer gets something
+  // they can act on, and fall back to the message only when we have no code.
+  const portErrorMessage = useCallback(
+    (err: unknown): string => {
+      const key = isApiError(err) && err.code ? CONFLICT_KEY[err.code] : undefined;
+      if (key) return t(key);
+      return err instanceof Error ? err.message : String(err);
+    },
+    [t]
+  );
+
   // Check port eligibility
   const checkPortEligibility = useCallback(
     async (s: NumState) => {
-      const errors: Record<number, string> = {};
-      const validNumbers: string[] = [];
-      const invalidMsg = t('accountOnboarding.numbers.validation.phoneInvalid');
-      for (let i = 0; i < s.portPhoneInputs.length; i++) {
-        const trimmed = s.portPhoneInputs[i]!.trim();
-        if (!trimmed) continue;
-        const parsed = parsePhoneNumberFromString(trimmed, 'US');
-        if (!parsed || !parsed.isValid()) errors[i] = invalidMsg;
-        else validNumbers.push(parsed.format('E.164'));
-      }
-      if (Object.keys(errors).length > 0) {
-        dispatch({ type: 'port_set_phone_errors', errors });
-        return;
-      }
-      if (validNumbers.length === 0) {
+      // The shared row classification applies the same rules the API does —
+      // valid, US, not toll-free — so the customer is never told a number is
+      // fine here only to have it rejected on submit.
+      const phoneNumbers = readyPhoneNumbers(s.portPhoneValues, s.portNumberIssues);
+
+      if (phoneNumbers.length === 0) {
         dispatch({
           type: 'port_check_eligibility_error',
           error: t('accountOnboarding.numbers.validation.phoneRequired'),
         });
         return;
       }
+
       dispatch({ type: 'port_check_eligibility_start' });
       try {
-        const result = await dialstack.portOrders.checkEligibility(validNumbers);
+        const result = await dialstack.portOrders.checkEligibility(phoneNumbers);
+        const nonPortable = result.non_portable_numbers ?? [];
+        if (nonPortable.length > 0) {
+          dispatch({
+            type: 'port_set_number_issues',
+            issues: mapNonPortableToIssues(
+              nonPortable,
+              t('accountOnboarding.numbers.port.notPortable'),
+              (v) => t('accountOnboarding.numbers.port.notPortableWithDetail', v)
+            ),
+          });
+          // Stop here. Advancing would carry the portable subset forward and
+          // quietly drop the rest.
+          return;
+        }
         dispatch({ type: 'port_check_eligibility_success', result });
       } catch (err) {
-        dispatch({
-          type: 'port_check_eligibility_error',
-          error: err instanceof Error ? err.message : String(err),
-        });
+        dispatch({ type: 'port_check_eligibility_error', error: portErrorMessage(err) });
       }
     },
-    [dialstack, t]
+    [dialstack, t, portErrorMessage]
   );
 
   // Validate subscriber form
@@ -412,13 +429,21 @@ export const NumbersStep: React.FC = () => {
         }
         void reloadSharedData().catch(() => {});
       } catch (err) {
-        dispatch({
-          type: 'port_submit_error',
-          error: err instanceof Error ? err.message : String(err),
-        });
+        // Numbers the conflict names are marked against their own rows, so the
+        // customer is taken back to a list where the problem entries are already
+        // flagged rather than to a message they have to reconcile by hand. The
+        // order-wide error is then only a restatement, so it is left off — but
+        // kept when nothing could be marked, so a refusal is never silent.
+        const issues = conflictNumberIssues(err, t);
+        if (issues.length > 0) {
+          dispatch({ type: 'port_set_number_issues', issues });
+          dispatch({ type: 'port_submit_error', error: null });
+          return;
+        }
+        dispatch({ type: 'port_submit_error', error: portErrorMessage(err) });
       }
     },
-    [dialstack, reloadSharedData]
+    [dialstack, reloadSharedData, portErrorMessage, t]
   );
 
   // Submit a single caller ID entry (returns result without dispatching)

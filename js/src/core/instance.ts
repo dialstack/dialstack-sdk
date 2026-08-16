@@ -95,7 +95,14 @@ export class ApiError extends Error {
     message: string,
     public readonly status: number,
     /** Stable machine-readable code from the API body (`{ "code": "..." }`), when present. */
-    public readonly code?: string
+    public readonly code?: string,
+    /**
+     * The API body's `details` object, when it sent one. Only some codes carry
+     * it, and what it holds is documented per code — see the error-codes guide.
+     * Kept as-is rather than typed per code, so a new code's payload does not
+     * need an SDK release to reach the caller.
+     */
+    public readonly details?: Record<string, unknown>
   ) {
     super(message);
     this.name = 'ApiError';
@@ -138,15 +145,23 @@ export function isApiError(err: unknown): err is ApiError {
 async function extractApiError(
   response: Response,
   fallback: string
-): Promise<{ message: string; code?: string }> {
+): Promise<{ message: string; code?: string; details?: Record<string, unknown> }> {
   const text = await response.text();
   if (!text) return { message: fallback };
   try {
-    const parsed = JSON.parse(text) as { error?: unknown; code?: unknown };
+    const parsed = JSON.parse(text) as { error?: unknown; code?: unknown; details?: unknown };
     const message =
       typeof parsed?.error === 'string' && parsed.error ? parsed.error : `${fallback} ${text}`;
     const code = typeof parsed?.code === 'string' && parsed.code ? parsed.code : undefined;
-    return { message, code };
+    // Objects only: an array or a bare string here is not the documented shape,
+    // and passing it through would hand callers something they cannot key into.
+    const details =
+      typeof parsed?.details === 'object' &&
+      parsed.details !== null &&
+      !Array.isArray(parsed.details)
+        ? (parsed.details as Record<string, unknown>)
+        : undefined;
+    return { message, code, details };
   } catch {
     // Not JSON — fall through to the raw text.
     return { message: `${fallback} ${text}` };
@@ -686,8 +701,16 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         body: JSON.stringify(request),
       });
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to create port order: ${response.status} ${errorText}`);
+        // Throws an {@link ApiError} rather than a bare Error: this is where the
+        // conflicts land — the account's phone-number cap, and numbers that are
+        // already claimed — and a caller needs the `code` to say which, and the
+        // `details` to mark the numbers it names. Raw response text carries
+        // neither without re-parsing the envelope.
+        const { message, code, details } = await extractApiError(
+          response,
+          `Failed to create port order: ${response.status}`
+        );
+        throw new ApiError(message, response.status, code, details);
       }
       return response.json();
     },
@@ -736,11 +759,11 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         // Carry the API's stable `code` and message so callers can render their
         // own localized reason (e.g. an invalid port date the user can fix and
         // resubmit) instead of the raw response body.
-        const { message, code } = await extractApiError(
+        const { message, code, details } = await extractApiError(
           response,
           `Failed to submit port order: ${response.status}`
         );
-        throw new ApiError(message, response.status, code);
+        throw new ApiError(message, response.status, code, details);
       }
       return response.json();
     },
@@ -1677,11 +1700,11 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         const path = `/v1/accounts/${accountId}/tos${query ? `?${query}` : ''}`;
         const response = await this.fetchApi(path);
         if (!response.ok) {
-          const { message, code } = await extractApiError(
+          const { message, code, details } = await extractApiError(
             response,
             'Failed to get subscription agreement:'
           );
-          throw new ApiError(message, response.status, code);
+          throw new ApiError(message, response.status, code, details);
         }
         return response.json();
       },
@@ -1699,11 +1722,11 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
           body: JSON.stringify({ version }),
         });
         if (!response.ok) {
-          const { message, code } = await extractApiError(
+          const { message, code, details } = await extractApiError(
             response,
             'Failed to accept subscription agreement:'
           );
-          throw new ApiError(message, response.status, code);
+          throw new ApiError(message, response.status, code, details);
         }
         return response.json();
       },

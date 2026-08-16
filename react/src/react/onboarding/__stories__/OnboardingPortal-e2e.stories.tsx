@@ -1036,28 +1036,23 @@ export const FullPortFlow: Story = {
       );
     });
 
-    await step('Enter first phone number', async () => {
-      const phoneInput = canvasElement.querySelector('input[type="tel"]') as HTMLInputElement;
-      expect(phoneInput).not.toBeNull();
-      await userEvent.type(phoneInput, '2125551001');
-    });
+    await step('Enter both numbers, Enter for the second row', async () => {
+      const first = canvasElement.querySelector(
+        '.num-port-rows input[type="tel"]'
+      ) as HTMLInputElement;
+      expect(first).not.toBeNull();
+      await userEvent.type(first, '2125551001{Enter}');
 
-    await step('Add another number input and enter second number', async () => {
-      // Click "Add another number" link
-      const addBtn = Array.from(canvasElement.querySelectorAll('button')).find((b) =>
-        b.textContent?.includes('Add another')
+      const rows = canvasElement.querySelectorAll<HTMLInputElement>(
+        '.num-port-rows input[type="tel"]'
       );
-      expect(addBtn).not.toBeUndefined();
-      await userEvent.click(addBtn!);
+      expect(rows.length).toBe(2);
+      await userEvent.type(rows[1]!, '2125551002');
+      await userEvent.tab();
 
-      // Wait for second input to appear
       await waitFor(() => {
-        const telInputs = canvasElement.querySelectorAll('input[type="tel"]');
-        expect(telInputs.length).toBe(2);
+        expect(canvasElement.textContent).toContain('2 numbers ready');
       });
-
-      const telInputs = canvasElement.querySelectorAll<HTMLInputElement>('input[type="tel"]');
-      await userEvent.type(telInputs[1]!, '2125551002');
     });
 
     await step('Check Eligibility -> eligibility results', async () => {
@@ -2059,23 +2054,23 @@ export const MultiCarrierPort: Story = {
         { timeout: DATA_TIMEOUT }
       );
 
-      // Enter first number
-      const phoneInput = canvasElement.querySelector('input[type="tel"]') as HTMLInputElement;
-      await userEvent.type(phoneInput, '2125551001');
+      // Two numbers on different carriers, one per row
+      const first = canvasElement.querySelector(
+        '.num-port-rows input[type="tel"]'
+      ) as HTMLInputElement;
+      expect(first).not.toBeNull();
+      await userEvent.type(first, '2125551001{Enter}');
 
-      // Add second number
-      const addBtn = Array.from(canvasElement.querySelectorAll('button')).find((b) =>
-        b.textContent?.includes('Add another')
+      const rows = canvasElement.querySelectorAll<HTMLInputElement>(
+        '.num-port-rows input[type="tel"]'
       );
-      await userEvent.click(addBtn!);
+      expect(rows.length).toBe(2);
+      await userEvent.type(rows[1]!, '4155550101');
+      await userEvent.tab();
 
       await waitFor(() => {
-        const telInputs = canvasElement.querySelectorAll('input[type="tel"]');
-        expect(telInputs.length).toBe(2);
+        expect(canvasElement.textContent).toContain('2 numbers ready');
       });
-
-      const telInputs = canvasElement.querySelectorAll<HTMLInputElement>('input[type="tel"]');
-      await userEvent.type(telInputs[1]!, '4155550101');
     });
 
     await step('Check eligibility -> carrier select screen', async () => {
@@ -2760,6 +2755,84 @@ export const LocalStorageStartedFlagWrittenOnGetStarted: Story = {
       );
 
       expect(window.localStorage.getItem(STARTED_FLAG_KEY)).toBe('1');
+    });
+  },
+};
+
+// ============================================================================
+// Story: PortRowRemovalWhileFocused
+// ============================================================================
+
+/**
+ * Removing a row that the caret is sitting in, where blur would rewrite it.
+ *
+ * This needs a real browser: pressing the remove control blurs the field first,
+ * blur settles the value, and the re-render that follows used to swallow the
+ * click — so the row stayed, newly reformatted, and a second press was needed to
+ * delete it. jsdom fires click without any of that ordering, so a unit test
+ * passes either way and cannot guard it.
+ */
+export const PortRowRemovalWhileFocused: Story = {
+  play: async ({ canvasElement, step }) => {
+    const canvas = within(canvasElement);
+
+    await step('Reach the port numbers screen', async () => {
+      await startAndReachNumbers(canvas, canvasElement);
+
+      const actionCards = canvasElement.querySelectorAll('.num-action-card');
+      const portCard = Array.from(actionCards).find((c) =>
+        c.textContent?.includes('Port Existing')
+      );
+      await userEvent.click(portCard!);
+
+      await waitFor(
+        () => {
+          expect(canvasElement.querySelector('.num-port-rows input[type="tel"]')).not.toBeNull();
+        },
+        { timeout: DATA_TIMEOUT }
+      );
+    });
+
+    await step('Remove a focused row whose value blur would rewrite', async () => {
+      const rows = () =>
+        canvasElement.querySelectorAll<HTMLInputElement>('.num-port-rows input[type="tel"]');
+
+      // Pasted, not typed: typing formats as it goes, so blur has nothing left
+      // to change. A paste of several fans out into rows, and a segment that
+      // cannot be canonicalised — a non-US number here — keeps its text exactly
+      // as written. That is the state blur rewrites.
+      const first = rows()[0]!;
+      await userEvent.click(first);
+      await userEvent.paste('+16195551234\n+15145551258');
+
+      await waitFor(() => {
+        expect(rows()).toHaveLength(2);
+        expect(rows()[1]!.value).toBe('+15145551258');
+      });
+
+      // Caret in the row being removed — the whole point of the test.
+      await userEvent.click(rows()[1]!);
+
+      const remove = canvasElement.querySelectorAll<HTMLButtonElement>('.num-port-row-remove')[1]!;
+
+      // The invariant, asserted directly: pressing the control must not move
+      // focus. `userEvent.click` cannot show this on its own — it dispatches the
+      // click unconditionally, so it lands whether or not the list re-rendered
+      // underneath, and the story passes with the fix removed. A real pointer
+      // does not: the press blurs the field, blur settles the value, and the
+      // re-render swallows the click. Cancelling the press is what stops that,
+      // so cancelling is what this checks.
+      const press = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+      remove.dispatchEvent(press);
+      expect(press.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(rows()[1]!);
+
+      await userEvent.click(remove);
+
+      // One press, one removal. Before the fix a real press left two rows, the
+      // second reformatted to "+1 514 555 1258" and still there.
+      await waitFor(() => expect(rows()).toHaveLength(1));
+      expect(rows()[0]!.value).toBe('(619) 555-1234');
     });
   },
 };

@@ -32,3 +32,16 @@ export type {
   DeviceReadinessStep,
   DeviceReadinessPrerequisite,
 } from './utils/device-readiness';
+
+// Bulk phone-number entry. Shared so the admin portal and the onboarding portal
+// accept and reject exactly the same input — a number one surface takes and the
+// other refuses is a number left off a port order.
+export { formatOnBlur, formatWhileTyping } from './utils/phone-input-format';
+export {
+  classifyPhoneNumberRows,
+  formatNationalUS,
+  isPhoneNumberListReady,
+  parsePhoneNumberRows,
+  readyPhoneNumbers,
+} from './utils/phone-list';
+export type { NumberIssue, ParsedRow, ParseProblemReason, RowStatus } from './utils/phone-list';

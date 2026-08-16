@@ -614,11 +614,36 @@ export const en = {
       },
       port: {
         numbersTitle: 'Numbers to Port',
-        numbersSubtitle: 'Enter the phone numbers you want to transfer to {platformName}.',
+        numbersSubtitle:
+          'Enter the numbers you want to transfer to {platformName}, or paste a whole list into any row.',
         phoneLabel: 'Phone Number',
         phonePlaceholder: '(555) 123-4567',
         addAnother: 'Add another number',
-        removeNumber: 'Remove',
+        numberLabel: 'Phone number {row}',
+        removeNumber: 'Remove phone number {row}',
+        duplicateOfRow: 'Duplicate of row {row}',
+        pasteHint:
+          'Press Enter for another row. Pasting a list — one per line, commas, or a spreadsheet column — fills a row for each number.',
+        readyCountZero: 'No numbers yet',
+        readyCountOne: '{count} number ready',
+        readyCountOther: '{count} numbers ready',
+        needsAttentionOne: '{count} row needs attention before you can continue',
+        needsAttentionOther: '{count} rows need attention before you can continue',
+        reasonInvalid: 'Not a valid US phone number',
+        reasonNotUs: 'Only US numbers can be ported',
+        reasonTollFree: 'Toll-free numbers cannot be ported',
+        reasonAmbiguous: 'Too many digits for one number — if this is several, put one per row',
+        reasonHasExtension: 'Remove the extension',
+        maxPerOrder:
+          '{count} numbers — the maximum is {max} per order. Move {excess} into a second port order.',
+        notPortableWithDetail: '{label} ({detail})',
+        accountLimit:
+          "You've reached the number of phone numbers this account can hold. Contact support to raise the limit, then try again.",
+        numbersUnavailable:
+          "Some of these numbers are already in use and can't be ported. The ones affected are marked above.",
+        // Sit against the row they describe, so neither repeats the number.
+        conflictAlreadyOnAccount: 'You already have this number',
+        conflictInServiceElsewhere: 'Already in service — contact support to transfer it',
         checkEligibility: 'Check Eligibility',
         checking: 'Checking...',
         eligibilityTitle: 'Port Eligibility',
@@ -710,6 +735,10 @@ export const en = {
         zipFormat: 'Enter a 5-digit ZIP code.',
         selectAtLeastOne: 'Select at least one number.',
         phoneRequired: 'At least one phone number is required.',
+        // Unused since port-number entry moved to the shared row parser, whose
+        // per-row copy lives under `port.reason*`. Kept because `Locale` is
+        // `typeof en` and is fully required public API: removing a key breaks
+        // any consumer whose locale override still sets it.
         phoneInvalid: 'Enter a valid US phone number.',
         phoneDuplicate: 'This number has already been entered.',
         btnRequired: 'BTN is required.',

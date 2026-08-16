@@ -253,7 +253,7 @@ async function navigateToPort() {
   await waitForOverview();
   clickActionCard('Port Existing');
   await waitFor(() => {
-    expect(document.querySelector('input[type="tel"]')).not.toBeNull();
+    expect(document.querySelector('.num-port-rows input[type="tel"]')).not.toBeNull();
   });
 }
 
@@ -264,6 +264,31 @@ async function navigateToOrder() {
   await waitFor(() => {
     expect(document.body.textContent).toContain('Search Available Numbers');
   });
+}
+
+/** Rows currently rendered in the port-numbers step. */
+function portRows(): HTMLInputElement[] {
+  return Array.from(
+    document.querySelectorAll<HTMLInputElement>('.num-port-rows input[type="tel"]')
+  );
+}
+
+/**
+ * Put a list into the step the way a person would: paste it into the first row
+ * and let it fan out.
+ */
+function enterPortNumbers(text: string) {
+  const [first] = portRows();
+  if (!first) throw new Error('port numbers rows not rendered');
+  const clipboardData = {
+    getData: () => text,
+  } as unknown as DataTransfer;
+  fireEvent.paste(first, { clipboardData });
+  // A single value produces no fan-out, so it is typed instead.
+  if (portRows().length <= 1 && !text.includes('\n') && !text.includes(',')) {
+    fireEvent.change(first, { target: { value: text } });
+    fireEvent.blur(first);
+  }
 }
 
 /** Fill a text input by its placeholder text. */
@@ -280,8 +305,7 @@ async function navigatePortFlowTo(
   await navigateToPort();
 
   // Enter phone number
-  const phoneInput = document.querySelector<HTMLInputElement>('input[type="tel"]')!;
-  fireEvent.change(phoneInput, { target: { value: '(212) 555-1001' } });
+  enterPortNumbers('(212) 555-1001');
 
   // Check eligibility
   fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
@@ -882,26 +906,103 @@ describe('NumbersStep', () => {
       expect(document.body.textContent).toContain('Numbers to Port');
     });
 
-    it('adds and removes port phone number inputs', async () => {
+    it('accepts many numbers pasted at once and normalizes them', async () => {
       await renderNumbers();
       await navigateToPort();
 
-      // Should have one input
-      const inputs = document.querySelectorAll<HTMLInputElement>('input[type="tel"]');
-      expect(inputs.length).toBe(1);
-
-      // Should not have a remove button when only one input
-      expect(screen.queryByRole('button', { name: /Remove/i })).toBeNull();
-
-      // Add another
-      fireEvent.click(screen.getByRole('button', { name: /Add another/i }));
+      enterPortNumbers('2125551001, 212-555-1002\n+1 212 555 1003');
 
       await waitFor(() => {
-        const updatedInputs = document.querySelectorAll<HTMLInputElement>('input[type="tel"]');
-        expect(updatedInputs.length).toBe(2);
-        // Now remove buttons should appear
-        expect(screen.getAllByRole('button', { name: /Remove/i }).length).toBeGreaterThan(0);
+        expect(document.body.textContent).toContain('3 numbers ready');
       });
+
+      expect(portRows().map((r) => r.value)).toEqual([
+        '(212) 555-1001',
+        '(212) 555-1002',
+        '(212) 555-1003',
+      ]);
+    });
+
+    it('blocks continuing while any row is unreadable', async () => {
+      await renderNumbers();
+      await navigateToPort();
+
+      enterPortNumbers('2125551001\n(000) 123-4567');
+
+      await waitFor(() => {
+        expect(document.body.textContent).toContain('Not a valid US phone number');
+      });
+
+      expect(screen.getByRole('button', { name: /Check Eligibility/i })).toBeDisabled();
+    });
+
+    it('canonicalises a paste immediately, without waiting for a blur', async () => {
+      await renderNumbers();
+      await navigateToPort();
+
+      enterPortNumbers('2125551001, 212-555-1002\n2125551001');
+
+      await waitFor(() => {
+        expect(portRows()).toHaveLength(3);
+      });
+      // The repeat keeps its own row and is marked in place rather than removed.
+      expect(portRows().map((r) => r.value)).toEqual([
+        '(212) 555-1001',
+        '(212) 555-1002',
+        '(212) 555-1001',
+      ]);
+      expect(document.body.textContent).toContain('2 numbers ready');
+      expect(document.body.textContent).toContain('Duplicate of row 1');
+    });
+
+    it('does not rewrite a number while it is still being typed', async () => {
+      await renderNumbers();
+      await navigateToPort();
+
+      const [first] = portRows();
+      if (!first) throw new Error('port numbers rows not rendered');
+
+      fireEvent.change(first, { target: { value: '(212) 555-10' } });
+
+      await waitFor(() => {
+        expect(portRows()[0]?.value).toBe('(212) 555-10');
+      });
+    });
+
+    it('adds a row from a real button, not a text link', async () => {
+      await renderNumbers();
+      await navigateToPort();
+      enterPortNumbers('2125551001');
+
+      const rows = () => document.querySelectorAll('.num-port-rows input[type="tel"]').length;
+      const before = rows();
+
+      // Queried by role: it renders as a link-styled span in an earlier version,
+      // which gave a form action the affordance of navigation and left it out of
+      // the button tab order.
+      const add = screen.getByRole('button', { name: /Add another number/i });
+      expect(add).toHaveAttribute('type', 'button');
+      fireEvent.click(add);
+
+      await waitFor(() => expect(rows()).toBe(before + 1));
+    });
+
+    it('marks a repeat in place and blocks on it', async () => {
+      await renderNumbers();
+      await navigateToPort();
+
+      enterPortNumbers('2125551001\n212-555-1001');
+
+      await waitFor(() => {
+        expect(document.body.textContent).toContain('Duplicate of row 1');
+        expect(document.body.textContent).toContain('1 number ready');
+      });
+
+      // The repeat keeps its row but is not ordered, so leaving it would submit
+      // two rows as one number. Blocking makes the reader delete it, and what is
+      // on screen then matches what is sent.
+      expect(document.body.textContent).toContain('1 row needs attention');
+      expect(screen.getByRole('button', { name: /Check Eligibility/i })).toBeDisabled();
     });
 
     it('checks port eligibility and shows results', async () => {
@@ -909,8 +1010,7 @@ describe('NumbersStep', () => {
       await navigateToPort();
 
       // Enter phone
-      const phoneInput = document.querySelector<HTMLInputElement>('input[type="tel"]')!;
-      fireEvent.change(phoneInput, { target: { value: '(212) 555-1001' } });
+      enterPortNumbers('(212) 555-1001');
 
       // Check eligibility
       fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
@@ -929,8 +1029,7 @@ describe('NumbersStep', () => {
       await renderNumbers();
       await navigateToPort();
 
-      const phoneInput = document.querySelector<HTMLInputElement>('input[type="tel"]')!;
-      fireEvent.change(phoneInput, { target: { value: '(212) 555-1001' } });
+      enterPortNumbers('(212) 555-1001');
 
       fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
 
@@ -954,7 +1053,7 @@ describe('NumbersStep', () => {
       });
     });
 
-    it('shows non-portable numbers in eligibility results', async () => {
+    it('reports a non-portable number against its row and stays put', async () => {
       await renderNumbers({
         ...defaultPortOrdersNS({
           checkEligibility: jest.fn().mockResolvedValue({
@@ -965,46 +1064,149 @@ describe('NumbersStep', () => {
       });
 
       await navigateToPort();
-
-      const phoneInput = document.querySelector<HTMLInputElement>('input[type="tel"]')!;
-      fireEvent.change(phoneInput, { target: { value: '(212) 555-1001' } });
-
+      enterPortNumbers('(212) 555-1001');
       fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
 
       await waitFor(() => {
         expect(document.body.textContent).toContain('Not Portable');
-        expect(document.body.textContent).toContain('None of the entered numbers are eligible');
+      });
+      // The message sits on the row holding that number.
+      expect(document.querySelectorAll('.num-port-row-error')).toHaveLength(1);
+    });
+
+    it('turns a conflict code into copy the customer can act on', async () => {
+      // The API's `error` string is written for a log. The stable `code` beside
+      // it is the contract this decodes — showing the raw message instead is
+      // what the admin portal already avoids.
+      const conflict = Object.assign(new Error('4 phone number(s) are unavailable'), {
+        name: 'ApiError',
+        status: 409,
+        code: 'phone_numbers_already_claimed',
+      });
+      await renderNumbers({
+        ...defaultPortOrdersNS({
+          checkEligibility: jest.fn().mockRejectedValue(conflict),
+        }),
+      });
+
+      await navigateToPort();
+      enterPortNumbers('(212) 555-1001');
+      fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
+
+      await waitFor(() => {
+        expect(document.body.textContent).toContain('already in use');
+      });
+      expect(document.body.textContent).not.toContain('phone number(s) are unavailable');
+    });
+
+    it('falls back to the message when an error carries no code', async () => {
+      await renderNumbers({
+        ...defaultPortOrdersNS({
+          checkEligibility: jest.fn().mockRejectedValue(new Error('network unreachable')),
+        }),
+      });
+
+      await navigateToPort();
+      enterPortNumbers('(212) 555-1001');
+      fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
+
+      await waitFor(() => {
+        expect(document.body.textContent).toContain('network unreachable');
       });
     });
 
-    it('validates phone number format before checking eligibility', async () => {
+    it('does not carry the portable subset forward when some numbers are not portable', async () => {
+      // The silent-short-order case: advancing here would create an order for
+      // the one portable number and quietly drop the other.
+      await renderNumbers({
+        ...defaultPortOrdersNS({
+          checkEligibility: jest.fn().mockResolvedValue({
+            portable_numbers: [
+              {
+                phone_number: '+12125551001',
+                losing_carrier_name: 'Old Telco',
+                losing_carrier_spid: '1234',
+                is_wireless: false,
+                account_number_required: false,
+              },
+            ],
+            non_portable_numbers: [{ phone_number: '+12125551002', city: 'New York', state: 'NY' }],
+          }),
+        }),
+      });
+
+      await navigateToPort();
+      enterPortNumbers('(212) 555-1001\n(212) 555-1002');
+      fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
+
+      await waitFor(() => {
+        expect(document.body.textContent).toContain('Not Portable');
+      });
+
+      // Still on the numbers step — no eligibility screen, nothing to continue with.
+      expect(screen.queryByRole('button', { name: /Continue with Portable/i })).toBeNull();
+      expect(document.querySelectorAll('.num-port-row-error')).toHaveLength(1);
+    });
+
+    it('clears a server-reported issue once the row is edited', async () => {
+      // Otherwise the issue outlives the text it describes and permanently
+      // disables the only control that would clear it.
+      await renderNumbers({
+        ...defaultPortOrdersNS({
+          checkEligibility: jest.fn().mockResolvedValue({
+            portable_numbers: [],
+            non_portable_numbers: [{ phone_number: '+12125551001', city: 'New York', state: 'NY' }],
+          }),
+        }),
+      });
+
+      await navigateToPort();
+      enterPortNumbers('(212) 555-1001');
+      fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
+
+      await waitFor(() => {
+        expect(document.body.textContent).toContain('Not Portable');
+      });
+      expect(screen.getByRole('button', { name: /Check Eligibility/i })).toBeDisabled();
+
+      const [first] = portRows();
+      if (!first) throw new Error('port numbers rows not rendered');
+      fireEvent.change(first, { target: { value: '(212) 555-1003' } });
+
+      await waitFor(() => {
+        expect(document.querySelectorAll('.num-port-row-error')).toHaveLength(0);
+      });
+      expect(screen.getByRole('button', { name: /Check Eligibility/i })).not.toBeDisabled();
+    });
+
+    it('never sends an unreadable number to the eligibility check', async () => {
       const result = await renderNumbers();
       await navigateToPort();
 
-      const phoneInput = document.querySelector<HTMLInputElement>('input[type="tel"]')!;
-      fireEvent.change(phoneInput, { target: { value: '123' } });
-
-      fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
+      enterPortNumbers('123');
 
       await waitFor(() => {
-        expect(document.body.textContent).toContain('Enter a valid US phone number');
-        expect(
-          (result.instance as unknown as Record<string, Record<string, jest.Mock>>).portOrders
-            .checkEligibility
-        ).not.toHaveBeenCalled();
+        expect(screen.getByRole('button', { name: /Check Eligibility/i })).toBeDisabled();
       });
+
+      // Not asserting on a click here: React suppresses events on a disabled
+      // control, so "click then expect not-called" would pass even if the
+      // handler had no guard at all.
+      expect(
+        (result.instance as unknown as Record<string, Record<string, jest.Mock>>).portOrders
+          .checkEligibility
+      ).not.toHaveBeenCalled();
     });
 
-    it('validates empty phone inputs before checking eligibility', async () => {
-      await renderNumbers();
+    it('cannot check eligibility with no numbers entered', async () => {
+      const result = await renderNumbers();
       await navigateToPort();
 
-      // Click check without entering any number
-      fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
-
-      await waitFor(() => {
-        expect(document.body.textContent).toContain('At least one phone number is required');
-      });
+      expect(screen.getByRole('button', { name: /Check Eligibility/i })).toBeDisabled();
+      expect(
+        (result.instance as unknown as Record<string, Record<string, jest.Mock>>).portOrders
+          .checkEligibility
+      ).not.toHaveBeenCalled();
     });
 
     it('validates bill copy required before moving to review', async () => {
@@ -1012,8 +1214,7 @@ describe('NumbersStep', () => {
 
       // Navigate to documents sub-step without uploading the bill
       await navigateToPort();
-      const phoneInput = document.querySelector<HTMLInputElement>('input[type="tel"]')!;
-      fireEvent.change(phoneInput, { target: { value: '(212) 555-1001' } });
+      enterPortNumbers('(212) 555-1001');
       fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
       await waitFor(() => {
         expect(document.body.textContent).toContain('Portable');
@@ -1662,23 +1863,8 @@ describe('NumbersStep', () => {
       });
       await navigateToPort();
 
-      // Enter 3 phone numbers
-      const phoneInput = document.querySelector<HTMLInputElement>('input[type="tel"]')!;
-      fireEvent.change(phoneInput, { target: { value: '(212) 555-1001' } });
-
-      fireEvent.click(screen.getByRole('button', { name: /Add another/i }));
-      await waitFor(() => {
-        expect(document.querySelectorAll('input[type="tel"]').length).toBe(2);
-      });
-      const inputs2 = document.querySelectorAll<HTMLInputElement>('input[type="tel"]');
-      fireEvent.change(inputs2[1]!, { target: { value: '(212) 555-1002' } });
-
-      fireEvent.click(screen.getByRole('button', { name: /Add another/i }));
-      await waitFor(() => {
-        expect(document.querySelectorAll('input[type="tel"]').length).toBe(3);
-      });
-      const inputs3 = document.querySelectorAll<HTMLInputElement>('input[type="tel"]');
-      fireEvent.change(inputs3[2]!, { target: { value: '(415) 555-0101' } });
+      // Enter 3 phone numbers spanning two carriers
+      enterPortNumbers('(212) 555-1001\n(212) 555-1002\n(415) 555-0101');
 
       // Check eligibility
       fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
@@ -1806,15 +1992,7 @@ describe('NumbersStep', () => {
 
       await navigateToPort();
 
-      const phoneInput = document.querySelector<HTMLInputElement>('input[type="tel"]')!;
-      fireEvent.change(phoneInput, { target: { value: '(212) 555-1001' } });
-
-      fireEvent.click(screen.getByRole('button', { name: /Add another/i }));
-      await waitFor(() => {
-        expect(document.querySelectorAll('input[type="tel"]').length).toBe(2);
-      });
-      const inputs2 = document.querySelectorAll<HTMLInputElement>('input[type="tel"]');
-      fireEvent.change(inputs2[1]!, { target: { value: '(212) 555-1002' } });
+      enterPortNumbers('(212) 555-1001\n(212) 555-1002');
 
       fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
       await waitFor(() => {
