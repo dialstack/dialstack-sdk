@@ -1,7 +1,7 @@
 {
   "name": "@dialstack/sdk-js",
   "version": "3.0.0",
-  "description": "DialStack browser SDK \u2014 initialisation, REST client and the self-registering web components",
+  "description": "DialStack browser SDK — initialisation, REST client and the self-registering web components",
   "license": "MIT",
   "type": "module",
   "author": "DialStack",
@@ -73,7 +73,11 @@
     "prepublishOnly": "npm run clean && npm run build"
   },
   "dependencies": {
-    "libphonenumber-js": "^1.13.9"
+    "@storybook/react": "^10.5.8",
+    "@storybook/react-vite": "^10.5.8",
+    "@xyflow/react": "^12.11.3",
+    "globals": "^17.11.0",
+    "libphonenumber-js": "^1.13.11"
   },
   "devDependencies": {
     "rollup-plugin-dts": "^6.5.1"

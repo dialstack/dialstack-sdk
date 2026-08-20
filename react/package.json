@@ -1,7 +1,7 @@
 {
   "name": "@dialstack/sdk-react",
   "version": "3.0.0",
-  "description": "React components and hooks for the DialStack SDK \u2014 call logs, voicemails, dial plan, softphone and onboarding",
+  "description": "React components and hooks for the DialStack SDK — call logs, voicemails, dial plan, softphone and onboarding",
   "license": "MIT",
   "type": "module",
   "author": "DialStack",
@@ -172,14 +172,17 @@
   },
   "dependencies": {
     "@dialstack/sdk-webrtc": "3.0.0",
+    "@storybook/react": "^10.5.8",
+    "@storybook/react-vite": "^10.5.8",
     "canvas-confetti": "^1.9.4",
     "cmdk": "^1.1.1",
     "dagre": "^0.8.5",
-    "libphonenumber-js": "^1.13.9"
+    "globals": "^17.11.0",
+    "libphonenumber-js": "^1.13.11"
   },
   "peerDependencies": {
     "@dialstack/sdk-js": ">=3.0.0 <4",
-    "@xyflow/react": "^12.0.0",
+    "@xyflow/react": "^12.11.3",
     "react": "^18 || ^19",
     "react-dom": "^18 || ^19"
   },
