@@ -54,12 +54,5 @@
   },
   "devDependencies": {
     "@dialstack/sdk-js": "3.0.0"
-  },
-  "dependencies": {
-    "@storybook/react": "^10.5.8",
-    "@storybook/react-vite": "^10.5.8",
-    "@xyflow/react": "^12.11.3",
-    "globals": "^17.11.0",
-    "libphonenumber-js": "^1.13.11"
   }
 }

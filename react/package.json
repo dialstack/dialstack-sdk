@@ -172,17 +172,14 @@
   },
   "dependencies": {
     "@dialstack/sdk-webrtc": "3.0.0",
-    "@storybook/react": "^10.5.8",
-    "@storybook/react-vite": "^10.5.8",
     "canvas-confetti": "^1.9.4",
     "cmdk": "^1.1.1",
     "dagre": "^0.8.5",
-    "globals": "^17.11.0",
     "libphonenumber-js": "^1.13.11"
   },
   "peerDependencies": {
     "@dialstack/sdk-js": ">=3.0.0 <4",
-    "@xyflow/react": "^12.11.3",
+    "@xyflow/react": "^12.0.0",
     "react": "^18 || ^19",
     "react-dom": "^18 || ^19"
   },
