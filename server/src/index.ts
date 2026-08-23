@@ -1694,6 +1694,14 @@ export interface RingGroup {
   id: string;
   name: string;
   timeout_seconds: number;
+  /**
+   * When `true`, a SIP 302 redirect (call forwarding) sent by a member's device
+   * is ignored: that device is treated as busy and the group keeps ringing its
+   * other members. Reaches only forwarding the device performs itself, and
+   * applies to every leg the group dials, including devices reached through a
+   * member's Find Me / Follow Me. It does not disable Find Me / Follow Me or
+   * change which targets that produces.
+   */
   ignore_forwarding: boolean;
   confirm_external: boolean;
   /** Action when no member answers within `timeout_seconds`. */
@@ -1725,6 +1733,14 @@ export interface RingGroupMember {
 export interface RingGroupCreateParams {
   name: string;
   timeout_seconds?: number;
+  /**
+   * When `true`, a SIP 302 redirect (call forwarding) sent by a member's device
+   * is ignored: that device is treated as busy and the group keeps ringing its
+   * other members. Reaches only forwarding the device performs itself, and
+   * applies to every leg the group dials, including devices reached through a
+   * member's Find Me / Follow Me. It does not disable Find Me / Follow Me or
+   * change which targets that produces.
+   */
   ignore_forwarding?: boolean;
   confirm_external?: boolean;
   timeout_action?: RingGroupTimeoutAction;
@@ -1734,6 +1750,14 @@ export interface RingGroupCreateParams {
 export interface RingGroupUpdateParams {
   name?: string;
   timeout_seconds?: number;
+  /**
+   * When `true`, a SIP 302 redirect (call forwarding) sent by a member's device
+   * is ignored: that device is treated as busy and the group keeps ringing its
+   * other members. Reaches only forwarding the device performs itself, and
+   * applies to every leg the group dials, including devices reached through a
+   * member's Find Me / Follow Me. It does not disable Find Me / Follow Me or
+   * change which targets that produces.
+   */
   ignore_forwarding?: boolean;
   confirm_external?: boolean;
   /** Send `null` to clear the timeout configuration. */
