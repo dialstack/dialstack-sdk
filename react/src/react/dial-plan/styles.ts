@@ -605,6 +605,17 @@ export const dialPlanStyles = `
   line-height: 1.4;
 }
 
+.ds-dial-plan-config-field__error {
+  margin: 4px 0 0;
+  font-size: var(--ds-font-size-xs, 12px);
+  color: var(--ds-color-danger, #ef4444);
+  line-height: 1.4;
+}
+
+.ds-dial-plan-config-field__input[aria-invalid='true'] {
+  border-color: var(--ds-color-danger, #ef4444);
+}
+
 .ds-dial-plan-edge-panel__value {
   font-size: var(--ds-font-size-sm, 14px);
   color: var(--ds-color-text, #1e293b);

@@ -27,6 +27,8 @@ interface NodeConfigPanelProps {
     display?: Record<string, unknown>
   ) => void;
   onDelete: (nodeId: string) => void;
+  /** Forwarded to the config panel; see ConfigPanelProps. */
+  onInvalidDraftChange?: (invalid: boolean) => void;
   onClose: () => void;
   listResources: ConfigPanelProps['listResources'];
   onCreateResource?: ConfigPanelProps['onCreateResource'];
@@ -38,6 +40,7 @@ export const NodeConfigPanel = ({
   node,
   registration,
   onConfigChange,
+  onInvalidDraftChange,
   onDelete,
   onClose,
   listResources,
@@ -102,6 +105,8 @@ export const NodeConfigPanel = ({
       </div>
       <div className="ds-dial-plan-config-panel__body">
         <ConfigPanel
+          nodeId={node.id}
+          onInvalidDraftChange={onInvalidDraftChange}
           config={config}
           onConfigChange={(updates, display) => onConfigChange(node.id, updates, display)}
           listResources={listResources}

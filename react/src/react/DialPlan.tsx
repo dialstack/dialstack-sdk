@@ -266,6 +266,11 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+  // Set while an open config panel is showing an entry it rejected. Saving then
+  // would write whatever the graph holds — for a node just added, nothing —
+  // and report success, so Save stays shut until the draft is fixed or the
+  // panel goes away.
+  const [hasInvalidDraft, setHasInvalidDraft] = useState(false);
   useEffect(() => {
     callbacksRef.current.onDirtyChange?.(isDirty);
   }, [isDirty]);
@@ -938,6 +943,7 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
             handleSave().catch(() => {});
           }}
           isDirty={isDirty}
+          hasInvalidDraft={hasInvalidDraft}
         />
       )}
     </ReactFlow>
@@ -970,6 +976,7 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
               node={selectedNode as { id: string; type: string; data: Record<string, unknown> }}
               registration={selectedReg}
               onConfigChange={handleConfigChange}
+              onInvalidDraftChange={setHasInvalidDraft}
               onDelete={handleDeleteNode}
               onClose={() => {
                 setSelectedNodeId(null);

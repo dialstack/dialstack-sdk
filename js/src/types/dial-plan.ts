@@ -341,6 +341,14 @@ export interface DialPlanLocale {
     routeHolidaySeparately: string;
     routeHolidaySeparatelyHint: string;
     mode: string;
+    /**
+     * Optional so that a locale written against an earlier release still
+     * compiles. `defaultDialPlanLocale` supplies both, and the config panel
+     * falls back to English when a caller-supplied locale omits them.
+     */
+    phoneNumber?: string;
+    phoneNumberInvalid?: string;
+    clearPhoneNumber?: string;
   };
   voiceAppMode: {
     control: string;

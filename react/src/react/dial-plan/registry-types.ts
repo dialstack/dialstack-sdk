@@ -32,6 +32,21 @@ export interface ListResourcesOptions {
 }
 
 export interface ConfigPanelProps {
+  /**
+   * Id of the node being configured. Panels that hold local draft state need it
+   * to tell "the user selected a different node" from "the value changed":
+   * the editor reuses one panel instance across same-type selections, and two
+   * nodes commonly hold the same config (a pair of freshly-added nodes, or two
+   * that legitimately point at the same target).
+   */
+  nodeId?: string;
+  /**
+   * Report that the panel is holding an entry it rejected, so the editor can
+   * keep Save shut rather than writing what the graph holds and reporting
+   * success. Panels without validation never call it, and one that does must
+   * report `false` again once the entry is fixed or abandoned.
+   */
+  onInvalidDraftChange?: (invalid: boolean) => void;
   config: Record<string, unknown>;
   onConfigChange: (updates: Record<string, unknown>, display?: Record<string, unknown>) => void;
   listResources: (

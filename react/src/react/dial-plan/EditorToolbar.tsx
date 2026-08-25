@@ -11,6 +11,12 @@ export interface EditorToolbarProps {
   onAutoLayout: () => void;
   onSave?: () => void;
   isDirty?: boolean;
+  /**
+   * A config panel is showing a rejected entry. Saving would write whatever the
+   * graph holds instead — for a node just added, nothing at all — and report
+   * success, so the button stays shut until the draft is fixed or abandoned.
+   */
+  hasInvalidDraft?: boolean;
   locale?: DialPlanLocale;
 }
 
@@ -18,6 +24,7 @@ export const EditorToolbar = memo(function EditorToolbar({
   onAutoLayout,
   onSave,
   isDirty,
+  hasInvalidDraft,
   locale,
 }: EditorToolbarProps) {
   const labels = locale?.toolbar ?? { autoLayout: 'Auto Layout', save: 'Save' };
@@ -52,7 +59,7 @@ export const EditorToolbar = memo(function EditorToolbar({
           onClick={onSave}
           title={labels.save}
           type="button"
-          disabled={!isDirty}
+          disabled={!isDirty || hasInvalidDraft}
         >
           <svg
             width="14"

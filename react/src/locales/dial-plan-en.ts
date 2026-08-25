@@ -83,6 +83,9 @@ export const defaultDialPlanLocale: DialPlanLocale = {
     routeHolidaySeparatelyHint:
       'When on, holidays route to a dedicated branch you wire below. Otherwise holidays follow the Closed exit.',
     mode: 'Mode',
+    phoneNumber: 'Phone Number',
+    phoneNumberInvalid: 'Enter a valid phone number, for example (415) 555-1234.',
+    clearPhoneNumber: 'Clear phone number',
   },
   voiceAppMode: {
     control: 'Control',
