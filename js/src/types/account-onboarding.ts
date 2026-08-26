@@ -111,11 +111,45 @@ export interface UpdateAccountRequest {
 /**
  * Per-account pricing the customer is agreeing to alongside the subscription
  * agreement. Rates are in cents per month; `null` means the rate is not yet set.
+ *
+ * These are the *latest agreed* rates. A change takes effect at the start of the
+ * next month, so between agreeing a change and the 1st they are next month's
+ * rates and not what the account is billed. Anything quoting a price to a
+ * customer must read {@link EffectivePricing} instead.
  */
 export interface AccountPricing {
   per_user_rate: number | null;
   per_did_rate: number | null;
   per_voiceai_location_rate: number | null;
+}
+
+/**
+ * What an account is billed today, and any agreed change that has not started
+ * yet. Rates are in cents per month.
+ *
+ * This is the resource to read when showing a customer what something costs: the
+ * top-level rates are the ones in force, and `next` says whether that is about
+ * to change.
+ *
+ * A rate of `0` means no rate has been agreed for that line. It is not a price —
+ * an unagreed line bills at a default that is not the customer's agreed rate —
+ * so show no figure for a `0` rather than "$0.00".
+ */
+export interface EffectivePricing {
+  object: 'effective_pricing';
+  per_user_rate: number;
+  per_did_rate: number;
+  per_voiceai_location_rate: number;
+  /** The month start the rates above took effect, `YYYY-MM-DD`. */
+  effective_from: string;
+  /** An agreed change that has not taken effect yet; null in the steady state. */
+  next: {
+    per_user_rate: number;
+    per_did_rate: number;
+    per_voiceai_location_rate: number;
+    /** The month start the change applies from, `YYYY-MM-DD`. */
+    effective_from: string;
+  } | null;
 }
 
 /**
@@ -127,7 +161,11 @@ export interface TosAcceptance {
   accepted_at: string;
   ip?: string;
   user_agent?: string;
-  /** Snapshot of the pricing as it stood when the agreement was accepted. */
+  /**
+   * Snapshot of the pricing as it stood when the agreement was accepted: the
+   * rates in force at that moment, which is the same figure the acceptance
+   * screen displayed.
+   */
   pricing: AccountPricing;
 }
 

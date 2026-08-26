@@ -133,6 +133,7 @@ export const OnboardingPortal: React.FC<OnboardingPortalProps> = (props) => {
       return (
         <SsaAcceptanceGate
           tos={sharedData.tos}
+          effectivePricing={sharedData.effectivePricing}
           locale={locale}
           formatting={props.formatting}
           theme={props.theme}

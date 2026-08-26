@@ -143,6 +143,7 @@ export type {
   Account,
   UpdateAccountRequest,
   AccountPricing,
+  EffectivePricing,
   TosAcceptance,
   Tos,
   OnboardingUser,

@@ -42,6 +42,7 @@ import type {
 import type {
   Account,
   Tos,
+  EffectivePricing,
   OnboardingUser,
   OnboardingLocation,
   CreateUserRequest,
@@ -106,6 +107,7 @@ export function createMockInstance(
     ports?: PortOrder[];
     account?: Partial<Account>;
     tos?: Partial<Tos>;
+    effectivePricing?: Partial<EffectivePricing>;
   } = {}
 ): DialStackInstanceImpl {
   const empty = options.empty ?? false;
@@ -184,10 +186,27 @@ export function createMockInstance(
   // Default: agreement already accepted so the first-login gate is OFF — keeps
   // the portal stories/tests on their own scenario. Override via options.tos
   // (e.g. set `acceptance: null`) to exercise the gate.
+  // The agreed schedule deliberately holds a different figure from what is
+  // billed, because a fixture where they match passes whichever one a surface
+  // reads. The gate stories run off this, and quoting the agreed rate is the
+  // regression they exist to catch.
   const mockTosPricing = {
+    per_user_rate: 9900,
+    per_did_rate: 9900,
+    per_voiceai_location_rate: 9900,
+  };
+  const mockEffectivePricing: EffectivePricing = {
+    object: 'effective_pricing',
     per_user_rate: 1500,
     per_did_rate: 200,
     per_voiceai_location_rate: 5000,
+    effective_from: '2026-08-01',
+    next: {
+      per_user_rate: 9900,
+      per_did_rate: 9900,
+      per_voiceai_location_rate: 9900,
+      effective_from: '2026-09-01',
+    },
   };
   const mockTos: Tos = {
     version: '0-draft',
@@ -965,6 +984,12 @@ export function createMockInstance(
         }
         mockAccount.updated_at = new Date().toISOString();
         return { ...mockAccount, config: { ...mockAccount.config } };
+      },
+      effectivePricing: {
+        retrieve: async (): Promise<EffectivePricing> => {
+          await delay();
+          return { ...mockEffectivePricing, ...options.effectivePricing };
+        },
       },
       tos: {
         retrieve: async (retrieveOptions?: { expand?: string[] }): Promise<Tos> => {

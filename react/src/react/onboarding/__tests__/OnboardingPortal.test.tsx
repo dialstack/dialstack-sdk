@@ -91,6 +91,33 @@ describe('OnboardingPortal SSA gating', () => {
     await expectPortal();
   });
 
+  // The price is as load-bearing as the agreement: the gate quotes it and the
+  // server records it as evidence, so a consent screen that cannot show one is
+  // not usable. A failed rates read must land on the retry screen, not on a gate
+  // with a blank price.
+  it('blocks behind a retry when the rates read fails', async () => {
+    renderPortal({
+      account: {
+        retrieve: jest.fn().mockResolvedValue({ ...mockAccount, tos_status: 'unsigned' }),
+        effectivePricing: { retrieve: jest.fn().mockRejectedValue(new Error('network')) },
+      },
+    });
+    await waitFor(() => expect(screen.getByText(ssa.loadError.title)).toBeInTheDocument());
+    expect(screen.queryByText(ssa.title)).not.toBeInTheDocument();
+  });
+
+  // Same asymmetry the agreement already has: an account that owes nothing is not
+  // held up by a read only the gate needs.
+  it('does not block on a rates read failure when acceptance is not required', async () => {
+    renderPortal({
+      account: {
+        retrieve: jest.fn().mockResolvedValue({ ...mockAccount, tos_status: 'not_required' }),
+        effectivePricing: { retrieve: jest.fn().mockRejectedValue(new Error('network')) },
+      },
+    });
+    await expectPortal();
+  });
+
   it('does not block on a tos load failure when acceptance is not required', async () => {
     renderPortal({
       account: {

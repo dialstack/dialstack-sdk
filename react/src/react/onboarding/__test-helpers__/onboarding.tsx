@@ -60,10 +60,28 @@ export const mockTos = {
     '<h2 id="s7">7. Emergency Calls (911): Please Read This</h2>' +
     '<p>911 on internet phone service has real limitations.</p>',
   acceptance: null,
+  // The agreed schedule holds a figure deliberately different from what is
+  // billed. Both are plain rates of the same type, so a surface that quotes the
+  // wrong one still renders a plausible price and passes every assertion — this
+  // fixture is what makes that regression fail instead.
   pricing: {
-    per_user_rate: 1500,
-    per_did_rate: 200,
-    per_voiceai_location_rate: 5000,
+    per_user_rate: 9900,
+    per_did_rate: 9900,
+    per_voiceai_location_rate: 9900,
+  },
+};
+
+export const mockEffectivePricing = {
+  object: 'effective_pricing' as const,
+  per_user_rate: 1500,
+  per_did_rate: 200,
+  per_voiceai_location_rate: 5000,
+  effective_from: '2026-08-01',
+  next: {
+    per_user_rate: 9900,
+    per_did_rate: 9900,
+    per_voiceai_location_rate: 9900,
+    effective_from: '2026-09-01',
   },
 };
 
@@ -385,6 +403,9 @@ export function createMockInstance(overrides?: MockInstanceOverrides): DialStack
     account: {
       retrieve: jest.fn().mockResolvedValue(mockAccount),
       update: jest.fn().mockResolvedValue(mockAccount),
+      effectivePricing: {
+        retrieve: jest.fn().mockResolvedValue(mockEffectivePricing),
+      },
       tos: {
         retrieve: jest.fn().mockResolvedValue(mockTos),
         accept: jest.fn().mockImplementation(async (version: string) => ({

@@ -67,6 +67,7 @@ import type {
   Account,
   UpdateAccountRequest,
   Tos,
+  EffectivePricing,
   OnboardingUser,
   CreateUserRequest,
   CreateExtensionRequest,
@@ -1685,6 +1686,27 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         throw new Error(`Failed to update account: ${response.status} ${errorText}`);
       }
       return response.json();
+    },
+    effectivePricing: {
+      /**
+       * Retrieve what this account is billed today, plus any agreed change that
+       * has not started yet. Read this rather than the agreed pricing whenever
+       * you are showing a customer what something costs: a rate change takes
+       * effect at the start of the next month, so the agreed rates are not
+       * always the ones being charged.
+       */
+      retrieve: async (): Promise<EffectivePricing> => {
+        const accountId = await this.getAccountId();
+        const response = await this.fetchApi(`/v1/accounts/${accountId}/effective-pricing`);
+        if (!response.ok) {
+          const { message, code, details } = await extractApiError(
+            response,
+            'Failed to get effective pricing:'
+          );
+          throw new ApiError(message, response.status, code, details);
+        }
+        return response.json();
+      },
     },
     tos: {
       /**

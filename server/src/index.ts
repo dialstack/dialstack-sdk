@@ -264,6 +264,37 @@ export interface AccountPricing {
 }
 
 /**
+ * What an account is billed today, and any agreed change that has not started
+ * yet. Integer cents per month.
+ *
+ * A rate change is boundary-only: it takes effect at the start of the next
+ * month. An account's `pricing` is therefore the latest agreed pricing, which
+ * between agreeing a change and the 1st is next month's. Read this when you are
+ * quoting a price to a customer, so the figure you show is the rate in force
+ * rather than one that has not started yet.
+ *
+ * A rate of `0` means no rate has been agreed for that line. It is not a price —
+ * an unagreed line bills at a default that is not the customer's agreed rate —
+ * so show no figure for a `0` rather than "$0.00".
+ */
+export interface EffectivePricing {
+  object: 'effective_pricing';
+  per_user_rate: number;
+  per_did_rate: number;
+  per_voiceai_location_rate: number;
+  /** The month start the rates above took effect, `YYYY-MM-DD`. */
+  effective_from: string;
+  /** An agreed change that has not taken effect yet; null in the steady state. */
+  next: {
+    per_user_rate: number;
+    per_did_rate: number;
+    per_voiceai_location_rate: number;
+    /** The month start the change applies from, `YYYY-MM-DD`. */
+    effective_from: string;
+  } | null;
+}
+
+/**
  * A recorded acceptance of the subscription agreement. Captures the evidence of
  * acceptance together with a snapshot of the pricing agreed to, so consent is
  * provable against the specific price shown even if pricing later changes.
@@ -276,6 +307,7 @@ export interface TosAcceptance {
    */
   ip: string;
   user_agent?: string;
+  /** The rates in force at the moment of consent. */
   pricing: AccountPricing;
 }
 
@@ -2864,9 +2896,31 @@ export class DialStack {
       return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
     },
 
-    /** Retrieve the agreed pricing singleton for an account. */
+    /**
+     * Retrieve the agreed pricing singleton for an account. These are the
+     * latest agreed rates; see `retrieveEffectivePricing` for what is billed
+     * today.
+     */
     retrievePricing: (accountId: string, options?: RequestOptions): Promise<AccountPricing> => {
       return this._request('GET', `/v1/accounts/${accountId}/pricing`, undefined, options);
+    },
+
+    /**
+     * Retrieve what an account is billed today, plus any agreed change that has
+     * not started yet. Use this rather than `retrievePricing` when quoting a
+     * price to a customer: rate changes take effect at the start of the next
+     * month, so the agreed pricing is not always what is being charged.
+     */
+    retrieveEffectivePricing: (
+      accountId: string,
+      options?: RequestOptions
+    ): Promise<EffectivePricing> => {
+      return this._request(
+        'GET',
+        `/v1/accounts/${accountId}/effective-pricing`,
+        undefined,
+        options
+      );
     },
 
     /**

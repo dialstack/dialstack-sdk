@@ -7,18 +7,35 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { SsaAcceptanceGate, SsaGateLoadError } from '../SsaAcceptanceGate';
 import { DialstackComponentsProvider } from '../../DialstackComponentsProvider';
-import { ApiError, defaultLocale, type DialStackInstance, type Tos } from '@dialstack/sdk-js';
-import { createMockInstance, mockTos } from '../__test-helpers__/onboarding';
+import {
+  ApiError,
+  defaultLocale,
+  type DialStackInstance,
+  type EffectivePricing,
+  type Tos,
+} from '@dialstack/sdk-js';
+import { createMockInstance, mockTos, mockEffectivePricing } from '../__test-helpers__/onboarding';
 
 const ssa = defaultLocale.accountOnboarding.ssa;
 
-function renderGate(opts?: { tos?: Partial<Tos>; instanceOverrides?: Record<string, unknown> }) {
+function renderGate(opts?: {
+  tos?: Partial<Tos>;
+  effectivePricing?: EffectivePricing | null;
+  instanceOverrides?: Record<string, unknown>;
+}) {
   const instance = createMockInstance(opts?.instanceOverrides);
   const tos: Tos = { ...(mockTos as Tos), ...opts?.tos };
+  const pricing =
+    opts?.effectivePricing === undefined ? mockEffectivePricing : opts.effectivePricing;
   const onAccepted = jest.fn();
   const result = render(
     <DialstackComponentsProvider dialstack={instance}>
-      <SsaAcceptanceGate tos={tos} locale={defaultLocale} onAccepted={onAccepted} />
+      <SsaAcceptanceGate
+        tos={tos}
+        effectivePricing={pricing}
+        locale={defaultLocale}
+        onAccepted={onAccepted}
+      />
     </DialstackComponentsProvider>
   );
   return { instance, onAccepted, ...result };
@@ -33,14 +50,38 @@ describe('SsaAcceptanceGate', () => {
     // The affirmation carries the e911 acceptance language from the API.
     expect(screen.getByText(mockTos.content)).toBeInTheDocument();
     expect(screen.getByText(ssa.pricingTitle)).toBeInTheDocument();
-    // $15.00 per user (1500 cents)
+    // The billed rate, $15.00 per user. The agreement's own expanded pricing
+    // says $99.00 in this fixture, so quoting the agreed schedule fails here.
     expect(screen.getByText(/\$15\.00/)).toBeInTheDocument();
+    expect(screen.queryByText(/\$99\.00/)).not.toBeInTheDocument();
     // The full agreement is rendered inline (not embedded from a URL).
     const region = screen.getByRole('region', { name: ssa.agreementLabel });
     expect(region.textContent).toContain('Emergency Calls (911)');
     // A secondary link still points to the canonical hosted copy.
     const link = screen.getByRole('link', { name: ssa.openInNewTab });
     expect(link.getAttribute('href')).toBe(mockTos.url);
+  });
+
+  // The price shown and the price recorded as evidence must be the same figure,
+  // so a screen that can show no price must not be able to record consent.
+  it('refuses to accept at all when the billed rates are unavailable', () => {
+    renderGate({ effectivePricing: null });
+    expect(screen.getByText(ssa.errors.pricingMissing)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: ssa.accept })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
+  // A leg with no agreed rate is stored as 0 and billed at a catalog default that
+  // is not the customer's price. Showing "$0.00" would state a price nobody
+  // agreed to and imply the line is free.
+  it('shows no figure for a rate that was never agreed, rather than $0.00', () => {
+    renderGate({
+      effectivePricing: { ...mockEffectivePricing, per_voiceai_location_rate: 0 },
+    });
+    expect(screen.getByText(/\$15\.00/)).toBeInTheDocument();
+    expect(screen.queryByText(/\$0\.00/)).not.toBeInTheDocument();
+    // Still acceptable: an account not using VoiceAI has no VoiceAI rate.
+    expect(screen.getByRole('button', { name: ssa.accept })).toBeInTheDocument();
   });
 
   it('disables Accept until the affirmation is checked', () => {

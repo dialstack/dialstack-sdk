@@ -10,7 +10,18 @@ import { defaultLocale, type Tos } from '@dialstack/sdk-js';
 
 const ssa = defaultLocale.accountOnboarding.ssa;
 
-const SSA_PRICING = { per_user_rate: 1500, per_did_rate: 200, per_voiceai_location_rate: 5000 };
+// The agreed schedule and what is billed hold different figures on purpose: the
+// gate must quote the billed one, and a fixture where they match passes either way.
+const SSA_PRICING = { per_user_rate: 9900, per_did_rate: 9900, per_voiceai_location_rate: 9900 };
+
+const SSA_EFFECTIVE_PRICING = {
+  object: 'effective_pricing' as const,
+  per_user_rate: 1500,
+  per_did_rate: 200,
+  per_voiceai_location_rate: 5000,
+  effective_from: '2026-08-01',
+  next: { ...SSA_PRICING, effective_from: '2026-09-01' },
+};
 
 const SSA_TOS: Tos = {
   version: '0-draft',
@@ -43,7 +54,12 @@ type GateStory = StoryObj<GateProps>;
 
 /** The agreement embedded with pricing and the affirmation checkbox. */
 export const Default: GateStory = {
-  args: { tos: SSA_TOS, locale: defaultLocale, onAccepted: () => {} },
+  args: {
+    tos: SSA_TOS,
+    effectivePricing: SSA_EFFECTIVE_PRICING,
+    locale: defaultLocale,
+    onAccepted: () => {},
+  },
 };
 
 /** Pricing not finalized — a dead-end with no Accept action. */
@@ -53,6 +69,7 @@ export const PricingNotSet: GateStory = {
       ...SSA_TOS,
       pricing: { per_user_rate: null, per_did_rate: null, per_voiceai_location_rate: null },
     },
+    effectivePricing: null,
     locale: defaultLocale,
     onAccepted: () => {},
   },

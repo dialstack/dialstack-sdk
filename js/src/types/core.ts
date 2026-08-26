@@ -68,6 +68,7 @@ import type {
   Account,
   UpdateAccountRequest,
   Tos,
+  EffectivePricing,
   OnboardingUser,
   CreateUserRequest,
   CreateExtensionRequest,
@@ -515,11 +516,21 @@ export interface AccountTosResource {
   accept(version: string): Promise<Tos>;
 }
 
+export interface AccountEffectivePricingResource {
+  /**
+   * Retrieve what this account is billed today, plus any agreed change that has
+   * not started yet.
+   */
+  retrieve(): Promise<EffectivePricing>;
+}
+
 export interface AccountResource {
   /** Retrieve the current account */
   retrieve(): Promise<Account>;
   /** Update the current account */
   update(request: UpdateAccountRequest): Promise<Account>;
+  /** What the account is billed today — read this to quote a price */
+  effectivePricing: AccountEffectivePricingResource;
   /** Subscription-agreement acceptance sub-resource */
   tos: AccountTosResource;
 }

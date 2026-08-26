@@ -18,7 +18,7 @@ import {
   isApiError,
   type Locale,
   type Tos,
-  type AccountPricing,
+  type EffectivePricing,
   type FormattingOptions,
 } from '@dialstack/sdk-js/pure';
 import { computePortalCssVars, generateLayoutCssVars } from './design-tokens';
@@ -108,6 +108,12 @@ const STYLESHEETS = [
 
 export interface SsaAcceptanceGateProps {
   tos: Tos;
+  /**
+   * The rates the account is billed at today, fetched alongside the agreement.
+   * Displayed as the price being agreed to, and the same figure the server
+   * snapshots into the acceptance record.
+   */
+  effectivePricing: EffectivePricing | null;
   locale: Locale;
   formatting?: FormattingOptions;
   theme?: 'light' | 'dark';
@@ -116,13 +122,20 @@ export interface SsaAcceptanceGateProps {
   onAccepted: () => void;
 }
 
+// A leg with no agreed rate is stored as 0, and the billing run falls back to a
+// catalog default for it. That default is not the customer's price, so render no
+// figure rather than "$0.00" — a consent screen must not show a price nobody
+// agreed to, and must not imply the line is free.
 function formatRate(cents: number | null, locale: string): string | null {
-  if (cents == null) return null;
+  if (cents == null || cents <= 0) return null;
   return new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD' }).format(cents / 100);
 }
 
+// Takes the effective rates, not the agreement's expanded `pricing`. Those are
+// the latest *agreed* rates, which between agreeing a change and the 1st are next
+// month's — pricing the agreement at a figure the first invoice will not use.
 const PricingSummary: React.FC<{
-  pricing: AccountPricing;
+  pricing: EffectivePricing;
   locale: Locale;
   formatting?: FormattingOptions;
 }> = ({ pricing, locale, formatting }) => {
@@ -177,6 +190,7 @@ export const SsaAcceptanceGate: React.FC<SsaAcceptanceGateProps> = ({
   tos,
   locale,
   formatting,
+  effectivePricing,
   theme,
   appearance,
   onAccepted,
@@ -195,7 +209,18 @@ export const SsaAcceptanceGate: React.FC<SsaAcceptanceGateProps> = ({
 
   // Pricing must be set for acceptance to be recordable. When it is missing we
   // surface a dead-end message rather than an Accept button that would 422.
+  //
+  // `effectivePricing` is part of that test, not just the agreement's own copy:
+  // it is the figure this screen displays, and consent recorded against a screen
+  // that showed no price is not consent to a price. The parent also fails the
+  // whole gate closed when that read fails, but the guard belongs here too so a
+  // future caller cannot quietly reintroduce a priceless Accept button.
+  //
+  // Individual rates are not tested for 0. A leg with no agreed rate is normal —
+  // an account not using VoiceAI has no VoiceAI rate — and blocking those
+  // accounts from onboarding would be far worse than omitting one figure.
   const pricingMissing =
+    !effectivePricing ||
     !currentTos.pricing ||
     currentTos.pricing.per_user_rate == null ||
     currentTos.pricing.per_did_rate == null ||
@@ -260,8 +285,8 @@ export const SsaAcceptanceGate: React.FC<SsaAcceptanceGateProps> = ({
           <h1>{ssa.title}</h1>
           <p className="ssa-gate-intro">{ssa.intro}</p>
 
-          {currentTos.pricing && !pricingMissing && (
-            <PricingSummary pricing={currentTos.pricing} locale={locale} formatting={formatting} />
+          {effectivePricing && !pricingMissing && (
+            <PricingSummary pricing={effectivePricing} locale={locale} formatting={formatting} />
           )}
 
           {/* Agreement body served by the tos API (the single source of truth,
