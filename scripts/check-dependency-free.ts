@@ -72,6 +72,42 @@ for (const name of DEPENDENCY_FREE) {
 }
 
 /**
+ * The bundled packages' runtime surface is a closed list.
+ *
+ * `webrtc` and `server` are protected by the empty-manifest check above; `js` and
+ * `react` legitimately ship a few dependencies, and "a few" is exactly the state a
+ * stray entry hides in. Dependabot has twice appended the sdk tooling root's
+ * devDependencies — storybook, eslint, rollup, publint — to these `dependencies`
+ * blocks while bumping them, which the empty-manifest check catches for the
+ * zero-dependency pair and nothing catches here. A build tool in `dependencies` is
+ * a few hundred packages in a consumer's install.
+ *
+ * Enumerated rather than derived: every entry is a deliberate decision about what a
+ * customer installs, so adding one should require editing this list.
+ */
+const ALLOWED_RUNTIME_DEPS: Record<string, string[]> = {
+  js: ['libphonenumber-js'],
+  react: ['@dialstack/sdk-webrtc', 'canvas-confetti', 'cmdk', 'dagre', 'libphonenumber-js'],
+};
+
+for (const [name, allowed] of Object.entries(ALLOWED_RUNTIME_DEPS)) {
+  const manifest = JSON.parse(readFileSync(join(SDK_ROOT, name, 'package.json'), 'utf8'));
+  const declared = Object.keys(manifest.dependencies ?? {});
+  const unexpected = declared.filter((dep) => !allowed.includes(dep));
+
+  if (unexpected.length === 0) {
+    console.log(`✓ ${name} — ${declared.length} runtime dependency(ies), all expected`);
+    continue;
+  }
+  failed = true;
+  console.error(
+    `✗ ${name} declares runtime dependencies that are not on its allowed list:\n` +
+      `    ${unexpected.join(', ')}\n` +
+      `    If a consumer really should install these, add them to ALLOWED_RUNTIME_DEPS.`
+  );
+}
+
+/**
  * No emitted bundle may import a stylesheet.
  *
  * Components render into shadow roots, so their CSS has to be compiled in as a

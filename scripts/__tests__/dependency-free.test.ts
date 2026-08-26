@@ -50,6 +50,26 @@ describe('@dialstack/sdk-server', () => {
   });
 });
 
+describe('the bundled packages runtime surface', () => {
+  // js and react legitimately ship a few dependencies, so the empty-manifest check
+  // above cannot protect them — and "a few" is exactly where a stray entry hides.
+  // Dependabot has twice appended the sdk tooling root's devDependencies (storybook,
+  // eslint, rollup, publint) to these blocks while bumping them; a build tool in
+  // `dependencies` is a few hundred packages in a consumer's install.
+  //
+  // Enumerated, not derived: every entry is a decision about what a customer
+  // installs, so adding one should mean editing this list.
+  const ALLOWED: Record<string, string[]> = {
+    js: ['libphonenumber-js'],
+    react: ['@dialstack/sdk-webrtc', 'canvas-confetti', 'cmdk', 'dagre', 'libphonenumber-js'],
+  };
+
+  it.each(Object.keys(ALLOWED))('%s declares only its allowed runtime dependencies', (pkg) => {
+    const declared = Object.keys(read(pkg)['dependencies'] ?? {});
+    expect(declared.filter((dep) => !ALLOWED[pkg].includes(dep))).toEqual([]);
+  });
+});
+
 describe('the bundled packages', () => {
   // Components render into shadow roots, so their CSS is compiled in as a string —
   // a document-level stylesheet cannot cross that boundary. The rollup configs
