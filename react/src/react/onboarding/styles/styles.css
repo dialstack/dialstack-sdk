@@ -688,6 +688,30 @@
   line-height: 1.5;
 }
 
+/* ── Billing-impact disclosure ── */
+.billing-impact {
+  display: flex;
+  gap: var(--ds-layout-spacing-sm);
+  padding: var(--ds-layout-spacing-sm) var(--ds-layout-spacing-md);
+  margin-top: var(--ds-layout-spacing-md);
+  background: color-mix(in srgb, var(--ds-color-primary) 6%, var(--ds-color-background));
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ds-color-text-secondary);
+}
+
+.billing-impact-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--ds-color-text-secondary);
+}
+
+.billing-impact-headline {
+  font-weight: var(--ds-font-weight-medium);
+  color: var(--ds-color-text);
+}
+
 /* ── Link Button ── */
 .btn-link {
   background: none;

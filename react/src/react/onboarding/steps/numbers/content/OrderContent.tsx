@@ -1,6 +1,7 @@
 import React from 'react';
 import type { NumState, Dispatcher, TFn } from '../types';
 import { formatPhone } from '../helpers';
+import { BillingImpactNotice } from '../../../components/BillingImpactNotice';
 
 export const OrderSearchContent = ({
   state,
@@ -238,6 +239,7 @@ export const OrderConfirmContent = ({
           </tbody>
         </table>
       </div>
+      <BillingImpactNotice resource="phoneNumber" count={state.orderSelectedNumbers.length} />
       <div className="inline-alert info">{t('accountOnboarding.numbers.order.carrierNote')}</div>
       {state.orderError && <div className="inline-alert error">{state.orderError}</div>}
       <div className="num-sub-footer">

@@ -24,6 +24,7 @@ import {
   type AccountOnboardingStep,
   type AccountConfig,
   type Account,
+  type EffectivePricing,
   type OnboardingCollectionOptions,
   type OnboardingUser,
   type OnboardingLocation,
@@ -59,6 +60,15 @@ export interface OnboardingContextValue {
   collectionOptions: OnboardingCollectionOptions | undefined;
   /** Pre-fetched account data shared across steps. */
   account: Account | null;
+  /**
+   * The rates the account is billed at today, for the billing-impact
+   * disclosures. Not the agreed schedule: after a mid-month rate change that one
+   * holds next month's rates, and a disclosure must quote what will be charged.
+   * Comes free with the bootstrap fan-out the acceptance gate already pays for,
+   * so no step adds a request. Null when the read is unavailable, which the
+   * disclosures treat as "say the resource is billable, name no price".
+   */
+  pricing: EffectivePricing | null;
   /** Pre-fetched users shared across steps. */
   users: OnboardingUser[];
   /** Pre-fetched extensions shared across steps. */
@@ -77,6 +87,7 @@ export interface OnboardingProviderProps {
   progressStore: OnboardingProgressStore;
   accountConfig: AccountConfig | null;
   account: Account | null;
+  pricing?: EffectivePricing | null;
   users: OnboardingUser[];
   extensions: Extension[];
   locations: OnboardingLocation[];
@@ -122,6 +133,7 @@ export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({
   progressStore,
   accountConfig,
   account,
+  pricing,
   users,
   extensions,
   locations,
@@ -152,6 +164,7 @@ export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({
       icons,
       collectionOptions,
       account,
+      pricing: pricing ?? null,
       users,
       extensions,
       locations,
@@ -169,6 +182,7 @@ export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({
       icons,
       collectionOptions,
       account,
+      pricing,
       users,
       extensions,
       locations,

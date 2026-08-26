@@ -194,6 +194,14 @@ export const ROUTING_TARGET_TYPES: Record<string, { path: string; type: RoutingT
  */
 export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   private publishableKey: string;
+
+  /**
+   * Whether this instance is operating on live data, from the publishable key's
+   * prefix. `pk_test_` keys reach sandbox and demo accounts, which are never
+   * billed; `pk_live_` keys reach live accounts only, which the API enforces.
+   * Lets a component tell the two apart without reading the account.
+   */
+  public readonly livemode: boolean;
   private apiUrl: string;
   private fetchClientSecretFn: () => Promise<ClientSecretResponse>;
   private appearance: AppearanceOptions | undefined;
@@ -220,6 +228,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
 
   constructor(params: DialStackInitParams) {
     this.publishableKey = params.publishableKey;
+    this.livemode = params.publishableKey.startsWith('pk_live_');
     this.apiUrl = params.apiUrl || DEFAULT_API_URL;
     this.fetchClientSecretFn = params.fetchClientSecret;
     this.appearance = params.appearance;

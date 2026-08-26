@@ -7,6 +7,7 @@ import { BaseComponent } from './base-component';
 import { segmentedControlStyles, tableStyles } from './shared-styles';
 import {
   ROUTING_TARGET_TYPE_ORDER,
+  type EffectivePricing,
   type AvailablePhoneNumber,
   type DIDItem,
   type NumberOrder,
@@ -20,6 +21,7 @@ type Step = 'search' | 'results' | 'confirm' | 'route' | 'ordering' | 'complete'
 
 const CHECK_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
 const SUCCESS_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+const RECEIPT_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg>`;
 const ERROR_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
 
 const COMPONENT_STYLES = `
@@ -632,6 +634,45 @@ const COMPONENT_STYLES = `
     color: var(--ds-color-text-secondary);
   }
 
+  /* Billing-impact disclosure on the confirm step */
+  .billing-impact {
+    display: flex;
+    gap: var(--ds-layout-spacing-sm);
+    padding: var(--ds-layout-spacing-md);
+    margin-top: var(--ds-layout-spacing-md);
+    background: var(--ds-color-surface-subtle);
+    border-radius: var(--ds-border-radius);
+  }
+
+  .billing-impact-icon {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+    color: var(--ds-color-text-secondary);
+  }
+
+  .billing-impact-icon svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .billing-impact-headline {
+    font-weight: var(--ds-font-weight-medium);
+    color: var(--ds-color-text);
+  }
+
+  .billing-impact-loading {
+    /* Two lines of copy, so the step does not reflow when the reads land. */
+    min-height: 40px;
+  }
+
+  .billing-impact-detail {
+    font-size: var(--ds-font-size-small);
+    color: var(--ds-color-text-secondary);
+  }
+
   .nearby-banner {
     padding: var(--ds-layout-spacing-sm) var(--ds-layout-spacing-md);
     margin-bottom: var(--ds-layout-spacing-md);
@@ -665,6 +706,14 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
   private routingTargets: RoutingTarget[] = [];
   private isLoadingRoutingTargets: boolean = false;
   private selectedRoutingTarget: string | null = null;
+
+  // Billing-disclosure state, loaded on entry to the confirm step. Best-effort:
+  // a failure leaves it null and the disclosure renders without a price rather
+  // than blocking the order.
+  private pricing: EffectivePricing | null = null;
+  // False until the read settles, so the confirm step can hold space for the
+  // disclosure instead of reflowing when it arrives.
+  private billingContextLoaded = false;
 
   // Order state
   private order: NumberOrder | null = null;
@@ -939,6 +988,28 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     if (this.selectedNumbers.size === 0) return;
     this.step = 'confirm';
     this.render();
+    void this.loadBillingContext();
+  }
+
+  /**
+   * Loads the per-number rate the account is billed, for the confirm step.
+   * Best-effort by design: the disclosure degrades to its no-price wording
+   * rather than standing between the customer and their order.
+   *
+   * Whether the account bills at all needs no request. Mode follows the API key
+   * prefix, and the instance already holds the publishable key it was built
+   * with, so `livemode` answers it locally.
+   */
+  private async loadBillingContext(): Promise<void> {
+    const instance = this.instance;
+    if (!instance || this.pricing) return;
+    try {
+      this.pricing = await instance.account.effectivePricing.retrieve();
+    } catch {
+      // Leaves pricing null; renderBillingImpact drops to its no-price wording.
+    }
+    this.billingContextLoaded = true;
+    if (this.step === 'confirm') this.render();
   }
 
   private goToRoute(): void {
@@ -1225,6 +1296,8 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
 
         <div class="confirm-list">${items}</div>
 
+        ${this.renderBillingImpact(selected.length)}
+
         <p class="section-subtitle">${this.t('phoneNumberOrdering.confirm.description')}</p>
 
         <div class="footer-bar">
@@ -1238,6 +1311,76 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
         </div>
       </div>
     `;
+  }
+
+  /**
+   * What ordering these numbers does to the account's bill, stated before the
+   * order is placed. Three shapes, in order of how much we can honestly say:
+   * nothing bills at all (sandbox/demo), a real agreed rate (quote it), or an
+   * unset rate (name the billable status without inventing a price, because the rate
+   * columns store "never agreed" as 0, and the billing run silently falls back
+   * to a catalog default we must not present as the customer's price).
+   *
+   * The rate quoted is the one in force. A scheduled change, when the account
+   * has one, is deliberately not mentioned here: a second future price at the
+   * moment of ordering is noise rather than disclosure.
+   *
+   * The figure is the full monthly rate. A number added part-way through a
+   * month is charged only for its in-service days, so the monthly total is the
+   * larger figure whenever the rate is stable. A scheduled rate *decrease* is
+   * the exception, since the higher rate still in force can prorate above the
+   * lower one quoted here, so the copy does not promise otherwise.
+   */
+  private renderBillingImpact(count: number): string {
+    if (count === 0) return '';
+
+    const key = (name: string) => `phoneNumberOrdering.confirm.billing.${name}`;
+    const line = (headline: string | null, detail: string) => `
+      <div class="billing-impact" part="billing-impact" role="note" aria-label="${this.t(key('label'))}">
+        <span class="billing-impact-icon" aria-hidden="true">${RECEIPT_SVG}</span>
+        <div>
+          ${headline ? `<div class="billing-impact-headline">${headline}</div>` : ''}
+          <div class="billing-impact-detail">${detail}</div>
+        </div>
+      </div>
+    `;
+
+    // A sandbox or demo account never bills. Known locally from the key prefix,
+    // so this branch needs no request and cannot be wrong about a live account.
+    if (!this.instance?.livemode) {
+      return line(null, this.t(key('notBilled')));
+    }
+
+    // While the read is in flight the block is rendered empty rather than
+    // omitted, so the disclosure cannot pop in under the cursor of someone
+    // already reaching for Continue. Once it settles, a failure collapses it.
+    if (!this.billingContextLoaded) {
+      return `<div class="billing-impact billing-impact-loading" part="billing-impact" aria-hidden="true"></div>`;
+    }
+
+    // The effective rate, not the agreed schedule: after a mid-month change the
+    // agreed rate is next month's rather than what is billed.
+    const rate = this.pricing?.per_did_rate ?? 0;
+    if (rate <= 0) {
+      return this.pricing ? line(null, this.t(key('noPrice'), { count })) : '';
+    }
+
+    return line(
+      this.t(key('headline'), { amount: this.formatRate(rate * count) }),
+      [
+        this.t(key('detail'), { count, rate: this.formatRate(rate) }),
+        this.t(key('timing')),
+        this.t(key('taxesAndFees')),
+      ].join(' ')
+    );
+  }
+
+  /** Formats integer cents as a USD amount in the component's number locale. */
+  private formatRate(cents: number): string {
+    return new Intl.NumberFormat(this.formatting.dateLocale ?? 'en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(cents / 100);
   }
 
   private renderRouteStep(): string {

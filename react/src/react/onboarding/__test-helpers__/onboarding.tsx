@@ -34,6 +34,7 @@ import {
 
 export const mockAccount = {
   id: 'acct_01abc',
+  account_mode: 'live' as const,
   email: 'existing@example.com',
   name: 'Acme Corp',
   phone: '(212) 555-0100',
@@ -210,6 +211,8 @@ function deepMerge(
  */
 export function createMockInstance(overrides?: MockInstanceOverrides): DialStackInstance {
   const base = {
+    // Live by default; a test overrides it to exercise the sandbox wording.
+    livemode: true,
     create: jest.fn(),
     addAppearanceTarget: jest.fn(),
     removeAppearanceTarget: jest.fn(),
@@ -560,6 +563,11 @@ export interface RenderOnboardingOptions extends Omit<RenderOptions, 'wrapper'> 
   progressHydration?: Record<string, unknown>;
   /** Override the accountConfig passed to OnboardingProvider. */
   accountConfig?: AccountConfig;
+  /**
+   * Agreed pricing behind the billing-impact disclosures. Defaults to the mock
+   * agreement's rates; pass null to exercise the no-price wording.
+   */
+  pricing?: typeof mockEffectivePricing | null;
   /** Override shared data provided via OnboardingContext. */
   sharedData?: SharedDataOverrides;
 }
@@ -586,6 +594,7 @@ export async function renderWithOnboarding(
     collectionOptions,
     progressHydration,
     accountConfig,
+    pricing,
     sharedData,
     ...renderOptions
   } = options;
@@ -664,6 +673,7 @@ export async function renderWithOnboarding(
           progressStore={progressStore}
           accountConfig={accountConfig ?? account.config}
           account={account}
+          pricing={pricing === undefined ? mockEffectivePricing : pricing}
           users={users}
           extensions={extensions}
           locations={locations}

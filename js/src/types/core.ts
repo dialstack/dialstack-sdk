@@ -575,6 +575,13 @@ export interface AddressesResource {
  * The DialStack SDK instance returned by loadDialstackAndInitialize()
  */
 export interface DialStackInstance {
+  /**
+   * Whether this instance is operating on live data, from the publishable key's
+   * prefix. `pk_test_` keys reach sandbox and demo accounts, which are never
+   * billed; `pk_live_` keys reach live accounts only, which the API enforces.
+   */
+  readonly livemode: boolean;
+
   // ---------------------------------------------------------------------------
   // Elements lifecycle (not resource namespaces)
   // ---------------------------------------------------------------------------

@@ -70,6 +70,7 @@ export async function loadDialstackAndInitialize(
   // Return synchronous wrapper that exposes the public API
   // Operations are queued internally until the session is ready
   const wrapper: DialStackInstance = {
+    livemode: instance.livemode,
     create: (tagName) => {
       return instance.create(tagName);
     },

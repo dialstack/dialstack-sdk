@@ -270,6 +270,19 @@ export const en = {
       placeOrder: 'Place Order',
       continue: 'Continue',
       back: 'Back',
+      billing: {
+        label: 'Billing impact',
+        headline: "Adds {amount}/month to this account's bill",
+        detail: '{count} phone numbers at {rate} each per month.',
+        detail_one: '{count} phone number at {rate} per month.',
+        detail_other: '{count} phone numbers at {rate} each per month.',
+        timing: 'Billing starts when each number activates.',
+        taxesAndFees: 'Taxes and fees are additional.',
+        noPrice: 'These numbers are billable on this account.',
+        noPrice_one: 'This number is billable on this account.',
+        noPrice_other: 'These numbers are billable on this account.',
+        notBilled: 'This account is not billed, so ordering these numbers costs nothing.',
+      },
     },
     route: {
       title: 'Choose call routing',
@@ -386,6 +399,45 @@ export const en = {
     },
   },
   accountOnboarding: {
+    billing: {
+      label: 'Billing impact',
+      headline: "Adds {amount}/month to this account's bill",
+      detail: {
+        userSeat: {
+          one: '{count} user seat at {rate} per month.',
+          other: '{count} user seats at {rate} each per month.',
+        },
+        phoneNumber: {
+          one: '{count} phone number at {rate} per month.',
+          other: '{count} phone numbers at {rate} each per month.',
+        },
+      },
+      noPrice: {
+        userSeat: {
+          one: 'Adds {count} billable user seat to this account.',
+          other: 'Adds {count} billable user seats to this account.',
+        },
+        phoneNumber: {
+          one: 'Adds {count} billable phone number to this account.',
+          other: 'Adds {count} billable phone numbers to this account.',
+        },
+      },
+      rateHeadline: {
+        userSeat: '{rate}/month per user seat',
+        phoneNumber: '{rate}/month per phone number',
+      },
+      rateDetail: {
+        userSeat: 'Each team member you add is billed at this rate.',
+        phoneNumber: 'Each number you add is billed at this rate.',
+      },
+      noPriceRate: {
+        userSeat: 'Each team member you add is billable on this account.',
+        phoneNumber: 'Each number you add is billable on this account.',
+      },
+      startsOnActivation: 'Billing starts when each number activates.',
+      taxesAndFees: 'Taxes and fees are additional.',
+      notBilled: 'This account is not billed, so this costs nothing.',
+    },
     title: 'Account Onboarding',
     breadcrumbAriaLabel: 'Onboarding progress',
     loading: 'Loading...',

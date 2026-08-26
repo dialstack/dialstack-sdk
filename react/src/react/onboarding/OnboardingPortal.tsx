@@ -152,6 +152,7 @@ export const OnboardingPortal: React.FC<OnboardingPortalProps> = (props) => {
       progressStore={progressStore}
       accountConfig={sharedData.account?.config ?? null}
       account={sharedData.account}
+      pricing={sharedData.effectivePricing}
       users={sharedData.users}
       extensions={sharedData.extensions}
       locations={sharedData.locations}

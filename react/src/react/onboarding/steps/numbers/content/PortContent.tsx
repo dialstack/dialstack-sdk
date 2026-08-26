@@ -20,6 +20,7 @@ import { MAX_PHONE_NUMBERS_PER_ORDER, REASON_KEY } from '../port-numbers';
 import { formatPhone } from '../helpers';
 import { US_STATES } from '../../../../../constants/us-states';
 import { SUCCESS_SVG, CHECK_CIRCLE_SVG, CLOSE_SVG, PLUS_CIRCLE_SVG } from '../../../icons';
+import { BillingImpactNotice } from '../../../components/BillingImpactNotice';
 
 /** Stable React keys, so editing one row never remounts another. */
 let nextRowId = 0;
@@ -956,6 +957,7 @@ export const PortReviewContent = ({
           ))}
         </div>
       ))}
+      <BillingImpactNotice resource="phoneNumber" count={scopedNumbers.length} />
       <hr className="section-divider" />
       <div className="form-group">
         <label className="form-label">{t('accountOnboarding.numbers.port.signatureLabel')}</label>

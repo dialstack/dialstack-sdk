@@ -172,6 +172,7 @@ export function createMockInstance(
 
   const mockAccount: Account = {
     id: 'acct_mock01',
+    account_mode: 'live',
     name: 'Acme Corp',
     email: 'admin@acme.com',
     phone: '+12018401234',
@@ -269,6 +270,7 @@ export function createMockInstance(
       ];
 
   const instance: DialStackInstanceImpl = {
+    livemode: true,
     getAppearance: () => appearance,
     getClientSecret: async () => 'mock_secret',
 
@@ -1010,6 +1012,12 @@ export function createMockInstance(
           };
           mockTos.version = version;
           return { ...mockTos };
+        },
+      },
+      pricing: {
+        retrieve: async () => {
+          await delay();
+          return { ...mockTosPricing };
         },
       },
     },

@@ -112,6 +112,18 @@ export const BlocksPortalUntilAccepted: StoryObj<PortalProps> = {
       expect(canvas.queryByText(/start onboarding/i)).not.toBeInTheDocument();
     });
 
+    await step('the price shown is the one the account is billed', async () => {
+      // The only place the real fetch path is exercised end to end: mock
+      // instance to bootstrap to context to gate. The unit test passes the
+      // rates in as a prop and so cannot catch the wiring reading the wrong
+      // one. The fixture's agreed schedule says $99.00 and the effective read
+      // says $15.00, so quoting the schedule fails here.
+      await waitFor(() => expect(canvas.getByText(/\$15\.00/)).toBeInTheDocument(), {
+        timeout: 5000,
+      });
+      expect(canvas.queryByText(/\$99\.00/)).not.toBeInTheDocument();
+    });
+
     await step('Accept is disabled until the affirmation is checked', async () => {
       const accept = canvas.getByRole('button', { name: ssa.accept });
       expect(accept).toBeDisabled();

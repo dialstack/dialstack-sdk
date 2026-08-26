@@ -9,6 +9,7 @@ import { useOnboarding } from '../../OnboardingContext';
 import { StepNavigation } from '../../StepNavigation';
 import { UserIcon, TrashIcon } from '../../components/icons';
 import { ErrorAlert } from '../../components/ErrorAlert';
+import { BillingImpactNotice } from '../../components/BillingImpactNotice';
 
 export interface TeamMembersProps {
   onBack: () => void;
@@ -191,6 +192,11 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
             {isAddingUser ? t.saving : t.users.addUser}
           </button>
         </div>
+
+        {/* A rate, not a total: this form is used repeatedly and sits above the
+            members already added, so a per-add total would read as a claim
+            about the account and go stale after the first member. */}
+        <BillingImpactNotice resource="userSeat" count={1} variant="rate" />
 
         {otherUsers.length === 0 ? (
           <div className="no-users">{t.users.noUsers}</div>
