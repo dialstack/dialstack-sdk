@@ -34,6 +34,7 @@ type SortColumn =
   | 'phone_number'
   | 'status'
   | 'caller_id'
+  | 'caller_id_prefix'
   | 'outbound'
   | 'routing_target'
   | 'carrier'
@@ -63,6 +64,7 @@ type ColumnId =
   | 'phone_number'
   | 'status'
   | 'caller_id'
+  | 'caller_id_prefix'
   | 'outbound'
   | 'routing_target'
   | 'carrier'
@@ -70,7 +72,7 @@ type ColumnId =
   | 'cancelled_date';
 
 const TAB_COLUMNS: Record<StatusFilter, ColumnId[]> = {
-  active: ['phone_number', 'caller_id', 'outbound', 'routing_target'],
+  active: ['phone_number', 'caller_id', 'caller_id_prefix', 'outbound', 'routing_target'],
   in_progress: ['phone_number', 'status', 'routing_target', 'carrier', 'transfer_date'],
   cancelled: ['phone_number', 'cancelled_date'],
 };
@@ -316,6 +318,7 @@ export class PhoneNumbersComponent extends BaseComponent {
         outbound_enabled: did.outbound_enabled,
         fax_enabled: did.fax_enabled,
         caller_id_name: did.caller_id_name,
+        caller_id_prefix: did.caller_id_prefix,
         routing_target: did.routing_target,
         inbound_routing: did.inbound_routing,
         source: 'did',
@@ -527,9 +530,12 @@ export class PhoneNumbersComponent extends BaseComponent {
   }
 
   /**
-   * Match against the fields a reader can see: the phone number (raw E.164 and
-   * formatted-national), caller ID, carrier, and the resolved routing-target
-   * name. Every whitespace-separated token in the query must match some field,
+   * Match against the phone number (raw E.164 and formatted-national), both
+   * caller ID fields, carrier, and the resolved routing-target name. Most of
+   * these are on screen, but not all: the prefix and the routing target are
+   * matched on every tab, including tabs that render no column for them, so a
+   * query can return a row with the matched text nowhere in sight.
+   * Every whitespace-separated token in the query must match some field,
    * so a mixed query like "sales 916" only matches a row where *both* land.
    *
    * A token made up solely of phone characters (digits and `( ) + . -`) also
@@ -545,6 +551,7 @@ export class PhoneNumbersComponent extends BaseComponent {
       item.phone_number,
       this.formatPhoneNumber(item.phone_number),
       item.caller_id_name,
+      item.caller_id_prefix,
       item.carrier,
       routingName,
     ]
@@ -583,6 +590,8 @@ export class PhoneNumbersComponent extends BaseComponent {
         return this.t(this.getStatusLocaleKey(item.status));
       case 'caller_id':
         return item.caller_id_name || '';
+      case 'caller_id_prefix':
+        return item.caller_id_prefix || '';
       case 'outbound':
         if (item.fax_enabled) return 'a';
         if (item.outbound_enabled === true) return 'b';
@@ -984,6 +993,7 @@ export class PhoneNumbersComponent extends BaseComponent {
       phone_number: 'phoneNumbers.columns.phoneNumber',
       status: 'phoneNumbers.columns.status',
       caller_id: 'phoneNumbers.columns.callerID',
+      caller_id_prefix: 'phoneNumbers.columns.callerIDPrefix',
       outbound: 'phoneNumbers.columns.outbound',
       routing_target: 'phoneNumbers.columns.routingTarget',
       carrier: 'phoneNumbers.columns.carrier',
@@ -1027,6 +1037,10 @@ export class PhoneNumbersComponent extends BaseComponent {
       case 'caller_id':
         return item.caller_id_name
           ? this.escapeHtml(item.caller_id_name)
+          : `<span class="text-muted">${this.t('phoneNumbers.routingTarget.notSet')}</span>`;
+      case 'caller_id_prefix':
+        return item.caller_id_prefix
+          ? this.escapeHtml(item.caller_id_prefix)
           : `<span class="text-muted">${this.t('phoneNumbers.routingTarget.notSet')}</span>`;
       case 'outbound':
         if (item.fax_enabled) return this.t('phoneNumbers.outbound.fax');

@@ -145,3 +145,79 @@ export const WithTemporaryNumber: Story = {
     });
   },
 };
+
+export const WithCallerIDPrefix: Story = {
+  args: {
+    dids: [
+      {
+        id: 'did_prefix_a',
+        phone_number: '+19162377753',
+        status: 'active',
+        outbound_enabled: true,
+        caller_id_name: 'ARMSTRONG',
+        caller_id_prefix: '[Acme]',
+        created_at: '2026-08-24T10:00:00Z',
+        updated_at: '2026-08-24T10:00:00Z',
+      },
+      {
+        id: 'did_prefix_b',
+        phone_number: '+15145559999',
+        status: 'active',
+        outbound_enabled: true,
+        caller_id_name: 'Broccoli Co',
+        created_at: '2026-08-24T10:00:00Z',
+        updated_at: '2026-08-24T10:00:00Z',
+      },
+    ],
+  },
+  play: async ({ canvasElement, step }) => {
+    await step('The prefix column appears once a number carries one', async () => {
+      await waitFor(() => {
+        const el = canvasElement.querySelector('dialstack-phone-numbers');
+        const header = el?.shadowRoot?.querySelector('thead th[data-sort="caller_id_prefix"]');
+        expect(header?.textContent).toContain('Inbound Caller ID Prefix');
+        expect(
+          el?.shadowRoot?.querySelector('tbody tr[data-phone="+19162377753"]')?.textContent
+        ).toContain('[Acme]');
+      });
+    });
+
+    await step('Numbers without a prefix read as Not set', async () => {
+      await waitFor(() => {
+        const el = canvasElement.querySelector('dialstack-phone-numbers');
+        const row = el?.shadowRoot?.querySelector('tbody tr[data-phone="+15145559999"]');
+        expect(row?.querySelector('td[part~="cell-caller_id_prefix"]')?.textContent).toBe(
+          'Not set'
+        );
+      });
+    });
+  },
+};
+
+export const PrefixColumnWithNoneSet: Story = {
+  args: {
+    dids: [
+      {
+        id: 'did_none_a',
+        phone_number: '+19162377753',
+        status: 'active',
+        outbound_enabled: true,
+        caller_id_name: 'ARMSTRONG',
+        created_at: '2026-08-24T10:00:00Z',
+        updated_at: '2026-08-24T10:00:00Z',
+      },
+    ],
+  },
+  play: async ({ canvasElement, step }) => {
+    await step('The column is present and reads Not set when nothing uses it yet', async () => {
+      await waitFor(() => {
+        const el = canvasElement.querySelector('dialstack-phone-numbers');
+        const header = el?.shadowRoot?.querySelector('thead th[data-sort="caller_id_prefix"]');
+        expect(header?.textContent).toContain('Inbound Caller ID Prefix');
+        expect(
+          el?.shadowRoot?.querySelector('td[part~="cell-caller_id_prefix"]')?.textContent
+        ).toBe('Not set');
+      });
+    });
+  },
+};

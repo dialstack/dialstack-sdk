@@ -345,7 +345,8 @@ export const en = {
     columns: {
       phoneNumber: 'Phone Number',
       status: 'Status',
-      callerID: 'Caller ID',
+      callerID: 'Outbound Caller ID',
+      callerIDPrefix: 'Inbound Caller ID Prefix',
       outbound: 'Usage',
       carrier: 'Carrier',
       transferDate: 'Transfer Date',

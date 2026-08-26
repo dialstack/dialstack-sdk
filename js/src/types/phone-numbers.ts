@@ -165,6 +165,13 @@ export interface PhoneNumberItem {
   outbound_enabled: boolean | null;
   fax_enabled?: boolean;
   caller_id_name?: string | null;
+  /**
+   * Prefix added to the inbound caller's display name (see `DIDItem`). Read from
+   * the DID record. Rows for an in-flight order or port leave it unset even where
+   * a backing DID exists, since no tab shows a prefix for a number that isn't live
+   * yet.
+   */
+  caller_id_prefix?: string | null;
   routing_target?: string | null;
   /**
    * Inbound call handling. `routing_target` is null when this is `drop`.

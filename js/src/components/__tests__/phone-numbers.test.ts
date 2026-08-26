@@ -88,6 +88,21 @@ function rowsText(el: PhoneNumbersEl): string {
   return el.shadowRoot.querySelector('tbody')?.textContent ?? '';
 }
 
+function headerLabels(el: PhoneNumbersEl): string[] {
+  return [...el.shadowRoot.querySelectorAll('thead th')].map((th) =>
+    (th.textContent ?? '').replace(/[\u21c5\u2191\u2193\u00a0]/g, '').trim()
+  );
+}
+
+function headerCell(el: PhoneNumbersEl, sortKey: string): HTMLElement | null {
+  return el.shadowRoot.querySelector<HTMLElement>(`thead th[data-sort="${sortKey}"]`);
+}
+
+function prefixCellFor(el: PhoneNumbersEl, phone: string): string | undefined {
+  const row = el.shadowRoot.querySelector(`tbody tr[data-phone="${phone}"]`);
+  return row?.querySelector('td[part~="cell-caller_id_prefix"]')?.textContent ?? undefined;
+}
+
 function routingCell(el: PhoneNumbersEl, phone: string): HTMLElement | null {
   return el.shadowRoot.querySelector<HTMLElement>(`td.routing-cell[data-routing-phone="${phone}"]`);
 }
@@ -475,5 +490,111 @@ describe('PhoneNumbersComponent search', () => {
     const input = searchInput(el);
     expect(el.shadowRoot.activeElement).toBe(input);
     expect(input.selectionStart).toBe(input.value.length);
+  });
+});
+
+describe('PhoneNumbersComponent caller ID prefix column', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+    jest.restoreAllMocks();
+  });
+
+  const withPrefix = () => [
+    makeDID({
+      id: 'did_a',
+      phone_number: '+19162377753',
+      status: 'active',
+      caller_id_name: 'ARMSTRONG',
+      caller_id_prefix: '[Acme]',
+    }),
+    makeDID({
+      id: 'did_b',
+      phone_number: '+15145559999',
+      status: 'active',
+      caller_id_name: 'Broccoli Co',
+    }),
+  ];
+
+  const withoutPrefix = () => [
+    makeDID({ id: 'did_a', phone_number: '+19162377753', status: 'active' }),
+    makeDID({ id: 'did_b', phone_number: '+15145559999', status: 'active' }),
+  ];
+
+  it('sits after Outbound Caller ID on the Active tab', async () => {
+    const el = await mount(makeInstance(withPrefix(), []));
+
+    expect(headerLabels(el)).toEqual([
+      'Phone Number',
+      'Outbound Caller ID',
+      'Inbound Caller ID Prefix',
+      'Usage',
+      'Call Routing',
+    ]);
+  });
+
+  it('renders unconditionally, so an account with no prefixes still sees it', async () => {
+    // The column is how a reader finds out the setting exists. Hiding it until
+    // someone has already set one denies the discovery to exactly the accounts
+    // that never learned about the feature.
+    const el = await mount(makeInstance(withoutPrefix(), []));
+
+    expect(headerCell(el, 'caller_id_prefix')).not.toBeNull();
+    expect(prefixCellFor(el, '+19162377753')).toBe('Not set');
+    expect(prefixCellFor(el, '+15145559999')).toBe('Not set');
+  });
+
+  it('renders the prefix value, and "Not set" for numbers without one', async () => {
+    const el = await mount(makeInstance(withPrefix(), []));
+
+    expect(prefixCellFor(el, '+19162377753')).toBe('[Acme]');
+    expect(prefixCellFor(el, '+15145559999')).toBe('Not set');
+  });
+
+  it('matches the prefix in the search box', async () => {
+    const el = await mount(makeInstance(withPrefix(), []));
+
+    await typeSearch(el, 'acme');
+    expect(rowsText(el)).toContain('916) 237-7753');
+    expect(rowsText(el)).not.toContain('514) 555-9999');
+  });
+
+  it('sorts by prefix, with unset numbers grouped ahead of set ones ascending', async () => {
+    const el = await mount(makeInstance(withPrefix(), []));
+
+    headerCell(el, 'caller_id_prefix')!.click();
+    expect(el.shadowRoot.querySelector('tbody tr')?.getAttribute('data-phone')).toBe(
+      '+15145559999'
+    );
+
+    headerCell(el, 'caller_id_prefix')!.click();
+    expect(el.shadowRoot.querySelector('tbody tr')?.getAttribute('data-phone')).toBe(
+      '+19162377753'
+    );
+  });
+
+  it('stays off the tabs that do not list it, even when a number there has one', async () => {
+    // Column membership is TAB_COLUMNS and nothing else. A released number keeps
+    // its prefix indefinitely, but Cancelled shows only the number and the date.
+    const el = await mount(
+      makeInstance(
+        [
+          makeDID({
+            id: 'did_gone',
+            phone_number: '+15551110000',
+            status: 'released',
+            caller_id_prefix: '[Acme]',
+          }),
+          makeDID({ id: 'did_live', phone_number: '+15551112222', status: 'active' }),
+        ],
+        []
+      )
+    );
+
+    expect(headerCell(el, 'caller_id_prefix')).not.toBeNull();
+
+    clickFilter(el, 'cancelled');
+    expect(headerLabels(el)).toEqual(['Phone Number', 'Date Cancelled']);
+    expect(rowsText(el)).toContain('(555) 111-0000');
+    expect(rowsText(el)).not.toContain('[Acme]');
   });
 });
