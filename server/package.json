@@ -1,6 +1,6 @@
 {
   "name": "@dialstack/sdk-server",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Node.js server client for the DialStack SDK — REST API, webhooks and media streams",
   "license": "MIT",
   "type": "module",
@@ -53,6 +53,6 @@
     "node": ">=20.0.0"
   },
   "devDependencies": {
-    "@dialstack/sdk-js": "3.0.0"
+    "@dialstack/sdk-js": "3.1.0"
   }
 }

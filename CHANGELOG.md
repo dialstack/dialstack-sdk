@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0](https://github.com/dialstack/dialstack-sdk/compare/v3.0.0...v3.1.0) (2026-08-27)
+
+### Features
+
+- **js:** new `account.effectivePricing.retrieve()` — the rates in force today,
+  plus any agreed change that has not started yet. A rate change is
+  boundary-only: it takes effect at the start of the next month, so
+  `account.pricing` is the latest agreed schedule and is not always what the
+  account is being billed. Read effective pricing whenever you show a customer
+  what something costs. A rate of `0` means no rate was agreed for that line —
+  render no figure rather than `$0.00`.
+- **js:** `DialStackInstance.livemode` — whether the instance is operating on
+  live data, derived from the publishable key's prefix, so a component can tell
+  sandbox from live without reading the account.
+- **js:** the phone numbers table shows each number's inbound caller ID prefix.
+- **server:** the `agreement_acceptance` session component, and the
+  `EffectivePricing` type. Accepting the subscription agreement is now its own
+  component, separate from `account_onboarding`: a session minted without it can
+  read the agreement but not accept it, so enable both when the portal you mint
+  for is meant to be able to sign. Enabling it is an attestation that the person
+  you minted for may sign on the account's behalf.
+- **react/onboarding:** `OnboardingPortal` takes `canAcceptAgreement`. Pass
+  `false` for a signed-in user who may not sign, and the gate explains that
+  instead of offering an accept button that fails. It defaults to `true`, and a
+  rejected acceptance now reports that the session is not permitted to accept
+  rather than a generic failure.
+- **react/onboarding:** the overview screen shows the account its standing
+  monthly rates, and adding a user seat or a phone number states the billing
+  impact at the point of the action — the create-member dialog, the grant-seat
+  confirm, the port-order review step, and the number-ordering widget. A seat is
+  quoted from the moment it exists, a number from activation.
+- **react/onboarding:** a port order accepts many numbers pasted at once, with
+  per-number validation and conflicting entries called out individually.
+
+### Bug Fixes
+
+- **react/dial-plan:** an External Number the validator rejects no longer fails
+  in silence. The entry keeps its text, the field is marked invalid, and a
+  plain-language message explains the rejection. Save is held shut while any
+  config panel holds a rejected entry, and a rejected entry leaves the node's
+  stored number alone — previously a single backspace could wipe a live routing
+  destination, and saving could confirm an empty external-dial node that skips
+  to Next or hangs up at runtime.
+- **react/dial-plan:** the External Number field has an accessible name, its
+  error is linked to the input with `aria-describedby`, and the draft is keyed
+  to the node rather than to its value, so switching between two nodes holding
+  the same number no longer carries the previous node's error across.
+
 ## [3.0.0](https://github.com/dialstack/dialstack-sdk/compare/v2.1.0...v3.0.0) (2026-08-11)
 
 `@dialstack/sdk` is now four packages, one per audience.
@@ -13,10 +61,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`@dialstack/sdk` is replaced by four packages.** Update your imports:
 
-  | Before | After |
-  | --- | --- |
-  | `@dialstack/sdk` | `@dialstack/sdk-js` |
-  | `@dialstack/sdk/react` | `@dialstack/sdk-react` |
+  | Before                  | After                   |
+  | ----------------------- | ----------------------- |
+  | `@dialstack/sdk`        | `@dialstack/sdk-js`     |
+  | `@dialstack/sdk/react`  | `@dialstack/sdk-react`  |
   | `@dialstack/sdk/webrtc` | `@dialstack/sdk-webrtc` |
   | `@dialstack/sdk/server` | `@dialstack/sdk-server` |
 
