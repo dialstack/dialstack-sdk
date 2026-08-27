@@ -8,6 +8,7 @@
 
 import React from 'react';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
+import { AccountRatesCard } from './components/AccountRatesCard';
 import { useOnboarding, type StepEntryMode } from './OnboardingContext';
 import { useOnboardingProgress } from './useOnboardingProgress';
 import { STEP_ICONS, STEP_DESC_KEYS, CHECK_SVG_WHITE } from './portal-constants';
@@ -146,6 +147,11 @@ const OverviewScreenBase: React.FC<OverviewScreenProps> = ({
       {phoneNumbers && phoneNumbers.length > 0 && (
         <PhoneStatus phoneNumbers={phoneNumbers} locale={locale} />
       )}
+
+      {/* Standing rates. Placed with the account-level facts rather than in a
+          step: it states what the account pays, which is true whether or not
+          any onboarding step is in progress. */}
+      <AccountRatesCard />
 
       {/* Help card */}
       {(documentationUrl || onScheduleCall) && (
