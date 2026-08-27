@@ -29,6 +29,7 @@
  * // Create a session for embedded components
  * const session = await dialstack.accountSessions.create({
  *   account: account.id,
+ *   components: { call_logs: { enabled: true } },
  * });
  *
  * // List with auto-pagination
