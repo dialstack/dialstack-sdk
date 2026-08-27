@@ -175,6 +175,9 @@ export class Call {
   // setRemoteDescription resolves) — applied once the description is in place.
   private pendingRemoteCandidates: RTCIceCandidateInit[] = [];
   private remoteDescriptionSet = false;
+  // Rejecters for the in-flight waitForIceGatheringComplete promises, so teardown
+  // can settle a wait that no ICE event will ever reach.
+  private readonly gatheringAborts = new Set<() => void>();
   private readonly ringback: Ringback;
   // Suppression keys on REAL received audio, not SDP negotiation. A remote track
   // arriving (or an sdp.pranswer being applied) only means early media was
@@ -551,12 +554,12 @@ export class Call {
     this.attachDtmfSender();
     const offer = await this.peerConnection.createOffer();
     await this.peerConnection.setLocalDescription(offer);
-    // Send a non-trickle (vanilla) offer: wait for ICE gathering to finish so
-    // the SDP carries a=candidate lines before handing it to the signalling
-    // layer. The service expects ICE candidates embedded in the offer SDP;
-    // candidates sent separately (trickle) are not negotiated into the session,
-    // so a candidate-less offer yields an answer with no ICE and media never
-    // connects.
+    // Half trickle (RFC 8838 § 16): wait for a usable candidate set rather than
+    // a complete one. The offer must carry at least one a=candidate — a
+    // candidate-less offer reads to the far end as "no ICE" and comes back with
+    // an answer that has no ICE block, which the browser cannot apply.
+    // Candidates gathered after this point are trickled separately and are
+    // negotiated into the session where the path supports it.
     await this.waitForIceGatheringComplete();
     return this.localDescriptionOr(offer);
   }
@@ -600,8 +603,8 @@ export class Call {
     this.attachDtmfSender();
     const answer = await this.peerConnection.createAnswer();
     await this.peerConnection.setLocalDescription(answer);
-    // Same non-trickle requirement as startOutbound: gather candidates into the
-    // answer SDP before sending it, otherwise the negotiated session has no ICE.
+    // Same requirement as startOutbound: the answer must carry at least one
+    // candidate, or the negotiated session has no ICE.
     await this.waitForIceGatheringComplete();
     this.pendingAnswerSdp = this.peerConnection.localDescription?.sdp ?? answer.sdp ?? null;
     // Flush a deferred answer: answer() may have been clicked before the SDP
@@ -777,6 +780,9 @@ export class Call {
   // lit after the call ends and the MediaStreamTrack handles leak until
   // the page is unloaded.
   private releaseMedia(): void {
+    // Before close(), while ICE events can still be observed to have stopped:
+    // a closed connection fires none, so a wait started here would never end.
+    this.abortIceGathering();
     try {
       this.peerConnection.close();
     } catch {
@@ -841,23 +847,90 @@ export class Call {
   // slow/unreachable STUN/TURN server can't stall call setup — host candidates
   // (gathered near-instantly) are enough for the SDP to be ICE-valid, and any
   // server-reflexive candidates that arrive later are a bonus we don't block on.
-  private waitForIceGatheringComplete(timeoutMs = 2000): Promise<void> {
+  //
+  // The timeout MUST NOT release a description with no candidates in it. That
+  // is a well-formed trickle offer as far as the spec goes, but the far end
+  // reads a candidate-less offer as "this peer does not do ICE" and answers
+  // with no ICE block at all, at which point the browser cannot apply the
+  // answer and no media is ever established. It looks intermittent because it
+  // is a race against gathering: fast networks beat the cap, slow ones don't.
+  // First seen on a React Native client, where gathering is slower than in a
+  // browser and so loses the race more often.
+  //
+  // So the cap is a cap on waiting for a COMPLETE generation, not on waiting
+  // for a usable one. If it fires with nothing gathered we keep waiting for the
+  // first candidate — that is the half trickle of RFC 8838 § 16, and it is what
+  // makes the offer safe against any peer, whether or not it supports trickle.
+  // Waiting past the cap is only safe because two things can still end the wait
+  // when no candidate ever arrives: the hard deadline below, and abortIceGathering()
+  // on teardown. A closed peer connection fires no further ICE events, so without
+  // those the promise would neither resolve nor reject and the caller's call()/
+  // answer() would hang with no error to surface.
+  private waitForIceGatheringComplete(timeoutMs = 2000, hardTimeoutMs = 15000): Promise<void> {
     if (this.peerConnection.iceGatheringState === 'complete') return Promise.resolve();
-    return new Promise<void>((resolve) => {
+    return new Promise<void>((resolve, reject) => {
       let settled = false;
-      const finish = () => {
-        if (settled) return;
+      const cleanup = () => {
         settled = true;
         clearTimeout(timer);
+        clearTimeout(hardTimer);
+        this.gatheringAborts.delete(abort);
         this.peerConnection.removeEventListener('icegatheringstatechange', onChange);
+        this.peerConnection.removeEventListener('icecandidate', onCandidate);
+      };
+      const finish = () => {
+        if (settled) return;
+        // Never hand back a candidate-less description. The listener stays
+        // attached and the first candidate resolves us instead.
+        if (!this.hasLocalCandidate()) return;
+        cleanup();
         resolve();
       };
       const onChange = () => {
-        if (this.peerConnection.iceGatheringState === 'complete') finish();
+        if (settled) return;
+        if (this.peerConnection.iceGatheringState === 'complete') {
+          // Gathering really is finished. Nothing more is coming, so release
+          // even if it produced nothing — continuing to wait would hang the
+          // call outright, which is worse than an offer the far end rejects.
+          cleanup();
+          resolve();
+        }
       };
+      const onCandidate = () => finish();
+      // Nothing was gathered and nothing ever will be: the peer connection went
+      // away (call cancelled, socket dropped) or the platform never produced a
+      // candidate at all. Fail the setup rather than leave the caller waiting.
+      const fail = (message: string) => {
+        if (settled) return;
+        cleanup();
+        reject(new PhoneError({ code: 'call_failed', message, callId: this.id }));
+      };
+      const abort = () => fail('the call ended before any ICE candidate was gathered');
       const timer = setTimeout(finish, timeoutMs);
+      const hardTimer = setTimeout(
+        () => fail('ICE gathering produced no candidate'),
+        hardTimeoutMs
+      );
+      this.gatheringAborts.add(abort);
       this.peerConnection.addEventListener('icegatheringstatechange', onChange);
+      this.peerConnection.addEventListener('icecandidate', onCandidate);
     });
+  }
+
+  // Settles every in-flight gathering wait. Must run before the peer connection
+  // is closed, since a closed connection emits no further ICE events.
+  private abortIceGathering(): void {
+    const aborts = [...this.gatheringAborts];
+    this.gatheringAborts.clear();
+    aborts.forEach((abort) => abort());
+  }
+
+  // Whether the local description carries at least one candidate. Read off the
+  // description rather than counted from icecandidate events, because that is
+  // what actually goes on the wire.
+  private hasLocalCandidate(): boolean {
+    const sdp = this.peerConnection.localDescription?.sdp;
+    return !!sdp && /^a=candidate:/m.test(sdp);
   }
 
   // localDescription holds the gathered candidates after waitForIceGatheringComplete;
