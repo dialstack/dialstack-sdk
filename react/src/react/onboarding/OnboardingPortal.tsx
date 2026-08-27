@@ -70,6 +70,16 @@ export interface OnboardingPortalProps {
   platformName?: string;
   theme?: 'light' | 'dark';
   appearance?: { variables?: { colorPrimary?: string; colorPrimaryHover?: string } };
+  /**
+   * Whether the signed-in person may accept the subscription agreement on this
+   * account's behalf. Defaults to `true`; forwarded to the acceptance gate.
+   *
+   * Set this to the same condition you used to decide whether to enable the
+   * session's `agreement_acceptance` component. When `false`, the gate still
+   * renders the agreement but asks the account owner to accept it, instead of
+   * offering a button whose submission the API rejects.
+   */
+  canAcceptAgreement?: boolean;
   documentationUrl?: string;
   onScheduleCall?: () => void;
   onHelpSupport?: () => void;
@@ -138,6 +148,7 @@ export const OnboardingPortal: React.FC<OnboardingPortalProps> = (props) => {
           formatting={props.formatting}
           theme={props.theme}
           appearance={props.appearance}
+          canAccept={props.canAcceptAgreement ?? true}
           onAccepted={() => {
             setTosAccepted(true);
             void reloadSharedData();

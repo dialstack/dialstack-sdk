@@ -97,6 +97,17 @@ const GATE_CSS = `
 .ssa-affirm input { margin-top: 3px; flex: 0 0 auto; }
 .ssa-actions { display: flex; align-items: center; gap: 16px; }
 .ssa-link { font-size: 13px; }
+/* Informational dead-end, not a failure: the reader did nothing wrong, the
+   agreement is simply not theirs to accept. Deliberately not styled as an
+   error. */
+.ssa-notice {
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--ds-color-border, #d5d7da);
+  background: var(--ds-color-surface-muted, rgba(0, 0, 0, 0.03));
+}
 `;
 
 const STYLESHEETS = [
@@ -118,6 +129,20 @@ export interface SsaAcceptanceGateProps {
   formatting?: FormattingOptions;
   theme?: 'light' | 'dark';
   appearance?: { variables?: { colorPrimary?: string; colorPrimaryHover?: string } };
+  /**
+   * Whether this session may record acceptance. Defaults to `true`.
+   *
+   * Pass `false` when the signed-in person is not entitled to accept on the
+   * account's behalf: the agreement still renders, but the affirmation and the
+   * Accept button are replaced by a note asking the account owner to accept.
+   *
+   * The host application is the one that minted this session, so it already
+   * knows the answer — it is the same decision as whether to enable the
+   * `agreement_acceptance` component on the session. Leaving this `true` for a
+   * session without that component is not a security problem (the API rejects
+   * the submission), but it strands the user on a button that cannot succeed.
+   */
+  canAccept?: boolean;
   /** Called after the agreement is successfully accepted. */
   onAccepted: () => void;
 }
@@ -193,6 +218,7 @@ export const SsaAcceptanceGate: React.FC<SsaAcceptanceGateProps> = ({
   effectivePricing,
   theme,
   appearance,
+  canAccept = true,
   onAccepted,
 }) => {
   const { dialstack } = useDialstackComponents();
@@ -255,6 +281,13 @@ export const SsaAcceptanceGate: React.FC<SsaAcceptanceGateProps> = ({
         }
       } else if (isApiError(err) && err.status === 422) {
         setError(ssa.errors.pricingMissing);
+      } else if (isApiError(err) && err.status === 403) {
+        // 403 has one meaning on this route: this session is not permitted to
+        // accept. Name it instead of falling through to "something went wrong".
+        // This is the safety net for the two cases `canAccept` cannot cover — a
+        // host that never passed the prop, and a signer whose entitlement was
+        // revoked after the session was minted.
+        setError(ssa.notPermitted);
       } else {
         setError(ssa.errors.generic);
       }
@@ -313,7 +346,15 @@ export const SsaAcceptanceGate: React.FC<SsaAcceptanceGateProps> = ({
             {ssa.openInNewTab}
           </a>
 
-          {pricingMissing ? (
+          {!canAccept ? (
+            // Same dead-end shape as missing pricing: show why this cannot be
+            // completed here rather than an Accept button that would be
+            // rejected. Checked before pricing because it is the more specific
+            // reason — a non-signer cannot act on a pricing problem either.
+            <div className="ssa-notice" role="note">
+              {ssa.notPermitted}
+            </div>
+          ) : pricingMissing ? (
             <div className="form-error" role="alert">
               {ssa.errors.pricingMissing}
             </div>

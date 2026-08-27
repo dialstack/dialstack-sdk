@@ -22,6 +22,7 @@ function renderGate(opts?: {
   tos?: Partial<Tos>;
   effectivePricing?: EffectivePricing | null;
   instanceOverrides?: Record<string, unknown>;
+  canAccept?: boolean;
 }) {
   const instance = createMockInstance(opts?.instanceOverrides);
   const tos: Tos = { ...(mockTos as Tos), ...opts?.tos };
@@ -34,6 +35,7 @@ function renderGate(opts?: {
         tos={tos}
         effectivePricing={pricing}
         locale={defaultLocale}
+        canAccept={opts?.canAccept}
         onAccepted={onAccepted}
       />
     </DialstackComponentsProvider>
@@ -189,6 +191,58 @@ describe('SsaAcceptanceGate', () => {
     fireEvent.click(screen.getByRole('checkbox'));
     fireEvent.click(screen.getByRole('button', { name: ssa.accept }));
     await waitFor(() => expect(screen.getByText(ssa.errors.pricingMissing)).toBeInTheDocument());
+  });
+
+  // The safety net for what `canAccept` cannot cover: a host that never passed
+  // the prop, and an entitlement revoked after this session was minted. 403 has
+  // one meaning on this route, so name it rather than showing a generic failure.
+  it('names a rejected signer (403) instead of a generic error', async () => {
+    renderGate({
+      instanceOverrides: {
+        account: {
+          tos: {
+            accept: jest.fn().mockRejectedValue(new ApiError('not permitted', 403)),
+          },
+        },
+      },
+    });
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: ssa.accept }));
+    await waitFor(() => expect(screen.getByText(ssa.notPermitted)).toBeInTheDocument());
+    expect(screen.queryByText(ssa.errors.generic)).not.toBeInTheDocument();
+  });
+  // A session that cannot record acceptance still has to see what is pending —
+  // the agreement renders, only the action is withheld. Offering the button
+  // instead would strand the reader on a submission the API rejects.
+  describe('when this session may not accept', () => {
+    it('replaces the affirmation and button with the owner notice', () => {
+      renderGate({ canAccept: false });
+
+      expect(screen.getByText(ssa.notPermitted)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: ssa.accept })).not.toBeInTheDocument();
+      expect(screen.queryByText(mockTos.content)).not.toBeInTheDocument();
+    });
+
+    it('still renders the agreement and the hosted link', () => {
+      renderGate({ canAccept: false });
+
+      expect(screen.getByText(ssa.title)).toBeInTheDocument();
+      const region = screen.getByRole('region', { name: ssa.agreementLabel });
+      expect(region.textContent).toContain('Emergency Calls (911)');
+      expect(screen.getByRole('link', { name: ssa.openInNewTab })).toBeInTheDocument();
+    });
+
+    it('never calls the accept API', () => {
+      const { instance } = renderGate({ canAccept: false });
+      expect(acceptFn(instance)).not.toHaveBeenCalled();
+    });
+
+    // Defaulting to true keeps every existing host working unchanged.
+    it('offers the action when the prop is omitted', () => {
+      renderGate();
+      expect(screen.getByRole('button', { name: ssa.accept })).toBeInTheDocument();
+      expect(screen.queryByText(ssa.notPermitted)).not.toBeInTheDocument();
+    });
   });
 });
 

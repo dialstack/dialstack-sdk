@@ -923,6 +923,11 @@ export const en = {
       openInNewTab: 'Open the full agreement in a new tab',
       accept: 'Accept & Continue',
       submitting: 'Recording your acceptance…',
+      // Shown instead of the affirmation + Accept button when this session is
+      // not permitted to accept. The agreement itself still renders above, so
+      // the reader can see what is pending and why service is blocked.
+      notPermitted:
+        'Only the account owner can accept this agreement. Please ask them to sign in and accept it — phone service stays blocked until they do.',
       errors: {
         stale: 'The agreement was updated. Please review the latest version and accept again.',
         pricingMissing:

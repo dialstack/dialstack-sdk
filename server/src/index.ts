@@ -526,6 +526,20 @@ export interface AccountSessionCreateParams {
     phone_number_ordering?: ComponentConfig;
     phone_numbers?: ComponentConfig;
     account_onboarding?: ComponentConfig;
+    /**
+     * Lets this session record acceptance of the subscription agreement.
+     *
+     * This is a capability, not a UI toggle: enabling it means the holder of
+     * this session can bind the account to the agreement. Enable it only for
+     * someone entitled to accept on the account's behalf — doing so asserts
+     * that you presented them the agreement.
+     *
+     * Separate from `account_onboarding` on purpose. A session with only
+     * `account_onboarding` can still read the agreement and render the accept
+     * screen, so someone who may not sign still learns the account is blocked;
+     * submitting without this component is rejected.
+     */
+    agreement_acceptance?: ComponentConfig;
     dial_plan?: ComponentConfig;
     ai_agent?: ComponentConfig;
     [key: string]: ComponentConfig | undefined;
