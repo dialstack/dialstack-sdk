@@ -1,8 +1,5 @@
 /**
  * Account onboarding step — manages the business-details and team-members sub-steps.
- *
- * SAFETY NOTE: dangerouslySetInnerHTML is used only for CHECK_SVG_WHITE, a static SVG
- * constant from our own icons.ts — never user input.
  */
 
 import React, { useState, useCallback, useMemo } from 'react';

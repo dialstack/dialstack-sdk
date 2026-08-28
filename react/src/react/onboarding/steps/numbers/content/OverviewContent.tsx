@@ -77,7 +77,6 @@ export const OverviewContent = ({
   return (
     <>
       <div className="num-action-cards">
-        {/* SAFETY: PORT_SVG and PLUS_CIRCLE_SVG are static SVG constants */}
         <div
           className="num-action-card"
           role="button"
@@ -85,7 +84,8 @@ export const OverviewContent = ({
           onClick={startPort}
           onKeyDown={(e) => e.key === 'Enter' && startPort()}
         >
-          {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
+          {/* SAFETY: PORT_SVG is a static SVG constant */}
+          {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- static SVG constant from our own source */}
           <div className="num-action-card-icon" dangerouslySetInnerHTML={{ __html: PORT_SVG }} />
           <div className="num-action-card-body">
             <div className="num-action-card-title">
@@ -103,7 +103,8 @@ export const OverviewContent = ({
           onClick={startOrder}
           onKeyDown={(e) => e.key === 'Enter' && startOrder()}
         >
-          {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
+          {/* SAFETY: PLUS_CIRCLE_SVG is a static SVG constant */}
+          {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- static SVG constant from our own source */}
           <div
             className="num-action-card-icon"
             dangerouslySetInnerHTML={{ __html: PLUS_CIRCLE_SVG }}

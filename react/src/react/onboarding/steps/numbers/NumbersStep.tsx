@@ -996,7 +996,7 @@ export const NumbersStep: React.FC = () => {
       <aside className="step-sidebar" aria-label={t('accountOnboarding.steps.numbers')}>
         <div className="step-sidebar-header">
           {/* SAFETY: PHONE_SVG is a static SVG constant */}
-          {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
+          {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- static SVG constant from our own source */}
           <div className="step-sidebar-icon" dangerouslySetInnerHTML={{ __html: PHONE_SVG }} />
           <span className="step-sidebar-title">{t('accountOnboarding.steps.numbers')}</span>
         </div>
@@ -1147,7 +1147,7 @@ export const NumbersStep: React.FC = () => {
         msg = (
           <div className="center-title">
             {/* SAFETY: CHECK_CIRCLE_SVG is a static SVG constant */}
-            {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
+            {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- static SVG constant from our own source */}
             <span dangerouslySetInnerHTML={{ __html: CHECK_CIRCLE_SVG }} />{' '}
             {t('accountOnboarding.complete.e911.verified')}
           </div>
@@ -1181,7 +1181,7 @@ export const NumbersStep: React.FC = () => {
         <div className="e911-panel">
           <div className="center-state">
             {/* SAFETY: ERROR_SVG is a static SVG constant */}
-            {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
+            {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- static SVG constant from our own source */}
             <div className="center-icon error" dangerouslySetInnerHTML={{ __html: ERROR_SVG }} />
             {title && <div className="center-title">{title}</div>}
             <div className="center-detail">{detail}</div>
@@ -1208,7 +1208,7 @@ export const NumbersStep: React.FC = () => {
           {!e911Blocking && (
             <div className="placeholder" style={{ minHeight: 200 }}>
               {/* SAFETY: CHECK_SVG_WHITE is a static SVG constant */}
-              {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
+              {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- static SVG constant from our own source */}
               <div
                 className="complete-icon-circle"
                 dangerouslySetInnerHTML={{ __html: CHECK_SVG_WHITE }}

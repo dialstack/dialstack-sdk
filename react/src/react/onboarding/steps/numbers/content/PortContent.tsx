@@ -234,7 +234,7 @@ export const PortNumbersContent = ({
         className="btn btn-secondary num-port-add"
         onClick={() => addRowAfter(values.length - 1)}
       >
-        {/* SAFETY: PLUS_SVG is a static SVG constant */}
+        {/* SAFETY: PLUS_CIRCLE_SVG is a static SVG constant */}
         {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- static icon constant */}
         <span aria-hidden="true" dangerouslySetInnerHTML={{ __html: PLUS_CIRCLE_SVG }} />
         {t('accountOnboarding.numbers.port.addAnother')}
@@ -1006,7 +1006,7 @@ export const PortSubmittedContent = ({
   return (
     <div className="placeholder" style={{ minHeight: 200 }}>
       {/* SAFETY: SUCCESS_SVG is a static SVG constant */}
-      {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
+      {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- static SVG constant from our own source */}
       <div
         className="num-order-status-icon success"
         dangerouslySetInnerHTML={{ __html: SUCCESS_SVG }}
@@ -1025,7 +1025,7 @@ export const PortSubmittedContent = ({
           {state.portOrderResults.map((r) => (
             <div key={r.orderId} className="num-carrier-group num-carrier-group--completed">
               {/* SAFETY: CHECK_CIRCLE_SVG is a static SVG constant */}
-              {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
+              {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- static SVG constant from our own source */}
               <span
                 className="num-carrier-group-check"
                 dangerouslySetInnerHTML={{ __html: CHECK_CIRCLE_SVG }}

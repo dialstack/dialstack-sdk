@@ -77,7 +77,7 @@ export const PhoneCardStrip = ({
             )}
 
             {/* SAFETY: PHONE_SVG is a static SVG constant, not user input */}
-            {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
+            {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- static SVG constant from our own source */}
             <span className="num-phone-card-icon" dangerouslySetInnerHTML={{ __html: PHONE_SVG }} />
 
             <div className="num-phone-card-body">
@@ -155,7 +155,8 @@ export const PhoneCardStrip = ({
                   )}
                   {cidStatus === 'submitted' && (
                     <span className="num-cid-status-submitted">
-                      {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
+                      {/* SAFETY: SUCCESS_SVG is a static SVG constant */}
+                      {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- static SVG constant from our own source */}
                       <span dangerouslySetInnerHTML={{ __html: SUCCESS_SVG }} />{' '}
                       {t('accountOnboarding.numbers.callerId.submitted')}
                     </span>
@@ -216,7 +217,8 @@ export const PhoneCardStrip = ({
             style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
           />
           <span className="num-phone-card-icon" style={{ opacity: 0.4 }}>
-            {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- trusted server-generated branding content */}
+            {/* SAFETY: PHONE_SVG is a static SVG constant */}
+            {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- static SVG constant from our own source */}
             <span dangerouslySetInnerHTML={{ __html: PHONE_SVG }} />
           </span>
           <div className="num-phone-card-body">
