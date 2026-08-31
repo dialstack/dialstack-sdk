@@ -3972,9 +3972,11 @@ export class DialStack {
   testHelpers = {
     calls: {
       /**
-       * Trigger a simulated call. For inbound (screen pop) and custom-scenario
-       * simulations a dialed number cannot select. Returns the started call's
-       * id + scenario so a test can assert on it.
+       * Trigger a simulated call — inbound (screen pop) or outbound — and drive
+       * its full event lifecycle on timers. This is the way to exercise your
+       * webhook handling: `calls.create` places a real click-to-call in every
+       * mode, so it rings the user's actual devices rather than simulating.
+       * Returns the started call's id + scenario so a test can assert on it.
        */
       create: (
         params: TestCallCreateParams,
