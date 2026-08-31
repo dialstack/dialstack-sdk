@@ -1891,6 +1891,11 @@ export interface Queue {
   join_empty: string;
   leave_when_empty: string;
   /**
+   * Audio clip (`aud_...`) played to callers waiting in this queue. Null means
+   * the account's hold music applies.
+   */
+  hold_music_clip: string | null;
+  /**
    * The first members of the queue, always embedded and capped at 10. Use
    * `queues.listMembers()` for the full, paginated set.
    */
@@ -1926,6 +1931,8 @@ export interface QueueCreateParams {
   max_queue_length?: number;
   join_empty?: string;
   leave_when_empty?: string;
+  /** Audio clip (`aud_...`) for this queue's hold music; omit to use the account's. */
+  hold_music_clip?: string | null;
 }
 
 export interface QueueUpdateParams {
@@ -1941,6 +1948,11 @@ export interface QueueUpdateParams {
   max_queue_length?: number;
   join_empty?: string;
   leave_when_empty?: string;
+  /**
+   * Audio clip (`aud_...`) for this queue's hold music. Send null to fall back
+   * to the account's hold music; omit to leave unchanged.
+   */
+  hold_music_clip?: string | null;
 }
 
 export interface QueueListParams {
