@@ -3,6 +3,21 @@
  * Claims the published packages make that no lint rule can express.
  *
  *   npm run check:deps --prefix sdk
+ *   npm run check:deps --prefix sdk -- --fix
+ *
+ * `--fix` repairs the three *manifest* claims (1, 2 and the allowed-runtime-deps
+ * list below) instead of reporting them — in the manifests and in the root lockfile's
+ * matching `packages["sdk/*"]` nodes, which carry the same corruption — and skips
+ * every claim about emitted output because those need a build. It exists for one
+ * caller: the Dependabot
+ * manifest-repair workflow (.github/workflows/dependabot-sdk-manifest-fix.yml).
+ * npm has a workspace-save bug that writes a bumped package into *every* member's
+ * `dependencies` — reproduced with a bare `npm install <pkg>@<v> -w sdk
+ * --package-lock-only` against nothing but these manifests — and Dependabot cannot
+ * undo it, because its updater snapshots and restores only the *root* package.json
+ * around the workspace install, never the siblings npm touched. So the corruption
+ * is not preventable from our side and lands on every npm bump PR; this repairs it
+ * mechanically rather than by hand.
  *
  * Per-file import hygiene is eslint's job — `import-x/no-extraneous-dependencies`
  * and `import-x/no-relative-packages` (see eslint.config.js) give inline editor
@@ -15,15 +30,17 @@
  *      declaring `cmdk` and importing it — exactly the state that made a softphone
  *      consumer install 26 packages. "Everything imported is declared" and "nothing
  *      is declared" are different claims.
- *   2. No emitted bundle may import a stylesheet.
- *   3. The Node client's declarations must name no sibling package.
- *   4. No published artifact may name a retired `@dialstack/sdk/*` specifier.
- *   5. Every package must ship a LICENSE.
- *   6. The UMD bundle must be entirely self-contained.
- *   7. The dependency-free packages must emit no bare specifier.
+ *   2. The declared peer ranges must be the exact ranges we support, not whatever
+ *      version a bump last installed.
+ *   3. No emitted bundle may import a stylesheet.
+ *   4. The Node client's declarations must name no sibling package.
+ *   5. No published artifact may name a retired `@dialstack/sdk/*` specifier.
+ *   6. Every package must ship a LICENSE.
+ *   7. The UMD bundle must be entirely self-contained.
+ *   8. The dependency-free packages must emit no bare specifier.
  */
 
-import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -37,6 +54,54 @@ const SDK_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const DEPENDENCY_FREE = ['webrtc', 'server'];
 
 let failed = false;
+
+/**
+ * Repair the manifest claims rather than report them. Deliberately scoped to the
+ * two manifest checks: everything else here reads dist/, and the caller
+ * (a Dependabot PR) has no build.
+ */
+const FIX = process.argv.includes('--fix');
+
+// Rewrite with npm's own formatting — two-space indent, trailing newline — so a
+// repair produces no incidental diff beyond the keys it removed.
+const writeManifest = (path: string, manifest: unknown): void =>
+  writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
+
+/**
+ * The same corruption lands in the root lockfile, and repairing only the manifests
+ * would be a regression against the hand-reverts this replaces (all three cleaned
+ * both files).
+ *
+ * npm's workspace-save bug writes the bumped package into `packages["sdk/*"]`'s
+ * `dependencies` as well as into the sibling manifests. Extra lock entries are not
+ * a sync error — `npm ci` still exits 0, because validateLockfile only walks the
+ * ideal tree — so nothing catches it, and the lock now records the tooling as
+ * *production* dependencies of the workspace members. That is exactly what
+ * `--omit=dev` refuses to prune: .github/workflows/license-check.yml installs with
+ * `npm ci --omit=dev` and feeds the result to a gated Trivy license scan, so a
+ * manifest-only repair leaves storybook, eslint, jest and rollup in the tree that
+ * scan calls "production dependencies".
+ *
+ * Only the fields the corruption touches are repaired. A lock node's
+ * `devDependencies` are legitimate (sdk/js and sdk/react really do declare
+ * rollup-plugin-dts) and are left alone.
+ *
+ * Deleting these keys is half the lock repair, and the half a dependency-free
+ * script can do. The other half is out of reach here: the same bug also strips
+ * `"dev": true` from hundreds of `node_modules/*` nodes, and dev-reachability is a
+ * property of the whole graph, so no amount of key deletion restores it. That needs
+ * npm to recompute the tree, which the caller does immediately after this
+ * (`npm install --package-lock-only`, see the workflow's "Restore the lockfile's
+ * dev flags" step). Together they reproduce the hand-reverts byte for byte.
+ */
+const LOCKFILE_PATH = join(SDK_ROOT, '..', 'package-lock.json');
+const lockfile: { packages?: Record<string, Record<string, unknown>> } | null =
+  FIX && existsSync(LOCKFILE_PATH) ? JSON.parse(readFileSync(LOCKFILE_PATH, 'utf8')) : null;
+let lockfileChanged = false;
+
+/** The lock's node for a published package, or undefined if the lock has none. */
+const lockNode = (name: string): Record<string, unknown> | undefined =>
+  lockfile?.packages?.[`sdk/${name}`];
 
 for (const name of DEPENDENCY_FREE) {
   const manifestPath = join(SDK_ROOT, name, 'package.json');
@@ -66,9 +131,111 @@ for (const name of DEPENDENCY_FREE) {
     console.log(`✓ ${name} — installs with zero dependencies`);
     continue;
   }
+
+  // The claim is that these fields are empty, so the repair is to delete them
+  // outright rather than subtract a known-bad list: anything that appears here is
+  // wrong by definition, which is exactly why this pair needs no allowlist.
+  if (FIX) {
+    const node = lockNode(name);
+    for (const field of ['dependencies', 'peerDependencies', 'optionalDependencies'] as const) {
+      delete manifest[field];
+      if (node && field in node) {
+        delete node[field];
+        lockfileChanged = true;
+      }
+    }
+    writeManifest(manifestPath, manifest);
+    console.log(`✓ ${name} — repaired to zero dependencies:`);
+    for (const problem of problems) console.log(`    removed: ${problem}`);
+    continue;
+  }
+
   failed = true;
   console.error(`✗ ${name} must install with zero dependencies:`);
   for (const problem of problems) console.error(`    ${problem}`);
+}
+
+/**
+ * The declared peer ranges are exact strings, not merely present.
+ *
+ * A peer range is a compatibility promise: `@xyflow/react: "^12.0.0"` says every
+ * 12.x works. A bump rewrites it to the version it just installed — `^12.11.5` —
+ * and that is a *narrowing*, so a consumer already on 12.4 gets a peer conflict
+ * from a release that changed nothing about the code. It recurred in two of the
+ * three hand-reverts, and unlike the `dependencies` corruption nothing failed on
+ * it: the empty-manifest check only reads the zero-dependency pair, so react's
+ * peers were unread by anything and the branch went green.
+ *
+ * Exact strings rather than a semver "is this at least as wide" comparison. The
+ * claim being made is "this is the range we decided on", and every one of these is
+ * a deliberate support statement — dropping react 18 is a decision someone makes,
+ * not something a range check should quietly ratify because the new range happens
+ * to be wider. Widening therefore also fails here, and the fix is to edit this
+ * list, exactly as with ALLOWED_RUNTIME_DEPS.
+ *
+ * `@dialstack/sdk-js` is deliberately absent. Its range tracks our own version
+ * (`>=3.1.0 <4` today) and the release tooling rewrites it, so pinning it here
+ * would fail every release PR. It is also the one peer a Dependabot npm bump
+ * cannot touch, since it names no registry package Dependabot updates.
+ */
+const PINNED_PEER_RANGES: Record<string, Record<string, string>> = {
+  react: {
+    '@xyflow/react': '^12.0.0',
+    react: '^18 || ^19',
+    'react-dom': '^18 || ^19',
+  },
+};
+
+for (const [name, pinned] of Object.entries(PINNED_PEER_RANGES)) {
+  const manifestPath = join(SDK_ROOT, name, 'package.json');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  const declared: Record<string, string> = manifest.peerDependencies ?? {};
+
+  // A missing peer is as wrong as a rewritten one, and worse to debug: the
+  // consumer installs cleanly and finds out at runtime. `undefined` reports as
+  // "missing" rather than being skipped.
+  // Pairs of (dep, what the manifest actually says) — deriving the pair from
+  // `pinned` instead would make both sides of every "expected X, found X" message
+  // print the same string.
+  const drifted = Object.entries(pinned)
+    .filter(([dep, range]) => declared[dep] !== range)
+    .map(([dep, range]) => ({ dep, found: declared[dep], want: range }));
+
+  if (drifted.length === 0) {
+    console.log(`✓ ${name} — ${Object.keys(pinned).length} peer range(s), all as declared`);
+    continue;
+  }
+
+  // Restore the pinned string. Unlike the dependency repair above, rewriting the
+  // value is the whole point: there is no legitimate bump-driven change to a peer
+  // range, so whatever is there now is the corruption.
+  if (FIX) {
+    const lockPeers = lockNode(name)?.peerDependencies as Record<string, string> | undefined;
+    manifest.peerDependencies ??= {};
+    for (const { dep, want } of drifted) {
+      manifest.peerDependencies[dep] = want;
+      if (lockPeers) {
+        lockPeers[dep] = want;
+        lockfileChanged = true;
+      }
+    }
+    writeManifest(manifestPath, manifest);
+    console.log(`✓ ${name} — restored ${drifted.length} peer range(s):`);
+    for (const { dep, found, want } of drifted) {
+      console.log(`    ${dep}: ${found ?? '(missing)'} -> ${want}`);
+    }
+    continue;
+  }
+
+  failed = true;
+  console.error(`✗ ${name} declares peer ranges that differ from the ones we support:`);
+  for (const { dep, found, want } of drifted) {
+    console.error(`    ${dep}: expected ${want}, found ${found ?? '(missing)'}`);
+  }
+  console.error(
+    `    A narrowed range breaks consumers on an older compatible version. If this ` +
+      `change is deliberate, update PINNED_PEER_RANGES.`
+  );
 }
 
 /**
@@ -91,7 +258,8 @@ const ALLOWED_RUNTIME_DEPS: Record<string, string[]> = {
 };
 
 for (const [name, allowed] of Object.entries(ALLOWED_RUNTIME_DEPS)) {
-  const manifest = JSON.parse(readFileSync(join(SDK_ROOT, name, 'package.json'), 'utf8'));
+  const manifestPath = join(SDK_ROOT, name, 'package.json');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   const declared = Object.keys(manifest.dependencies ?? {});
   const unexpected = declared.filter((dep) => !allowed.includes(dep));
 
@@ -99,12 +267,45 @@ for (const [name, allowed] of Object.entries(ALLOWED_RUNTIME_DEPS)) {
     console.log(`✓ ${name} — ${declared.length} runtime dependency(ies), all expected`);
     continue;
   }
+
+  // Remove only the unexpected keys. The allowed ones carry real version ranges
+  // that a bump is entitled to change, so rewriting the block from the allowlist
+  // would revert legitimate updates in the same PR this is repairing.
+  if (FIX) {
+    const lockDeps = lockNode(name)?.dependencies as Record<string, string> | undefined;
+    for (const dep of unexpected) {
+      delete manifest.dependencies[dep];
+      if (lockDeps && dep in lockDeps) {
+        delete lockDeps[dep];
+        lockfileChanged = true;
+      }
+    }
+    writeManifest(manifestPath, manifest);
+    console.log(`✓ ${name} — removed ${unexpected.length} unexpected runtime dependency(ies):`);
+    for (const dep of unexpected) console.log(`    removed: ${dep}`);
+    continue;
+  }
+
   failed = true;
   console.error(
     `✗ ${name} declares runtime dependencies that are not on its allowed list:\n` +
       `    ${unexpected.join(', ')}\n` +
       `    If a consumer really should install these, add them to ALLOWED_RUNTIME_DEPS.`
   );
+}
+
+// Everything below asserts a property of the *emitted output*, which needs a build.
+// `--fix` runs on a bare Dependabot checkout, so stopping here is the difference
+// between a repair and seven spurious "no dist/ — build before checking" failures.
+if (FIX) {
+  // Written once, after both manifest loops, so a lock repair spanning several
+  // packages produces a single rewrite. npm's own formatting again — two-space
+  // indent, trailing newline — so the diff is only the removed keys.
+  if (lockfileChanged) {
+    writeManifest(LOCKFILE_PATH, lockfile);
+    console.log('✓ package-lock.json — removed the same entries from the sdk/* nodes');
+  }
+  process.exit(failed ? 1 : 0);
 }
 
 /**
