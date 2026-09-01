@@ -1896,6 +1896,18 @@ export interface Queue {
    */
   hold_music_clip: string | null;
   /**
+   * Audio clip (`aud_...`) played once to a caller joining the queue, before
+   * hold music starts. Null when the queue has no entry prompt.
+   */
+  entry_prompt_clip: string | null;
+  /**
+   * Audio clip (`aud_...`) replayed to waiting callers every
+   * `periodic_prompt_frequency_seconds`. Null when the queue has none.
+   */
+  periodic_prompt_clip: string | null;
+  /** Seconds between plays of `periodic_prompt_clip` (10-600). */
+  periodic_prompt_frequency_seconds: number;
+  /**
    * The first members of the queue, always embedded and capped at 10. Use
    * `queues.listMembers()` for the full, paginated set.
    */
@@ -1933,6 +1945,12 @@ export interface QueueCreateParams {
   leave_when_empty?: string;
   /** Audio clip (`aud_...`) for this queue's hold music; omit to use the account's. */
   hold_music_clip?: string | null;
+  /** Audio clip (`aud_...`) played once when a caller joins, before hold music. */
+  entry_prompt_clip?: string | null;
+  /** Audio clip (`aud_...`) replayed to waiting callers. */
+  periodic_prompt_clip?: string | null;
+  /** Seconds between plays of `periodic_prompt_clip` (10-600; default 60). */
+  periodic_prompt_frequency_seconds?: number;
 }
 
 export interface QueueUpdateParams {
@@ -1953,6 +1971,18 @@ export interface QueueUpdateParams {
    * to the account's hold music; omit to leave unchanged.
    */
   hold_music_clip?: string | null;
+  /**
+   * Audio clip (`aud_...`) played once when a caller joins. Send null to remove
+   * the prompt; omit to leave unchanged.
+   */
+  entry_prompt_clip?: string | null;
+  /**
+   * Audio clip (`aud_...`) replayed to waiting callers. Send null to remove the
+   * prompt; omit to leave unchanged.
+   */
+  periodic_prompt_clip?: string | null;
+  /** Seconds between plays of `periodic_prompt_clip` (10-600). */
+  periodic_prompt_frequency_seconds?: number;
 }
 
 export interface QueueListParams {
