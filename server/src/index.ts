@@ -778,6 +778,18 @@ export interface CallCreateParams {
   user: string;
   /** Phone number, extension, or emergency number to dial after the user answers. */
   dial_string: string;
+  /**
+   * Which of the account's numbers to present as caller ID for this one call,
+   * as a phone number id. Must be active and outbound-enabled, otherwise the
+   * request is rejected. Omit to use the standing caller ID configured for the
+   * user, or failing that for the account.
+   *
+   * Applies to legs that leave over the carrier. On a call to an internal
+   * extension the two parties see the caller's extension, so this has no
+   * effect there, but it is still used for any external follow-me leg the
+   * call rings on the way to them.
+   */
+  did?: string;
 }
 
 /** Call recording metadata with a signed download URL. */
