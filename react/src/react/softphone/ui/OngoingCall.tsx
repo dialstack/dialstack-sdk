@@ -62,9 +62,9 @@ export const OngoingCall: React.FC = () => {
   const peerName = callPeerName(call);
   const isActive = isCallActive(call);
   const name = peerName || displayNumber(peer) || t('unknownCaller');
-  // Hide the DTMF keypad where the platform can't send DTMF (react-native-webrtc
-  // has no RTCDTMFSender) — otherwise the taps would each throw. Web browsers
-  // support it, so the keypad stays.
+  // Hide the DTMF keypad where the platform can't send DTMF — otherwise the taps
+  // would each throw. Browsers always expose RTCDTMFSender, so on web the keypad
+  // stays; on React Native it depends on which WebRTC build the app installed.
   const canSendDtmf = call.canSendDtmf;
 
   const sendDtmf = (digit: string) => {

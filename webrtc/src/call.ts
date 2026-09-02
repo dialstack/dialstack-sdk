@@ -26,15 +26,16 @@ import type {
 } from './types.js';
 
 // Fires at most once per process: an audio sender with no `.dtmf` on React Native
-// means the app resolved react-native-webrtc to a build without the DialStack fork
-// (`RTCRtpSender.dtmf`), so DTMF is unavailable. Guarded so it can't spam per call.
+// means the app installed a WebRTC package without the `RTCRtpSender.dtmf` bridge
+// (DialStack's fork has it; LiveKit's and Stream's don't), so DTMF is
+// unavailable. Guarded so it can't spam per call.
 let warnedMissingDtmfBridge = false;
 function warnMissingDtmfBridgeOnce(): void {
   if (warnedMissingDtmfBridge) return;
   warnedMissingDtmfBridge = true;
   logWarn(
     'DTMF is unavailable: the audio sender exposes no RTCDTMFSender. On React ' +
-      'Native, resolve react-native-webrtc to the DialStack fork (which adds ' +
+      "Native, install DialStack's react-native-webrtc fork (which adds " +
       'RTCRtpSender.dtmf) — see the @dialstack/sdk-native README.'
   );
 }

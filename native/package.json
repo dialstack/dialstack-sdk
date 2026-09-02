@@ -43,6 +43,11 @@
     "react-native-svg": ">=15",
     "react-native-webrtc": ">=124"
   },
+  "peerDependenciesMeta": {
+    "react-native-webrtc": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^29.0.3",
     "@rollup/plugin-node-resolve": "^16.0.3",

@@ -47,8 +47,8 @@ export function OngoingCall(): React.JSX.Element | null {
 
   // Clear the per-call transient text when the foreground call changes. (The
   // overlay flags themselves reset inside useCallOverlays so web + RN match.)
-  // No dtmfEntered readout here — native can't send DTMF (no RTCDTMFSender), so
-  // there's no keypad readout to reset, unlike web.
+  // No dtmfEntered readout here — the RN keypad has no readout to reset, unlike
+  // web.
   const callId = call?.id ?? null;
   useEffect(() => {
     setTransferTo('');
@@ -60,8 +60,9 @@ export function OngoingCall(): React.JSX.Element | null {
   const peerName = callPeerName(call);
   const isActive = isCallActive(call);
   const name = peerName || displayNumber(peerRaw) || t('unknownCaller');
-  // react-native-webrtc exposes no RTCDTMFSender, so DTMF can't be sent on
-  // native — hide the keypad rather than throw on each tap.
+  // Only some React Native WebRTC builds expose RTCRtpSender.dtmf (DialStack's
+  // fork does; LiveKit's and Stream's don't), so hide the keypad when the active
+  // build can't send rather than throw on each tap.
   const canSendDtmf = call.canSendDtmf;
 
   // An attended transfer is just two switchable calls + a transfer flag, so it

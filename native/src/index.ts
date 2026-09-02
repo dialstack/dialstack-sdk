@@ -14,7 +14,9 @@
  * and the composable pieces (<DialPad> / <IncomingCall> / <OngoingCall>) for
  * building a bespoke experience.
  *
- * Bring your own `react-native-webrtc` / `react-native-incall-manager` /
+ * Bring your own WebRTC package (any build whose `registerGlobals()` installs
+ * the standard surface — the `react-native-webrtc` peer is optional so a
+ * differently-named fork can satisfy it) plus `react-native-incall-manager` /
  * `react-native-svg` (peer deps), supply a `storage` adapter to
  * `<SoftphoneProvider>` (the SDK takes no persistence dependency — back it with
  * MMKV, AsyncStorage, or anything that implements `PlatformStorage`), and pass a
