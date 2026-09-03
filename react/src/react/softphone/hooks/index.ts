@@ -10,7 +10,7 @@
 export { usePhone } from './usePhone';
 export type { UsePhoneOptions, UsePhoneResult, SoftphoneConnectionState } from './usePhone';
 
-export { useCalls } from './useCalls';
+export { useCalls, MAX_CALLS } from './useCalls';
 export type { UseCallsOptions, UseCallsResult } from './useCalls';
 
 export { useCallActions } from './useCallActions';

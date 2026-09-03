@@ -39,6 +39,10 @@ export const softphoneGlyphs = {
   speaker: {
     path: 'M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05A4.47 4.47 0 0 0 16.5 12zM14 2.23v2.06a7.5 7.5 0 0 1 0 15.42v2.06a9.5 9.5 0 0 0 0-19.54z',
   },
+  // Person-plus: adding another party to the conversation.
+  addCall: {
+    path: 'M15 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zM6 8V5H4v3H1v2h3v3h2v-3h3V8H6z',
+  },
 } satisfies Record<string, SoftphoneGlyph>;
 
 export type SoftphoneGlyphName = keyof typeof softphoneGlyphs;

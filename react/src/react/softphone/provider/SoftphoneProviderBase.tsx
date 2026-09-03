@@ -13,6 +13,7 @@ import React, { createContext, useContext, useEffect, useMemo, useRef } from 're
 import {
   usePhone,
   useCalls,
+  MAX_CALLS,
   useCallActions,
   useCallOverlays,
   useCallDuration,
@@ -246,7 +247,9 @@ export function SoftphoneProviderBase<Extra extends object>({
   const actions = useCallActions(activeCall, { onError: handleError });
   // Built-in-UI overlay flags for the bundled OngoingCall. Owns the
   // reset-on-foreground-call-change invariant so web and native can't drift.
-  const overlays = useCallOverlays(activeCall);
+  // Force the add-call panel closed at the concurrent-call cap, so it cannot
+  // linger unreachable and reappear with stale digits when a leg drops.
+  const overlays = useCallOverlays(activeCall, callEntries.length < MAX_CALLS);
   const duration = useCallDuration(activeCall);
 
   const calls = useMemo(() => callEntries.map((e) => e.call), [callEntries]);

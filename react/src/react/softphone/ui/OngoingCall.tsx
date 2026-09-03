@@ -1,12 +1,12 @@
 /**
  * OngoingCall — the in-call screen: peer + call-state + live duration, the
- * optional DTMF keypad / transfer / audio-device overlays, the control row (mute /
- * hold / keypad / transfer / audio), and hang up. Renders nothing when there is no
- * active call.
+ * optional DTMF keypad / transfer / add-call / audio-device overlays, the control
+ * row (mute / hold / keypad / transfer / add call / audio), and hang up. Renders
+ * nothing when there is no active call.
  *
  * Reads the active call, actions, and duration from the softphone context; owns
- * only its own transient DTMF-readout and transfer-input text. Must be rendered
- * inside a `<SoftphoneProvider>`.
+ * only its own transient DTMF-readout, transfer-input and add-call text. Must be
+ * rendered inside a `<SoftphoneProvider>`.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -17,6 +17,7 @@ import {
   callStateLabelKey,
   isCallActive,
   useDialInput,
+  MAX_CALLS,
 } from '../hooks';
 import { dialPadKeys } from '../core/theme';
 import { softphoneGlyphs } from '../core/icons';
@@ -38,14 +39,18 @@ export const OngoingCall: React.FC = () => {
     startAttendedTransfer,
     completeAttendedTransfer,
     cancelAttendedTransfer,
+    placeCall,
+    calls,
     t,
     displayNumber,
     scope,
   } = useSoftphone();
-  const { showKeypad, showTransfer, showDevices } = overlays;
+  const { showKeypad, showTransfer, showDevices, showAddCall } = overlays;
   const [dtmfEntered, setDtmfEntered] = useState('');
   const [transferTo, setTransferTo] = useState('');
+  const [addCallTo, setAddCallTo] = useState('');
   const { onType: onTransferType, onPasteText: onTransferPaste } = useDialInput(setTransferTo);
+  const { onType: onAddCallType, onPasteText: onAddCallPaste } = useDialInput(setAddCallTo);
 
   // Clear the per-call transient text when the foreground call changes. (The
   // overlay flags themselves reset inside useCallOverlays so web + RN match.)
@@ -54,6 +59,7 @@ export const OngoingCall: React.FC = () => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset transient text on foreground-call change
     setDtmfEntered('');
     setTransferTo('');
+    setAddCallTo('');
   }, [callId]);
 
   if (!call) return null;
@@ -101,6 +107,29 @@ export const OngoingCall: React.FC = () => {
   // control is shown greyed rather than allowing an invalid/confusing action.
   const otherLiveCalls = heldCalls.length + incomingCalls.length;
   const canStartTransfer = !inTransfer && otherLiveCalls === 0;
+
+  // Adding a call stacks another live leg, so it's gated on the same soft cap the
+  // hook enforces when accepting one (`useCalls` rejects past MAX_CALLS) — reading
+  // the shared constant rather than repeating the number. `calls` is every live
+  // leg, which is exactly what that cap counts.
+  const canAddCall = calls.length < MAX_CALLS;
+
+  // At the cap the panel is hidden and its toggle disabled, so anything typed
+  // before is unreachable — and must not come back when a ringing leg drops.
+  // Derived rather than reset in an effect: the stale text simply never reads
+  // through while the cap holds.
+  const addCallValue = canAddCall ? addCallTo : '';
+
+  const submitAddCall = () => {
+    const target = addCallValue.trim();
+    if (!target) return;
+    // Fire-and-forget like the attended-transfer button: placeCall reports its own
+    // failures through onError (and un-holds the previous call), so the overlay
+    // closes on submit rather than waiting on the dial.
+    void placeCall(target);
+    setAddCallTo('');
+    overlays.closeAddCall();
+  };
 
   return (
     <div className={`${scope} ds-softphone`}>
@@ -252,6 +281,37 @@ export const OngoingCall: React.FC = () => {
           </div>
         )}
 
+        {isActive && showAddCall && canAddCall && (
+          <div className="ds-transfer ds-addcall">
+            <input
+              className="ds-transfer-input"
+              type="tel"
+              inputMode="tel"
+              value={addCallValue}
+              placeholder={t('addCallPlaceholder')}
+              aria-label={t('addCallPlaceholder')}
+              autoComplete="off"
+              onChange={(e) => onAddCallType(e.target.value)}
+              onPaste={(e) => {
+                e.preventDefault();
+                onAddCallPaste(e.clipboardData.getData('text'));
+              }}
+            />
+            <div className="ds-transfer-actions">
+              {/* Holds the current call and dials the new one — the existing
+                  multi-call path, same as answering a second inbound. */}
+              <button
+                type="button"
+                className="ds-transfer-send"
+                disabled={!addCallValue.trim()}
+                onClick={submitAddCall}
+              >
+                {t('addCallSend')}
+              </button>
+            </div>
+          </div>
+        )}
+
         {isActive && showDevices && <AudioDevicePicker />}
 
         {isActive && (
@@ -308,6 +368,19 @@ export const OngoingCall: React.FC = () => {
                 <Glyph glyph={softphoneGlyphs.transfer} />
               </span>
               <span className="ds-control-label">{t('transfer')}</span>
+            </button>
+            <button
+              type="button"
+              className={`ds-control ${showAddCall ? 'ds-control-on' : ''}`}
+              aria-pressed={showAddCall}
+              aria-label={t('addCall')}
+              disabled={!canAddCall}
+              onClick={overlays.toggleAddCall}
+            >
+              <span className="ds-control-glyph">
+                <Glyph glyph={softphoneGlyphs.addCall} />
+              </span>
+              <span className="ds-control-label">{t('addCall')}</span>
             </button>
             <button
               type="button"

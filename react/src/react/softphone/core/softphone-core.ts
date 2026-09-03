@@ -12,6 +12,7 @@
 export {
   usePhone,
   useCalls,
+  MAX_CALLS,
   useCallActions,
   useCallDuration,
   useEmergencyBinding,

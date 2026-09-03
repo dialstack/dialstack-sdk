@@ -30,7 +30,7 @@ describe('useCallOverlays', () => {
     expect(result.current.showTransfer).toBe(false);
   });
 
-  it('all three overlays are mutually exclusive', () => {
+  it('all four overlays are mutually exclusive', () => {
     // Exclusivity is structural (one piece of state names the open panel), so this
     // guards against a regression back to N booleans where each toggler has to
     // remember to clear the others.
@@ -41,6 +41,7 @@ describe('useCallOverlays', () => {
         result.current.showKeypad && 'keypad',
         result.current.showTransfer && 'transfer',
         result.current.showDevices && 'devices',
+        result.current.showAddCall && 'addcall',
       ].filter(Boolean) as string[];
 
     act(() => result.current.toggleDevices());
@@ -55,12 +56,53 @@ describe('useCallOverlays', () => {
     act(() => result.current.toggleTransfer());
     expect(open()).toEqual(['transfer']);
 
+    act(() => result.current.toggleAddCall());
+    expect(open()).toEqual(['addcall']);
+
+    // Add-call gives way to the others just like every other panel.
     act(() => result.current.toggleDevices());
     expect(open()).toEqual(['devices']);
 
     // Toggling the open one closes it, leaving nothing open.
     act(() => result.current.toggleDevices());
     expect(open()).toEqual([]);
+  });
+
+  it('toggling add call twice closes it', () => {
+    const call = fakeCall();
+    const { result } = renderHook(() => useCallOverlays(call));
+
+    act(() => result.current.toggleAddCall());
+    expect(result.current.showAddCall).toBe(true);
+
+    act(() => result.current.toggleAddCall());
+    expect(result.current.showAddCall).toBe(false);
+  });
+
+  it('closeAddCall closes only the add-call overlay', () => {
+    const call = fakeCall();
+    const { result } = renderHook(() => useCallOverlays(call));
+
+    act(() => result.current.toggleAddCall());
+    act(() => result.current.closeAddCall());
+    expect(result.current.showAddCall).toBe(false);
+
+    // Scoped like closeTransfer: it closes its own panel, not "whatever is open".
+    act(() => result.current.toggleDevices());
+    act(() => result.current.closeAddCall());
+    expect(result.current.showDevices).toBe(true);
+  });
+
+  it('resets the add-call overlay when the foreground call changes', () => {
+    const { result, rerender } = renderHook(({ call }) => useCallOverlays(call), {
+      initialProps: { call: fakeCall() as Call | null },
+    });
+    act(() => result.current.toggleAddCall());
+    expect(result.current.showAddCall).toBe(true);
+
+    rerender({ call: null });
+
+    expect(result.current.showAddCall).toBe(false);
   });
 
   it('closeTransfer leaves another open overlay alone', () => {

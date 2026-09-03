@@ -5,7 +5,7 @@ component from `@dialstack/sdk-react` — the web sibling of the
 [mobile examples](../mobile). It mints a short-lived user session on the server
 (so your `sk_live_*` key never reaches the browser), hands the token to
 `<SoftphoneProvider>`, and the component owns everything else: connecting, the
-dial pad, incoming/ongoing call UI, audio, mute/hold/transfer/DTMF, and the E911
+dial pad, incoming/ongoing call UI, audio, mute/hold/transfer/add-call/DTMF, and the E911
 flow.
 
 > **This vs. the [basic example](../basic-softphone-example):** the basic example

@@ -41,7 +41,13 @@ class Emitter {
   }
 }
 
+let nextFakeCallId = 0;
+
 class FakeCall extends Emitter {
+  // Distinct per instance: the incoming/held lists key their cards on it, so a
+  // shared (or absent) id makes React warn and collapses the cards in a
+  // multi-call render.
+  id = `call_${++nextFakeCallId}`;
   state = 'trying';
   isMuted = false;
   duration = 0;
@@ -104,7 +110,9 @@ class FakePhone extends Emitter {
     return Promise.resolve();
   }
   disconnect(): void {}
+  callArgs: string[] = [];
   call(to: string): Promise<unknown> {
+    this.callArgs.push(to);
     const c = this.nextCall ?? new FakeCall('outbound', '', null, to);
     return Promise.resolve(c);
   }
@@ -417,6 +425,79 @@ describe('Softphone multi-call', () => {
     fireEvent.click(screen.getByLabelText('Answer'));
     expect(active.hold).toHaveBeenCalled();
     expect(interrupt.answer).toHaveBeenCalled();
+  });
+
+  it('adds a second call from the in-call screen, holding the first', async () => {
+    renderSoftphone();
+    act(() => phone().emit('connected'));
+    const alice = connectWithActiveCall('Alice', '+14155550001');
+
+    // The second leg the fake phone will hand back from `call()`.
+    const bob = new FakeCall('outbound', '', null, '+14155550002');
+    phone().nextCall = bob;
+
+    fireEvent.click(screen.getByLabelText('Add call'));
+    fireEvent.change(screen.getByLabelText('Number to dial'), {
+      target: { value: '+14155550002' },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText('Call'));
+    });
+
+    // The new leg was actually dialed and became the foreground call. Asserted on
+    // the OUTCOME, not the attempt: `hold()` runs before the await and the overlay
+    // closes synchronously, so both of those survive a dial that never resolves.
+    expect(phone().callArgs).toContain('+14155550002');
+    expect(screen.getByText('(415) 555-0002')).toBeInTheDocument();
+    // placeCall holds the live conversation before the new leg becomes active —
+    // the whole point of "add call" rather than a second independent line.
+    expect(alice.hold).toHaveBeenCalled();
+    // The overlay closes on submit, so the input is gone.
+    expect(screen.queryByLabelText('Number to dial')).not.toBeInTheDocument();
+  });
+
+  it('discards a stale add-call panel when the cap is reached', async () => {
+    renderSoftphone();
+    act(() => phone().emit('connected'));
+    const alice = connectWithActiveCall('Alice', '+14155550001');
+    expect(alice).toBeDefined();
+    // A leg already ringing, so reaching the cap does not remount OngoingCall.
+    act(() => phone().emit('incoming', new FakeCall('inbound', '+14155550002', 'Bob', 'me')));
+
+    fireEvent.click(screen.getByLabelText('Add call'));
+    fireEvent.change(screen.getByLabelText('Number to dial'), { target: { value: '5551234' } });
+
+    // Third leg rings → at the cap, the panel hides and its toggle is disabled,
+    // so the user has no way to dismiss it.
+    act(() => phone().emit('incoming', new FakeCall('inbound', '+14155550003', 'Carol', 'me')));
+    const carol = new FakeCall('inbound', '+14155550004', 'Dave', 'me');
+    act(() => phone().emit('incoming', carol));
+    expect(screen.queryByLabelText('Number to dial')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Add call')).toBeDisabled();
+
+    // Carol gives up → back under the cap. The panel must NOT reappear carrying
+    // the previously typed destination with an enabled Call button.
+    act(() => {
+      carol.state = 'ended';
+      carol.emit('ended', 'hangup');
+    });
+    expect(screen.queryByLabelText('Number to dial')).not.toBeInTheDocument();
+  });
+
+  it('disables Add call at the concurrent-call cap', () => {
+    renderSoftphone();
+    act(() => phone().emit('connected'));
+    connectWithActiveCall('Alice', '+14155550001');
+    expect(screen.getByLabelText('Add call')).toBeEnabled();
+
+    // Fill to MAX_CALLS (4) with ringing inbound legs; the cap counts every live
+    // leg, not just answered ones.
+    act(() => phone().emit('incoming', new FakeCall('inbound', '+14155550002', 'Bob', 'me')));
+    act(() => phone().emit('incoming', new FakeCall('inbound', '+14155550003', 'Carol', 'me')));
+    expect(screen.getByLabelText('Add call')).toBeEnabled();
+
+    act(() => phone().emit('incoming', new FakeCall('inbound', '+14155550004', 'Dave', 'me')));
+    expect(screen.getByLabelText('Add call')).toBeDisabled();
   });
 
   it('disables the Transfer control while more than one call is live', () => {

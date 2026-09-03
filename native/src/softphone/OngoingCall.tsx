@@ -1,8 +1,9 @@
 /**
  * OngoingCall (RN) — the in-call screen: peer + state + duration, optional DTMF
- * keypad and transfer overlays, the control row (mute/hold/keypad/transfer), and
- * hang up. Renders nothing when there is no active call. Owns its transient DTMF
- * and transfer text; reads the call/actions/duration from context.
+ * keypad / transfer / add-call overlays, the control row (mute/hold/keypad/
+ * transfer/add call), and hang up. Renders nothing when there is no active call.
+ * Owns its transient transfer + add-call text; reads the call/actions/duration
+ * from context.
  *
  * Must be rendered inside a <SoftphoneProvider>.
  */
@@ -17,7 +18,12 @@ import {
   isCallActive,
   useDialInput,
 } from '@dialstack/sdk-react/core';
-import { dialPadKeys, softphoneDimensions as D, softphoneGlyphs } from '@dialstack/sdk-react/core';
+import {
+  dialPadKeys,
+  softphoneDimensions as D,
+  softphoneGlyphs,
+  MAX_CALLS,
+} from '@dialstack/sdk-react/core';
 import { useSoftphone } from '../SoftphoneProvider';
 import { CallErrorChip } from './CallErrorChip';
 import { Glyph, ControlButton, chunk, makeStyles } from './primitives';
@@ -36,14 +42,18 @@ export function OngoingCall(): React.JSX.Element | null {
     startAttendedTransfer,
     completeAttendedTransfer,
     cancelAttendedTransfer,
+    placeCall,
+    calls,
     displayNumber,
     t,
     palette,
   } = useSoftphone();
   const styles = useMemo(() => makeStyles(palette), [palette]);
-  const { showKeypad, showTransfer } = overlays;
+  const { showKeypad, showTransfer, showAddCall } = overlays;
   const [transferTo, setTransferTo] = useState('');
   const { onType: onTransferType } = useDialInput(setTransferTo);
+  const [addCallTo, setAddCallTo] = useState('');
+  const { onType: onAddCallType } = useDialInput(setAddCallTo);
 
   // Clear the per-call transient text when the foreground call changes. (The
   // overlay flags themselves reset inside useCallOverlays so web + RN match.)
@@ -52,6 +62,7 @@ export function OngoingCall(): React.JSX.Element | null {
   const callId = call?.id ?? null;
   useEffect(() => {
     setTransferTo('');
+    setAddCallTo('');
   }, [callId]);
 
   if (!call) return null;
@@ -85,6 +96,24 @@ export function OngoingCall(): React.JSX.Element | null {
   // Disable Transfer while a transfer is already in progress OR more than one
   // call is live (parity with web) — a new transfer in either case is ambiguous.
   const canStartTransfer = !inTransfer && heldCalls.length + incomingCalls.length === 0;
+
+  // Same soft cap `useCalls` enforces when accepting another leg — read from the
+  // shared constant rather than repeating the number.
+  const canAddCall = calls.length < MAX_CALLS;
+
+  // Parity with web: at the cap the panel is unreachable, so its text must not
+  // read back through when a ringing leg drops. Derived, not reset in an effect.
+  const addCallValue = canAddCall ? addCallTo : '';
+
+  const submitAddCall = () => {
+    const target = addCallValue.trim();
+    if (!target) return;
+    // Fire-and-forget: placeCall holds the current call, dials the new one, and
+    // reports its own failures through onError.
+    void placeCall(target);
+    setAddCallTo('');
+    overlays.closeAddCall();
+  };
 
   return (
     <>
@@ -235,6 +264,30 @@ export function OngoingCall(): React.JSX.Element | null {
         </View>
       )}
 
+      {isActive && showAddCall && canAddCall && (
+        <View style={styles.transfer}>
+          <TextInput
+            style={styles.transferInput}
+            value={addCallValue}
+            onChangeText={onAddCallType}
+            placeholder={t('addCallPlaceholder')}
+            placeholderTextColor={palette.textSecondary}
+            keyboardType="phone-pad"
+            autoCorrect={false}
+          />
+          <View style={styles.transferActions}>
+            {/* Holds the current call and dials the new one. */}
+            <Pressable
+              disabled={!addCallValue.trim()}
+              onPress={submitAddCall}
+              style={[styles.transferSend, !addCallValue.trim() && styles.transferSendDisabled]}
+            >
+              <Text style={styles.transferSendText}>{t('addCallSend')}</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
       {isActive && (
         <View style={styles.controls}>
           <ControlButton
@@ -272,7 +325,16 @@ export function OngoingCall(): React.JSX.Element | null {
             styles={styles}
             disabled={!canStartTransfer}
           />
-          {/* Placeholder so the control grid matches web's five buttons. Device
+          <ControlButton
+            label={t('addCall')}
+            glyph={softphoneGlyphs.addCall}
+            on={showAddCall}
+            onPress={overlays.toggleAddCall}
+            palette={palette}
+            styles={styles}
+            disabled={!canAddCall}
+          />
+          {/* Placeholder so the control grid matches web's button count. Device
               selection on native routes through the OS audio session rather than
               setSinkId/getUserMedia constraints, so it is not wired up yet. */}
           <ControlButton

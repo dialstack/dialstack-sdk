@@ -225,9 +225,12 @@ type CallsAction =
 const IDLE: CallsState = { calls: [] };
 
 // Max concurrent live calls (active + held + ringing). Beyond this a new inbound
-// is rejected busy — keeps the stacked-card UI readable and matches real softphone
-// limits. A soft cap, not a protocol constraint.
-const MAX_CALLS = 4;
+// is rejected busy — an explicit rejection, not silence, so the caller's phone
+// stops ringing at once and any downstream routing (voicemail, failover) fires
+// immediately instead of waiting on a dead branch. A soft cap, not a protocol
+// constraint. Exported so the UI's add-call control disables against the same
+// number the hook enforces.
+export const MAX_CALLS = 4;
 
 /**
  * Enforce the core invariant: whenever any ANSWERED call is in the list, exactly
