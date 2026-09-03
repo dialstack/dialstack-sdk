@@ -1851,8 +1851,16 @@ export interface RingGroupAddMemberParams {
 export type QueueStrategy =
   'ringall' | 'linear' | 'rrmemory' | 'leastrecent' | 'fewestcalls' | 'random' | 'wrandom';
 
+/**
+ * Where a caller goes when the Queue's `timeout_seconds` elapses. `voicemail`
+ * covers both a user's personal box and a shared box; `queue` overflows the
+ * caller into another Queue, which is rejected at write time if it would close
+ * a routing loop.
+ */
 export type QueueTimeout =
-  { type: 'ring_user'; user: string } | { type: 'voicemail'; voicemail: string };
+  | { type: 'ring_user'; user: string }
+  | { type: 'voicemail'; voicemail: string }
+  | { type: 'queue'; queue: string };
 
 /**
  * Press-1 callback configuration on a Queue. The Queue's `callback` field is
