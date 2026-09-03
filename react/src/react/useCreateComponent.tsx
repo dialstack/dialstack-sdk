@@ -6,7 +6,10 @@ import { useCallback, useRef, useState } from 'react';
 import type { ComponentTagName, ComponentElement, DialStackInstance } from '@dialstack/sdk-js';
 
 // Injected at build time by Rollup
-declare const _NPM_PACKAGE_VERSION_: string;
+declare const _NPM_PACKAGE_VERSION_: string | undefined;
+
+const PACKAGE_VERSION =
+  typeof _NPM_PACKAGE_VERSION_ === 'string' ? _NPM_PACKAGE_VERSION_ : '0.0.0-dev';
 
 /**
  * Return type for useCreateComponent hook - properly typed based on tag name
@@ -102,7 +105,7 @@ export function useCreateComponent<T extends ComponentTagName>(
 
       // Set SDK version for analytics
       try {
-        component.setAttribute('data-dialstack-sdk-version', _NPM_PACKAGE_VERSION_);
+        component.setAttribute('data-dialstack-sdk-version', PACKAGE_VERSION);
       } catch (e) {
         console.log('Error setting SDK version attribute:', e);
       }

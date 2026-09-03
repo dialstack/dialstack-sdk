@@ -40,7 +40,10 @@
  */
 
 // Injected at build time by Rollup
-declare const _NPM_PACKAGE_VERSION_: string;
+declare const _NPM_PACKAGE_VERSION_: string | undefined;
+
+const PACKAGE_VERSION =
+  typeof _NPM_PACKAGE_VERSION_ === 'string' ? _NPM_PACKAGE_VERSION_ : '0.0.0-dev';
 
 import * as crypto from 'crypto';
 import {
@@ -2607,7 +2610,7 @@ export class DialStack {
   // ==========================================================================
 
   private getUserAgent(): string {
-    const parts = [`dialstack-node/${_NPM_PACKAGE_VERSION_}`];
+    const parts = [`dialstack-node/${PACKAGE_VERSION}`];
     if (this._appInfo) {
       parts.push(`${this._appInfo.name}/${this._appInfo.version || '0.0.0'}`);
     }

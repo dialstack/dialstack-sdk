@@ -4,6 +4,7 @@ import typescript from '@rollup/plugin-typescript';
 import babel from '@rollup/plugin-babel';
 import terser from '@rollup/plugin-terser';
 import dts from 'rollup-plugin-dts';
+import replace from '@rollup/plugin-replace';
 import pkg from './package.json' with { type: 'json' };
 
 const production = !process.env.ROLLUP_WATCH;
@@ -62,6 +63,10 @@ function providerAsPackageEntry() {
 
 const plugins = [
   cssRawPlugin(),
+  replace({
+    preventAssignment: true,
+    values: { _NPM_PACKAGE_VERSION_: JSON.stringify(pkg.version) },
+  }),
   resolve({ browser: true, preferBuiltins: false }),
   commonjs(),
   typescript({
