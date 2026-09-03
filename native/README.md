@@ -102,6 +102,14 @@ The Expo `../examples/mobile/expo` app ships this MMKV adapter; the bare
 
 ## Scope
 
-Foreground calling only. Backgrounded / locked-screen incoming calls (iOS PushKit
+This package provides the in-app calling surface: the provider, the call state,
+and the React Native UI. The operating system's own call experience — the
+full-screen incoming call, ringing on a locked screen, and waking the app from a
+push — is the integrator's to wire, using the platform frameworks directly (iOS
+PushKit + CallKit, Android FCM + Telecom/ConnectionService).
 
-- CallKit, Android FCM + ConnectionService) are out of scope.
+The seams for that are public. `useSoftphone()` exposes `calls`,
+`incomingCalls`, `activeCall` and `actions.callActionsFor(call)`, and every
+`Call` carries a stable `id` and `state`, so a native call session can be
+created, kept in step, and torn down alongside the SDK's own. DialStack stores
+no device tokens — delivering the push that wakes your app is yours to arrange.

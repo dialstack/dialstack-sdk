@@ -22,8 +22,9 @@
   "exports": {
     "./package.json": "./package.json",
     ".": {
+      "types": "./dist/index.d.ts",
       "react-native": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "default": "./dist/index.js"
     }
   },
   "files": [
@@ -33,7 +34,8 @@
     "build": "rollup -c",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run clean && npm run build"
+    "check:package": "publint && attw --pack . --profile esm-only",
+    "prepublishOnly": "npm run clean && npm run typecheck && npm run build && npm run check:package"
   },
   "peerDependencies": {
     "libphonenumber-js": "^1.13.6",
@@ -49,11 +51,13 @@
     }
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
     "@rollup/plugin-commonjs": "^29.0.3",
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-typescript": "^12.3.0",
     "@types/react": "~19.2.0",
     "libphonenumber-js": "^1.13.8",
+    "publint": "^0.3.24",
     "react": "19.2.7",
     "react-native": "^0.86.0",
     "react-native-incall-manager": "^4.2.1",

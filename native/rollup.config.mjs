@@ -12,6 +12,22 @@ import dts from 'rollup-plugin-dts';
 // The specifier below is what
 // the source still writes (`import … from '@dialstack/sdk-react/core'`); we map
 // it to the core's source entry so rollup pulls the graph in and bundles it.
+// The core's *own* type imports (@dialstack/sdk-webrtc, @dialstack/sdk-js,
+// @dialstack/sdk-js/pure) have to resolve too, and they are mapped in
+// tsconfig.json rather than here — this package is not an npm workspace, so
+// there is no node_modules link to the siblings and rollup-plugin-dts would
+// silently leave them as *external* imports in dist/index.d.ts. That publishes
+// a package whose public types (Call, CallState, PlatformStorage,
+// DialStackPhone) cannot be resolved by any consumer, since neither sibling is
+// a dependency or a peer.
+//
+// Those three map to the siblings' BUILT declarations, not their source, for
+// two reasons: source drags the browser custom elements into this package's
+// typecheck, where they fail (sdk/js compiles with types: ["node", "jest"],
+// this package with types: [], so the DOM-iterable augmentation is missing);
+// and the raw source index does not re-export everything the core imports —
+// `Locale` only reaches the public surface once rollup-plugin-dts flattens it.
+// So `npm run build --prefix sdk` has to run before this package builds.
 const CORE_SPECIFIER = '@dialstack/sdk-react/core';
 const CORE_SOURCE = fileURLToPath(new URL('../react/src/react/softphone/core/index.ts', import.meta.url));
 

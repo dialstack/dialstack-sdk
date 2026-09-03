@@ -58,3 +58,9 @@ export { EmergencyBanner } from './softphone/EmergencyBanner';
 // The persistence adapter interface the host implements for the required
 // `storage` prop (an MMKV- or AsyncStorage-backed store; see the example apps).
 export type { PlatformStorage, EmergencyAddressInput } from '@dialstack/sdk-react/core';
+
+// The call surface, by name. An integrator bridging to the platform's own call
+// UI (CallKit, Telecom) writes functions over these — `(call: Call) => …`,
+// mapping `CallState` onto a native call state — so reaching them structurally
+// through `SoftphoneContextValue['calls'][number]` is not enough.
+export type { Call, CallState, CallEndReason, UseCallActions } from '@dialstack/sdk-react/core';
