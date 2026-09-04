@@ -35,8 +35,8 @@ function warnMissingDtmfBridgeOnce(): void {
   warnedMissingDtmfBridge = true;
   logWarn(
     'DTMF is unavailable: the audio sender exposes no RTCDTMFSender. On React ' +
-      "Native, install DialStack's react-native-webrtc fork (which adds " +
-      'RTCRtpSender.dtmf) — see the @dialstack/sdk-native README.'
+      "Native, use DialStack's react-native-webrtc fork, or any WebRTC package " +
+      'that implements RTCRtpSender.dtmf — see the @dialstack/sdk-native README.'
   );
 }
 
