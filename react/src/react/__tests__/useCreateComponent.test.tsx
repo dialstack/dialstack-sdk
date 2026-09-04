@@ -8,12 +8,6 @@ import { useCreateComponent } from '../useCreateComponent';
 import { DialstackComponentsProvider } from '../DialstackComponentsProvider';
 import type { DialStackInstance, ComponentElement } from '@dialstack/sdk-js';
 
-// Mock the version constant
-declare global {
-  var _NPM_PACKAGE_VERSION_: string;
-}
-globalThis._NPM_PACKAGE_VERSION_ = '0.0.0-test';
-
 // Create a proper mock element that behaves like a DOM element
 const createMockElement = () => {
   const element = document.createElement('div') as unknown as ComponentElement['call-logs'];

@@ -87,10 +87,6 @@ const config: StorybookConfig = {
         ),
       },
     };
-    config.define = {
-      ...config.define,
-      _NPM_PACKAGE_VERSION_: JSON.stringify('storybook-dev'),
-    };
     config.plugins = [cssRawPlugin(), ...(config.plugins || [])];
     // Suppress "use client" directive warnings from @xyflow/react
     config.build = {

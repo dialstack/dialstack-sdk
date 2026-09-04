@@ -6,12 +6,6 @@
 
 import '@testing-library/jest-dom';
 
-// Define build-time constant that Rollup normally injects
-declare global {
-  const _NPM_PACKAGE_VERSION_: string;
-}
-(globalThis as Record<string, unknown>)._NPM_PACKAGE_VERSION_ = '0.0.0-test';
-
 // Mock ResizeObserver for jsdom (not available natively)
 if (typeof globalThis.ResizeObserver === 'undefined') {
   globalThis.ResizeObserver = class ResizeObserver {

@@ -1,7 +1,5 @@
 import dts from 'rollup-plugin-dts';
 import typescript from '@rollup/plugin-typescript';
-import replace from '@rollup/plugin-replace';
-import pkg from './package.json' with { type: 'json' };
 
 // Declarations only. The JavaScript is emitted by `tsc` (see the build script):
 // one file per source file, imports left as imports, which is what lets a consumer
@@ -61,10 +59,6 @@ export default [
     // declarationMap and composite have to go too, or the plugin demands an outDir
     // for the declaration files it is not being asked to write.
     plugins: [
-      replace({
-        preventAssignment: true,
-        values: { _NPM_PACKAGE_VERSION_: JSON.stringify(pkg.version) },
-      }),
       typescript({
         tsconfig: './tsconfig.build.json',
         declaration: false,

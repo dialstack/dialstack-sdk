@@ -5,11 +5,7 @@
 import { useCallback, useRef, useState } from 'react';
 import type { ComponentTagName, ComponentElement, DialStackInstance } from '@dialstack/sdk-js';
 
-// Injected at build time by Rollup
-declare const _NPM_PACKAGE_VERSION_: string | undefined;
-
-const PACKAGE_VERSION =
-  typeof _NPM_PACKAGE_VERSION_ === 'string' ? _NPM_PACKAGE_VERSION_ : '0.0.0-dev';
+import { PACKAGE_VERSION } from './version';
 
 /**
  * Return type for useCreateComponent hook - properly typed based on tag name

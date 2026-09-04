@@ -39,13 +39,8 @@
  * ```
  */
 
-// Injected at build time by Rollup
-declare const _NPM_PACKAGE_VERSION_: string | undefined;
-
-const PACKAGE_VERSION =
-  typeof _NPM_PACKAGE_VERSION_ === 'string' ? _NPM_PACKAGE_VERSION_ : '0.0.0-dev';
-
 import * as crypto from 'crypto';
+import { PACKAGE_VERSION } from './version.js';
 import {
   DialStackError,
   DialStackConnectionError,

@@ -1,7 +1,6 @@
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import typescript from '@rollup/plugin-typescript';
-import replace from '@rollup/plugin-replace';
 import terser from '@rollup/plugin-terser';
 import dts from 'rollup-plugin-dts';
 import pkg from './package.json' with { type: 'json' };
@@ -31,10 +30,6 @@ const external = (id) => {
 
 const plugins = [
   cssRawPlugin(),
-  replace({
-    preventAssignment: true,
-    values: { _NPM_PACKAGE_VERSION_: JSON.stringify(pkg.version) },
-  }),
   resolve({ browser: true, preferBuiltins: false }),
   commonjs(),
   typescript({

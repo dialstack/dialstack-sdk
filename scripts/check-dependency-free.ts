@@ -294,6 +294,119 @@ for (const [name, allowed] of Object.entries(ALLOWED_RUNTIME_DEPS)) {
   );
 }
 
+// The version literal each package reports at runtime can drift from its manifest in
+// a way no build step would notice; this is the check for that.
+//
+// The list is read out of the release tool's config rather than restated, so the two
+// cannot disagree — a literal in one list only is either never checked or never
+// rewritten. Parsed rather than shelled out to `go run`: this job is Node-only and
+// has no Go toolchain. The pattern mirrors TSStringConstPattern in
+// scripts/sdk-release/main.go; a looser one passes on lines the release cannot
+// rewrite.
+//
+// --fix runs against a fixture holding only sdk/, so an absent release tool is a skip
+// there and a failure everywhere else.
+const releaseConfigPath = join(SDK_ROOT, '..', 'scripts', 'sdk-release', 'config.go');
+const releaseConfig = existsSync(releaseConfigPath) ? readFileSync(releaseConfigPath, 'utf8') : '';
+if (!releaseConfig && !FIX) {
+  console.error(
+    `\u2717 ${releaseConfigPath} not found \u2014 the version literals are not being checked`
+  );
+  failed = true;
+}
+// Anchored at `var SDK = Package{`: SDKNative is the same struct type, so an
+// unanchored match binds to whichever package appears first.
+const sdkVar = releaseConfig.indexOf('var SDK = Package{');
+const versionSourcesBlock =
+  sdkVar === -1
+    ? null
+    : releaseConfig.slice(sdkVar).match(/VersionSources:\s*\[\]VersionSource\{([\s\S]*?)\n\t\},/);
+if (releaseConfig && sdkVar === -1) {
+  console.error(
+    '\u2717 could not find `var SDK = Package{` in scripts/sdk-release/config.go \u2014 ' +
+      'its shape changed and the version literals are not being checked'
+  );
+  failed = true;
+}
+const versionSourceLines = (versionSourcesBlock?.[1] ?? '')
+  .split('\n')
+  .map((l) => l.trim())
+  .filter((l) => l !== '' && !l.startsWith('//'));
+const versionSources: Array<{ path: string; constName: string }> = [];
+for (const entry of versionSourceLines) {
+  const m = entry.match(/^\{Path:\s*"([^"]+)",\s*Const:\s*"([^"]+)"\},?$/);
+  if (m && m[1] && m[2]) versionSources.push({ path: m[1], constName: m[2] });
+}
+
+// Every non-comment line must parse: checking a subset would retire part of the
+// guard while still reporting success.
+if (releaseConfig && versionSources.length === 0) {
+  console.error(
+    '\u2717 parsed no VersionSources from scripts/sdk-release/config.go \u2014 ' +
+      'its shape changed and nothing is being kept in sync'
+  );
+  failed = true;
+} else if (versionSources.length !== versionSourceLines.length) {
+  console.error(
+    `\u2717 parsed ${versionSources.length} of ${versionSourceLines.length} VersionSources ` +
+      `entries in scripts/sdk-release/config.go \u2014 the unparsed ones would go unchecked`
+  );
+  failed = true;
+}
+
+for (const { path: relPath, constName } of versionSources) {
+  const [root, pkg] = relPath.split('/');
+  const sourcePath = join(SDK_ROOT, '..', relPath);
+  if (!existsSync(sourcePath)) {
+    console.error(`\u2717 ${relPath} does not exist \u2014 the release would fail to rewrite it`);
+    failed = true;
+    continue;
+  }
+  // Reading straight through would throw ENOENT the moment a source sits somewhere
+  // other than sdk/<pkg>/, where every other check here reports a clean marker.
+  const manifestPath = root === 'sdk' && pkg ? join(SDK_ROOT, pkg, 'package.json') : '';
+  if (!manifestPath || !existsSync(manifestPath)) {
+    console.error(
+      `\u2717 ${relPath} is not under sdk/<package>/, so its manifest cannot be located`
+    );
+    failed = true;
+    continue;
+  }
+  const { version } = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  const decl = new RegExp(
+    `^\\s*(?:export\\s+)?const\\s+${constName}\\s*(?::\\s*string\\s*)?=\\s*['"]([^'"]*)['"]\\s*;?\\s*(?://.*)?$`
+  );
+  // Collect the captured versions rather than the matches, so indexing stays within
+  // what noUncheckedIndexedAccess can prove.
+  const hits: string[] = [];
+  for (const line of readFileSync(sourcePath, 'utf8').split('\n')) {
+    const m = line.match(decl);
+    if (m && m[1] !== undefined) hits.push(m[1]);
+  }
+
+  if (hits.length === 0) {
+    console.error(
+      `\u2717 ${relPath}: no \`const ${constName} = '...'\` the release can rewrite \u2014 ` +
+        `the shipped version would go stale`
+    );
+    failed = true;
+    continue;
+  }
+  if (hits.length > 1) {
+    console.error(
+      `\u2717 ${relPath}: ${hits.length} ${constName} declarations; the release refuses to guess`
+    );
+    failed = true;
+    continue;
+  }
+  if (hits[0] !== version) {
+    console.error(`\u2717 ${relPath} reports ${hits[0]} but ${pkg}/package.json says ${version}`);
+    failed = true;
+    continue;
+  }
+  console.log(`\u2713 ${pkg} \u2014 source version literal matches the manifest (${version})`);
+}
+
 // Everything below asserts a property of the *emitted output*, which needs a build.
 // `--fix` runs on a bare Dependabot checkout, so stopping here is the difference
 // between a repair and seven spurious "no dist/ — build before checking" failures.
