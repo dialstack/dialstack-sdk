@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0](https://github.com/dialstack/dialstack-sdk/compare/v3.1.0...v3.2.0) (2026-09-03)
+
+### Features
+
+- **react/softphone:** the softphone can start a second call during an active
+  one. An **Add call** control on the in-call screen dials a new destination and
+  puts the current call on hold. Until now a second call could only come from an
+  incoming call or a transfer.
+- **server:** a Queue's `timeout_seconds` destination can now be another queue.
+  `QueueTimeout` gains `{ type: 'queue'; queue: string }`. A target that would
+  close a routing loop is rejected when you write it.
+- **server:** `hold_music_clip` on queues — an audio clip (`aud_...`) for a
+  queue's hold music on create, update and read; `null` falls back to the
+  account's.
+- **server:** `calls.create()` takes `did`, the account number to present as
+  caller ID for that one call. Must be active and outbound-enabled. Omit for the
+  standing caller ID. Ignored for calls to an internal extension.
+
+### Bug Fixes
+
+- **webrtc:** never send an offer carrying no ICE candidate — the cause of
+  intermittent no-audio calls, mostly on React Native.
+- **webrtc:** `call()` and `answer()` no longer hang when a call ends while ICE
+  is still gathering.
+- **server:** the ESM build threw `_NPM_PACKAGE_VERSION_ is not defined` on every
+  request; `react` silently stopped stamping the SDK version.
+- **server:** document `timeout_seconds` — 0-3600 seconds, default 300, `0`
+  meaning the maximum.
+
 ## [3.1.0](https://github.com/dialstack/dialstack-sdk/compare/v3.0.0...v3.1.0) (2026-08-27)
 
 ### Features
