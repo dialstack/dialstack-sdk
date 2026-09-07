@@ -1405,10 +1405,22 @@ export interface HardwareCatalogItem {
   manufacturer: string;
   model: string;
   sku: string | null;
-  /** `accessory` never becomes a device (e.g. a power supply). */
-  device_type: 'deskphone' | 'dect_base' | 'dect_handset' | 'accessory';
+  /**
+   * `accessory` never becomes a device (e.g. a power supply). `bundle` is one
+   * part number that ships several devices (the Snom M253 is an M250 base plus
+   * an M53 handset): it is orderable as a single line, and the order records
+   * the devices it contains rather than the bundle itself.
+   */
+  device_type: 'deskphone' | 'dect_base' | 'dect_handset' | 'accessory' | 'bundle';
   /** Whether the item is available for selection. */
   active: boolean;
+  /**
+   * What a bundle contains. Present only when `device_type` is `bundle`.
+   * Ordering the bundle places an order for these items, and the units that
+   * come back report these device types rather than `bundle`. Composition is
+   * fixed by the part number, so it never varies per order.
+   */
+  components?: HardwareCatalogComponent[];
   created_at: string;
   updated_at: string;
 }
@@ -1417,6 +1429,22 @@ export interface HardwareCatalogItem {
  * A single physical unit on a hardware order. Requests speak quantity;
  * responses expose one item per unit — aggregate client-side for display.
  */
+/** One entry in a bundle's composition. */
+export interface HardwareCatalogComponent {
+  /**
+   * The component's own catalog item, i.e. the id you would use to order it
+   * directly. Null when this platform's catalog has not been seeded with the
+   * component, in which case ordering the bundle is refused until it is.
+   */
+  hardware_catalog: string | null;
+  manufacturer: string;
+  model: string;
+  /** A component is never itself a bundle. */
+  device_type: 'deskphone' | 'dect_base' | 'dect_handset' | 'accessory';
+  /** How many of this component ship in one bundle. */
+  quantity: number;
+}
+
 export interface HardwareOrderItem {
   id: string;
   /** Pre-assignment intent: the user this unit is destined for. */
@@ -1425,9 +1453,25 @@ export interface HardwareOrderItem {
   location: string | null;
   /**
    * Pre-pairing intent (handsets only): the ordered base this handset will
-   * pair with. Auto-set when the order has exactly one base.
+   * pair with. Auto-set when the order has exactly one base, or, for a handset
+   * that came from a bundle, to that bundle's own base.
    */
   base_item: string | null;
+  /**
+   * The bundle this unit was expanded from — its id by default, or the full
+   * {@link HardwareCatalogItem} when `expand: ['items.bundle_catalog']` is
+   * requested. A bundle is ordered as one line and never becomes a unit itself,
+   * so ordering one M253 yields an M250 unit and an M53 unit, both pointing
+   * here, and expanding is the only way to read the bundle's own model from an
+   * order. Null for a unit ordered directly.
+   */
+  bundle_catalog: string | HardwareCatalogItem | null;
+  /**
+   * Groups the units expanded from a single bundle. Ordering two M253s yields
+   * four units carrying two distinct values, so they can be rendered as two
+   * bundles rather than four loose devices. Null for a unit ordered directly.
+   */
+  bundle_group: string | null;
   /**
    * The device this unit materialized into at fulfillment — its id by default,
    * or the full {@link Device} when `expand: ['items.device']` is requested.
