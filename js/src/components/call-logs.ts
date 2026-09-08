@@ -43,8 +43,6 @@ export class CallLogsComponent extends BaseComponent {
   private previousPageUrl: string | null = null;
 
   // Track total and position for pagination display
-  private estimatedTotal: number | null = null; // null = unknown, number = known count
-  private hasMoreThan100: boolean = false;
   private currentOffset: number = 0; // Estimated position in result set
 
   // Display options
@@ -132,8 +130,6 @@ export class CallLogsComponent extends BaseComponent {
     // Reset pagination state
     this.nextPageUrl = null;
     this.previousPageUrl = null;
-    this.estimatedTotal = null;
-    this.hasMoreThan100 = false;
     this.currentOffset = 0;
 
     this.isLoading = true;
@@ -141,30 +137,13 @@ export class CallLogsComponent extends BaseComponent {
     this.render();
 
     try {
-      // First, fetch with limit=100 to estimate total count. This response is
-      // used only for the count, so it deliberately omits expand[]=did to avoid
-      // hydrating up to 100 DIDs server-side that we'd immediately discard.
-      const estimateParams = new URLSearchParams({ limit: '100' });
-      if (this.dateRange?.start) estimateParams.set('from', this.dateRange.start);
-      if (this.dateRange?.end) estimateParams.set('to', this.dateRange.end);
-
-      const estimateData = await this.fetchComponentData<CallLogsResponse>(
-        `/v1/calls?${estimateParams}`
-      );
-
-      // Determine total count
-      const itemCount = estimateData.data?.length || 0;
-      if (itemCount === 100 && estimateData.next_page_url) {
-        // More than 100 items
-        this.hasMoreThan100 = true;
-        this.estimatedTotal = null;
-      } else {
-        // Exact count (less than 100)
-        this.hasMoreThan100 = false;
-        this.estimatedTotal = itemCount;
-      }
-
-      // Now fetch the actual first page with normal limit
+      // One request per page, deliberately. This used to issue a second
+      // limit=100 request first, whose only product was a total for the
+      // "1-10 of N" label -- and an unfiltered call list is the most expensive
+      // read in the API, so that label cost a full extra scan of the account's
+      // call history on every page load. There is no count endpoint to use
+      // instead: any exact total has to aggregate the whole history, which is
+      // the cost we are avoiding. The label shows the range without a total.
       const params = new URLSearchParams({ limit: this.limit.toString() });
       params.set('expand[]', 'did');
       if (this.dateRange?.start) params.set('from', this.dateRange.start);
@@ -756,15 +735,7 @@ export class CallLogsComponent extends BaseComponent {
     const start = this.currentOffset + 1;
     const end = this.currentOffset + this.callLogs.length;
 
-    // Show total count or "100+" if there are more than 100 items
-    if (this.hasMoreThan100) {
-      return `${start}-${end} of 100+`;
-    } else if (this.estimatedTotal !== null) {
-      return `${start}-${end} of ${this.estimatedTotal}`;
-    } else {
-      // Fallback to showing just the count
-      return `${this.callLogs.length} ${this.t('common.items')}`;
-    }
+    return `${start}-${end}`;
   }
 
   /**
