@@ -7,7 +7,7 @@
  * so a client that sent both would get a 400 instead of a board.
  */
 
-import { DialStack } from '../index.js';
+import { DialStack, DialStackAuthenticationError, DialStackPermissionError } from '../index.js';
 
 describe('park slots', () => {
   const mockFetch = jest.fn();
@@ -146,6 +146,29 @@ describe('park slots', () => {
       jest.advanceTimersByTime(1000);
       await flush();
       expect(mockFetch).toHaveBeenCalledTimes(3);
+
+      subscription.close();
+    });
+
+    it.each([
+      [401, DialStackAuthenticationError],
+      [403, DialStackPermissionError],
+    ])('stops after a %i instead of reconnecting', async (status, errorClass) => {
+      mockFetch.mockImplementation(async () => ({ ...(refuse() as object), status }));
+      const onError = jest.fn();
+
+      const subscription = client.presence.subscribeParkSlots({ onError }, options);
+      await flush();
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(onError).toHaveBeenCalledTimes(1);
+      expect(onError.mock.calls[0][0]).toBeInstanceOf(errorClass);
+      expect(onError.mock.calls[0][0].statusCode).toBe(status);
+
+      // No backoff wait is pending: however long we wait, nothing reconnects.
+      jest.advanceTimersByTime(60_000);
+      await flush();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
 
       subscription.close();
     });

@@ -43,7 +43,9 @@ import * as crypto from 'crypto';
 import { PACKAGE_VERSION } from './version.js';
 import {
   DialStackError,
+  DialStackAuthenticationError,
   DialStackConnectionError,
+  DialStackPermissionError,
   DialStackRateLimitError,
   type RawError,
 } from './errors.js';
@@ -2279,7 +2281,12 @@ export interface ParkSlotSubscriptionHandlers {
    * snapshot. Not called when you close the subscription yourself.
    */
   onTerminated?: (reason: string) => void;
-  /** Transport or parse failure. The subscription is no longer live. */
+  /**
+   * Transport, refusal or parse failure. The subscription reconnects on
+   * backoff, except after a `DialStackAuthenticationError` (401) or
+   * `DialStackPermissionError` (403): a rejected credential does not recover
+   * on retry, so the subscription stops and is no longer live.
+   */
   onError?: (error: Error) => void;
 }
 
@@ -2725,6 +2732,21 @@ export class DialStack {
             );
             backoffMs = Math.min(backoffMs * 2, 30_000);
             continue;
+          }
+          if (response.status === 401 || response.status === 403) {
+            // A rejected credential does not recover on reconnect — the key is
+            // unset, revoked or wrong — so retrying only produces a steady
+            // stream of 401s for as long as the process lives. Report once and
+            // stop.
+            void response.body?.cancel();
+            closed = true;
+            const message = `presence stream refused with status ${response.status}`;
+            handlers.onError?.(
+              response.status === 401
+                ? new DialStackAuthenticationError(message, { statusCode: 401 })
+                : new DialStackPermissionError(message, { statusCode: 403 })
+            );
+            return;
           }
           if (!response.ok || !response.body) {
             void response.body?.cancel();
