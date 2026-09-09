@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@dialstack/sdk-server": "file:../../server",
-    "@google/genai": "^2.19.0",
+    "@google/genai": "^2.21.0",
     "alawmulaw": "^6.0.0",
     "dotenv": "^17.0.0",
     "express": "^5.0.0",
@@ -31,11 +31,11 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
-    "@types/node": "^26.4.0",
+    "@types/node": "^26.4.1",
     "@types/ws": "^8.5.0",
     "eslint": "^10.9.1",
     "prettier": "^3.9.6",
-    "tsx": "^4.23.12",
+    "tsx": "^4.23.13",
     "typescript": "^6.0.3"
   },
   "files": [
