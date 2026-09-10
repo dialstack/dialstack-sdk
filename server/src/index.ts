@@ -1893,10 +1893,11 @@ export type QueueStrategy =
   'ringall' | 'linear' | 'rrmemory' | 'leastrecent' | 'fewestcalls' | 'random' | 'wrandom';
 
 /**
- * Where a caller goes when the Queue's `timeout_seconds` elapses. `voicemail`
- * covers both a user's personal box and a shared box; `queue` overflows the
- * caller into another Queue, which is rejected at write time if it would close
- * a routing loop.
+ * Where a waiting caller goes when the Queue does not connect them: the shape
+ * of both `timeout` (the caller waited past `timeout_seconds`) and `exit` (the
+ * caller pressed `exit_key`). `voicemail` covers both a user's personal box and
+ * a shared box; `queue` overflows the caller into another Queue, which is
+ * rejected at write time if it would close a routing loop.
  */
 export type QueueTimeout =
   | { type: 'ring_user'; user: string }
@@ -1952,6 +1953,14 @@ export interface Queue {
   /** Press-1 callback config; null when callbacks are disabled. */
   callback: QueueCallbackConfig | null;
   timeout: QueueTimeout | null;
+  /**
+   * Key a waiting caller presses to leave the queue (`0`-`9` or `#`). Null
+   * means callers cannot leave early. While a press-1 callback offer is open,
+   * `1` requests the callback even if it is also the exit key.
+   */
+  exit_key: string | null;
+  /** Where the caller goes when they press `exit_key`; null hangs up. */
+  exit: QueueTimeout | null;
   max_queue_length: number;
   join_empty: string;
   leave_when_empty: string;
@@ -2006,6 +2015,10 @@ export interface QueueCreateParams {
   /** Provide an object to enable callbacks; omit or set null to disable. */
   callback?: QueueCallbackConfigInput | null;
   timeout?: QueueTimeout | null;
+  /** Key a waiting caller presses to leave (`0`-`9` or `#`); omit or set null to disallow. */
+  exit_key?: string | null;
+  /** Where the caller goes when they press `exit_key`; omit or set null to hang up. */
+  exit?: QueueTimeout | null;
   max_queue_length?: number;
   join_empty?: string;
   leave_when_empty?: string;
@@ -2030,6 +2043,10 @@ export interface QueueUpdateParams {
   /** Send null to disable callbacks; send an object to set/replace the config. */
   callback?: QueueCallbackConfigInput | null;
   timeout?: QueueTimeout | null;
+  /** Send null so callers can no longer leave early; omit to leave unchanged. */
+  exit_key?: string | null;
+  /** Send null to clear exit behavior (hang up); omit to leave unchanged. */
+  exit?: QueueTimeout | null;
   max_queue_length?: number;
   join_empty?: string;
   leave_when_empty?: string;
@@ -2342,6 +2359,7 @@ export type QueueCallLifecycleEventType =
   | 'queue.call.answered'
   | 'queue.call.abandoned'
   | 'queue.call.timed_out'
+  | 'queue.call.exited'
   | 'queue.call.completed';
 
 export interface QueueCallLifecycleEvent {
@@ -2381,6 +2399,13 @@ export interface QueueCallAbandonedEvent extends QueueCallLifecycleEvent {
 export interface QueueCallTimedOutEvent extends QueueCallLifecycleEvent {
   wait_seconds: number;
   timed_out_at: string;
+}
+
+/** The caller pressed the queue's exit key and left before an agent answered. */
+export interface QueueCallExitedEvent extends QueueCallLifecycleEvent {
+  wait_seconds: number;
+  exit_key: string;
+  exited_at: string;
 }
 
 export interface QueueCallCompletedEvent extends QueueCallLifecycleEvent {
