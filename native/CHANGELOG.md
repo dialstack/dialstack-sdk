@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 (`@dialstack/sdk-js`, `-react`, `-webrtc`, `-server`), which release together on
 their own line.
 
+## [0.1.1](https://github.com/dialstack/dialstack-sdk/compare/native-v0.1.0...native-v0.1.1) (2026-09-10)
+
+### Bug Fixes
+
+- the "DTMF is unavailable" warning no longer implies DialStack's
+  `react-native-webrtc` fork is the only option — any package implementing
+  `RTCRtpSender.dtmf` works
+
 ## Unreleased
 
 The first published release. Retitle this section with the version and date

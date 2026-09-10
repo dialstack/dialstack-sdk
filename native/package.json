@@ -1,6 +1,6 @@
 {
   "name": "@dialstack/sdk-native",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "React Native softphone components for the DialStack SDK",
   "license": "MIT",
   "type": "module",
