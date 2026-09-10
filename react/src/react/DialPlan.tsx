@@ -48,7 +48,7 @@ import {
   type DialPlanGraphNode,
 } from '../utils/dial-plan-graph';
 import { defaultRegistry, nodeDefinitions } from './dial-plan/default-registry';
-import { resolveTargetType } from './dial-plan/nodes/resolve-target';
+import { enrichNodeData, nodeDataAfterConfigChange } from './dial-plan/apply-config-change';
 import { DIAL_PLAN_EDGE_TYPE } from './dial-plan/registry';
 import { SmartEdge } from './dial-plan/SmartEdge';
 import { StartNode } from './dial-plan/StartNode';
@@ -196,6 +196,7 @@ async function fetchResourceMaps(
         id: resolved.id,
         name: resolved.name || resolved.id,
         extension_number: resolved.extension_number ?? undefined,
+        timeout_seconds: resolved.timeout_seconds ?? undefined,
       };
     }),
   ]);
@@ -203,7 +204,13 @@ async function fetchResourceMaps(
   const scheduleMap = new Map<string, { id: string; name: string }>();
   const userMap = new Map<
     string,
-    { id: string; name?: string; email?: string; extension_number?: string }
+    {
+      id: string;
+      name?: string;
+      email?: string;
+      extension_number?: string;
+      timeout_seconds?: number;
+    }
   >();
   const clipMap = new Map<string, { id: string; name: string }>();
   for (const s of schedules) if (s) scheduleMap.set(s.id, s);
@@ -300,6 +307,13 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
     onDirtyChange,
   };
   const initialGraphRef = useRef<{ nodes: Node[]; edges: Edge[] } | null>(null);
+  // The resources resolved at load, kept so an edit can re-derive the display
+  // fields that depend on them rather than reverting to the stored config.
+  const resourceMapsRef = useRef<ResourceMaps>({
+    schedules: new Map(),
+    users: new Map(),
+    audioClips: new Map(),
+  });
   // Set by handleNodesChange when a drag finishes; the dirty re-check runs in
   // an effect after the new state has committed, so the functional setNodes
   // updater can stay pure.
@@ -335,6 +349,7 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
         // Resolve referenced resources (schedules, users, extensions)
         const maps = await fetchResourceMaps(data, dialstack);
         if (cancelled) return;
+        resourceMapsRef.current = maps;
 
         // Transform to graph nodes and enrich with resolved names
         const { nodes: graphNodes, edges: graphEdges } = transformDialPlanToGraph(
@@ -664,24 +679,15 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
       setNodes((prev) => {
         const next = prev.map((n) => {
           if (n.id !== nodeId) return n;
-          const originalNode = n.data?.originalNode as Record<string, unknown> | undefined;
-          if (!originalNode) return n;
-          const updatedOriginal = {
-            ...originalNode,
-            config: { ...(originalNode.config as Record<string, unknown>), ...configUpdates },
-          };
-          const reg = defaultRegistry.getByFlowType(n.type ?? '');
-          const freshData = reg
-            ? reg.toFlowNode(updatedOriginal as unknown as DialPlanNode)
-            : { ...n.data, originalNode: updatedOriginal };
-          // Derive targetType from target_id if it changed
-          const targetId = configUpdates.target_id as string | undefined;
-          const targetType = targetId ? resolveTargetType(targetId, locale) : undefined;
-          // Merge: previous display fields → fresh structural fields → explicit display overrides → derived type
-          return {
-            ...n,
-            data: { ...n.data, ...freshData, ...displayUpdates, ...(targetType && { targetType }) },
-          };
+          const data = nodeDataAfterConfigChange({
+            flowType: n.type ?? '',
+            data: n.data as Record<string, unknown>,
+            configUpdates,
+            displayUpdates,
+            maps: resourceMapsRef.current,
+            locale,
+          });
+          return data ? { ...n, data } : n;
         });
         updateDirty(next, edgesRef.current);
         return next;
@@ -699,8 +705,38 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
       if (configUpdates.target_id) {
         requestAnimationFrame(() => updateNodeInternals(nodeId));
       }
+      // A target picked in the panel was not referenced when the plan loaded,
+      // so nothing knows how long it rings on its own. Resolve it, then enrich
+      // the node again — resolveRoutingTarget caches and never throws.
+      const pickedTargetId = configUpdates.target_id as string | undefined;
+      if (pickedTargetId && !resourceMapsRef.current.users.has(pickedTargetId)) {
+        void dialstack.resolveRoutingTarget(pickedTargetId).then((resolved) => {
+          if (!resolved) return;
+          resourceMapsRef.current.users.set(pickedTargetId, {
+            id: resolved.id,
+            name: resolved.name || resolved.id,
+            extension_number: resolved.extension_number ?? undefined,
+            timeout_seconds: resolved.timeout_seconds ?? undefined,
+          });
+          setNodes((prev) =>
+            prev.map((n) =>
+              n.id === nodeId
+                ? {
+                    ...n,
+                    data: enrichNodeData(
+                      n.type ?? '',
+                      n.data as Record<string, unknown>,
+                      resourceMapsRef.current,
+                      locale
+                    ),
+                  }
+                : n
+            )
+          );
+        });
+      }
     },
-    [setNodes, setEdges, updateDirty, updateNodeInternals]
+    [dialstack, setNodes, setEdges, updateDirty, updateNodeInternals]
   );
 
   // ---- Edit mode: auto layout ----

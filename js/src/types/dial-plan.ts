@@ -42,6 +42,20 @@ export interface InternalDialNodeConfig {
   target_id: string;
   /** Timeout in seconds before routing to next node */
   timeout?: number;
+  /**
+   * Makes `timeout` govern a target that owns a timeout of its own — a user
+   * with a Find Me / Follow Me ladder, a ring group, a queue. Left off, that
+   * target's own timing wins and `timeout` is inert for it.
+   *
+   * A separate flag rather than a nullable `timeout` because the editor
+   * pre-fills a timeout into every node it creates, so the number alone says
+   * only that the node exists, never that anyone chose it. The value wins in
+   * both directions, longer or shorter; it is not a cap.
+   *
+   * `timeout: 0` keeps its own meaning — skip the node without dialing — and is
+   * read first, so it is unaffected by this flag.
+   */
+  timeout_override?: boolean;
   /** Node ID to route to on timeout or busy */
   next?: string;
 }
@@ -349,6 +363,16 @@ export interface DialPlanLocale {
     phoneNumber?: string;
     phoneNumberInvalid?: string;
     clearPhoneNumber?: string;
+    /**
+     * Labels for the Internal Extension node's timeout override. An internal
+     * target that owns a timeout of its own — a user with a Find Me / Follow Me
+     * ladder, a ring group, a queue — governs its own timing unless the node
+     * overrules it, and the number alone cannot say which, because the editor
+     * pre-fills one into every node.
+     */
+    timeoutOverride?: string;
+    timeoutOverrideOn?: string;
+    timeoutOverrideOff?: string;
   };
   voiceAppMode: {
     control: string;

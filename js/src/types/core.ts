@@ -613,12 +613,20 @@ export interface DialStackInstance {
   on<K extends keyof CallEventMap>(event: K, handler: CallEventHandler<CallEventMap[K]>): void;
   /** Unsubscribe from real-time call events */
   off<K extends keyof CallEventMap>(event: K, handler?: CallEventHandler<CallEventMap[K]>): void;
-  /** Resolve a routing target TypeID to its type and display name */
+  /**
+   * Resolve a routing target TypeID to its type, display name, and how long it
+   * rings a caller on its own.
+   *
+   * `timeout_seconds` is a ring group's or queue's stored timeout, or the sum
+   * of a user's Find Me / Follow Me step timeouts, and is null for a target
+   * with no ring duration of its own.
+   */
   resolveRoutingTarget(target: string): Promise<{
     id: string;
     name: string | null;
     type: 'user' | 'dial_plan' | 'voice_app' | 'ring_group' | 'queue' | 'shared_voicemail';
     extension_number?: string | null;
+    timeout_seconds?: number | null;
   } | null>;
   /**
    * List all selectable inbound-routing targets for the current account by

@@ -112,7 +112,25 @@ export interface ResourceCollector {
 /** Resolved resource maps passed to enrichNode. */
 export interface ResourceMaps {
   schedules: Map<string, { id: string; name: string }>;
-  users: Map<string, { id: string; name?: string; email?: string; extension_number?: string }>;
+  /**
+   * Every internal-dial target, not only users, keyed by TypeID.
+   *
+   * `timeout_seconds` is how long that target rings a caller on its own — a
+   * ring group's or queue's stored timeout, or the sum of a user's Find Me /
+   * Follow Me steps — and is absent for a target with no duration of its own.
+   * The canvas badge needs it to print what a node will actually do rather
+   * than the number stored on the node.
+   */
+  users: Map<
+    string,
+    {
+      id: string;
+      name?: string;
+      email?: string;
+      extension_number?: string;
+      timeout_seconds?: number;
+    }
+  >;
   audioClips: Map<string, { id: string; name: string }>;
 }
 

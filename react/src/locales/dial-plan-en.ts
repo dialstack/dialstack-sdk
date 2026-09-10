@@ -86,6 +86,9 @@ export const defaultDialPlanLocale: DialPlanLocale = {
     phoneNumber: 'Phone Number',
     phoneNumberInvalid: 'Enter a valid phone number, for example (415) 555-1234.',
     clearPhoneNumber: 'Clear phone number',
+    timeoutOverride: 'Override resource timeout',
+    timeoutOverrideOn: 'On',
+    timeoutOverrideOff: 'Off',
   },
   voiceAppMode: {
     control: 'Control',

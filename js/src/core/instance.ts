@@ -189,6 +189,54 @@ export const ROUTING_TARGET_TYPES: Record<string, { path: string; type: RoutingT
   svm: { path: '/v1/shared_voicemail_boxes', type: 'shared_voicemail' },
 } as const;
 
+/** The fields ownRingSeconds reads off a retrieved routing target. */
+interface RoutingTargetPayload {
+  timeout_seconds?: unknown;
+  config?: { find_me_follow_me?: { steps?: Array<{ timeout?: unknown }> } };
+}
+
+/**
+ * What a queue's `timeout_seconds` of 0 actually means: hold the caller for an
+ * hour, not eject them immediately. Routing resolves it the same way, and the
+ * hour is a real ceiling there rather than a nominal "forever".
+ */
+const QUEUE_MAX_WAIT_SECONDS = 3600;
+
+/**
+ * How long a routing target rings a caller when nobody overrules it, in
+ * seconds, or null when it has no ring duration of its own.
+ *
+ * A ring group and a queue each store one. A user's comes from their Find Me /
+ * Follow Me ladder, whose steps run in sequence, so the total is their sum; a
+ * user with no ladder has no duration to report and falls to the platform
+ * default at call time. Voice apps, shared voicemail boxes and nested dial
+ * plans have no single duration to speak of.
+ */
+function ownRingSeconds(type: RoutingTargetType, data: RoutingTargetPayload): number | null {
+  switch (type) {
+    case 'ring_group':
+      return typeof data.timeout_seconds === 'number' ? data.timeout_seconds : null;
+    case 'queue': {
+      if (typeof data.timeout_seconds !== 'number') return null;
+      // A queue stores 0 for "hold as long as possible", so reporting the
+      // stored number verbatim would say a caller waits no time at all when
+      // they in fact wait the longest of any target.
+      return data.timeout_seconds > 0 ? data.timeout_seconds : QUEUE_MAX_WAIT_SECONDS;
+    }
+    case 'user': {
+      const steps = data.config?.find_me_follow_me?.steps;
+      if (!Array.isArray(steps) || steps.length === 0) return null;
+      const total = steps.reduce(
+        (sum, step) => sum + (typeof step?.timeout === 'number' ? step.timeout : 0),
+        0
+      );
+      return total > 0 ? total : null;
+    }
+    default:
+      return null;
+  }
+}
+
 /**
  * Internal implementation of DialStack SDK instance
  */
@@ -1903,13 +1951,15 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   // ===========================================================================
 
   /**
-   * Resolve a routing target TypeID to its type and display name
+   * Resolve a routing target TypeID to its type, display name, and how long it
+   * rings a caller on its own — see `timeout_seconds` on the return.
    */
   async resolveRoutingTarget(target: string): Promise<{
     id: string;
     name: string | null;
     type: RoutingTargetType;
     extension_number?: string | null;
+    timeout_seconds?: number | null;
   } | null> {
     const cached = this.routingTargetCache.get(target);
     if (cached) return cached;
@@ -1924,6 +1974,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     name: string | null;
     type: RoutingTargetType;
     extension_number?: string | null;
+    timeout_seconds?: number | null;
   } | null> {
     const prefixMap = ROUTING_TARGET_TYPES;
 
@@ -1939,7 +1990,13 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       if (!response.ok) return null;
       const data = await response.json();
       const ext = data.extensions?.data?.[0]?.number ?? null;
-      return { id: target, name: data.name ?? null, type: config.type, extension_number: ext };
+      return {
+        id: target,
+        name: data.name ?? null,
+        type: config.type,
+        extension_number: ext,
+        timeout_seconds: ownRingSeconds(config.type, data),
+      };
     } catch {
       return null;
     }

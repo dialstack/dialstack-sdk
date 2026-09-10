@@ -13,7 +13,7 @@ import type {
 import { NodeHeader, StaticExits } from '../DialPlanNode';
 import { InternalDialConfigPanel } from '../config-panels/InternalDialConfigPanel';
 import { PhoneIcon } from '../icons';
-import { resolveTargetName, resolveTargetType } from './resolve-target';
+import { resolveEffectiveTimeout, resolveTargetName, resolveTargetType } from './resolve-target';
 
 export const config: NodeDefinition = {
   type: 'internal_dial',
@@ -24,7 +24,7 @@ export const config: NodeDefinition = {
   color: '#22c55e',
   exits: [{ id: 'next', label: 'Timeout', configKey: 'next', localeExitKey: 'timeout' }],
   configPanel: InternalDialConfigPanel,
-  defaultConfig: { target_id: '', timeout: 30 },
+  defaultConfig: { target_id: '', timeout: 30, timeout_override: false },
   icon: PhoneIcon,
   renderNode: (data: Record<string, unknown>, reg: NodeTypeRegistration) => (
     <>
@@ -45,6 +45,7 @@ export const config: NodeDefinition = {
       label: 'Internal Extension',
       targetId: n.config.target_id,
       timeout: n.config.timeout,
+      timeoutOverride: n.config.timeout_override ?? false,
       originalNode: n,
     };
   },
@@ -55,6 +56,15 @@ export const config: NodeDefinition = {
     const targetId = data.targetId as string;
     const targetName = resolveTargetName(targetId, maps, locale);
     const targetType = resolveTargetType(targetId, locale);
-    return { ...data, targetName, targetType, locale };
+    // The badge prints what the node will do, not what is stored on it: the
+    // stored number is inert against a target that owns its own timing unless
+    // this node overrules it.
+    const timeout = resolveEffectiveTimeout(
+      targetId,
+      data.timeout as number | undefined,
+      data.timeoutOverride as boolean,
+      maps
+    );
+    return { ...data, targetName, targetType, timeout, locale };
   },
 };
