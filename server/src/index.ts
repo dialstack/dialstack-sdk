@@ -282,14 +282,16 @@ export interface EffectivePricing {
   object: 'effective_pricing';
   per_user_rate: number;
   per_did_rate: number;
-  per_voiceai_location_rate: number;
+  /** Absent when the account cannot incur the Managed VoiceAI fee. */
+  per_voiceai_location_rate?: number;
   /** The month start the rates above took effect, `YYYY-MM-DD`. */
   effective_from: string;
   /** An agreed change that has not taken effect yet; null in the steady state. */
   next: {
     per_user_rate: number;
     per_did_rate: number;
-    per_voiceai_location_rate: number;
+    /** Omitted on the same condition as the in-force leg. */
+    per_voiceai_location_rate?: number;
     /** The month start the change applies from, `YYYY-MM-DD`. */
     effective_from: string;
   } | null;

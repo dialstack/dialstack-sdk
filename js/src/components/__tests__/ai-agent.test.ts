@@ -190,7 +190,7 @@ describe('AIAgentComponent', () => {
     await flush();
 
     expect(el.shadowRoot?.textContent).toContain(
-      'This form is waiting for the host app to create the AI agent.'
+      'This form is waiting for the host app to create the Managed VoiceAI agent.'
     );
 
     el.setMode('edit');
@@ -203,7 +203,7 @@ describe('AIAgentComponent', () => {
     await flush();
 
     expect(el.shadowRoot?.textContent).toContain(
-      'This form is waiting for the host app to save the AI agent.'
+      'This form is waiting for the host app to save the Managed VoiceAI agent.'
     );
   });
 
@@ -242,5 +242,34 @@ describe('AIAgentComponent', () => {
     expect(el.shadowRoot?.querySelector<HTMLInputElement>('[data-field="name"]')?.value).toBe(
       'Second Agent'
     );
+  });
+
+  it('renders host content in the before-actions slot, above its own submit button', async () => {
+    // The component owns the submit button inside its shadow root, so a host that
+    // must show something before the action — a billing disclosure for a create it
+    // performs itself — has nowhere to put it without this seam.
+    const { instance } = makeInstance();
+    const el = document.createElement('dialstack-ai-agent') as HTMLElement & {
+      setInstance: (i: DialStackInstanceImpl) => void;
+      setMode: (mode: 'create' | 'edit') => void;
+    };
+    el.setInstance(instance);
+    el.setMode('create');
+
+    const hostNode = document.createElement('div');
+    hostNode.setAttribute('slot', 'before-actions');
+    hostNode.textContent = 'host disclosure';
+    el.appendChild(hostNode);
+
+    document.body.appendChild(el);
+    await flush();
+
+    const slot = el.shadowRoot?.querySelector('slot[name="before-actions"]');
+    const actions = el.shadowRoot?.querySelector('.ds-actions');
+    expect(slot).toBeTruthy();
+    expect(actions).toBeTruthy();
+    expect(slot!.compareDocumentPosition(actions!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Light DOM, so the host keeps its own styling and the node survives re-renders.
+    expect(el.contains(hostNode)).toBe(true);
   });
 });

@@ -9,6 +9,7 @@
  */
 
 import React, { useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 import { useDialstackComponents } from './DialstackComponentsProvider';
 import { useCreateComponent } from './useCreateComponent';
@@ -57,6 +58,15 @@ export interface AIAgentProps {
   onError?: (error: Error) => void;
   /** Optional locale for translatable strings (labels, placeholders, errors). */
   locale?: Locale;
+  /**
+   * Host content rendered inside the form, immediately above its actions.
+   *
+   * The component owns its submit button, so a host that needs something read
+   * before the action — a billing disclosure for a create it performs itself —
+   * has nowhere to put it otherwise. Rendered into the element's light DOM, so
+   * it keeps the host page's styles.
+   */
+  beforeActions?: React.ReactNode;
   /** Optional className applied to the container element. */
   className?: string;
   /** Optional inline styles applied to the container element. */
@@ -100,6 +110,7 @@ export const AIAgent: React.FC<AIAgentProps> = ({
   onCreated,
   onError,
   locale,
+  beforeActions,
   className,
   style,
 }) => {
@@ -157,7 +168,13 @@ export const AIAgent: React.FC<AIAgentProps> = ({
     };
   }, [componentInstance, onSaved, onCreated, onError]);
 
-  return <div ref={containerRef} className={className} style={style} />;
+  return (
+    <div ref={containerRef} className={className} style={style}>
+      {componentInstance && beforeActions
+        ? createPortal(<div slot="before-actions">{beforeActions}</div>, componentInstance)
+        : null}
+    </div>
+  );
 };
 
 // Re-exported for consumers that want to type their onSaved callback.

@@ -259,3 +259,44 @@ describe('SsaGateLoadError', () => {
     await waitFor(() => expect(onRetry).toHaveBeenCalled());
   });
 });
+
+// ============================================================================
+// Managed VoiceAI on the acceptance screen
+// ============================================================================
+//
+// The rates card hides the Managed VoiceAI row when the account can neither
+// create an agent nor already have one. This screen deliberately does not: it
+// presents Schedule 1, which covers the rate whether or not the account uses it.
+describe('SsaAcceptanceGate — Managed VoiceAI rate', () => {
+  it('lists the Managed VoiceAI line when the account is charged for it', () => {
+    renderGate();
+    expect(screen.getByText(defaultLocale.accountOnboarding.ssa.perAiLocation)).toBeInTheDocument();
+  });
+
+  it('still lists the line when the account cannot incur the fee', () => {
+    // /effective-pricing omits the leg for such an account and the rates cards
+    // drop the row, but this screen presents Schedule 1 in full and shows a dash.
+    const withoutVoiceAi = { ...mockEffectivePricing } as Record<string, unknown>;
+    delete withoutVoiceAi.per_voiceai_location_rate;
+    renderGate({ effectivePricing: withoutVoiceAi as typeof mockEffectivePricing });
+    expect(screen.getByText(defaultLocale.accountOnboarding.ssa.perAiLocation)).toBeInTheDocument();
+    expect(screen.queryByText(/\$0\.00/)).not.toBeInTheDocument();
+  });
+
+  it('names the rate with the same wording as the rates card', () => {
+    expect(defaultLocale.accountOnboarding.ssa.perAiLocation).toBe(
+      defaultLocale.onboardingPortal.rates.perVoiceAiLocation
+    );
+  });
+
+  it('shows a dash rather than $0.00 when no Managed VoiceAI rate is agreed', () => {
+    // 0 is how an unset rate is stored, and the billing run falls back to a
+    // catalog default that is not the customer's agreed price. A consent screen
+    // must not show a price nobody agreed to, nor imply the line is free.
+    renderGate({
+      effectivePricing: { ...mockEffectivePricing, per_voiceai_location_rate: 0 },
+    });
+    expect(screen.getByText(defaultLocale.accountOnboarding.ssa.perAiLocation)).toBeInTheDocument();
+    expect(screen.queryByText(/\$0\.00/)).not.toBeInTheDocument();
+  });
+});

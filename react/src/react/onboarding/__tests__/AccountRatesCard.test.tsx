@@ -168,3 +168,37 @@ describe('onboarding AccountRatesCard', () => {
     expect(text()).toContain('Not set');
   });
 });
+
+/** The resource shape when the account cannot incur the fee: the leg is absent. */
+const omitVoiceAi = (pricing: typeof IN_FORCE) => {
+  const next = { ...pricing } as Record<string, unknown>;
+  delete next.per_voiceai_location_rate;
+  return next as typeof IN_FORCE;
+};
+
+// The card renders only the legs `/effective-pricing` reports; the decision to
+// omit the Managed VoiceAI leg lives in that endpoint.
+describe('onboarding AccountRatesCard — Managed VoiceAI row', () => {
+  it('drops the row when the resource omits the leg', async () => {
+    await renderWithOnboarding(<AccountRatesCard />, { pricing: omitVoiceAi(IN_FORCE) });
+    // Anchored on a rate that must survive, so this cannot pass on a card that
+    // failed to render at all.
+    expect(text()).toContain('$30.00/month');
+    expect(text()).not.toContain('Managed VoiceAI');
+    expect(text()).not.toContain('$100.00/month');
+  });
+
+  it('renders the row, and the multiplier, when the leg is present', async () => {
+    await renderWithOnboarding(<AccountRatesCard />, { pricing: IN_FORCE });
+    expect(text()).toContain('Managed VoiceAI, per location');
+    expect(text()).toContain('$100.00/month');
+    expect(text()).toContain('Charged for every location once Managed VoiceAI is active.');
+  });
+
+  it('says no rates when the only leg with a price was omitted', async () => {
+    await renderWithOnboarding(<AccountRatesCard />, {
+      pricing: omitVoiceAi({ ...IN_FORCE, per_user_rate: 0, per_did_rate: 0 }),
+    });
+    expect(text()).toContain('No rates are set for this account yet.');
+  });
+});

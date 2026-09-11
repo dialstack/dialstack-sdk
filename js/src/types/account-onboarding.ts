@@ -139,14 +139,21 @@ export interface EffectivePricing {
   object: 'effective_pricing';
   per_user_rate: number;
   per_did_rate: number;
-  per_voiceai_location_rate: number;
+  /**
+   * Absent when the account can neither create a Managed VoiceAI agent nor
+   * already has one: a fee it cannot incur is not an effective rate. Absence and
+   * `0` differ — `0` is a billable line with no agreed price, absence is a line
+   * that does not apply. Render only the legs present.
+   */
+  per_voiceai_location_rate?: number;
   /** The month start the rates above took effect, `YYYY-MM-DD`. */
   effective_from: string;
   /** An agreed change that has not taken effect yet; null in the steady state. */
   next: {
     per_user_rate: number;
     per_did_rate: number;
-    per_voiceai_location_rate: number;
+    /** Omitted on the same condition as the in-force leg. */
+    per_voiceai_location_rate?: number;
     /** The month start the change applies from, `YYYY-MM-DD`. */
     effective_from: string;
   } | null;

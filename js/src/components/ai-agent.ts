@@ -343,6 +343,14 @@ const STYLES = `
     gap: 8px;
   }
 
+  /* Host content sits just above the actions — where a privileged host puts the
+     disclosure for the action it owns. Slotted nodes keep the host page's
+     styles; this sets spacing only. */
+  ::slotted([slot='before-actions']) {
+    display: block;
+    margin-bottom: var(--ds-layout-spacing-md, 12px);
+  }
+
   .ds-status {
     font-size: var(--ds-font-size-xs, 12px);
     color: var(--ds-color-text-secondary, #64748b);
@@ -906,6 +914,7 @@ export class AIAgentComponent extends BaseComponent {
             ? ''
             : this.renderSecretField()
         }
+        <slot name="before-actions"></slot>
         <div class="ds-actions">${this.renderActionsContent(form)}</div>
       </div>
     `);

@@ -18,3 +18,5 @@ Components must NOT call the API raw (via `fetchApi` or `fetchComponentData` wit
 - Host mode (`mode="create"` or `onCreateRequested` / `onSaveRequested`) makes the SDK a reusable form only. Privileged surfaces such as Admin own create, extension assignment, scheduling webhook updates, and voice-app secret rotation through host callbacks and Admin BFF routes.
 
 Do not add public/component-scope SDK routes for AI-agent create, extension availability or assignment, scheduling webhook mutation, or secret rotation unless the product explicitly decides those operations are safe for customer embeds. Prefer host callbacks when the goal is UI reuse without broadening the SDK session's authority.
+
+The corollary is the `before-actions` slot: the component owns its submit button, so a host performing the create needs somewhere inside the form for anything that must be read before the action (Admin puts its billing disclosure there). Slotted content is light DOM — the host keeps its own styling, and the seam grants no authority.

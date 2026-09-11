@@ -96,8 +96,8 @@ export const en = {
     emergencyBack: 'Back',
   },
   aiAgent: {
-    loading: 'Loading AI agent…',
-    loadFailed: 'Failed to load AI agent: {message}',
+    loading: 'Loading Managed VoiceAI agent…',
+    loadFailed: 'Failed to load Managed VoiceAI agent: {message}',
     fields: {
       name: 'Name',
       namePlaceholder: 'Front Desk Agent',
@@ -116,7 +116,7 @@ export const en = {
         'Used in the call greeting (e.g. "Thanks for calling [your business]").',
       instructions: 'Instructions',
       instructionsPlaceholder:
-        'Provide additional instructions for how the AI agent should behave during calls...',
+        'Provide additional instructions for how the Managed VoiceAI agent should behave during calls...',
       instructionsHint: 'Plain-English guidance for the agent: tone, what to do, what to escalate.',
       faq: 'FAQ',
       faqEmpty: 'No FAQ entries yet. Add one to teach the agent a recurring question.',
@@ -130,13 +130,14 @@ export const en = {
       faqAdd: 'Add FAQ entry',
       scheduling: 'Scheduling',
       schedulingHint:
-        'Connect your AI agent to an external scheduling system. Clear the URL to disable scheduling.',
+        'Connect your Managed VoiceAI agent to an external scheduling system. Clear the URL to disable scheduling.',
       webhookUrl: 'Webhook URL',
       webhookUrlHint:
         'Base URL for scheduling webhooks. DialStack appends tool-call paths automatically.',
       webhookUrlPlaceholder: 'https://example.com/api/dialstack/webhooks',
       secret: 'Webhook secret',
-      secretHint: 'Used to verify tool-call webhooks sent from this AI agent to your integration.',
+      secretHint:
+        'Used to verify tool-call webhooks sent from this Managed VoiceAI agent to your integration.',
       copySecret: 'Copy webhook secret',
       rotateSecret: 'Rotate secret',
     },
@@ -156,8 +157,9 @@ export const en = {
       extensionUnavailable: 'Extension number is already in use.',
       schedulingUrlMaxLength: 'Webhook URL must be {max} characters or fewer.',
       schedulingUrlHttpsRequired: 'Webhook URL must start with https://.',
-      hostCreateRequired: 'This form is waiting for the host app to create the AI agent.',
-      hostSaveRequired: 'This form is waiting for the host app to save the AI agent.',
+      hostCreateRequired:
+        'This form is waiting for the host app to create the Managed VoiceAI agent.',
+      hostSaveRequired: 'This form is waiting for the host app to save the Managed VoiceAI agent.',
     },
   },
   voicemails: {
@@ -920,7 +922,7 @@ export const en = {
       pricingTitle: 'Your plan pricing',
       perUser: 'Per user',
       perNumber: 'Per phone number',
-      perAiLocation: 'Per AI location',
+      perAiLocation: 'Managed VoiceAI, per location',
       perMonthSuffix: '/mo',
       agreementLabel: 'Service Subscription Agreement',
       openInNewTab: 'Open the full agreement in a new tab',
@@ -958,7 +960,8 @@ export const en = {
       subtitle: "What you're billed at today.",
       perUser: 'Per user',
       perPhoneNumber: 'Per phone number',
-      perVoiceAiLocation: 'Per VoiceAI location',
+      perVoiceAiLocation: 'Managed VoiceAI, per location',
+      voiceAiPerLocationNote: 'Charged for every location once Managed VoiceAI is active.',
       perMonth: '{rate}/month',
       rateNotSet: 'Not set',
       pendingRate: '{rate}/month from {date}',

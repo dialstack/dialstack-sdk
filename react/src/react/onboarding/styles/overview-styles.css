@@ -540,3 +540,12 @@
   font-size: 12px;
   color: var(--ds-color-text-secondary);
 }
+
+/* Sits inside its own .portal-rates-row and takes the full width, so it wraps
+   under that one rate rather than reading as a footnote about all of them. */
+.portal-rates-row-note {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 12px;
+  color: var(--ds-color-text-secondary);
+}

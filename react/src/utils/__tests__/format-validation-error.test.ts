@@ -68,7 +68,7 @@ describe('formatValidationError', () => {
         'voice_app notify mode is not supported on AI agent voice apps: [va_01h455vb4pex5vsknk084sn02t]'
       )
     ).toBe(
-      'A Voice App used in Notify mode is backed by an AI agent. AI-agent voice apps must use Control mode.'
+      'A Voice App used in Notify mode is backed by a Managed VoiceAI agent. Managed VoiceAI voice apps must use Control mode.'
     );
   });
 

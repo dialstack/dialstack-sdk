@@ -58,8 +58,13 @@ export const AccountRatesCard: React.FC = () => {
     // schedule lives on /pricing and holds next month's rates after a mid-month
     // change, so quoting that one would promise a price the current invoice does
     // not use. Reading the wrong resource is the mistake to avoid here.
-    const rows = RATE_ROWS.map(({ field, label }) => {
-      const cents = pricing[field] ?? 0;
+    // Render only the legs /effective-pricing reports; it omits one the account
+    // cannot incur.
+    const rows = RATE_ROWS.flatMap(({ field, label }) => {
+      const cents = pricing[field];
+      // Absent means the fee does not apply and the row is dropped; a 0 is a
+      // billable line with no agreed price and still renders.
+      if (cents === undefined) return [];
       const next = pricing.next?.[field] ?? 0;
       // Per leg, not by pending's presence: a change is reported whenever ANY
       // rate moves, so an untouched leg must stay silent. Both ends must be real
@@ -67,7 +72,7 @@ export const AccountRatesCard: React.FC = () => {
       // catalog default rather than charging nothing. Undefined exactly when the
       // row will say nothing, so the change note below cannot disagree with it.
       const showable = cents > 0 && next > 0 && next !== cents;
-      return { field, label, cents, pendingCents: showable ? next : undefined };
+      return [{ field, label, cents, pendingCents: showable ? next : undefined }];
     });
 
     // 0 is how an unset rate is stored, so an account with no leg set has no
@@ -95,6 +100,9 @@ export const AccountRatesCard: React.FC = () => {
                   </span>
                 )}
               </dd>
+              {field === 'per_voiceai_location_rate' && (
+                <p className="portal-rates-row-note">{copy.voiceAiPerLocationNote}</p>
+              )}
             </div>
           ))}
         </dl>

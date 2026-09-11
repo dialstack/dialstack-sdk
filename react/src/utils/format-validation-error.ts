@@ -24,7 +24,7 @@ export function formatValidationError(
 ): string {
   // Backend 422 from rejectNotifyOnAIAgentVoiceApps — flat message, no JSON path.
   if (apiError.startsWith('voice_app notify mode is not supported on AI agent voice apps')) {
-    return 'A Voice App used in Notify mode is backed by an AI agent. AI-agent voice apps must use Control mode.';
+    return 'A Voice App used in Notify mode is backed by a Managed VoiceAI agent. Managed VoiceAI voice apps must use Control mode.';
   }
 
   // Split JSON path from message: "/nodes/3/config/schedule_id: minLength ..." → [path, message]

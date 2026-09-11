@@ -151,7 +151,9 @@ export interface SsaAcceptanceGateProps {
 // catalog default for it. That default is not the customer's price, so render no
 // figure rather than "$0.00" — a consent screen must not show a price nobody
 // agreed to, and must not imply the line is free.
-function formatRate(cents: number | null, locale: string): string | null {
+function formatRate(cents: number | null | undefined, locale: string): string | null {
+  // Undefined too: `/effective-pricing` omits a leg the account cannot incur.
+  // The acceptance screen still lists every Schedule 1 line, showing a dash.
   if (cents == null || cents <= 0) return null;
   return new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD' }).format(cents / 100);
 }
