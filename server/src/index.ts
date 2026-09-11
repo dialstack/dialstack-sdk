@@ -1488,20 +1488,82 @@ export interface HardwareOrderItem {
   updated_at: string;
 }
 
-export type HardwareOrderStatus =
-  'draft' | 'submitted' | 'approved' | 'rejected' | 'fulfilled' | 'cancelled';
+/** Whether the money for an order has arrived. */
+export type HardwareOrderPaymentStatus = 'unpaid' | 'paid';
+
+/**
+ * How far an order has got towards shipping. Independent of payment: this says
+ * nothing about whether the order has been paid for, and vice versa.
+ *
+ * Whether every unit has actually shipped is read from the units'
+ * `fulfilled_at`, not from this field.
+ */
+export type HardwareOrderFulfillmentStatus = 'on_hold' | 'released' | 'rejected';
+
+/** One thing that was ordered, at the price charged for it. */
+export interface HardwareOrderLine {
+  id: string;
+  /**
+   * The catalog item ordered — its id by default, or the full
+   * {@link HardwareCatalogItem} when `expand: ['lines.hardware_catalog']` is
+   * requested. For a bundle line this is the bundle itself, not its components.
+   */
+  hardware_catalog: string | HardwareCatalogItem;
+  quantity: number;
+  /**
+   * Price charged per unit, in USD cents, as of when the order was placed. A
+   * draft re-prices from the catalog at checkout; from then on it is frozen, so
+   * repricing the catalog afterwards does not move a placed order's numbers.
+   */
+  unit_price_cents: number;
+  /** `quantity * unit_price_cents`, in USD cents. */
+  amount_cents: number;
+  created_at: string;
+  updated_at: string;
+}
 
 export interface HardwareOrder {
   id: string;
-  status: HardwareOrderStatus;
+  payment_status: HardwareOrderPaymentStatus;
+  fulfillment_status: HardwareOrderFulfillmentStatus;
+  /**
+   * When checkout completed. Null means the order is still a draft: its
+   * contents can be changed and its prices are not yet frozen. This is the only
+   * place draftness is recorded — there is no `draft` status value.
+   */
+  placed_at: string | null;
+  paid_at: string | null;
+  /** What the items cost, in USD cents, at the prices they were sold at. */
+  goods_cents: number;
+  /**
+   * Quoted shipping in USD cents, passed through at cost and stated separately
+   * from goods. Null means it has not been quoted yet, which is not the same as
+   * free — checkout refuses a null, while `0` is a legitimate quote. Changing
+   * the order's contents clears it.
+   */
+  shipping_cents: number | null;
+  shipping_quoted_at: string | null;
+  /**
+   * `goods_cents` plus `shipping_cents`. Null until shipping has been quoted:
+   * an order with no quote has no total, rather than one that happens to equal
+   * its goods.
+   */
+  total_cents: number | null;
   /** Why the order was declined at review. Only set when `rejected`. */
   rejection_reason: string | null;
+  /**
+   * What was ordered, and what it cost. A quantity of three is one line and
+   * three units; a bundle is one line and one unit per component.
+   */
+  lines: HardwareOrderLine[];
+  /** The physical units the lines expanded into, one per device. */
   items: HardwareOrderItem[];
   created_at: string;
   updated_at: string;
 }
 
-export type HardwareOrderExpand = 'items.device';
+export type HardwareOrderExpand =
+  'items.device' | 'items.bundle_catalog' | 'lines.hardware_catalog';
 
 export interface HardwareOrderParams {
   /** At least one line; quantity is 1-100 per line. */
@@ -1514,7 +1576,10 @@ export interface HardwareOrderListParams {
    * which orders block a location delete.
    */
   location?: string;
-  /** Related resources to include inline. Supported values: `items.device`. */
+  /**
+   * Related resources to include inline. Supported values: `items.device`,
+   * `items.bundle_catalog`, `lines.hardware_catalog`.
+   */
   expand?: HardwareOrderExpand[];
 }
 
@@ -4034,9 +4099,13 @@ export class DialStack {
   };
 
   /**
-   * Orders for physical hardware. An order is placed with quantities and comes
-   * back as one item per unit, each of which can be pre-assigned to a user,
-   * location, or base before it is fulfilled into a device.
+   * Orders for physical hardware.
+   *
+   * An order is built as a draft, then placed with {@link hardwareOrders.checkout}.
+   * It carries both what was ordered (`lines`, with the prices charged) and the
+   * physical units those expanded into (`items`), each of which can be
+   * pre-assigned to a user, location, or base before it is fulfilled into a
+   * device.
    */
   hardwareOrders = {
     create: (
@@ -4077,11 +4146,10 @@ export class DialStack {
     /**
      * Replace the order's line items.
      *
-     * Only a `draft` order can be changed; anything else returns 409. Note that
-     * orders are currently created as `submitted` and no endpoint moves one back
-     * to `draft`, so this returns 409 in practice until the editable-cart flow
-     * exists. Bound here because the endpoint is published, not because it is
-     * usable yet.
+     * Only a draft — an order whose `placed_at` is null — can be changed;
+     * once checked out its contents are frozen and this returns 409. Replacing
+     * the items re-prices the order from the catalog and clears any shipping
+     * quote, since what is in the box is what decides the freight.
      */
     update: (
       hardwareOrderId: string,
@@ -4089,6 +4157,27 @@ export class DialStack {
       options: RequestOptions & { dialstackAccount: string }
     ): Promise<HardwareOrder> => {
       return this._request('POST', `/v1/hardware-orders/${hardwareOrderId}`, params, options);
+    },
+
+    /**
+     * Place the order. This is the moment its prices stop moving and it enters
+     * the fulfillment queue.
+     *
+     * Returns 409 if the order has already been placed, or if its shipping has
+     * not been quoted — an unquoted order is not a free-shipping one, so it
+     * cannot be completed. Shipping is quoted by hand today, so a newly created
+     * order is not immediately checkout-able.
+     *
+     * Checking out does not pay for the order: `payment_status` is unchanged.
+     *
+     * Requires an account, like every other call on this resource — checkout
+     * acts on one account's order and the API rejects the request without it.
+     */
+    checkout: (
+      hardwareOrderId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<HardwareOrder> => {
+      return this._request('POST', `/v1/hardware-orders/${hardwareOrderId}/checkout`, {}, options);
     },
 
     /** Set or clear a single unit's user, location, or base pre-assignment. */
