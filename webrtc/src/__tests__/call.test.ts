@@ -12,6 +12,9 @@ class FakeTrack {
 }
 
 class FakeMediaStream {
+  getAudioTracks(): unknown[] {
+    return (this as unknown as { tracks?: unknown[] }).tracks ?? [];
+  }
   private tracks: FakeTrack[] = [];
   addTrack(t: FakeTrack): void {
     this.tracks.push(t);
@@ -778,5 +781,134 @@ describe('Call transfer preconditions', () => {
     call.resume();
     expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'call.resume' }));
     expect(send).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Call while merged into a local conference', () => {
+  // A conference party is a live leg of one conversation. Anything that stops or
+  // reroutes that leg individually breaks the call for the OTHER parties while
+  // the screen still shows a single conversation — so these assert on the frames
+  // that reach the wire, not on internal flags.
+  beforeEach(() => {
+    (globalThis as Record<string, unknown>).RTCPeerConnection = FakeRTCPeerConnection;
+    (globalThis as Record<string, unknown>).MediaStream = FakeMediaStream;
+    Object.defineProperty(globalThis, 'navigator', {
+      value: {
+        mediaDevices: {
+          getUserMedia: async () => {
+            const s = new FakeMediaStream();
+            s.addTrack(new FakeTrack());
+            return s;
+          },
+        },
+      },
+      configurable: true,
+    });
+  });
+
+  const attach = (call: Call) => {
+    const conference = { setMuted: jest.fn() };
+    call.attachConference(conference);
+    return conference;
+  };
+
+  const sentTypes = (send: jest.Mock): string[] =>
+    send.mock.calls.map((c) => (c[0] as { type: string }).type);
+
+  it('does not hold a conference leg', () => {
+    const send = jest.fn();
+    const call = new Call({ ...makeInit(), transport: { send } as never });
+    call.state = 'active';
+    attach(call);
+
+    call.hold();
+
+    // call.hold makes the server stop that leg's media, which would silence this
+    // party to the others mid-conversation.
+    expect(sentTypes(send)).not.toContain('call.hold');
+  });
+
+  it('routes mute to the conference instead of the server', () => {
+    const send = jest.fn();
+    const call = new Call({ ...makeInit(), transport: { send } as never });
+    call.state = 'active';
+    const conference = attach(call);
+
+    call.mute();
+
+    // The server answers call.mute with a re-INVITE narrowing this leg to
+    // recvonly, which stops its upstream media for every party — so the mix is
+    // muted locally instead.
+    expect(sentTypes(send)).not.toContain('call.mute');
+    expect(conference.setMuted).toHaveBeenCalledWith(true);
+    expect(call.isMuted).toBe(true);
+  });
+
+  it('still sends unmute while merged, so a pre-merge mute can be undone', () => {
+    const send = jest.fn();
+    const call = new Call({ ...makeInit(), transport: { send } as never });
+    call.state = 'active';
+    // Muted BEFORE the merge: the server already narrowed this leg to recvonly.
+    call.mute();
+    send.mockClear();
+    attach(call);
+
+    call.unmute();
+
+    // Unmute only ever widens what the server permits, so withholding it would
+    // strand the leg recvonly for the whole conference with no way back.
+    expect(sentTypes(send)).toContain('call.unmute');
+    expect(call.isMuted).toBe(false);
+  });
+
+  it('refuses an attended transfer while merged', () => {
+    const startConsult = jest.fn();
+    const call = new Call({ ...makeInit(), startConsult });
+    call.state = 'active';
+    attach(call);
+
+    expect(() => call.attendedTransfer('+15551234567')).toThrow();
+    // The consult frame makes the server hold the parent — here, a conference
+    // party — so the transfer must not start at all.
+    expect(startConsult).not.toHaveBeenCalled();
+  });
+
+  it('defers a microphone switch instead of swapping the mixed uplink', async () => {
+    const call = new Call({ ...makeInit() });
+    call.state = 'active';
+    attach(call);
+
+    await call.setAudioInputDevice('mic-2');
+
+    // The uplink is the conference's mixed track, not this call's mic, so
+    // replacing the mic here would leave the graph feeding a stopped track. The
+    // preference is recorded and applies once the conference ends.
+    expect(call.audioInputDeviceId).toBe('mic-2');
+  });
+
+  it('applies the deferred microphone switch on unmerge', async () => {
+    const call = new Call({ ...makeInit() });
+    call.state = 'active';
+    attach(call);
+    await call.setAudioInputDevice('mic-2');
+
+    // Count captures from here: the replay is the only thing that should open
+    // the mic again.
+    const asked: unknown[] = [];
+    const media = (navigator as unknown as { mediaDevices: { getUserMedia: unknown } })
+      .mediaDevices;
+    const original = media.getUserMedia as (c: unknown) => Promise<unknown>;
+    media.getUserMedia = async (constraints: unknown) => {
+      asked.push(constraints);
+      return original(constraints);
+    };
+
+    call.attachConference(null);
+    for (let i = 0; i < 6; i++) await Promise.resolve();
+
+    // Without the replay the picker reports a device that never reached the
+    // wire — silently, for the rest of the call.
+    expect(asked).toHaveLength(1);
+    expect(JSON.stringify(asked[0])).toContain('mic-2');
   });
 });

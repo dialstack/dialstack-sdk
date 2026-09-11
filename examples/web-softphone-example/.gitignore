@@ -3,3 +3,9 @@ node_modules
 .env.local
 *.tsbuildinfo
 next-env.d.ts
+
+# Written by `next dev` whenever it detects an AI coding agent
+# (next/dist/server/lib/generate-agent-files.js). Machine-generated, recreated on
+# every run, and this tree mirrors publicly — so it is not ours to commit.
+AGENTS.md
+CLAUDE.md

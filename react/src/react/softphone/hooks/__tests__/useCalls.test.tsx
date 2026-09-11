@@ -85,15 +85,42 @@ class FakeCall extends Emitter {
   }
   resume(): void {
     this.resumeCalls += 1;
-    this.state = 'active';
+    // Real resume() only sends the frame; state stays 'held' until the echo.
+    if (this.echoResume) this.state = 'active';
   }
+  /** Set false to model the real echo lag; true keeps the old instant flip. */
+  echoResume = true;
   hold(): void {
+    if (this.state !== 'active') return;
+    this.holdCalls += 1;
+    this.state = 'held';
+  }
+  conferenceHolds: boolean[] = [];
+  setConferenceHold(held: boolean): void {
+    this.conferenceHolds.push(held);
+    this.state = held ? 'held' : 'active';
+  }
+  /** Bypasses the state guard, for undoing a resume in the same tick. */
+  holdAfterResume(): void {
+    if (this.state === 'ended') return;
     this.holdCalls += 1;
     this.state = 'held';
   }
   answer(): void {
     this.answerCalls += 1;
     this.state = 'active';
+  }
+
+  // --- local-conference surface (see LocalConference) --------------------
+  // The mixer replaces each leg's uplink track, so a merged call exposes its
+  // sender and its local capture, and takes a conference to route mute through.
+  conference: { setMuted(muted: boolean): void } | null = null;
+  sender = { track: { enabled: true, kind: 'audio' }, replaceTrack: () => Promise.resolve() };
+  peerConnection = { getSenders: () => [this.sender] };
+  remoteMediaStream = { getAudioTracks: () => [{ enabled: true, kind: 'audio' }] };
+  localMediaStream = { getAudioTracks: () => [{ enabled: true, kind: 'audio' }] };
+  attachConference(conference: { setMuted(muted: boolean): void } | null): void {
+    this.conference = conference;
   }
 }
 
@@ -122,7 +149,12 @@ class FakePhone extends Emitter {
   }
 }
 
+// Only the phone is faked. Spreading the real module keeps the rest of the
+// package's surface — notably `supportsConference`, which the hook calls on every
+// render to decide whether merging is offered; replacing the module wholesale
+// left it undefined and every render threw.
 jest.mock('@dialstack/sdk-webrtc', () => ({
+  ...jest.requireActual('@dialstack/sdk-webrtc'),
   DialStackPhone: jest.fn().mockImplementation((options: unknown) => new FakePhone(options)),
 }));
 
@@ -907,5 +939,249 @@ describe('useCalls attended transfer', () => {
     expect(result.current.activeCall).toBe(original.consult as unknown as Call);
     expect(result.current.consultCall).toBe(original.consult as unknown as Call);
     expect(result.current.transferOriginal).toBe(original as unknown as Call);
+  });
+});
+
+describe('useCalls local conference (merge)', () => {
+  // jsdom ships no WebAudio, so the mixer's whole graph is stubbed here. The
+  // node-level wiring is asserted in webrtc's conference.test.ts; this suite is
+  // about the HOOK's policy — what merges, what un-holds, and what happens when
+  // a merged leg ends.
+  class StubNode {
+    connect(): void {}
+    disconnect(): void {}
+  }
+  class StubDestination extends StubNode {
+    stream = { getAudioTracks: () => [{ enabled: true, kind: 'audio' }] };
+  }
+  class StubAudioContext {
+    createMediaStreamSource(): StubNode {
+      return new StubNode();
+    }
+    createGain(): { gain: { value: number }; connect(): void; disconnect(): void } {
+      return { gain: { value: 1 }, connect: () => {}, disconnect: () => {} };
+    }
+    createMediaStreamDestination(): StubDestination {
+      return new StubDestination();
+    }
+    resume(): Promise<void> {
+      return Promise.resolve();
+    }
+    close(): Promise<void> {
+      return Promise.resolve();
+    }
+  }
+
+  const originalAudioContext = (globalThis as Record<string, unknown>).AudioContext;
+  beforeEach(() => {
+    (globalThis as Record<string, unknown>).AudioContext = StubAudioContext;
+  });
+  afterEach(() => {
+    (globalThis as Record<string, unknown>).AudioContext = originalAudioContext;
+  });
+
+  /** Two answered calls: `first` active, `second` stacked on top (so first is held). */
+  async function withTwoCalls(onError?: (e: { code: string; message: string }) => void) {
+    const rendered = renderHook(() => useComposed({ token: 'tok', onError }));
+    act(() => phone().emit('connected'));
+
+    const first = new FakeCall('outbound', '', null, '+1000');
+    phone().nextCall = first;
+    await act(async () => {
+      await rendered.result.current.placeCall('+1000');
+    });
+    act(() => {
+      first.state = 'active';
+      first.emit('answered');
+    });
+
+    const second = new FakeCall('outbound', '', null, '+2000');
+    phone().nextCall = second;
+    await act(async () => {
+      await rendered.result.current.placeCall('+2000');
+    });
+    act(() => {
+      second.state = 'active';
+      second.emit('answered');
+    });
+
+    return { ...rendered, first, second };
+  }
+
+  it('offers merge only once two connected calls exist', async () => {
+    const rendered = renderHook(() => useComposed({ token: 'tok' }));
+    act(() => phone().emit('connected'));
+    expect(rendered.result.current.canMerge).toBe(false);
+
+    const only = new FakeCall('outbound', '', null, '+1000');
+    phone().nextCall = only;
+    await act(async () => {
+      await rendered.result.current.placeCall('+1000');
+    });
+    act(() => {
+      only.state = 'active';
+      only.emit('answered');
+    });
+    // One call is not a conference.
+    expect(rendered.result.current.canMerge).toBe(false);
+
+    const second = new FakeCall('outbound', '', null, '+2000');
+    phone().nextCall = second;
+    await act(async () => {
+      await rendered.result.current.placeCall('+2000');
+    });
+    act(() => {
+      second.state = 'active';
+      second.emit('answered');
+    });
+    expect(rendered.result.current.canMerge).toBe(true);
+  });
+
+  it('does not offer merge during an attended transfer', async () => {
+    const { result, original } = (() => {
+      const rendered = renderHook(() => useComposed({ token: 'tok' }));
+      act(() => phone().emit('connected'));
+      const call = new FakeCall('outbound', '', null, '+1000');
+      phone().nextCall = call;
+      return { ...rendered, original: call };
+    })();
+    await act(async () => {
+      await result.current.placeCall('+1000');
+    });
+    act(() => {
+      original.state = 'active';
+      original.emit('answered');
+    });
+    await act(async () => {
+      await result.current.startAttendedTransfer('+2000');
+    });
+    act(() => {
+      original.consult!.state = 'active';
+      original.consult!.emit('answered');
+    });
+
+    // Two connected legs exist, but they already mean "bridge these two and drop
+    // out" — merging them instead would be ambiguous.
+    expect(result.current.consultCall).not.toBeNull();
+    expect(result.current.canMerge).toBe(false);
+  });
+
+  it('merges both legs and resumes the held one', async () => {
+    const { result, first, second } = await withTwoCalls();
+    // Stacking the second call held the first.
+    expect(first.state).toBe('held');
+    const resumesBefore = first.resumeCalls;
+
+    act(() => result.current.mergeCalls());
+
+    expect(result.current.isMerged).toBe(true);
+    expect(result.current.mergedCalls).toHaveLength(2);
+    // A merged leg must not stay held — hold is a server-side media stop, so a
+    // held leg would sit silent inside the conference.
+    expect(first.resumeCalls).toBe(resumesBefore + 1);
+    // Both legs route mute through the conference now.
+    expect(first.conference).not.toBeNull();
+    expect(second.conference).not.toBeNull();
+  });
+
+  it('re-holds the legs it resumed when the merge fails', async () => {
+    const onError = jest.fn();
+    const { result, first, second } = await withTwoCalls(onError);
+    // Model the real echo lag.
+    first.echoResume = false;
+    second.echoResume = false;
+    // No audio sender is a path installUplink genuinely throws on.
+    second.peerConnection = { getSenders: () => [] };
+    const heldBefore = first.holdCalls + second.holdCalls;
+
+    act(() => result.current.mergeCalls());
+
+    expect(result.current.isMerged).toBe(false);
+    expect(onError).toHaveBeenCalled();
+    // Must reach the wire: hold() would be swallowed by its own state guard,
+    // leaving both parties live behind a UI that says held.
+    // `first` is the resumed leg; `second` was already active.
+    expect(first.holdCalls + second.holdCalls).toBeGreaterThan(heldBefore);
+    expect(first.state).toBe('held');
+  });
+
+  it('holds and resumes every leg together', async () => {
+    const { result, first, second } = await withTwoCalls();
+    act(() => result.current.mergeCalls());
+
+    act(() => result.current.holdConference(true));
+
+    // Both, not just the focused leg: holding one silences that party to the
+    // other while the screen still shows one conversation.
+    expect(first.conferenceHolds).toEqual([true]);
+    expect(second.conferenceHolds).toEqual([true]);
+    // And the conference survives — this is a hold, not a split.
+    expect(result.current.isMerged).toBe(true);
+
+    act(() => result.current.holdConference(false));
+    expect(first.conferenceHolds).toEqual([true, false]);
+    expect(second.conferenceHolds).toEqual([true, false]);
+    expect(result.current.isMerged).toBe(true);
+  });
+
+  it('splitting restores two ordinary calls and detaches the conference', async () => {
+    const { result, first, second } = await withTwoCalls();
+    act(() => result.current.mergeCalls());
+    const holdsBeforeSplit = second.holdCalls;
+
+    act(() => result.current.splitMerge());
+
+    expect(result.current.isMerged).toBe(false);
+    expect(result.current.mergedCalls).toEqual([]);
+    expect(first.conference).toBeNull();
+    expect(second.conference).toBeNull();
+    // One stays on-screen; the other goes back to being a held call.
+    expect(result.current.activeCall).not.toBeNull();
+    expect(result.current.heldCalls).toHaveLength(1);
+    // On the wire, not just in the reducer: `heldCalls` is derived from the
+    // `active` flag, so without this the leg can read as held while still
+    // sending — two live conversations audible at once.
+    expect(second.holdCalls).toBe(holdsBeforeSplit + 1);
+  });
+
+  it('collapses the conference when a merged leg hangs up', async () => {
+    const { result, first, second } = await withTwoCalls();
+    act(() => result.current.mergeCalls());
+    expect(result.current.isMerged).toBe(true);
+
+    act(() => {
+      second.state = 'ended';
+      second.emit('ended', 'hangup');
+    });
+
+    // A one-party conference is just an ordinary call, so the mixer is torn down
+    // and the survivor is detached from it.
+    expect(result.current.isMerged).toBe(false);
+    expect(first.conference).toBeNull();
+    expect(result.current.activeCall).toBe(first as unknown as Call);
+  });
+
+  it('does not offer merge where the platform cannot mix (React Native)', async () => {
+    const onError = jest.fn();
+    const { result } = await withTwoCalls();
+    expect(result.current.canMerge).toBe(true);
+
+    delete (globalThis as Record<string, unknown>).AudioContext;
+    delete (globalThis as Record<string, unknown>).webkitAudioContext;
+
+    // Re-render so canMerge is recomputed against the now-WebAudio-less host.
+    const { result: rn } = await withTwoCalls(onError);
+    expect(rn.current.canMerge).toBe(false);
+
+    // mergeCalls is on the public hook surface, so a host can call it without
+    // consulting canMerge. It must refuse QUIETLY on a platform that cannot mix —
+    // no conference, and no error chip for a control the user never saw. (The
+    // mixer itself also throws without WebAudio and mergeCalls catches it, so
+    // the state stays clean either way; this pins that the refusal is silent.)
+    act(() => rn.current.mergeCalls());
+    expect(rn.current.isMerged).toBe(false);
+    expect(rn.current.mergedCalls).toEqual([]);
+    expect(rn.current.conferenceAudio).toBeNull();
+    expect(onError).not.toHaveBeenCalled();
   });
 });

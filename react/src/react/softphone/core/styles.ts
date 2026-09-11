@@ -249,6 +249,15 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       font-family: inherit;
     }
     .${scope} .ds-held-call:hover { opacity: 1; border-color: var(--dsd-accent); }
+    /* A conference is ONE conversation with two people. The participants sit in a
+       single bordered block under one heading and one timer, so they read as
+       joined rather than as an active call with another stacked above it. */
+    .${scope} .ds-conference-parties {
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      border: 1px solid var(--dsd-border); border-radius: ${d.radius}px;
+      padding: 10px 14px; margin: 6px 0;
+      background: var(--dsd-surface);
+    }
 
     /* Multi-call: composite layout — the in-call screen with the ringing
        call-waiting card(s) as a compact banner ABOVE it. The banner is in normal

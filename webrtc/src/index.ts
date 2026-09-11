@@ -1,5 +1,9 @@
 export { DialStackPhone } from './phone.js';
 export { Call } from './call.js';
+export type { ConferenceSink } from './call.js';
+// Client-side three-way calling: the local WebAudio mixer that bridges two live
+// calls without a server conference bridge.
+export { LocalConference, supportsConference } from './conference.js';
 export { PhoneError, NotImplementedError } from './errors.js';
 export type { PhoneErrorCode } from './errors.js';
 export type { PlatformStorage } from './platform.js';

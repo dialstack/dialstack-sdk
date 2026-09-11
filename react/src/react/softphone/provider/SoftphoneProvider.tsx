@@ -234,7 +234,7 @@ const AudioSink = ({
 }: {
   onError?: SoftphoneProviderProps['onError'];
 }): React.JSX.Element => {
-  const { activeCall } = useSoftphone();
+  const { activeCall, conferenceAudio } = useSoftphone();
   const { outputDeviceId } = useAudioDevices();
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -258,7 +258,10 @@ const AudioSink = ({
       el.srcObject = null;
       return;
     }
-    el.srcObject = activeCall.remoteMediaStream;
+    // While merged, play the conference mix (every remote party) rather than one
+    // leg's stream — the user is in one conversation, not focused on a single
+    // call, and binding to activeCall would play only whichever leg is focused.
+    el.srcObject = conferenceAudio ?? activeCall.remoteMediaStream;
     const call = activeCall;
     let done = false;
     const tryPlay = (reportOnFail: boolean) => {
@@ -290,7 +293,7 @@ const AudioSink = ({
     return () => {
       call.off('answered', onAnswered);
     };
-  }, [activeCall, onError]);
+  }, [activeCall, conferenceAudio, onError]);
   return <audio ref={audioRef} autoPlay />;
 };
 

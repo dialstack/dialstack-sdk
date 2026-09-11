@@ -24,7 +24,14 @@ import {
   DIAL_COUNTRY,
   isIncomingRinging,
 } from '../core/view-model';
-import type { Call, CallEndReason, DialStackPhone, PhoneError } from '@dialstack/sdk-webrtc';
+import {
+  LocalConference,
+  supportsConference,
+  type Call,
+  type CallEndReason,
+  type DialStackPhone,
+  type PhoneError,
+} from '@dialstack/sdk-webrtc';
 import type { SoftphoneConnectionState } from './usePhone';
 import { useLatestRef } from './useLatestRef';
 
@@ -87,6 +94,14 @@ export interface CallEntry {
    * transfer ends (cancel, complete, or either leg dropping).
    */
   transferRole: 'original' | 'consult' | null;
+  /**
+   * Whether this leg is part of the local conference. Metadata on the entry (like
+   * `transferRole`) rather than a parallel list, so one reducer transition keeps
+   * membership and focus consistent. Every merged leg is live and un-held, so
+   * `active` no longer means "the only audible call" while a merge is up — the UI
+   * renders the merged set as one conversation.
+   */
+  merged: boolean;
 }
 
 export interface UseCallsResult {
@@ -164,6 +179,58 @@ export interface UseCallsResult {
    * the held original. No-op unless a consult is in progress.
    */
   cancelAttendedTransfer: () => void;
+
+  /**
+   * The calls currently bridged into a local three-way conference, or empty when
+   * not merged. All are live and un-held; the UI presents them as one
+   * conversation rather than an active-plus-held pair.
+   */
+  mergedCalls: Call[];
+
+  /** Whether a local conference is in progress. */
+  isMerged: boolean;
+
+  /**
+   * While merged, every remote party mixed together — what the local user should
+   * hear. The audio sink binds to this instead of one call's `remoteMediaStream`,
+   * which would play only whichever leg happens to be focused. Null when not
+   * merged (the sink falls back to the active call).
+   */
+  conferenceAudio: MediaStream | null;
+
+  /**
+   * Whether `mergeCalls()` would do anything: at least two connected calls, no
+   * attended transfer in flight (its two legs already mean something specific),
+   * and a platform that can mix locally.
+   */
+  canMerge: boolean;
+
+  /**
+   * Bridge the active call and the held calls into one conversation, mixed
+   * locally — there is no server conference. Every leg is resumed (a merged leg
+   * must not stay held, or its media stops) and its uplink is replaced with a
+   * per-leg mix. No-op unless `canMerge`. Errors surface via `onError`.
+   */
+  mergeCalls: () => void;
+
+  /**
+   * End the conference, restoring each leg's own microphone uplink. The calls
+   * survive as ordinary concurrent calls: the first stays active, the rest held.
+   * No-op when not merged.
+   */
+  splitMerge: () => void;
+
+  /**
+   * Hang up EVERY leg of the conference, ending the whole conversation.
+   *
+   * While merged the UI shows one call — a conference panel with one Hang up —
+   * so ending only the focused leg would leave the user still connected to the
+   * other party after they believed they had hung up. To drop a single party
+   * instead, split first and hang that leg up. No-op when not merged.
+   */
+  hangupConference: () => void;
+  /** Hold or resume every leg of the conference together. */
+  holdConference: (held: boolean) => void;
 }
 
 /**
@@ -189,6 +256,13 @@ interface CallsState {
   // `Call` object (not its id, which is mutable across the outbound→server-id
   // swap), so identity survives that swap.
   calls: CallEntry[];
+  /**
+   * While merged, the conference's mixed monitor stream — every remote party,
+   * which is what the local user should hear. Carried through the reducer with
+   * the merge transition (rather than read off the conference during render) so
+   * the audio the sink plays and the legs the UI shows always change together.
+   */
+  conferenceAudio: MediaStream | null;
 }
 
 type CallsAction =
@@ -219,10 +293,12 @@ type CallsAction =
   | { type: 'cancelConsult' }
   // A call ended: remove its entry.
   | { type: 'callEnded'; call: Call }
+  | { type: 'merged'; calls: Call[]; audio: MediaStream | null }
+  | { type: 'unmerged' }
   // Teardown / phone change: no calls.
   | { type: 'reset' };
 
-const IDLE: CallsState = { calls: [] };
+const IDLE: CallsState = { calls: [], conferenceAudio: null };
 
 // Max concurrent live calls (active + held + ringing). Beyond this a new inbound
 // is rejected busy — an explicit rejection, not silence, so the caller's phone
@@ -231,6 +307,11 @@ const IDLE: CallsState = { calls: [] };
 // constraint. Exported so the UI's add-call control disables against the same
 // number the hook enforces.
 export const MAX_CALLS = 4;
+
+// Remote parties in a conference, so two is a three-way. Separate from MAX_CALLS:
+// the phone can hold more calls than it can usefully mix, and each merged leg
+// costs another outbound stream.
+export const MAX_CONFERENCE_LEGS = 2;
 
 /**
  * Enforce the core invariant: whenever any ANSWERED call is in the list, exactly
@@ -288,7 +369,13 @@ function callsReducerInner(state: CallsState, action: CallsAction): CallsState {
         .map((e) => ({ ...e, active: false }));
       const entry: CallEntry = already
         ? { ...already, active: true }
-        : { call: action.call, active: true, transferPeer: null, transferRole: null };
+        : {
+            call: action.call,
+            active: true,
+            transferPeer: null,
+            transferRole: null,
+            merged: false,
+          };
       return { ...state, calls: [...others, entry] };
     }
     case 'incomingAdded': {
@@ -299,7 +386,13 @@ function callsReducerInner(state: CallsState, action: CallsAction): CallsState {
         ...state,
         calls: [
           ...state.calls,
-          { call: action.call, active: false, transferPeer: null, transferRole: null },
+          {
+            call: action.call,
+            active: false,
+            transferPeer: null,
+            transferRole: null,
+            merged: false,
+          },
         ],
       };
     }
@@ -336,14 +429,28 @@ function callsReducerInner(state: CallsState, action: CallsAction): CallsState {
         .filter((e) => e.call !== original)
         .map((e) => ({ ...e, active: false }));
       const originalEntry: CallEntry[] = original
-        ? [{ call: original, active: false, transferPeer: action.call, transferRole: 'original' }]
+        ? [
+            {
+              call: original,
+              active: false,
+              transferPeer: action.call,
+              transferRole: 'original',
+              merged: false,
+            },
+          ]
         : [];
       return {
         ...state,
         calls: [
           ...others,
           ...originalEntry,
-          { call: action.call, active: true, transferPeer: original, transferRole: 'consult' },
+          {
+            call: action.call,
+            active: true,
+            transferPeer: original,
+            transferRole: 'consult',
+            merged: false,
+          },
         ],
       };
     }
@@ -359,7 +466,13 @@ function callsReducerInner(state: CallsState, action: CallsAction): CallsState {
         ...state,
         calls: [
           ...rest,
-          { call: original.call, active: true, transferPeer: null, transferRole: null },
+          {
+            call: original.call,
+            active: true,
+            transferPeer: null,
+            transferRole: null,
+            merged: false,
+          },
         ],
       };
     }
@@ -376,7 +489,7 @@ function callsReducerInner(state: CallsState, action: CallsAction): CallsState {
       if (ended.transferPeer) {
         calls = calls.map((e) =>
           e.call === ended.transferPeer
-            ? { call: e.call, active: true, transferPeer: null, transferRole: null }
+            ? { call: e.call, active: true, transferPeer: null, transferRole: null, merged: false }
             : e
         );
       }
@@ -384,6 +497,30 @@ function callsReducerInner(state: CallsState, action: CallsAction): CallsState {
       // ended with held calls remaining) is repaired by the active-call invariant
       // applied to every transition below.
       return { ...state, calls };
+    }
+    case 'merged': {
+      // Focus moves to a leg that is actually in the conference; the
+      // previously-focused call may not be.
+      const [anchor] = action.calls;
+      if (!anchor) return state;
+      const inMerge = new Set(action.calls);
+      return {
+        ...state,
+        conferenceAudio: action.audio,
+        calls: state.calls.map((e) =>
+          inMerge.has(e.call)
+            ? { ...e, merged: true, active: e.call === anchor }
+            : { ...e, active: false }
+        ),
+      };
+    }
+    case 'unmerged': {
+      if (!state.calls.some((e) => e.merged)) return state;
+      return {
+        ...state,
+        conferenceAudio: null,
+        calls: state.calls.map((e) => (e.merged ? { ...e, merged: false } : e)),
+      };
     }
     case 'reset':
       return state.calls.length === 0 ? state : IDLE;
@@ -421,7 +558,7 @@ export function useCalls(
     setRenderedPhone(phone);
     if (state.calls.length > 0) dispatch({ type: 'reset' });
   }
-  const { calls } = state;
+  const { calls, conferenceAudio } = state;
   // Derived call views — the UI reads these; the `calls` entries are the source
   // of truth (the `active` flag names the on-screen call; `call.state`/`isMuted`
   // stay on the Call). During an attended transfer the active call is the consult
@@ -450,6 +587,9 @@ export function useCalls(
   // which one the user is currently focused on.
   const consultCall = calls.find((e) => e.transferRole === 'consult')?.call ?? null;
   const transferOriginal = calls.find((e) => e.transferRole === 'original')?.call ?? null;
+  // Memoized so the per-second duration tick doesn't change array identity.
+  const mergedCalls = useMemo(() => calls.filter((e) => e.merged).map((e) => e.call), [calls]);
+  const isMerged = mergedCalls.length > 0;
   // The phone + connection read by the otherwise-stable dispatchers, through refs
   // so they don't get a new identity on every reconnect / connection-lifecycle
   // transition.
@@ -478,6 +618,10 @@ export function useCalls(
   // eslint-disable-next-line react-hooks/refs
   activeCallRef.current = activeCall;
   const consultCallRef = useLatestRef(consultCall);
+  // A ref, not state: an imperative audio-graph handle. `calls[].merged` drives
+  // rendering.
+  const conferenceRef = useRef<LocalConference | null>(null);
+  const callsRef = useLatestRef(calls);
   // The held original of an in-flight transfer — completeAttendedTransfer /
   // cancelAttendedTransfer act on THIS, not on `activeCall` (which during a
   // transfer is the consult leg).
@@ -558,6 +702,16 @@ export function useCalls(
         if (notifiedCalls.current.has(call)) {
           notifiedCalls.current.delete(call);
           handlers.current.onCallEnded?.({ reason });
+        }
+        // Below two legs there is no conference left to mix.
+        const conference = conferenceRef.current;
+        if (conference?.has(call)) {
+          conference.remove(call);
+          if (conference.calls.length < 2) {
+            conference.dispose();
+            conferenceRef.current = null;
+            dispatch({ type: 'unmerged' });
+          }
         }
         // Clear whichever slot this call occupied (atomic in the reducer). When
         // the active call ends and a held call remains, the reducer promotes that
@@ -694,6 +848,118 @@ export function useCalls(
     [holdThenActivate]
   );
 
+  const mergeCalls = useCallback(() => {
+    if (conferenceRef.current) return;
+    // Public surface, so enforced here too. Counts EVERY live leg: a ringing
+    // inbound is not `isConnected`, and its Answer is not disabled while merged.
+    const entries = callsRef.current;
+    if (entries.length !== MAX_CONFERENCE_LEGS) return;
+    if (!entries.every((e) => e.call.isConnected) || !supportsConference()) return;
+    const connected = entries.map((e) => e.call);
+    // A transfer's two legs already mean something specific.
+    if (callsRef.current.some((e) => e.transferRole !== null)) return;
+    // Hold is a server-side media stop, so a held leg would sit silent in the
+    // conference. Before building the graph, so the tracks are live.
+    const resumed: Call[] = [];
+    for (const call of connected) {
+      if (call.state === 'held') {
+        try {
+          call.resume();
+          resumed.push(call);
+        } catch {
+          // Best-effort; the server echo settles it.
+        }
+      }
+    }
+    try {
+      // All legs share one capture — no second getUserMedia.
+      const conference = LocalConference.merge(connected, connected[0]!.localMediaStream, (e) =>
+        handlers.current.onError?.({ code: e.code ?? 'call_failed', message: e.message })
+      );
+      conferenceRef.current = conference;
+      dispatch({ type: 'merged', calls: connected, audio: conference.localMediaStream });
+      rerender();
+    } catch (err) {
+      // Not `call.hold()`: state is still 'held' this tick, so its guard would
+      // swallow the undo and leave both parties live behind a held UI.
+      for (const call of resumed) {
+        try {
+          call.holdAfterResume();
+        } catch {
+          // Best-effort — the leg may itself have ended.
+        }
+      }
+      const e = err as PhoneError;
+      handlers.current.onError?.({ code: e.code ?? 'call_failed', message: e.message });
+    }
+  }, [callsRef, conferenceRef, handlers, rerender]);
+
+  const splitMerge = useCallback(() => {
+    const conference = conferenceRef.current;
+    if (!conference) return;
+    conference.dispose();
+    conferenceRef.current = null;
+    // The anchor stays active; the rest become held, which is what the multi-call
+    // UI already knows how to render.
+    for (const entry of callsRef.current) {
+      // Not gated on state === 'active': a merge-time resume() only sends the
+      // frame, so a leg split moments later may still read 'held' while the echo
+      // is in flight — and would then never be re-held. hold() itself no-ops
+      // unless the call is active, which is the correct filter.
+      if (entry.merged && !entry.active) {
+        try {
+          entry.call.hold();
+        } catch {
+          // Best-effort — the leg may have ended.
+        }
+      }
+    }
+    dispatch({ type: 'unmerged' });
+    rerender();
+  }, [callsRef, conferenceRef, rerender]);
+
+  // Hang up the whole conference. Tearing the mixer down FIRST returns each leg
+  // to its own mic uplink, so the hangups go out on ordinary calls rather than
+  // racing the graph's teardown; each leg's own `ended` then clears its entry.
+  // Hold every leg together. Holding one alone silences that party to the
+  // other, which is why Call.hold() refuses while merged; doing all of them is
+  // the coherent version, and the conference stays up throughout.
+  const holdConference = useCallback(
+    (held: boolean) => {
+      const conference = conferenceRef.current;
+      if (!conference) return;
+      for (const call of conference.calls) {
+        try {
+          call.setConferenceHold(held);
+        } catch (err) {
+          const e = err as PhoneError;
+          handlers.current.onError?.({ code: e.code ?? 'call_failed', message: e.message });
+        }
+      }
+      rerender();
+    },
+    [conferenceRef, handlers, rerender]
+  );
+
+  const hangupConference = useCallback(() => {
+    const conference = conferenceRef.current;
+    if (!conference) return;
+    const legs = conference.calls;
+    conference.dispose();
+    conferenceRef.current = null;
+    dispatch({ type: 'unmerged' });
+    for (const call of legs) {
+      try {
+        call.hangup();
+      } catch (err) {
+        // Surfaced, not swallowed: a failed hangup (socket down) leaves the party
+        // live with the mic on the wire, and every other action reports that.
+        const e = err as PhoneError;
+        handlers.current.onError?.({ code: e.code ?? 'call_failed', message: e.message });
+      }
+    }
+  }, [conferenceRef, handlers]);
+
   const startAttendedTransfer = useCallback(
     async (destination: string) => {
       const call = activeCallRef.current;
@@ -701,7 +967,9 @@ export function useCalls(
       // Same clean-up as placeCall so the consult leg dials a valid destination.
       const target = sanitizeDestination(destination, DIAL_COUNTRY);
       // No-op unless there's an active call and no consult already in progress.
-      if (!call || consultCallRef.current || !target) return;
+      // Also refused while merged: the consult frame makes the server hold the
+      // parent, which during a conference silences that party to the others.
+      if (!call || consultCallRef.current || !target || conferenceRef.current) return;
       try {
         const consult = await call.attendedTransfer(target);
         // The hook may have unmounted (or the phone reconnected) while the
@@ -781,7 +1049,12 @@ export function useCalls(
       // wired-call map (updated synchronously by wireCall) rather than
       // `activeCallRef` (synced a render late), so INVITEs arriving in one commit
       // cycle each see the ones before them.
-      if (unwireByCall.current.size >= MAX_CALLS) {
+      // A live conference is busy. Answering a call-waiting leg runs hold() on the
+      // current call — which here is a conference party, so accepting would
+      // silence one member to the other mid-conversation. Rather than surface a
+      // card whose Answer breaks the call, refuse the INVITE outright so the
+      // caller's own routing (voicemail, failover) takes over immediately.
+      if (conferenceRef.current || unwireByCall.current.size >= MAX_CALLS) {
         call.reject('busy');
         return;
       }
@@ -797,6 +1070,14 @@ export function useCalls(
     return () => {
       disposed = true;
       phone.off('incoming', onIncoming);
+      // Tear the conference down with the phone: its legs are gone, and a leaked
+      // AudioContext keeps the tab's audio indicator lit for the rest of the
+      // session.
+      const conference = conferenceRef.current;
+      if (conference) {
+        conference.dispose();
+        conferenceRef.current = null;
+      }
       // Unwire every wired call (foreground + any consult leg).
       for (const off of wired.values()) off();
       wired.clear();
@@ -804,6 +1085,26 @@ export function useCalls(
       dispatch({ type: 'reset' });
     };
   }, [phone, wireCall, handlers]);
+
+  // Offered only when there are two connected legs to bridge, no transfer is in
+  // flight, and the platform can mix locally (false on React Native, which has no
+  // AudioContext). Recomputed per render — `calls` changes drive it.
+  // Exactly MAX_CONFERENCE_LEGS connected legs, not "at least": a third live call
+  // has no defined place in a three-way, and silently merging only two of them
+  // would leave the user guessing which. Offer merge once the calls in hand are
+  // precisely the ones a conference can hold.
+  const canMerge =
+    !isMerged &&
+    // Every live leg must be one of the merged ones. A ringing inbound is not
+    // `isConnected`, so counting only connected legs would let it slip past —
+    // and its Answer is not disabled while merged, which is exactly what the
+    // busy-reject guard exists to prevent (that guard only covers INVITEs
+    // arriving after the merge).
+    calls.length === MAX_CONFERENCE_LEGS &&
+    calls.every((e) => e.call.isConnected) &&
+    !calls.some((e) => e.transferRole !== null) &&
+    // Last: the globalThis probe is skipped in the common single-call case.
+    supportsConference();
 
   return {
     calls,
@@ -818,5 +1119,13 @@ export function useCalls(
     startAttendedTransfer,
     completeAttendedTransfer,
     cancelAttendedTransfer,
+    mergedCalls,
+    isMerged,
+    conferenceAudio,
+    canMerge,
+    mergeCalls,
+    splitMerge,
+    hangupConference,
+    holdConference,
   };
 }

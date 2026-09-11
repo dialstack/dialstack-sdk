@@ -88,6 +88,17 @@ type CallEventMap = {
 
 type Listener<K extends keyof CallEventMap> = CallEventMap[K];
 
+/**
+ * The slice of a local conference a merged `Call` needs. Declared structurally
+ * here (rather than importing `LocalConference`) so the core has no dependency
+ * on the mixer — `conference.ts` imports `Call`, and the reverse import would
+ * make that a cycle.
+ */
+export interface ConferenceSink {
+  /** Apply mute across the merged legs' mixed uplinks. */
+  setMuted(muted: boolean): void;
+}
+
 export interface CallInit {
   id: string;
   direction: CallDirection;
@@ -188,6 +199,10 @@ export class Call {
   // tone/early-media overlap is preferable to silence.
   private remoteAudioFlowing = false;
   private audioInputDeviceId_: string | null;
+  // Set when a mic switch arrives while merged: the id is recorded but the
+  // track is not swapped, so unmerging has to apply it.
+  private deferredAudioInput = false;
+  private conference: ConferenceSink | null = null;
   // Serializes device switches: two overlapping switches would otherwise interleave
   // their acquire/replace/stop steps, and one could stop the track the other installed.
   private switchChain: Promise<void> = Promise.resolve();
@@ -265,6 +280,13 @@ export class Call {
   }
 
   private async switchAudioInput(deviceId: string | null): Promise<void> {
+    // The conference mixes against this call's capture stream, so replacing the
+    // mic here would leave the graph feeding a stopped track. Apply on unmerge.
+    if (this.conference) {
+      this.audioInputDeviceId_ = deviceId;
+      this.deferredAudioInput = true;
+      return;
+    }
     // Against what's CAPTURED and still live, never the recorded preference: `ideal`
     // acquisition can hand back a different device than was asked for, and a track that
     // ended keeps its deviceId — trusting the preference turned both the unplug-recovery
@@ -451,11 +473,37 @@ export class Call {
   }
 
   hold(): void {
+    // Hold is a server-side media stop: it would silence that party to the
+    // others while the screen still shows one live conversation.
+    if (this.conference) return;
     // Only an active call can be held. A no-op otherwise (e.g. a still-ringing
     // outbound the multi-call layer auto-holds when the user answers a second
     // call) — sending call.hold for a non-active call draws a server
     // `invalid_message: call is not active` that surfaces as a spurious error.
     if (this.state !== 'active') return;
+    this.transport.send({ type: 'call.hold', call_id: this.id });
+  }
+
+  /**
+   * Hold or resume this leg as part of holding the whole conference.
+   *
+   * `hold()` refuses while merged because holding ONE party silences it to the
+   * other. Holding every leg together is the coherent version, so the caller
+   * that does that reaches the frames through here.
+   */
+  setConferenceHold(held: boolean): void {
+    if (this.state === 'ended') return;
+    this.transport.send({ type: held ? 'call.hold' : 'call.resume', call_id: this.id });
+  }
+
+  /**
+   * Re-hold a call `resume()` ran on in this same tick. `hold()`'s
+   * `state !== 'active'` guard would swallow it, since the state only flips on
+   * the server echo. Only for that unwind; use `hold()` everywhere else.
+   */
+  holdAfterResume(): void {
+    if (this.conference) return;
+    if (this.state === 'ended') return;
     this.transport.send({ type: 'call.hold', call_id: this.id });
   }
 
@@ -466,15 +514,43 @@ export class Call {
   }
 
   mute(): void {
-    this.transport.send({ type: 'call.mute', call_id: this.id });
-    this.localStream.getAudioTracks().forEach((t) => (t.enabled = false));
-    this.isMuted = true;
+    this.setMuted(true);
   }
 
   unmute(): void {
-    this.transport.send({ type: 'call.unmute', call_id: this.id });
-    this.localStream.getAudioTracks().forEach((t) => (t.enabled = true));
-    this.isMuted = false;
+    this.setMuted(false);
+  }
+
+  /**
+   * Mute has two layers, and a merged call needs both handled differently.
+   *
+   * Normally: flip the mic track (instant local feedback) AND send `call.mute`,
+   * which the server turns into a re-INVITE narrowing the leg's SDP direction to
+   * `recvonly` — defence in depth against a peer that ignores the local disable.
+   *
+   * While MERGED neither of those works:
+   * - the wire carries the conference's mixed track, not this call's mic track,
+   *   so toggling `localStream` no longer reaches the far end (the mic is an
+   *   input to the mixer now). The conference toggles the mixed uplinks instead.
+   * - the server frame must be withheld: `recvonly` would stop this leg's
+   *   upstream media at the far end regardless of what the graph does, which is
+   *   silent one-way audio for the other conference parties. Muting a merged
+   *   call is a purely local mix decision.
+   */
+  private setMuted(muted: boolean): void {
+    if (this.conference) {
+      this.conference.setMuted(muted);
+    }
+    // `call.mute` is withheld while merged: the server answers it with a
+    // `recvonly` re-INVITE, cutting the other parties off. `call.unmute` only
+    // ever widens what the server permits, so it is always safe — and without it
+    // a pre-merge mute would stay `recvonly` with no way back.
+    if (!muted || !this.conference) {
+      this.transport.send({ type: muted ? 'call.mute' : 'call.unmute', call_id: this.id });
+    }
+    // Unmerge restores this track to the wire and re-applies `isMuted`.
+    this.localStream.getAudioTracks().forEach((t) => (t.enabled = !muted));
+    this.isMuted = muted;
   }
 
   sendDtmf(digits: string, duration = 100, interToneGap = 70): void {
@@ -506,6 +582,16 @@ export class Call {
    * them; or hang up the consult and `resume()` to abandon the transfer.
    */
   attendedTransfer(destination: string): Promise<Call> {
+    // The consult frame holds this call server-side, silencing that party to the
+    // others. Guarded here as well as in the hook: a host holding the Call can
+    // reach this directly.
+    if (this.conference) {
+      throw new PhoneError({
+        code: 'invalid_message',
+        message: 'Cannot transfer a call that is part of a conference',
+        callId: this.id,
+      });
+    }
     this.assertTransferable();
     return this.startConsult(this, destination);
   }
@@ -547,6 +633,34 @@ export class Call {
 
   get remoteMediaStream(): MediaStream {
     return this.remoteStream;
+  }
+
+  /**
+   * The local capture (mic) stream. A local conference mixes against this rather
+   * than opening a second `getUserMedia`, so every merged leg shares the one
+   * capture the call already owns.
+   */
+  get localMediaStream(): MediaStream {
+    return this.localStream;
+  }
+
+  /**
+   * Attach (or detach, with null) the local conference this call is merged into.
+   *
+   * While attached, the wire carries the conference's MIXED track rather than
+   * this call's mic track, which changes what mute has to do — see `mute()`.
+   * Set by the conference owner (the softphone's merge action), not by the core.
+   */
+  attachConference(conference: ConferenceSink | null): void {
+    const wasMerged = this.conference !== null;
+    this.conference = conference;
+    // Detaching: apply a mic switch the merge deferred. switchAudioInput only
+    // recorded the id while the mixer was tapping this call's capture stream —
+    // without this the picker reports a device that never went on the wire.
+    if (wasMerged && !conference && this.deferredAudioInput) {
+      this.deferredAudioInput = false;
+      void this.setAudioInputDevice(this.audioInputDeviceId_).catch(() => undefined);
+    }
   }
 
   async startOutbound(): Promise<RTCSessionDescriptionInit> {

@@ -58,7 +58,10 @@ class FakeCall extends Emitter {
     return this.state === 'active' || this.state === 'held';
   }
   canSendDtmf = true;
-  remoteMediaStream = {} as MediaStream;
+  // Given real tracks: the conference mixer taps this stream when merging.
+  remoteMediaStream = {
+    getAudioTracks: () => [{ enabled: true, kind: 'audio' }],
+  } as unknown as MediaStream;
   answer = jest.fn();
   reject = jest.fn();
   hangup = jest.fn();
@@ -71,6 +74,16 @@ class FakeCall extends Emitter {
   hold = jest.fn();
   resume = jest.fn();
   sendDtmf = jest.fn();
+  // Local-conference surface: the mixer swaps each leg's uplink track, so a
+  // mergeable call exposes its sender and local capture and takes a conference
+  // to route mute through (see LocalConference).
+  conference: { setMuted(muted: boolean): void } | null = null;
+  sender = { track: { enabled: true, kind: 'audio' }, replaceTrack: jest.fn() };
+  peerConnection = { getSenders: () => [this.sender] };
+  localMediaStream = { getAudioTracks: () => [{ enabled: true, kind: 'audio' }] };
+  attachConference = jest.fn((conference: { setMuted(muted: boolean): void } | null) => {
+    this.conference = conference;
+  });
   transfer = jest.fn();
   completeTransfer = jest.fn();
   consult: FakeCall | null = null;
@@ -1038,5 +1051,382 @@ describe('Softphone audio device selection without enumerateDevices', () => {
 
     expect(await screen.findByText(/cannot list audio devices/i)).toBeInTheDocument();
     expect(onError).not.toHaveBeenCalled();
+  });
+});
+
+describe('Softphone merge (local conference)', () => {
+  // jsdom has no WebAudio; the mixer's graph is stubbed so the hook can build a
+  // conference. Node-level wiring is covered by webrtc's conference.test.ts.
+  class StubNode {
+    connect(): void {}
+    disconnect(): void {}
+  }
+  class StubDestination extends StubNode {
+    stream = { getAudioTracks: () => [{ enabled: true, kind: 'audio' }] };
+  }
+  class StubAudioContext {
+    createMediaStreamSource(): StubNode {
+      return new StubNode();
+    }
+    createGain(): { gain: { value: number }; connect(): void; disconnect(): void } {
+      return { gain: { value: 1 }, connect: () => {}, disconnect: () => {} };
+    }
+    createMediaStreamDestination(): StubDestination {
+      return new StubDestination();
+    }
+    resume(): Promise<void> {
+      return Promise.resolve();
+    }
+    close(): Promise<void> {
+      return Promise.resolve();
+    }
+  }
+
+  const realAudioContext = (globalThis as Record<string, unknown>).AudioContext;
+  beforeEach(() => {
+    (globalThis as Record<string, unknown>).AudioContext = StubAudioContext;
+  });
+  afterEach(() => {
+    (globalThis as Record<string, unknown>).AudioContext = realAudioContext;
+  });
+
+  /** Two answered calls, so the Merge control is offered. */
+  async function withTwoCalls() {
+    renderSoftphone();
+    act(() => phone().emit('connected'));
+
+    const alice = new FakeCall('inbound', '+14155550001', 'Alice', 'me');
+    act(() => phone().emit('incoming', alice));
+    act(() => {
+      alice.state = 'active';
+      alice.emit('answered');
+    });
+
+    const bob = new FakeCall('outbound', '', null, '+14155550002');
+    phone().nextCall = bob;
+    fireEvent.click(screen.getByLabelText('Add call'));
+    fireEvent.change(screen.getByLabelText('Number to dial'), {
+      target: { value: '+14155550002' },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText('Call'));
+    });
+    act(() => {
+      bob.state = 'active';
+      bob.emit('answered');
+    });
+    return { alice, bob };
+  }
+
+  it('offers Merge only once a second call is up', async () => {
+    renderSoftphone();
+    act(() => phone().emit('connected'));
+    const alice = new FakeCall('inbound', '+14155550001', 'Alice', 'me');
+    act(() => phone().emit('incoming', alice));
+    act(() => {
+      alice.state = 'active';
+      alice.emit('answered');
+    });
+
+    // A single call is not a conference.
+    expect(screen.queryByLabelText('Merge calls')).not.toBeInTheDocument();
+  });
+
+  it('merges both calls into one conference block naming both parties', async () => {
+    await withTwoCalls();
+
+    fireEvent.click(screen.getByLabelText('Merge calls'));
+
+    // The control flips to Split, and the other party is listed as being in the
+    // conference rather than as an on-hold card.
+    expect(screen.getByLabelText('Split')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Merge calls')).not.toBeInTheDocument();
+
+    // One conversation with two people: both parties sit inside a single
+    // conference block under one heading, rather than the active call with the
+    // other stacked above it as a card — which read as two separate calls.
+    expect(screen.getAllByText('Conference').length).toBe(1);
+    const parties = document.querySelector('.ds-conference-parties');
+    expect(parties).not.toBeNull();
+    expect(parties!.querySelectorAll('.ds-peer-name')).toHaveLength(2);
+    expect(parties!.textContent).toContain('Alice');
+    expect(document.querySelectorAll('.ds-held-call')).toHaveLength(0);
+  });
+
+  it('splitting returns to two ordinary calls', async () => {
+    await withTwoCalls();
+    fireEvent.click(screen.getByLabelText('Merge calls'));
+
+    fireEvent.click(screen.getByLabelText('Split'));
+
+    expect(screen.getByLabelText('Merge calls')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Split')).not.toBeInTheDocument();
+  });
+
+  it('bars Transfer while merged', async () => {
+    await withTwoCalls();
+    fireEvent.click(screen.getByLabelText('Merge calls'));
+
+    // Transferring one leg out of a conference has no clear meaning, and the
+    // control gives its slot to Split so the row stays six wide.
+    expect(screen.queryByLabelText('Transfer')).not.toBeInTheDocument();
+  });
+
+  it('hides Merge where the platform cannot mix (React Native)', async () => {
+    delete (globalThis as Record<string, unknown>).AudioContext;
+    delete (globalThis as Record<string, unknown>).webkitAudioContext;
+
+    await withTwoCalls();
+
+    expect(screen.queryByLabelText('Merge calls')).not.toBeInTheDocument();
+  });
+});
+
+describe('Softphone merged hangup + add-call gating', () => {
+  class StubNode {
+    connect(): void {}
+    disconnect(): void {}
+  }
+  class StubDestination extends StubNode {
+    stream = { getAudioTracks: () => [{ enabled: true, kind: 'audio' }] };
+  }
+  class StubAudioContext {
+    createMediaStreamSource(): StubNode {
+      return new StubNode();
+    }
+    createGain(): { gain: { value: number }; connect(): void; disconnect(): void } {
+      return { gain: { value: 1 }, connect: () => {}, disconnect: () => {} };
+    }
+    createMediaStreamDestination(): StubDestination {
+      return new StubDestination();
+    }
+    resume(): Promise<void> {
+      return Promise.resolve();
+    }
+    close(): Promise<void> {
+      return Promise.resolve();
+    }
+  }
+  const realAudioContext = (globalThis as Record<string, unknown>).AudioContext;
+  beforeEach(() => {
+    (globalThis as Record<string, unknown>).AudioContext = StubAudioContext;
+  });
+  afterEach(() => {
+    (globalThis as Record<string, unknown>).AudioContext = realAudioContext;
+  });
+
+  async function mergedPair() {
+    renderSoftphone();
+    act(() => phone().emit('connected'));
+    const alice = new FakeCall('inbound', '+14155550001', 'Alice', 'me');
+    act(() => phone().emit('incoming', alice));
+    act(() => {
+      alice.state = 'active';
+      alice.emit('answered');
+    });
+    const bob = new FakeCall('outbound', '', null, '+14155550002');
+    phone().nextCall = bob;
+    fireEvent.click(screen.getByLabelText('Add call'));
+    fireEvent.change(screen.getByLabelText('Number to dial'), {
+      target: { value: '+14155550002' },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText('Call'));
+    });
+    act(() => {
+      bob.state = 'active';
+      bob.emit('answered');
+    });
+    fireEvent.click(screen.getByLabelText('Merge calls'));
+    return { alice, bob };
+  }
+
+  it('hanging up a conference ends every leg', async () => {
+    const { alice, bob } = await mergedPair();
+
+    fireEvent.click(screen.getByLabelText('Hang up'));
+
+    // One visible Hang up on a one-conversation screen must not leave the user
+    // still connected to the other party.
+    expect(alice.hangup).toHaveBeenCalled();
+    expect(bob.hangup).toHaveBeenCalled();
+  });
+
+  it('hanging up an UNMERGED call ends only that leg', async () => {
+    renderSoftphone();
+    act(() => phone().emit('connected'));
+    const alice = new FakeCall('inbound', '+14155550001', 'Alice', 'me');
+    act(() => phone().emit('incoming', alice));
+    act(() => {
+      alice.state = 'active';
+      alice.emit('answered');
+    });
+    const bob = new FakeCall('outbound', '', null, '+14155550002');
+    phone().nextCall = bob;
+    fireEvent.click(screen.getByLabelText('Add call'));
+    fireEvent.change(screen.getByLabelText('Number to dial'), {
+      target: { value: '+14155550002' },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText('Call'));
+    });
+    act(() => {
+      bob.state = 'active';
+      bob.emit('answered');
+    });
+
+    fireEvent.click(screen.getByLabelText('Hang up'));
+
+    // Two independent calls: the held one is a separate conversation the user
+    // parked deliberately, so it must survive.
+    expect(bob.hangup).toHaveBeenCalled();
+    expect(alice.hangup).not.toHaveBeenCalled();
+  });
+
+  it('bars Add call while merged', async () => {
+    await mergedPair();
+
+    // Kept in place but disabled: the control row must stay six wide, and a
+    // conference holds exactly two parties, so there is nothing to add.
+    expect(screen.getByLabelText('Add call')).toBeDisabled();
+  });
+});
+
+describe('Softphone conference limits', () => {
+  class StubNode {
+    connect(): void {}
+    disconnect(): void {}
+  }
+  class StubDestination extends StubNode {
+    stream = { getAudioTracks: () => [{ enabled: true, kind: 'audio' }] };
+  }
+  class StubAudioContext {
+    createMediaStreamSource(): StubNode {
+      return new StubNode();
+    }
+    createGain(): { gain: { value: number }; connect(): void; disconnect(): void } {
+      return { gain: { value: 1 }, connect: () => {}, disconnect: () => {} };
+    }
+    createMediaStreamDestination(): StubDestination {
+      return new StubDestination();
+    }
+    resume(): Promise<void> {
+      return Promise.resolve();
+    }
+    close(): Promise<void> {
+      return Promise.resolve();
+    }
+  }
+  const realAudioContext = (globalThis as Record<string, unknown>).AudioContext;
+  beforeEach(() => {
+    (globalThis as Record<string, unknown>).AudioContext = StubAudioContext;
+  });
+  afterEach(() => {
+    (globalThis as Record<string, unknown>).AudioContext = realAudioContext;
+  });
+
+  function answered(name: string, from: string): FakeCall {
+    const c = new FakeCall('inbound', from, name, 'me');
+    act(() => phone().emit('incoming', c));
+    act(() => {
+      c.state = 'active';
+      c.emit('answered');
+    });
+    return c;
+  }
+
+  it('offers Merge at exactly two connected calls, not three', () => {
+    renderSoftphone();
+    act(() => phone().emit('connected'));
+    answered('Alice', '+14155550001');
+    answered('Bob', '+14155550002');
+    expect(screen.getByLabelText('Merge calls')).toBeInTheDocument();
+
+    // A third live call has no place in a three-way, and merging only two of
+    // them would leave the user guessing which.
+    answered('Carol', '+14155550003');
+    expect(screen.queryByLabelText('Merge calls')).not.toBeInTheDocument();
+  });
+
+  it('rejects an incoming call busy while merged', () => {
+    renderSoftphone();
+    act(() => phone().emit('connected'));
+    answered('Alice', '+14155550001');
+    answered('Bob', '+14155550002');
+    fireEvent.click(screen.getByLabelText('Merge calls'));
+
+    const intruder = new FakeCall('inbound', '+14155550009', 'Dave', 'me');
+    act(() => phone().emit('incoming', intruder));
+
+    // Answering would hold a conference party, silencing them to the other, so
+    // the INVITE is refused outright rather than shown as a card that breaks the
+    // call when tapped.
+    expect(intruder.reject).toHaveBeenCalledWith('busy');
+    expect(screen.queryByText('Dave')).not.toBeInTheDocument();
+    // And the conference is untouched.
+    expect(screen.getByLabelText('Split')).toBeInTheDocument();
+  });
+});
+
+describe('Softphone control row width', () => {
+  class StubNode {
+    connect(): void {}
+    disconnect(): void {}
+  }
+  class StubDestination extends StubNode {
+    stream = { getAudioTracks: () => [{ enabled: true, kind: 'audio' }] };
+  }
+  class StubAudioContext {
+    createMediaStreamSource(): StubNode {
+      return new StubNode();
+    }
+    createGain(): { gain: { value: number }; connect(): void; disconnect(): void } {
+      return { gain: { value: 1 }, connect: () => {}, disconnect: () => {} };
+    }
+    createMediaStreamDestination(): StubDestination {
+      return new StubDestination();
+    }
+    resume(): Promise<void> {
+      return Promise.resolve();
+    }
+    close(): Promise<void> {
+      return Promise.resolve();
+    }
+  }
+  const realAudioContext = (globalThis as Record<string, unknown>).AudioContext;
+  beforeEach(() => {
+    (globalThis as Record<string, unknown>).AudioContext = StubAudioContext;
+  });
+  afterEach(() => {
+    (globalThis as Record<string, unknown>).AudioContext = realAudioContext;
+  });
+
+  const controlCount = () => document.querySelectorAll('.ds-controls .ds-control').length;
+
+  function answered(name: string, from: string): FakeCall {
+    const c = new FakeCall('inbound', from, name, 'me');
+    act(() => phone().emit('incoming', c));
+    act(() => {
+      c.state = 'active';
+      c.emit('answered');
+    });
+    return c;
+  }
+
+  // Six controls in every reachable state, so the row never spills to a third
+  // line: Transfer and Merge/Split share a slot (mutually exclusive by
+  // construction), and Add call yields its slot to Split while merged.
+  it('renders six controls with one call, two calls, and merged', () => {
+    renderSoftphone();
+    act(() => phone().emit('connected'));
+
+    answered('Alice', '+14155550001');
+    expect(controlCount()).toBe(6);
+
+    answered('Bob', '+14155550002');
+    expect(controlCount()).toBe(6);
+
+    fireEvent.click(screen.getByLabelText('Merge calls'));
+    expect(controlCount()).toBe(6);
   });
 });

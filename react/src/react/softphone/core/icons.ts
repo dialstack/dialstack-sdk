@@ -43,6 +43,10 @@ export const softphoneGlyphs = {
   addCall: {
     path: 'M15 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4zM6 8V5H4v3H1v2h3v3h2v-3h3V8H6z',
   },
+  // Two arrows converging: separate calls becoming one conversation.
+  merge: {
+    path: 'M17 20.41 18.41 19 15 15.59 13.59 17 17 20.41zM7.5 8H11v5.59L5.59 19 7 20.41l6-6V8h3.5L12 3.5 7.5 8z',
+  },
 } satisfies Record<string, SoftphoneGlyph>;
 
 export type SoftphoneGlyphName = keyof typeof softphoneGlyphs;

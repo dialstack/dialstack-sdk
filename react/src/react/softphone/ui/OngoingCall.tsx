@@ -22,6 +22,7 @@ import {
 import { dialPadKeys } from '../core/theme';
 import { softphoneGlyphs } from '../core/icons';
 import { Glyph } from './Glyph';
+import { ControlButton } from './ControlButton';
 import { CallErrorChip } from './CallErrorChip';
 import { AudioDevicePicker } from './AudioDevicePicker';
 
@@ -41,6 +42,13 @@ export const OngoingCall: React.FC = () => {
     cancelAttendedTransfer,
     placeCall,
     calls,
+    mergedCalls,
+    isMerged,
+    canMerge,
+    mergeCalls,
+    splitMerge,
+    hangupConference,
+    holdConference,
     t,
     displayNumber,
     scope,
@@ -99,33 +107,37 @@ export const OngoingCall: React.FC = () => {
   // may have switched focus, holding the consult). Not while it's still ringing.
   // Only offer Complete when focused on a transfer leg.
   const canComplete = focusInTransfer && consultCall !== null && consultCall.isConnected;
-  const switchableHeld = heldCalls.filter((c) => c !== transferOther);
+  // A merged leg is un-held, so it normally wouldn't be here — but the server's
+  // resume echo lands a beat later, and without this the other party flickers as
+  // an "On hold" card in between.
+  const switchableHeld = heldCalls.filter((c) => c !== transferOther && !mergedCalls.includes(c));
 
   // Transfer is disabled while a transfer is already in progress OR more than one
   // call is live (held/ringing besides the active one). A new transfer in either
   // situation is ambiguous (which call? on top of the existing consult?), so the
   // control is shown greyed rather than allowing an invalid/confusing action.
+  // Barred while merged: transferring one leg out of a conference is ambiguous.
   const otherLiveCalls = heldCalls.length + incomingCalls.length;
-  const canStartTransfer = !inTransfer && otherLiveCalls === 0;
+  const canStartTransfer = !inTransfer && !isMerged && otherLiveCalls === 0;
 
-  // Adding a call stacks another live leg, so it's gated on the same soft cap the
-  // hook enforces when accepting one (`useCalls` rejects past MAX_CALLS) — reading
-  // the shared constant rather than repeating the number. `calls` is every live
-  // leg, which is exactly what that cap counts.
+  // The legs are held and resumed together, so any one of them answers for the
+  // conference. Read from a leg rather than the focused call: focus can sit on
+  // a leg whose own echo has not landed yet.
+  const conferenceHeld = isMerged && mergedCalls.some((c) => c.state === 'held');
+
+  // Barred while merged: the new leg would land outside the conference and merge
+  // is hidden while merged, so it could never join.
   const canAddCall = calls.length < MAX_CALLS;
 
-  // At the cap the panel is hidden and its toggle disabled, so anything typed
-  // before is unreachable — and must not come back when a ringing leg drops.
-  // Derived rather than reset in an effect: the stale text simply never reads
-  // through while the cap holds.
+  // Derived rather than reset in an effect: text typed before the cap was hit
+  // must not come back when a ringing leg drops.
   const addCallValue = canAddCall ? addCallTo : '';
 
   const submitAddCall = () => {
     const target = addCallValue.trim();
     if (!target) return;
-    // Fire-and-forget like the attended-transfer button: placeCall reports its own
-    // failures through onError (and un-holds the previous call), so the overlay
-    // closes on submit rather than waiting on the dial.
+    // placeCall reports its own failures through onError, so the overlay closes
+    // on submit rather than waiting on the dial.
     void placeCall(target);
     setAddCallTo('');
     overlays.closeAddCall();
@@ -201,18 +213,39 @@ export const OngoingCall: React.FC = () => {
           </div>
         )}
 
-        <div className="ds-peer">
-          <div className="ds-peer-name">{name}</div>
-          {peerName && <div className="ds-peer-number">{displayNumber(peer)}</div>}
-          <div className="ds-callstate">
-            <span className="ds-callstate-text">{t(callStateLabelKey(call.state))}</span>
-            {/* Duration ticks only while truly live. A held foreground call (e.g.
-                promoted when the active call ended, or held during a switch) shows
-                its "On hold" state + the Resume control below, never a running
-                timer implying live audio. */}
-            {call.state === 'active' && <span className="ds-duration">{duration}</span>}
+        {/* A conference is ONE conversation with two people, so it renders as a
+            single block naming both — not the active peer with the other stacked
+            above it as a card, which reads as two separate calls. */}
+        {isMerged ? (
+          <div className="ds-peer ds-peer-conference">
+            <div className="ds-callstate-text">{t('conferenceLabel')}</div>
+            <div className="ds-conference-parties">
+              {mergedCalls.map((party) => (
+                <div key={party.id} className="ds-peer-name">
+                  {callPeerName(party) ||
+                    displayNumber(callPeerNumber(party)) ||
+                    t('unknownCaller')}
+                </div>
+              ))}
+            </div>
+            <div className="ds-callstate">
+              <span className="ds-duration">{duration}</span>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="ds-peer">
+            <div className="ds-peer-name">{name}</div>
+            {peerName && <div className="ds-peer-number">{displayNumber(peer)}</div>}
+            <div className="ds-callstate">
+              <span className="ds-callstate-text">{t(callStateLabelKey(call.state))}</span>
+              {/* Duration ticks only while truly live. A held foreground call (e.g.
+                  promoted when the active call ended, or held during a switch) shows
+                  its "On hold" state + the Resume control below, never a running
+                  timer implying live audio. */}
+              {call.state === 'active' && <span className="ds-duration">{duration}</span>}
+            </div>
+          </div>
+        )}
 
         <CallErrorChip />
 
@@ -316,93 +349,74 @@ export const OngoingCall: React.FC = () => {
 
         {isActive && (
           <div className="ds-controls" role="group">
-            <button
-              type="button"
-              className={`ds-control ${call.isMuted ? 'ds-control-on' : ''}`}
-              aria-pressed={call.isMuted}
-              aria-label={call.isMuted ? t('unmute') : t('mute')}
+            <ControlButton
+              label={call.isMuted ? t('unmute') : t('mute')}
+              glyph={call.isMuted ? softphoneGlyphs.micOff : softphoneGlyphs.mic}
+              on={call.isMuted}
               onClick={actions.toggleMute}
-            >
-              <span className="ds-control-glyph">
-                <Glyph glyph={call.isMuted ? softphoneGlyphs.micOff : softphoneGlyphs.mic} />
-              </span>
-              <span className="ds-control-label">{call.isMuted ? t('unmute') : t('mute')}</span>
-            </button>
-            <button
-              type="button"
-              className={`ds-control ${call.state === 'held' ? 'ds-control-on' : ''}`}
-              aria-pressed={call.state === 'held'}
-              aria-label={call.state === 'held' ? t('resume') : t('hold')}
-              onClick={actions.toggleHold}
-            >
-              <span className="ds-control-glyph">
-                <Glyph glyph={softphoneGlyphs.pause} />
-              </span>
-              <span className="ds-control-label">
-                {call.state === 'held' ? t('resume') : t('hold')}
-              </span>
-            </button>
+            />
+            <ControlButton
+              label={conferenceHeld || call.state === 'held' ? t('resume') : t('hold')}
+              glyph={softphoneGlyphs.pause}
+              on={conferenceHeld || call.state === 'held'}
+              onClick={isMerged ? () => holdConference(!conferenceHeld) : actions.toggleHold}
+            />
             {canSendDtmf && (
-              <button
-                type="button"
-                className={`ds-control ${showKeypad ? 'ds-control-on' : ''}`}
-                aria-pressed={showKeypad}
-                aria-label={t('keypad')}
+              <ControlButton
+                label={t('keypad')}
+                glyph={softphoneGlyphs.keypad}
+                on={showKeypad}
                 onClick={overlays.toggleKeypad}
-              >
-                <span className="ds-control-glyph">
-                  <Glyph glyph={softphoneGlyphs.keypad} />
-                </span>
-                <span className="ds-control-label">{t('keypad')}</span>
-              </button>
+              />
             )}
-            <button
-              type="button"
-              className={`ds-control ${showTransfer ? 'ds-control-on' : ''}`}
-              aria-pressed={showTransfer}
-              aria-label={t('transfer')}
-              disabled={!canStartTransfer}
-              onClick={overlays.toggleTransfer}
-            >
-              <span className="ds-control-glyph">
-                <Glyph glyph={softphoneGlyphs.transfer} />
-              </span>
-              <span className="ds-control-label">{t('transfer')}</span>
-            </button>
-            <button
-              type="button"
-              className={`ds-control ${showAddCall ? 'ds-control-on' : ''}`}
-              aria-pressed={showAddCall}
-              aria-label={t('addCall')}
-              disabled={!canAddCall}
+            <ControlButton
+              label={t('addCall')}
+              glyph={softphoneGlyphs.addCall}
+              on={showAddCall}
+              disabled={!canAddCall || isMerged}
               onClick={overlays.toggleAddCall}
-            >
-              <span className="ds-control-glyph">
-                <Glyph glyph={softphoneGlyphs.addCall} />
-              </span>
-              <span className="ds-control-label">{t('addCall')}</span>
-            </button>
-            <button
-              type="button"
-              className={`ds-control ${showDevices ? 'ds-control-on' : ''}`}
-              aria-pressed={showDevices}
-              aria-label={t('audioDevices')}
+            />
+            {/* Transfer and Merge/Split share this slot. They are mutually
+                exclusive by construction — Transfer needs no other live call,
+                Merge needs exactly two — so the row is six controls in every
+                state rather than spilling to a third line when a second call
+                arrives. Position is unchanged either way, so nothing shifts
+                under the user's finger. */}
+            {canMerge || isMerged ? (
+              <ControlButton
+                label={isMerged ? t('split') : t('merge')}
+                glyph={softphoneGlyphs.merge}
+                on={isMerged}
+                onClick={isMerged ? splitMerge : mergeCalls}
+              />
+            ) : (
+              <ControlButton
+                label={t('transfer')}
+                glyph={softphoneGlyphs.transfer}
+                on={showTransfer}
+                disabled={!canStartTransfer}
+                onClick={overlays.toggleTransfer}
+              />
+            )}
+            <ControlButton
+              label={t('audioDevices')}
+              glyph={softphoneGlyphs.speaker}
+              on={showDevices}
               onClick={overlays.toggleDevices}
-            >
-              <span className="ds-control-glyph">
-                <Glyph glyph={softphoneGlyphs.speaker} />
-              </span>
-              <span className="ds-control-label">{t('audioDevices')}</span>
-            </button>
+            />
           </div>
         )}
 
         <div className="ds-actions">
+          {/* While merged this screen shows ONE conversation, so its single Hang
+              up ends the whole conference — dropping only the focused leg would
+              leave the user still connected to the other party after they
+              believed they had hung up. To drop one party, Split first. */}
           <button
             type="button"
             className="ds-action ds-hangup"
             aria-label={t('hangUp')}
-            onClick={actions.hangup}
+            onClick={isMerged ? hangupConference : actions.hangup}
           >
             <Glyph glyph={softphoneGlyphs.hangup} />
           </button>

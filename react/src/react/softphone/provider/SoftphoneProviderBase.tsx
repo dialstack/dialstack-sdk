@@ -75,6 +75,19 @@ export interface SoftphoneContextBase {
   completeAttendedTransfer: () => void;
   cancelAttendedTransfer: () => void;
   placeCall: (destination: string) => Promise<void>;
+  /** The calls bridged into a local three-way conference (empty when not merged). */
+  mergedCalls: Call[];
+  isMerged: boolean;
+  /** While merged, every remote party mixed — what the local user hears. */
+  conferenceAudio: MediaStream | null;
+  /** Whether merging is possible: two connected calls, no transfer, WebAudio present. */
+  canMerge: boolean;
+  mergeCalls: () => void;
+  splitMerge: () => void;
+  /** Hang up every leg of the conference (the merged UI shows one Hang up). */
+  hangupConference: () => void;
+  /** Hold or resume every leg of the conference together. */
+  holdConference: (held: boolean) => void;
   emergency: UseEmergencyBinding;
   emergencyManagedByHost: boolean;
   lastError: { code: string; message: string } | null;
@@ -207,6 +220,14 @@ export function SoftphoneProviderBase<Extra extends object>({
     startAttendedTransfer,
     completeAttendedTransfer,
     cancelAttendedTransfer,
+    mergedCalls,
+    isMerged,
+    conferenceAudio,
+    canMerge,
+    mergeCalls,
+    splitMerge,
+    hangupConference,
+    holdConference,
   } = useCalls(phone, connection, {
     onIncomingCall,
     onCallStarted,
@@ -285,6 +306,14 @@ export function SoftphoneProviderBase<Extra extends object>({
       completeAttendedTransfer,
       cancelAttendedTransfer,
       placeCall,
+      mergedCalls,
+      isMerged,
+      conferenceAudio,
+      canMerge,
+      mergeCalls,
+      splitMerge,
+      hangupConference,
+      holdConference,
       emergency,
       emergencyManagedByHost: !!emergencyAddressId,
       lastError,
@@ -316,6 +345,14 @@ export function SoftphoneProviderBase<Extra extends object>({
       completeAttendedTransfer,
       cancelAttendedTransfer,
       placeCall,
+      mergedCalls,
+      isMerged,
+      conferenceAudio,
+      canMerge,
+      mergeCalls,
+      splitMerge,
+      hangupConference,
+      holdConference,
       emergency,
       emergencyAddressId,
       lastError,
