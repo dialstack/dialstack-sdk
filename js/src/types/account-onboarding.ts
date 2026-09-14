@@ -84,10 +84,18 @@ export interface Account {
   /**
    * Subscription-agreement coverage. `not_required` — a non-live
    * (sandbox/demo) account, never prompted to accept. `unsigned` — acceptance
-   * is owed (none recorded, or the recorded one is for a superseded version).
-   * `signed` — the current agreement is accepted.
+   * is owed (none recorded, the recorded one is for a superseded version, or a
+   * re-signature has been requested — see `tos_resign_by`). `signed` — the
+   * current agreement is accepted with nothing outstanding.
    */
   tos_status?: 'signed' | 'unsigned' | 'not_required';
+  /**
+   * When a re-signature has been requested, the deadline for it; otherwise
+   * null. While set, the account keeps full service and `tos_status` reads
+   * `unsigned` so the agreement is presented again. Past the deadline the
+   * account is treated as unsigned outright.
+   */
+  tos_resign_by?: string | null;
   hold_music_clip?: string | null;
   /** @deprecated Use `hold_music_clip`. Retained for backwards compatibility. */
   hold_music_clip_id?: string | null;

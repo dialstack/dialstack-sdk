@@ -169,13 +169,26 @@ export interface Account {
   /**
    * Subscription-agreement (SSA/TOS) coverage status. `signed` — a live account
    * whose acceptance matches the current agreement version; `unsigned` — a live
-   * account not yet accepted (or accepted against a superseded version);
+   * account not yet accepted, accepted against a superseded version, or asked
+   * to re-sign (see `tos_resign_by`);
    * `not_required` — a non-live account, never prompted. Filter the list with
    * `tos_status`. The full agreement + evidence is on the account tos resource.
    */
   tos_status?: 'signed' | 'unsigned' | 'not_required';
-  /** When the current agreement was accepted; null unless `tos_status` is `signed`. */
+  /**
+   * When the current agreement was accepted; null unless the account has a
+   * valid acceptance. Set both when `tos_status` is `signed` and when a
+   * previously signed account has been asked to re-sign — pair it with
+   * `tos_resign_by` to tell those apart.
+   */
   tos_accepted_at?: string | null;
+  /**
+   * When a re-signature has been requested, the deadline for it; otherwise
+   * null. While set, the account keeps full service and `tos_status` reads
+   * `unsigned` so the agreement is presented again. Past the deadline the
+   * account is treated as unsigned outright.
+   */
+  tos_resign_by?: string | null;
   created_at: string;
   updated_at: string;
 }
