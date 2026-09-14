@@ -111,6 +111,15 @@ export interface MenuNodeConfig {
   timeout_next_node?: string;
   /** Node ID to route to on invalid input (nil = replay prompt) */
   invalid_next_node?: string;
+  /**
+   * Let callers reach any active extension in the account from this menu, in
+   * addition to the configured options.
+   *
+   * Changes how digits are read, not just what they match: with it off a digit
+   * routes immediately, with it on digits are buffered and a brief pause ends
+   * entry, deciding whether the caller keyed an option or an extension.
+   */
+  extension_entry_enabled?: boolean;
 }
 
 /**
@@ -373,6 +382,8 @@ export interface DialPlanLocale {
     timeoutOverride?: string;
     timeoutOverrideOn?: string;
     timeoutOverrideOff?: string;
+    extensionEntry?: string;
+    extensionEntryHint?: string;
   };
   voiceAppMode: {
     control: string;

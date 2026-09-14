@@ -89,6 +89,8 @@ export const defaultDialPlanLocale: DialPlanLocale = {
     timeoutOverride: 'Override resource timeout',
     timeoutOverrideOn: 'On',
     timeoutOverrideOff: 'Off',
+    extensionEntry: 'Allow extension dialing',
+    extensionEntryHint: 'When on, callers can key an extension instead of choosing an option.',
   },
   voiceAppMode: {
     control: 'Control',

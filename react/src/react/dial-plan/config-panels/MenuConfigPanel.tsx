@@ -7,6 +7,9 @@ import { useResourceGroups } from './hooks/useResourceGroups';
 
 const ALL_DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '*', '#'];
 
+/** Mirrors the API's per-menu option cap. */
+const MAX_OPTIONS = 12;
+
 export const MenuConfigPanel = ({
   config,
   onConfigChange,
@@ -24,6 +27,7 @@ export const MenuConfigPanel = ({
   const promptClipId = (config.prompt_clip_id as string) ?? '';
   const timeout = (config.timeout as number) ?? 5;
   const options = (config.options as Array<{ digit: string; label?: string }>) ?? [{ digit: '1' }];
+  const extensionEntry = (config.extension_entry_enabled as boolean) ?? false;
 
   const usedDigits = new Set(options.map((o) => o.digit));
 
@@ -76,6 +80,20 @@ export const MenuConfigPanel = ({
         onChange={(t) => onConfigChange({ timeout: t })}
         locale={locale}
       />
+      <div className="ds-dial-plan-config-field">
+        <label className="ds-dial-plan-config-field__checkbox">
+          <input
+            type="checkbox"
+            checked={extensionEntry}
+            onChange={(e) => onConfigChange({ extension_entry_enabled: e.target.checked })}
+          />
+          <span>{locale?.configLabels.extensionEntry ?? 'Allow extension dialing'}</span>
+        </label>
+        <p className="ds-dial-plan-config-field__hint">
+          {locale?.configLabels.extensionEntryHint ??
+            'When on, callers can key an extension instead of choosing an option.'}
+        </p>
+      </div>
       <ConfigField
         label={locale?.configLabels.options ?? 'Options'}
         action={
@@ -83,7 +101,7 @@ export const MenuConfigPanel = ({
             type="button"
             className="ds-dial-plan-menu-options__add"
             onClick={handleAddOption}
-            disabled={options.length >= 12}
+            disabled={options.length >= MAX_OPTIONS}
           >
             + {locale?.configLabels.addOption ?? 'Add'}
           </button>

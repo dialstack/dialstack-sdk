@@ -34,7 +34,12 @@ export const config: NodeDefinition = {
   exits: [...exits],
   allowSelfLoop: true,
   configPanel: MenuConfigPanel,
-  defaultConfig: { prompt_clip_id: '', timeout: 5, options: [{ digit: '1' }] },
+  defaultConfig: {
+    prompt_clip_id: '',
+    timeout: 5,
+    options: [{ digit: '1' }],
+    extension_entry_enabled: false,
+  },
   icon: GridIcon,
   renderNode: (data: Record<string, unknown>, reg: NodeTypeRegistration) => {
     const options = (data.options as MenuOption[]) ?? [];

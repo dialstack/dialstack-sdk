@@ -1011,6 +1011,10 @@ export const dialPlanStyles = `
   color: #94a3b8;
 }
 
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-config-field__checkbox {
+  color: #e2e8f0;
+}
+
 :is(.dark, [data-theme="dark"]) .ds-dial-plan-config-field__select,
 :is(.dark, [data-theme="dark"]) .ds-dial-plan-config-field__input {
   background: #12122a;
