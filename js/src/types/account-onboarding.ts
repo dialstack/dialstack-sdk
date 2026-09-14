@@ -53,6 +53,14 @@ export interface AccountConfig {
    * false.
    */
   redaction_enabled?: boolean;
+  /**
+   * How long transcript text and AI summaries are kept on call recordings and
+   * voicemails before the text is cleared. The call and voicemail records
+   * themselves are kept, and audio has its own separate lifecycle. Defaults to
+   * 90 days, maximum 2555 (7 years). Zero or negative means use the default —
+   * retention cannot be disabled.
+   */
+  transcript_retention_days?: number;
   timezone?: string;
   max_phone_numbers?: number;
   e911_notification?: E911NotificationConfig;

@@ -195,6 +195,12 @@ export interface AccountConfig {
    * only after redaction completes (default: false)
    */
   redaction_enabled?: boolean;
+  /**
+   * How long transcript text and AI summaries are kept before the text is
+   * cleared; the call and voicemail records are kept either way (default: 90,
+   * max: 2555). Zero or negative means use the default.
+   */
+  transcript_retention_days?: number;
   /** IANA timezone (default: "UTC") */
   timezone?: string;
   /**
