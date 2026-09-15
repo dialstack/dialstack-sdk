@@ -1533,8 +1533,18 @@ export interface HardwareOrderItem {
   updated_at: string;
 }
 
-/** Whether the money for an order has arrived. */
-export type HardwareOrderPaymentStatus = 'unpaid' | 'paid';
+/**
+ * Where the ACH debit for an order stands.
+ *
+ * - `unpaid` — no debit yet: every draft, and a placed order before one is
+ *   originated.
+ * - `submitted` — handed to the network. ACH has no real-time authorization, so
+ *   this carries no information about the money.
+ * - `settled` — the funds arrived.
+ * - `failed` — rejected inside the settlement window.
+ * - `reversed` — returned or disputed after settlement. Terminal.
+ */
+export type HardwareOrderPaymentStatus = 'unpaid' | 'submitted' | 'settled' | 'failed' | 'reversed';
 
 /**
  * How far an order has got towards shipping. Independent of payment: this says
@@ -1577,7 +1587,16 @@ export interface HardwareOrder {
    * place draftness is recorded — there is no `draft` status value.
    */
   placed_at: string | null;
-  paid_at: string | null;
+  /**
+   * When the debit was handed to the network. Null while `payment_status` is
+   * `unpaid`, set for every other state. Not an authorization — ACH has none.
+   */
+  payment_submitted_at: string | null;
+  /**
+   * When the funds actually became ours, days after submission. Set only for
+   * `settled` and `reversed`; a reversal keeps it.
+   */
+  payment_settled_at: string | null;
   /** What the items cost, in USD cents, at the prices they were sold at. */
   goods_cents: number;
   /**
