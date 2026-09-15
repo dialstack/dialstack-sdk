@@ -51,6 +51,14 @@ export interface DIDItem {
   directory_listing_location?: string | null;
   /** @deprecated Use `directory_listing_location`. Retained for backwards compatibility. */
   directory_listing_location_id?: string | null;
+  /**
+   * ID of this number's service location, used for tax jurisdiction and
+   * regulatory fees. When `null` the number resolves to the location it is the
+   * primary number for, else the account's main location — both correct answers
+   * rather than missing ones. Distinct from `directory_listing_location`, which
+   * is the address published in directory services.
+   */
+  location?: string | null;
   routing_target?: string | null;
   /** Inbound call handling. `routing_target` is null when this is `drop`. */
   inbound_routing: InboundRouting;
@@ -106,6 +114,8 @@ export interface UpdatePhoneNumberRequest {
   directory_listing_location?: string;
   /** @deprecated Use `directory_listing_location`. Retained for backwards compatibility. */
   directory_listing_location_id?: string;
+  /** Assign the number's service location, or `null` to clear it. */
+  location?: string | null;
   caller_id_name?: string;
   /**
    * Prefix added to the inbound caller's display name (e.g. `[Acme] John Smith`,

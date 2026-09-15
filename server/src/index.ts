@@ -436,6 +436,16 @@ export interface User {
   id: string;
   name: string | null;
   email: string | null;
+  /**
+   * ID of this user's service location, used for tax jurisdiction and
+   * regulatory fees on their seat.
+   *
+   * Must agree with the location of any device the user holds: a seat is
+   * sourced from its device first, so this either names that same location or
+   * is `null`. A user with no located device resolves to the account's main
+   * location. In both cases `null` is a correct answer, not a missing one.
+   */
+  location?: string | null;
   config?: UserConfig;
   /**
    * Whether server-side do-not-disturb is enabled: when `true`, the calling
@@ -454,11 +464,21 @@ export interface User {
 export interface UserCreateParams {
   name?: string;
   email?: string;
+  /**
+   * Assign the user's service location. Omit to resolve from their device, or
+   * the account's main location.
+   */
+  location?: string;
 }
 
 export interface UserUpdateParams {
   name?: string;
   email?: string;
+  /**
+   * Assign the user's service location, or pass `null` to clear it back to the
+   * device-derived / main-location default. Omit to leave unchanged.
+   */
+  location?: string | null;
   /**
    * Enable or disable server-side do-not-disturb. Omit to leave unchanged.
    */
@@ -525,6 +545,12 @@ export interface PhoneNumber {
   id: string;
   phone_number: string;
   status: 'active' | 'inactive' | 'pending';
+  /**
+   * ID of this number's service location, used for tax jurisdiction and
+   * regulatory fees. When `null` the number resolves to the location it is the
+   * primary number for, else the account's main location.
+   */
+  location?: string | null;
   created_at: string;
 }
 
