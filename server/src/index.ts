@@ -1630,6 +1630,38 @@ export interface HardwareOrder {
 export type HardwareOrderExpand =
   'items.device' | 'items.bundle_catalog' | 'lines.hardware_catalog';
 
+/**
+ * 409 body from {@link hardwareOrders.checkout}. One endpoint refuses for
+ * several unrelated reasons and the fix for each is somewhere different, so
+ * branch on `code` rather than string-matching `error`:
+ *
+ * - `order_not_draft` — the order cannot be placed. Today this is a rejected
+ *   order, which cannot be resumed.
+ * - `shipping_not_quoted` — quote shipping first. An unquoted order is not a
+ *   free-shipping one.
+ * - `no_debit_authority` — no verified bank account with a live ACH
+ *   authorization. Finish bank setup; the order is left as a draft.
+ * - `catalog_item_not_priced` — a line was unpriced or withdrawn from the
+ *   catalog since the draft was built. Remove or replace it.
+ * - `hardware_order_already_debited` — a debit already exists; the order is no
+ *   longer checkout-able.
+ * - `checkout_resume_window_elapsed` — placed more than 12 hours ago without a
+ *   debit, past the window in which a retry is guaranteed not to charge twice.
+ * - `debit_parameters_changed` — the stored bank account or authorization moved
+ *   between attempts, so the debit cannot be retried under the same key.
+ */
+export interface HardwareOrderCheckoutConflictResponse {
+  error: string;
+  code:
+    | 'order_not_draft'
+    | 'shipping_not_quoted'
+    | 'no_debit_authority'
+    | 'catalog_item_not_priced'
+    | 'hardware_order_already_debited'
+    | 'checkout_resume_window_elapsed'
+    | 'debit_parameters_changed';
+}
+
 export interface HardwareOrderParams {
   /** At least one line; quantity is 1-100 per line. */
   items: Array<{ hardware_catalog: string; quantity: number }>;
@@ -4225,18 +4257,34 @@ export class DialStack {
     },
 
     /**
-     * Place the order. This is the moment its prices stop moving and it enters
-     * the fulfillment queue.
+     * Place the order and charge for it. This is the moment its prices stop
+     * moving, an ACH debit is originated against the bank account the platform
+     * authorized, and the order enters the fulfillment queue.
      *
-     * Returns 409 if the order has already been placed, or if its shipping has
-     * not been quoted — an unquoted order is not a free-shipping one, so it
-     * cannot be completed. Shipping is quoted by hand today, so a newly created
-     * order is not immediately checkout-able.
+     * `payment_status` becomes `submitted`. ACH has no real-time authorization,
+     * so that says the debit was handed to the network — not that the funds
+     * exist. Settlement follows days later and moves it to `settled`; a
+     * rejection inside that window moves it to `failed`.
      *
-     * Checking out does not pay for the order: `payment_status` is unchanged.
+     * Returns 409 if its shipping has not been quoted — an unquoted order is
+     * not a free-shipping one, so it cannot be completed — if a debit already
+     * exists for the order, or if the platform has no verified bank account
+     * with a live ACH authorization to debit. Shipping is quoted by hand today,
+     * so a newly created order is not immediately checkout-able.
+     *
+     * Safe to retry until a debit exists: an order that was placed but not yet
+     * charged is picked up where it left off, and the platform is never debited
+     * twice for the same order. That window is bounded — an order placed more
+     * than 12 hours ago is refused, because the guarantee against a duplicate
+     * charge does not outlive it, and the order then needs to be reconciled by
+     * hand.
      *
      * Requires an account, like every other call on this resource — checkout
      * acts on one account's order and the API rejects the request without it.
+     *
+     * Refusals are `409` with a stable `code` — see
+     * {@link HardwareOrderCheckoutConflictResponse}, which says which
+     * precondition failed and therefore where to send the operator.
      */
     checkout: (
       hardwareOrderId: string,
