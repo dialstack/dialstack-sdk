@@ -346,7 +346,8 @@ export interface Sentiment {
 /**
  * Transcript status indicating processing state
  */
-export type TranscriptStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export type TranscriptStatus =
+  'pending' | 'processing' | 'completed' | 'failed' | 'disabled' | 'skipped';
 
 /**
  * Call transcript data

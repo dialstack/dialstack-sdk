@@ -647,7 +647,8 @@ export interface UserSessionsRevokeResponse {
 }
 
 // Transcript types
-export type TranscriptStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export type TranscriptStatus =
+  'pending' | 'processing' | 'completed' | 'failed' | 'disabled' | 'skipped';
 
 export interface Transcript {
   call_id: string;
