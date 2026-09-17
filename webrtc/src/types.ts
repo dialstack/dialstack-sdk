@@ -71,6 +71,17 @@ export interface PhoneOptions {
    */
   onAppResume?: AppResumeSubscribe;
   /**
+   * Acquire an inbound call's microphone when it is ANSWERED rather than when it
+   * arrives. Set by platforms whose OS owns the call audio session: CallKit and
+   * Telecom activate it only on answer, and capturing before then fails — on
+   * Android the device is still in `MODE_RINGTONE`, where WebRTC cannot start its
+   * recorder, so it releases it and the answered call has no mic at all.
+   *
+   * Off by default: a browser can capture during ringing, and doing so surfaces a
+   * microphone problem while the user can still see it.
+   */
+  deferInboundCapture?: boolean;
+  /**
    * Microphone `deviceId` for new calls; omitted means the OS default. Held for the
    * phone's lifetime and NOT persisted — remembering a device is the host's call, so
    * pass a saved value back in on construction (the React softphone does).

@@ -118,6 +118,21 @@ export interface CallInit {
   ringback?: Ringback;
   audioInputDeviceId?: string;
   audioOutputDeviceId?: string;
+  // Hold the mic until this inbound call is answered. Threaded from
+  // `PhoneOptions.deferInboundCapture`; see that option for why.
+  deferInboundCapture?: boolean;
+}
+
+/**
+ * `localMediaReady`'s rejection while capture is deferred. A distinct type so the
+ * owner can tell "not acquired yet, by design" from a real microphone failure and
+ * not report the former to the host as one.
+ */
+export class CaptureDeferred extends Error {
+  constructor() {
+    super('Microphone capture deferred until the call is answered');
+    this.name = 'CaptureDeferred';
+  }
 }
 
 export class Call {
@@ -173,6 +188,9 @@ export class Call {
   private listeners: { [K in keyof CallEventMap]?: Set<Listener<K>> } = {};
   private endedSettled = false;
   private pendingAnswerSdp: string | null = null;
+  // Held across buildAnswer's awaits so a second caller cannot start one while
+  // the first is mid-flight; pendingAnswerSdp only lands after the work is done.
+  private buildingAnswer = false;
   private answerSent = false;
   // Set when answer() is called before the answer SDP is ready (offer still
   // arriving, mic-permission prompt open, or ICE still gathering). The answer
@@ -206,6 +224,9 @@ export class Call {
   // Serializes device switches: two overlapping switches would otherwise interleave
   // their acquire/replace/stop steps, and one could stop the track the other installed.
   private switchChain: Promise<void> = Promise.resolve();
+  // True until answer() acquires the mic this call deliberately did not take on
+  // arrival. Cleared there so a later device switch takes the ordinary path.
+  private captureDeferred = false;
 
   constructor(init: CallInit) {
     this.id = init.id;
@@ -224,7 +245,46 @@ export class Call {
 
     this.peerConnection = createPeerConnection(init.iceServers);
     this.wirePeerConnection();
+    // Deferred capture is REJECTED, not pending: switchAudioInput awaits this with
+    // no timeout, so a pending promise would deadlock the very path that acquires
+    // the mic later. Rejected means "no media yet" — which is exactly the state the
+    // recovered-from-a-denial path already knows how to repair.
+    this.captureDeferred = (init.deferInboundCapture ?? false) && init.direction === 'inbound';
+    this.localMediaReady = this.captureDeferred
+      ? Promise.reject(new CaptureDeferred())
+      : this.acquireLocalMedia();
+    // Nothing awaits a deferred rejection until answer(), and an unhandled one
+    // would surface as a process-level unhandled rejection.
+    if (this.captureDeferred) this.localMediaReady.catch(() => {});
+  }
+
+  /**
+   * Take the mic this call deliberately skipped on arrival, then produce the
+   * answer SDP from it.
+   *
+   * `buildAnswer` is what needs the track: setRemoteDescription created a
+   * track-less sender per m-line, and answering without attaching a real track
+   * yields `a=recvonly` — the far end hears nothing, which is the failure this
+   * whole path exists to avoid. It runs only once the offer has been set;
+   * otherwise prepareAnswerForOffer does it when the offer lands.
+   */
+  private acquireDeferredCapture(): void {
+    this.captureDeferred = false;
     this.localMediaReady = this.acquireLocalMedia();
+    // The owner re-subscribes for the failure (see whenLocalMediaReady); here we
+    // only need the success path. A rejection is swallowed so it cannot surface as
+    // an unhandled rejection before the owner attaches.
+    void this.localMediaReady.then(async () => {
+      if (this.state === 'ended' || this.answerSent || !this.remoteDescriptionSet) return;
+      await this.buildAnswer();
+    }, this.reportCaptureFailure);
+  }
+
+  /** Set by the owner to surface a late mic failure, since `Call` has no error event. */
+  private reportCaptureFailure: (e: unknown) => void = () => {};
+
+  onCaptureFailure(report: (e: unknown) => void): void {
+    this.reportCaptureFailure = report;
   }
 
   // whenLocalMediaReady lets the owner (phone.ts) surface a mic-permission
@@ -442,6 +502,12 @@ export class Call {
       });
     }
     if (this.answerSent) return;
+    // Deferred capture is taken HERE, not on arrival: the OS owns the audio
+    // session and only activates it on answer, so acquiring earlier fails and
+    // costs the call its mic entirely. Not awaited — answer() stays synchronous,
+    // and the answer SDP is built once the track lands, via the same path that
+    // recovers from a denied mic.
+    if (this.captureDeferred) this.acquireDeferredCapture();
     // If the answer SDP isn't ready yet (the offer is still arriving, the mic
     // prompt is open, or ICE is still gathering), don't throw — record the
     // intent and let prepareAnswerForOffer send the answer the moment it's
@@ -704,6 +770,27 @@ export class Call {
   // recovered from — can still produce one: the server sends sdp.offer right after
   // call.incoming, so by then the offer has already been consumed and discarded.
   private async buildAnswer(): Promise<void> {
+    // Two paths reach here for one call — prepareAnswerForOffer when the offer
+    // lands, and a late mic acquisition (a recovered denial, or capture deferred
+    // to answer). Once a local answer is set the connection is back to `stable`,
+    // where setLocalDescription throws, so a second build must not run.
+    //
+    // The latch is set SYNCHRONOUSLY, before the first await, because the two
+    // paths can both be waiting on the same pending getUserMedia: answering
+    // before the offer arrives (ordinary on a push wake) leaves both continuations
+    // queued on one promise, and an entry check against `pendingAnswerSdp` alone
+    // lets both through — it is not assigned until after createAnswer and
+    // setLocalDescription have already run.
+    if (this.buildingAnswer || this.pendingAnswerSdp) return;
+    this.buildingAnswer = true;
+    try {
+      await this.buildAnswerOnce();
+    } finally {
+      this.buildingAnswer = false;
+    }
+  }
+
+  private async buildAnswerOnce(): Promise<void> {
     // setRemoteDescription(offer) above already created a track-less sender for
     // each offered m-line, so getSenders() is non-empty here even though no mic
     // is attached yet. Guard on whether a sender actually has a track — keying

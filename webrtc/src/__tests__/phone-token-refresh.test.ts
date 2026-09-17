@@ -137,6 +137,34 @@ describe('DialStackPhone in-band token refresh', () => {
     expect(onTokenExpiring).toHaveBeenCalledTimes(2);
   });
 
+  // React Native ships no `atob`, so a decoder that reaches for it throws, the
+  // claim decode returns null, and the refresh is never scheduled — silently, on
+  // every RN consumer. Node has `atob`, so every other test here passes either
+  // way; this one is what fails if the decoder regresses to it.
+  it('schedules the refresh on a runtime with no global atob', async () => {
+    const globals = globalThis as Record<string, unknown>;
+    const originalAtob = globals.atob;
+    delete globals.atob;
+    try {
+      const firstToken = makeToken(nowSeconds() + 120);
+      const onTokenExpiring = jest.fn().mockResolvedValue(makeToken(nowSeconds() + 3600));
+
+      const phone = new DialStackPhone({
+        token: firstToken,
+        iceServers: [],
+        autoReconnect: false,
+        onTokenExpiring,
+      });
+      const ws = await connectAuthenticated(phone);
+      await jest.advanceTimersByTimeAsync(65_000);
+
+      expect(onTokenExpiring).toHaveBeenCalledTimes(1);
+      expect(ws.lastOfType('auth.refresh')).toBeDefined();
+    } finally {
+      globals.atob = originalAtob;
+    }
+  });
+
   it('keeps the connection open and surfaces an error on a non-fatal refresh rejection', async () => {
     const firstToken = makeToken(nowSeconds() + 120);
     const rejectedToken = makeToken(nowSeconds() + 3600, 'user_other');

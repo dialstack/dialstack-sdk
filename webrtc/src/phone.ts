@@ -1,5 +1,5 @@
 import { createPaginatedList, type PaginatedList } from './pagination.js';
-import { Call } from './call.js';
+import { Call, CaptureDeferred } from './call.js';
 import { ConnectHandshake } from './connect-handshake.js';
 import { devicePhoneError, NotImplementedError, PhoneError } from './errors.js';
 import { logError, logWarn } from './logger.js';
@@ -157,29 +157,28 @@ export class DialStackPhone {
   isConnected = false;
   readonly activeCalls: Call[] = [];
 
+  /**
+   * A `connect()` is in flight but not yet connected. Consult alongside
+   * `isConnected` — `connect()` throws on a concurrent call.
+   */
+  get isConnecting(): boolean {
+    return this.handshake.inFlight;
+  }
+
   private token: string;
   private apiBaseUrl: string;
   private signalingUrl: string;
   private autoReconnect: boolean;
   private iceServersOverride: RTCIceServer[] | null;
-  // Consumer hook that mints a fresh user token (see PhoneOptions). null when
-  // not supplied — then no in-band refresh is scheduled and the token simply
-  // expires (the server evicts with a fatal auth_expired and the app must
-  // reconnect with a new token).
+  // null → no in-band refresh; the token expires and the server evicts with a
+  // fatal auth_expired.
   private onTokenExpiring: (() => Promise<string>) | null;
-  // Shared outbound ringback threaded into each Call (see PhoneOptions.ringback).
-  // null → Call falls back to its default WebAudio RingbackTone.
   private ringback: Ringback | null;
-  // Signaling-socket factory passed to Transport (see
-  // PhoneOptions.createSignalingSocket). null → Transport opens a bare WebSocket.
   private createSignalingSocket: SignalingSocketFactory | null;
-  // App-resume subscription passed to Transport (see PhoneOptions.onAppResume).
-  // null → Transport uses its web DOM-lifecycle default.
   private onAppResume: AppResumeSubscribe | null;
+  private deferInboundCapture: boolean;
 
   private transport: Transport | null = null;
-  // All state for the connect() currently in flight (ICE-window token, the
-  // authenticate req_id, and the promise waiter). See ConnectHandshake.
   private readonly handshake = new ConnectHandshake();
   private iceServers: RTCIceServer[] = [];
   private listeners: { [K in keyof PhoneEventMap]?: Set<Listener<K>> } = {};
@@ -228,6 +227,7 @@ export class DialStackPhone {
     this.ringback = options.ringback ?? null;
     this.createSignalingSocket = options.createSignalingSocket ?? null;
     this.onAppResume = options.onAppResume ?? null;
+    this.deferInboundCapture = options.deferInboundCapture ?? false;
     this.audioInputDeviceId_ = options.audioInputDeviceId ?? null;
     this.audioOutputDeviceId_ = options.audioOutputDeviceId ?? null;
   }
@@ -868,34 +868,48 @@ export class DialStackPhone {
     return `req_${Date.now().toString(36)}_${this.reqSeq}`;
   }
 
-  // adoptToken makes a new token the current one: it re-derives the token-scoped
-  // local state (localStorage namespace) and re-arms the pre-`exp` refresh off the
-  // new expiry, from a SINGLE decode. Scheduling is folded in so "a new token is
-  // live" always implies "its refresh is scheduled" — the two can't drift apart.
+  /**
+   * Replace the token for the NEXT connect, off the connected path — for a host
+   * that mints its own tokens and must (re)connect with a fresh one (boot,
+   * push-wake), which `onTokenExpiring` (live-session only) can't cover. Refuses
+   * while connected/connecting: swapping there would desync the local token from
+   * the one the server enforces and the session would die silently at expiry — to
+   * swap a live session's token, `disconnect()` then `setToken()` before `connect()`.
+   */
+  setToken(token: string): void {
+    if (this.transport)
+      throw new PhoneError({
+        code: 'invalid_message',
+        message: 'Cannot setToken() on a connected phone; disconnect() first',
+      });
+    if (this.handshake.inFlight)
+      throw new PhoneError({
+        code: 'invalid_message',
+        message: 'Cannot setToken() while connecting',
+      });
+    this.adoptToken(token);
+  }
+
+  // Makes a new token current from a SINGLE decode, folding scheduling in so "a
+  // new token is live" always implies "its refresh is scheduled".
   private adoptToken(token: string): void {
     this.token = token;
     const { userId, exp } = decodeTokenClaims(token);
-    // Only overwrite the persistence namespace when the new token yields a usable
-    // user id. A consumer's refresh token could be opaque/undecodable here; nulling
-    // a previously-valid storageUserId would silently disable emergency-address
-    // persistence for the rest of an otherwise-healthy session.
+    // Only overwrite the namespace on a usable user id: a refresh token could be
+    // undecodable here, and nulling a valid storageUserId would silently disable
+    // emergency-address persistence for the rest of the session.
     if (userId !== null) this.storageUserId = userId;
     this.scheduleTokenRefresh(exp);
   }
 
-  // Arm the pre-`exp` refresh. Idempotent: clears any prior timer/pending refresh
-  // first. No-ops when onTokenExpiring is unset (back-compat) or the token has no
-  // decodable exp (nothing to schedule against). `exp` may be passed by adoptToken
-  // (which already decoded it); otherwise it's read from the current token — this
-  // is the path taken on every `authenticated`, re-arming after each (re)connect.
+  // Idempotent. No-ops when onTokenExpiring is unset or the token has no decodable
+  // exp. Also runs on every `authenticated`, re-arming after each (re)connect.
   private scheduleTokenRefresh(exp: number | null = decodeTokenClaims(this.token).exp): void {
     this.clearTokenRefreshTimer();
     if (!this.onTokenExpiring) return;
     if (exp === null) return;
-    // Floor the delay: a token already inside the lead window would otherwise
-    // schedule at 0 and, if the consumer keeps minting short-lived tokens, re-arm
-    // at 0 on each adoption — a spin. The floor bounds that to one refresh per
-    // interval while leaving normal (hours/days) tokens scheduled far out.
+    // Floor the delay so a token already inside the lead window can't schedule at 0
+    // and, with a consumer minting short-lived tokens, spin.
     const delay = Math.max(
       TOKEN_REFRESH_MIN_DELAY_MS,
       exp * 1000 - Date.now() - TOKEN_REFRESH_LEAD_MS
@@ -1055,10 +1069,7 @@ export class DialStackPhone {
         return;
       }
       case 'auth.refreshed': {
-        // Correlate against the in-flight refresh, then adopt the exact token we
-        // sent for this req_id (never a mismatched one) — adoptToken re-arms the
-        // next refresh off its new exp. A reply for a stale/unknown req_id is
-        // ignored.
+        // Adopt the exact token we sent for this req_id (never a mismatched one).
         if (this.pendingRefresh && msg.req_id === this.pendingRefresh.reqId) {
           const token = this.pendingRefresh.token;
           this.pendingRefresh.settle(); // cancel the reply-timeout; the reply arrived
@@ -1068,10 +1079,6 @@ export class DialStackPhone {
         return;
       }
       case 'network.changed': {
-        // The emergency address bound at connect no longer applies on this
-        // network. The session stays usable — 911/933 still go out —
-        // but non-emergency PSTN is gated until the app confirms/registers an
-        // address valid here. Surfaced as an event for the app to prompt on.
         this.emit('network.changed');
         return;
       }
@@ -1087,46 +1094,32 @@ export class DialStackPhone {
           message: err.message,
           fatal: err.fatal,
         });
-        // A non-fatal error echoing the in-flight refresh's req_id is the server
-        // rejecting that refresh (bad/expired/cross-identity token). Clear the
-        // pending state so a late auth.refreshed can't adopt the rejected token;
-        // leave this.token and the (server's original) expiry timer untouched —
-        // a failed refresh never extends the session. The emitted `error` below
-        // surfaces it; the connection stays open.
+        // Server rejecting the in-flight refresh: clear pending so a late
+        // auth.refreshed can't adopt the rejected token; leave this.token and the
+        // expiry timer untouched — a failed refresh never extends the session.
         if (this.pendingRefresh && msg.req_id === this.pendingRefresh.reqId) {
           this.pendingRefresh.settle(); // cancel the reply-timeout; the reply arrived
           this.pendingRefresh = null;
         }
-        // Reject the in-flight connect() on a fatal error, or on one echoing our
-        // outstanding authenticate's req_id (the server rejecting it). Either way
-        // the socket is unusable, so tear it down — otherwise a stray later
-        // `authenticated` for this dead handshake could still flip isConnected.
-        // Detach the waiter first so disconnect()'s transport_closed doesn't win
-        // over the server's specific error we want the caller to see.
+        // Reject the in-flight connect() and tear the socket down, else a stray
+        // later `authenticated` for this dead handshake could still flip
+        // isConnected. Detach the waiter first so disconnect()'s transport_closed
+        // doesn't win over the server's specific error.
         if (this.handshake.hasWaiter && (err.fatal || this.handshake.matches(msg.req_id))) {
           const waiter = this.handshake.takeWaiter();
           this.disconnect();
           waiter?.reject(err);
         }
-        // A pending outbound is rejected by an error echoing the creating
-        // frame's req_id (the server echoes it on every immediate create /
-        // consult failure), or by any fatal error — the connection is dying
-        // and call.trying will never arrive.
         if (this.pendingOutbound && (msg.req_id === this.pendingOutbound.reqId || err.fatal)) {
-          // reject() clears the timer and nulls pendingOutbound/pendingCall.
           this.pendingOutbound.reject(err);
         }
         this.emit('error', err);
         return;
       }
       case 'call.trying': {
-        // call.trying is the direct reply to the call-creating frame
-        // (call.create or the consult step of call.transfer.attended) and
-        // echoes its req_id.
         if (this.pendingOutbound && msg.req_id === this.pendingOutbound.reqId && this.pendingCall) {
           const placed = this.pendingCall;
           placed.id = msg.call_id;
-          // resolve() clears the timer and nulls pendingOutbound/pendingCall.
           this.pendingOutbound.resolve(placed);
           placed.handleServerMessage(msg);
         } else {
@@ -1277,14 +1270,17 @@ export class DialStackPhone {
       ringback: this.ringback ?? undefined,
       audioInputDeviceId: this.audioInputDeviceId_ ?? undefined,
       audioOutputDeviceId: this.audioOutputDeviceId_ ?? undefined,
+      deferInboundCapture: this.deferInboundCapture,
     });
-    // Register the Call synchronously so the sdp.offer + ICE the server sends
-    // immediately after call.incoming are routed to it, not dropped via
-    // getCall() → undefined while the mic permission prompt is open. The Call
-    // acquires the mic itself and gates answer creation on it.
+    // Register synchronously so the sdp.offer + ICE that arrive immediately after
+    // call.incoming route to it, not dropped via getCall()→undefined while the mic
+    // permission prompt is open.
     this.activeCalls.push(call);
     this.emit('incoming', call);
-    call.whenLocalMediaReady().catch((e) => {
+    const reportMicFailure = (e: unknown) => {
+      // Capture deliberately not taken yet is not a failure: the call reports one
+      // through onCaptureFailure if the mic is still unavailable on answer.
+      if (e instanceof CaptureDeferred) return;
       this.emit(
         'error',
         new PhoneError({
@@ -1293,7 +1289,9 @@ export class DialStackPhone {
           callId: msg.call_id,
         })
       );
-    });
+    };
+    call.onCaptureFailure(reportMicFailure);
+    call.whenLocalMediaReady().catch(reportMicFailure);
   }
 
   private emit<K extends keyof PhoneEventMap>(
@@ -1334,33 +1332,55 @@ export function resolveSignalingUrl(
   return url;
 }
 
+// Derives the default signaling base by swapping the leading `api.` host label
+// for `webrtc.` (a separate, region-aware host); other hosts unchanged.
 function deriveDefaultSignalingBaseUrl(apiBaseUrl: string): string {
   try {
     const u = new URL(apiBaseUrl);
     if (u.hostname.startsWith('api.')) {
       u.hostname = 'webrtc.' + u.hostname.slice('api.'.length);
     }
-    // Preserve any path prefix (e.g. a proxied `https://gw.example.com/api`)
-    // so the WS path matches where REST calls go; `.origin` would drop it.
-    // Trailing slashes are trimmed by resolveSignalingUrl.
+    // Preserve any path prefix so the WS path matches where REST calls go;
+    // `.origin` would drop it.
     return `${u.protocol}//${u.host}${u.pathname}`;
   } catch {
-    // Not a parseable absolute URL (e.g. a relative base in a test harness) —
-    // fall back to the raw value; resolveSignalingUrl still normalises it.
     return apiBaseUrl;
   }
 }
 
-// Unverified base64url decode of a JWT's payload segment. Deliberately does NOT
-// verify the signature: the SDK never trusts these claims (the server verifies
-// the token independently), it only reads them for local bookkeeping —
-// namespacing localStorage by `sub`, and scheduling a refresh off `exp`. Returns
-// null for any token that isn't a decodable three-part JWT.
+// The browser's decoder where there is one, a hand-rolled pass where there is
+// not: React Native ships neither `atob` nor `Buffer`, and registerGlobals()
+// from the WebRTC packages adds neither. Reaching for `atob` unconditionally
+// failed silently there — the throw was swallowed by the catch below, leaving
+// exp null, which disables the refresh schedule entirely.
+const B64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+function decodeBase64Url(seg: string): string {
+  const b64 = seg.replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '');
+  if (typeof atob === 'function') return atob(b64);
+  let bits = 0;
+  let acc = 0;
+  let out = '';
+  for (const ch of b64) {
+    const v = B64_ALPHABET.indexOf(ch);
+    if (v < 0) continue;
+    acc = (acc << 6) | v;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out += String.fromCharCode((acc >> bits) & 0xff);
+    }
+  }
+  return out;
+}
+
+// Unverified base64url decode of a JWT payload. Deliberately does NOT verify the
+// signature: the server verifies the token independently; the SDK only reads
+// `sub`/`exp` for local bookkeeping. Returns null for a non-JWT.
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
     const payload = token.split('.')[1];
     if (!payload) return null;
-    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    const json = decodeBase64Url(payload);
     const parsed = JSON.parse(json) as unknown;
     return typeof parsed === 'object' && parsed !== null
       ? (parsed as Record<string, unknown>)

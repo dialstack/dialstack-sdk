@@ -546,4 +546,67 @@ describe('DialStackPhone connect() aborted by an in-prelude disconnect()', () =>
     expect(events[events.length - 1]).toBe('disconnected');
     expect(phone.isConnected).toBe(false);
   });
+
+  it('reports isConnecting only while the connect is in flight', async () => {
+    const phone = new DialStackPhone({ token: 't', apiBaseUrl: 'https://api.example.test' });
+    expect(phone.isConnecting).toBe(false);
+
+    // In flight the moment connect() is called: it has claimed the handshake slot
+    // and is awaiting the ICE fetch (which stays pending until resolveNextIceFetch).
+    const p = phone.connect();
+    expect(phone.isConnecting).toBe(true);
+    expect(RecordingWebSocket.instances).toHaveLength(0); // still fetching ICE — really in flight
+
+    // Drive through the socket open + authenticate; isConnecting clears when
+    // `authenticated` releases the handshake token, and isConnected takes over.
+    resolveNextIceFetch();
+    await flushMicrotasks();
+    expect(RecordingWebSocket.instances).toHaveLength(1);
+    RecordingWebSocket.instances[0].completeAuth();
+    await p;
+    expect(phone.isConnecting).toBe(false);
+    expect(phone.isConnected).toBe(true);
+
+    phone.disconnect();
+    expect(phone.isConnecting).toBe(false);
+  });
+
+  it('setToken() adopts the token off the connected path', () => {
+    const phone = new DialStackPhone({ token: 't', apiBaseUrl: 'https://api.example.test' });
+    expect(() => phone.setToken('t2')).not.toThrow();
+  });
+
+  it('setToken() throws while connecting', async () => {
+    const phone = new DialStackPhone({ token: 't', apiBaseUrl: 'https://api.example.test' });
+    const p = phone.connect(); // parks in fetchIceServers() — in flight
+    await Promise.resolve();
+    expect(phone.isConnecting).toBe(true);
+
+    expect(() => phone.setToken('t2')).toThrow(
+      expect.objectContaining({ code: 'invalid_message' })
+    );
+
+    // Let the parked connect() settle so the test doesn't leak a pending promise.
+    phone.disconnect();
+    resolveNextIceFetch();
+    await p.catch(() => {});
+  });
+
+  it('setToken() throws on a connected phone rather than disarming its refresh', async () => {
+    const phone = new DialStackPhone({ token: 't', apiBaseUrl: 'https://api.example.test' });
+    const p = phone.connect();
+    resolveNextIceFetch();
+    await flushMicrotasks();
+    RecordingWebSocket.instances[0].completeAuth();
+    await p;
+    expect(phone.isConnected).toBe(true);
+
+    // A live session must be re-tokened via onTokenExpiring, not setToken() —
+    // swapping here would clear the armed refresh and desync from the server.
+    expect(() => phone.setToken('t2')).toThrow(
+      expect.objectContaining({ code: 'invalid_message' })
+    );
+
+    phone.disconnect();
+  });
 });

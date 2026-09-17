@@ -210,6 +210,117 @@ describe('Call.prepareAnswerForOffer media direction', () => {
     // made getSenders().length !== 0, addTrack was skipped, and this was 0.
     expect(sendingAudio).toHaveLength(1);
   });
+
+  // With deferInboundCapture the mic is taken on answer, not on arrival: the OS
+  // owns the audio session and activates it only then, so capturing during the
+  // ring fails and costs the call its microphone entirely.
+  it('defers capture to answer() and still sends a sendable answer', async () => {
+    let captures = 0;
+    Object.defineProperty(globalThis, 'navigator', {
+      value: {
+        mediaDevices: {
+          getUserMedia: async () => {
+            captures += 1;
+            const s = new FakeMediaStream();
+            s.addTrack(new FakeTrack());
+            return s;
+          },
+        },
+      },
+      configurable: true,
+    });
+
+    const call = new Call({ ...makeInit(), deferInboundCapture: true });
+    await call.prepareAnswerForOffer('fake-offer-sdp');
+
+    // Still ringing: nothing has touched the microphone.
+    expect(captures).toBe(0);
+    const sendersWhileRinging = (call.peerConnection as unknown as FakeRTCPeerConnection)
+      .getSenders()
+      .filter((s) => s.track && s.track.kind === 'audio');
+    expect(sendersWhileRinging).toHaveLength(0);
+
+    call.answer();
+    // answer() is synchronous; the acquire + rebuild it starts are not.
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(captures).toBe(1);
+    const sendingAudio = (call.peerConnection as unknown as FakeRTCPeerConnection)
+      .getSenders()
+      .filter((s) => s.track && s.track.kind === 'audio');
+    // The answer carries a real track. Without it the SDP is a=recvonly — the
+    // far end hears nothing, which is the bug this option exists to fix.
+    expect(sendingAudio).toHaveLength(1);
+  });
+
+  // Answering before the offer lands is ordinary on a push wake: the tap is
+  // applied the moment the call appears, and the server's sdp.offer is a round
+  // trip behind it. Both the deferred acquisition and prepareAnswerForOffer then
+  // wait on the SAME pending getUserMedia, so both reach buildAnswer in one
+  // microtask flush — and a second setLocalDescription throws "Called in wrong
+  // state: stable", surfacing as a failed call that in fact answered fine.
+  it('builds one answer when the offer lands mid-acquisition', async () => {
+    let releaseMic: (s: FakeMediaStream) => void = () => {};
+    const micPending = new Promise<FakeMediaStream>((r) => {
+      releaseMic = r;
+    });
+    Object.defineProperty(globalThis, 'navigator', {
+      value: { mediaDevices: { getUserMedia: () => micPending } },
+      configurable: true,
+    });
+
+    const call = new Call({ ...makeInit(), deferInboundCapture: true });
+    const pc = call.peerConnection as unknown as FakeRTCPeerConnection;
+    // The fake accepts a second setLocalDescription that a real peer connection
+    // rejects from `stable`, so count the calls rather than waiting for a throw.
+    let localDescriptionsSet = 0;
+    const setLocal = pc.setLocalDescription.bind(pc);
+    pc.setLocalDescription = (d: RTCSessionDescriptionInit) => {
+      localDescriptionsSet += 1;
+      return setLocal(d);
+    };
+
+    // Answer first — the mic request is now in flight and unresolved.
+    call.answer();
+    // The offer arrives while it is still pending, so this awaits the very same
+    // promise the deferred acquisition is waiting on.
+    const offer = call.prepareAnswerForOffer('fake-offer-sdp');
+
+    const stream = new FakeMediaStream();
+    stream.addTrack(new FakeTrack());
+    releaseMic(stream);
+    await offer;
+    await new Promise((r) => setTimeout(r, 0));
+
+    // One answer, one local description. A real peer connection throws on the
+    // second, which is what surfaced as a spurious "call failed".
+    expect(localDescriptionsSet).toBe(1);
+    expect(pc.localDescription?.type).toBe('answer');
+    const sendingAudio = pc.getSenders().filter((s) => s.track && s.track.kind === 'audio');
+    expect(sendingAudio).toHaveLength(1);
+  });
+
+  it('leaves capture eager by default, so web is unchanged', async () => {
+    let captures = 0;
+    Object.defineProperty(globalThis, 'navigator', {
+      value: {
+        mediaDevices: {
+          getUserMedia: async () => {
+            captures += 1;
+            const s = new FakeMediaStream();
+            s.addTrack(new FakeTrack());
+            return s;
+          },
+        },
+      },
+      configurable: true,
+    });
+
+    const call = new Call(makeInit());
+    await call.whenLocalMediaReady();
+
+    expect(captures).toBe(1);
+  });
 });
 
 // canSendDtmf reflects whether the audio sender exposes an RTCDTMFSender.
