@@ -131,6 +131,12 @@ const DISCONNECTED_PHONE: PhoneE911Api = {
 
 export interface SoftphoneCoreProps {
   token: string;
+  /**
+   * Adopt an existing phone instead of constructing one from `token` — for a
+   * native call surface where a call can exist before any phone does (see
+   * `usePhone`). Neither connected nor disconnected by the provider.
+   */
+  existingPhone?: DialStackPhone | null;
   apiBaseUrl?: string;
   /** Host callback invoked shortly before the token expires; returns a fresh token. */
   onTokenExpiring?: () => Promise<string>;
@@ -145,13 +151,28 @@ export interface SoftphoneCoreProps {
   locale?: Locale;
   defaultCountry?: CountryCode;
   onConnectionStateChange?: (event: { state: SoftphoneConnectionState }) => void;
-  onIncomingCall?: (event: { from: string; fromName: string | null }) => void;
+  onIncomingCall?: (event: {
+    /**
+     * The call's id — the handle a host bridging to a native call UI uses to bind
+     * its OS session to THIS call (guessing from `incomingCalls` is wrong once two ring).
+     */
+    callId: string;
+    from: string;
+    fromName: string | null;
+  }) => void;
   onCallStarted?: (event: { direction: 'inbound' | 'outbound'; peer: string }) => void;
   onCallEnded?: (event: { reason: CallEndReason }) => void;
   onError?: (event: { code: string; message: string }) => void;
 }
 
 export interface SoftphoneProviderBaseProps<Extra extends object> extends SoftphoneCoreProps {
+  /**
+   * Wraps outbound-call placement. Not host-facing: a platform provider sets it
+   * (RN routes the dial through the call bridge, so the OS is told about the call
+   * before it is dialled and the foreground service exists in time). Defaults to
+   * `phone.call`; web never sets it. See `useCalls`.
+   */
+  placeOutbound?: (destination: string) => Promise<Call>;
   /** Platform-only context fields (web: `{ scope }`; native: `{ locationProvider }`). */
   extra: Extra;
   children: React.ReactNode;
@@ -160,6 +181,7 @@ export interface SoftphoneProviderBaseProps<Extra extends object> extends Softph
 // eslint-disable-next-line react/function-component-definition -- generic component; a `React.FC` arrow can't carry the <Extra> type parameter, so this must stay a function declaration
 export function SoftphoneProviderBase<Extra extends object>({
   token,
+  existingPhone,
   apiBaseUrl,
   onTokenExpiring,
   iceServers,
@@ -177,23 +199,22 @@ export function SoftphoneProviderBase<Extra extends object>({
   onCallStarted,
   onCallEnded,
   onError,
+  placeOutbound,
   extra,
   children,
 }: SoftphoneProviderBaseProps<Extra>): React.JSX.Element {
   const { lastError, handleError, clearError } = useLastError(onError);
-  // Key on appearance CONTENT, not object identity, so a host passing an inline
-  // `appearance={{ theme }}` literal (new object each render) doesn't recompute
-  // the palette every render (incl. every 1s duration tick during a call).
+  // Key on appearance CONTENT, not object identity, so an inline `appearance`
+  // literal doesn't recompute the palette every render (incl. the 1s duration tick).
   const appearanceKey = `${appearance?.theme ?? ''}|${JSON.stringify(appearance?.variables ?? {})}`;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on appearance content (appearanceKey), not identity
   const palette = useMemo(() => resolveSoftphonePalette(appearance), [appearanceKey]);
   const t = (k: keyof Locale['softphone']) => locale.softphone[k];
   const displayNumber = (v: string) => formatDisplayNumber(v, defaultCountry);
 
-  // The composition root owns the phone: usePhone constructs it + tracks its
-  // connection lifecycle, then it's handed to both useCalls (call state) and
-  // useEmergencyBinding (E911). Neither of those owns the phone anymore.
+  // usePhone owns the phone; it's handed to useCalls and useEmergencyBinding.
   const { phone, connection } = usePhone({
+    existingPhone,
     token,
     apiBaseUrl,
     onTokenExpiring,
@@ -233,31 +254,24 @@ export function SoftphoneProviderBase<Extra extends object>({
     onCallStarted,
     onCallEnded,
     onError: handleError,
+    placeOutbound,
   });
 
-  // E911 binding wired once here so web and native can't drift. It talks to the
-  // phone directly via its narrow E911 interface — no rename layer.
-  //
-  // `usePhone` yields null before the first construct and after teardown, but the
-  // hook takes a NON-nullable phone: absorbing that here keeps every E911 call
-  // site unconditional. Were the hook to branch on a null phone instead, the
-  // natural `phone?.bind()` spelling would resolve without binding anything and
-  // report success on a safety gate. DISCONNECTED_PHONE rejects instead, so the
-  // banner surfaces an error and stays open.
+  // The hook takes a NON-nullable phone; DISCONNECTED_PHONE stands in so a null
+  // phone can't resolve a `phone?.bind()` without binding and report success on a
+  // safety gate — it rejects, so the banner surfaces an error and stays open.
   const emergency = useEmergencyBinding(phone ?? DISCONNECTED_PHONE, {
     disabled: !!emergencyAddressId,
     connection,
     identityKey: token,
+    // `callEntries` is the one array every call lives in (active, ringing, held,
+    // transfer legs are all derived views), so a woken inbound counts and a consult
+    // leg isn't double-counted the way summing the derived views did.
+    liveCallCount: callEntries.length,
   });
-  // The server's network.changed signal (emergency address rejected for this
-  // network) drives the E911 gate. Subscribe here — after both hooks exist — so
-  // no forward-ref is needed to reach useEmergencyBinding from usePhone.
-  //
-  // This attaches a commit after the phone is constructed, where the pre-split
-  // code subscribed synchronously before connect(). No signal can be missed in
-  // that gap: network.changed is a server frame, so it cannot arrive until the
-  // socket has opened and authenticated — many round-trips after React has
-  // flushed this effect.
+  // Subscribe to network.changed here — after both hooks exist — so no forward-ref
+  // is needed. Attaching a commit after construct misses no signal: network.changed
+  // is a server frame, so it can't arrive until the socket has authenticated.
   useEffect(() => {
     if (!phone) return;
     const onNetworkChanged = emergency.onNetworkChanged;

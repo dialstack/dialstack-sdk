@@ -60,12 +60,16 @@ export interface UseEmergencyBindingOptions {
   /** Live connection state — the check runs when this becomes 'connected'. */
   connection: SoftphoneConnectionState;
   /**
-   * Identity of the session this binding belongs to (the WebRTC token). When it
-   * changes the phone reconnects as a DIFFERENT user, so ALL binding state must
-   * reset — otherwise, on a shared client, the previous user's `bound`/addresses
-   * and the one-shot auto-adopt guard linger and the new user can show E911
-   * unlocked without ever presenting their own address (a safety-relevant gate
-   * reading green for the wrong identity).
+   * How many calls are live. A rebind reconnects and disposes every active call,
+   * so the auto-present is deferred while this is > 0; re-runs the effect when it
+   * drops to 0 (the socket stays 'connected' across a call, so nothing else would).
+   */
+  liveCallCount?: number;
+  /**
+   * The WebRTC token — identity of the session this binding belongs to. When it
+   * changes ALL binding state must reset, or on a shared client the previous
+   * user's state lingers and the new user can show E911 unlocked without ever
+   * presenting their own address (a safety gate reading green for the wrong identity).
    */
   identityKey: string;
 }
@@ -142,7 +146,7 @@ export function useEmergencyBinding(
   phone: PhoneE911Api,
   options: UseEmergencyBindingOptions
 ): UseEmergencyBinding {
-  const { disabled, connection, identityKey } = options;
+  const { disabled, connection, identityKey, liveCallCount = 0 } = options;
   const [loading, setLoading] = useState(!disabled);
   const [bound, setBound] = useState(false);
   const [denied, setDenied] = useState(false);
@@ -216,52 +220,51 @@ export function useEmergencyBinding(
         const addrs = (await phone.listEmergencyAddresses()).data;
         if (cancelled) return;
         setSavedAddresses(addrs);
-        // Resolve the "active" address by the id the phone actually presented this
-        // session, NOT addrs[0]. addrs is ORDER BY id DESC (newest first), but the
-        // presented/persisted id is often an older one; pinning to addrs[0] would
-        // both mis-judge boundness and, on reconnect, clobber the user's selection
-        // with a different address. Fall back to addrs[0] only when nothing was
-        // presented (fresh install / pasted token / no persisted id).
+        // Resolve the "active" address by the id the phone PRESENTED this session,
+        // NOT addrs[0]. addrs is id DESC (newest first) but the presented id is
+        // often older; pinning to addrs[0] would mis-judge boundness and clobber
+        // the user's selection on reconnect. Fall back to addrs[0] only when
+        // nothing was presented.
         const presentedId = phone.presentedEmergencyAddressId;
         const active = addrs.find((a) => a.id === presentedId) ?? addrs[0] ?? null;
         if (!active) {
-          // Nothing saved → must collect an address.
           setBound(false);
+          return;
+        }
+        // Defer while a call is live WITHOUT claiming auto-adopt: a rebind would
+        // dispose the call, and leaving autoAdoptedRef unset lets this re-run
+        // (liveCallCount is a dep) and present once the call ends.
+        if (liveCallCount > 0) {
+          setLoading(false);
           return;
         }
         if (!autoAdoptedRef.current && !denied) {
           autoAdoptedRef.current = true;
-          // This shortcut has oscillated — do NOT "simplify" it to either extreme
-          // without reading both prior regressions; the two failure modes oppose:
-          //   - Always present+reconnect: an address genuinely bound this session
-          //     gets its registration dropped by the reconnect and comes back
-          //     denied → banner never clears (the "already-anchored → bound"
-          //     regression).
+          // This shortcut has OSCILLATED — do NOT "simplify" to either extreme; the
+          // two failure modes oppose:
+          //   - Always present+reconnect: an address bound this session gets its
+          //     registration dropped by the reconnect and comes back denied →
+          //     banner never clears (the "already-anchored → bound" regression).
           //   - Trust `registered_ip` alone → bound: an address bound in a PAST
-          //     session (registered_ip set) but NOT presented on THIS socket means
-          //     the server bound nothing this session, yet the gate shows green
-          //     while outbound PSTN is silently blocked (the stale-anchor bug).
-          // `registered_ip` alone can't tell these apart. The discriminator is
-          // whether the phone actually presented THIS id in the CURRENT socket's
-          // authenticate frame — that's when the server (re)binds.
+          //     session but NOT presented on THIS socket means the server bound
+          //     nothing this session, yet the gate shows green while outbound PSTN
+          //     is silently blocked (the stale-anchor bug).
+          // The discriminator `registered_ip` alone can't provide: whether the
+          // phone presented THIS id on the CURRENT socket, which is when the server
+          // (re)binds.
           const presentedThisSession = presentedId != null && presentedId === active.id;
           if (presentedThisSession && active.registered_ip != null) {
-            // Presented on this socket AND anchored → server has re-bound it (same
-            // network); treat as bound without a redundant reconnect (which would
-            // drop the registration and come back denied). A moved network arrives
-            // as network.changed → denied instead.
+            // Presented AND anchored → server re-bound it; treat as bound without a
+            // reconnect (which would drop the registration and come back denied). A
+            // moved network arrives as network.changed → denied instead.
             setBound(true);
-            // Clear a stale cap-timeout error now this session is bound — but not
-            // mid-submit, whose own cap error must stay until its late-settle clears it.
+            // Not mid-submit: its own cap error must stay until its late-settle clears it.
             if (!submittingRef.current) setError(null);
           } else {
-            // Nothing bound this session: present the address so the server binds it.
-            // Do NOT set bound here — the rebind drives a fresh 'connected' that
-            // re-runs this effect and decides boundness off a FRESH list() + current
-            // `denied`; setting it here risks a wrong-green flash. autoAdoptedRef
-            // prevents a re-present loop on that re-run. The cap bounds `loading` so a
-            // socket that never authenticates can't hide the banner for the full ~20s
-            // CONNECT_TIMEOUT (no late-settle reconcile needed — the re-run decides).
+            // Nothing bound this session: present so the server binds. Do NOT set
+            // bound here — the rebind drives a fresh 'connected' that re-runs this
+            // effect and decides boundness off a FRESH list(); setting it risks a
+            // wrong-green flash. autoAdoptedRef prevents a re-present loop.
             await withSpinnerTimeout(phone.reconnectWithEmergency(active.id), () => {}).catch(
               () => {}
             );
@@ -284,14 +287,12 @@ export function useEmergencyBinding(
     return () => {
       cancelled = true;
     };
-  }, [disabled, connection, denied, phoneRef, submittingRef]);
+  }, [disabled, connection, denied, phoneRef, submittingRef, liveCallCount]);
 
   // Shared submit protocol for confirm/create: block the form, mark this an
-  // explicit choice (so auto-adopt doesn't fire over it), run the caller's `prep`
-  // (un-capped: it resolves the address id to rebind), then the rebind under the
-  // spinner cap. On failure surface a message + rethrow (a failed rebind leaves
-  // outbound PSTN gated, so the banner must not collapse its form). If the rebind
-  // outlives the cap, `onLateSettle` reconciles its eventual result.
+  // explicit choice (so auto-adopt doesn't fire over it), run `prep`, then rebind
+  // under the spinner cap. On failure surface + rethrow — a failed rebind leaves
+  // outbound PSTN gated, so the banner must not collapse its form.
   const runRebind = useCallback(
     async (fallbackMessage: string, prep: () => Promise<string>): Promise<void> => {
       const gen = ++submitGen.current;

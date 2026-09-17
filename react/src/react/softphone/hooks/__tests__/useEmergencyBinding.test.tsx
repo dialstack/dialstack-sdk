@@ -36,7 +36,7 @@ function makeDeps(over: Partial<PhoneSpies & UseEmergencyBindingOptions> = {}): 
   options: UseEmergencyBindingOptions;
   spies: PhoneSpies;
 } {
-  const { disabled, connection, identityKey, ...spyOverrides } = over;
+  const { disabled, connection, identityKey, liveCallCount, ...spyOverrides } = over;
   const spies: PhoneSpies = {
     list: jest.fn().mockResolvedValue([addr('ea_1')]),
     save: jest.fn().mockResolvedValue(addr('ea_new')),
@@ -63,9 +63,64 @@ function makeDeps(over: Partial<PhoneSpies & UseEmergencyBindingOptions> = {}): 
     disabled: disabled ?? false,
     connection: connection ?? 'connected',
     identityKey: identityKey ?? 'tok-user-a',
+    liveCallCount: liveCallCount ?? 0,
   };
   return { phone, options, spies };
 }
+
+describe('useEmergencyBinding does not drop a live call', () => {
+  it('defers the auto-adopt rebind while a call is active', async () => {
+    // reconnectWithEmergency() → reconnect() → disconnect() disposes every
+    // active call. On a mobile push-wake the socket authenticates, the parked
+    // INVITE lands as call.incoming, and this effect — racing the async
+    // listEmergencyAddresses() fetch — used to tear the socket down before the
+    // user could answer. Reproduced ~50% of the time on real hardware.
+    const { phone, options, spies } = makeDeps({ liveCallCount: 1 });
+    renderHook((p: UseEmergencyBindingOptions) => useEmergencyBinding(phone, p), {
+      initialProps: options,
+    });
+
+    // Give the effect's await chain room to run to completion.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(spies.reconnectWithEmergency).not.toHaveBeenCalled();
+  });
+
+  it('presents the deferred address when the call ends within the same session', async () => {
+    // Regression: the deferral must NOT burn the auto-adopt guard. The socket
+    // stays 'connected' across a call, so only a liveCallCount change re-runs the
+    // effect. If the guard were set on defer, this second run would skip and the
+    // address would never bind (E911 unbound, PSTN gated, banner green).
+    const { phone, options, spies } = makeDeps({ liveCallCount: 1 });
+    const { rerender } = renderHook(
+      (p: UseEmergencyBindingOptions) => useEmergencyBinding(phone, p),
+      { initialProps: options }
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(spies.reconnectWithEmergency).not.toHaveBeenCalled();
+
+    // Call ends → liveCallCount drops to 0 → effect re-runs and presents.
+    rerender({ ...options, liveCallCount: 0 });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(spies.reconnectWithEmergency).toHaveBeenCalledTimes(1);
+  });
+
+  it('still auto-adopts once no call is live', async () => {
+    // Deferred, not skipped: the address is still unbound, so the next
+    // 'connected' with an idle phone presents it.
+    const { phone, options, spies } = makeDeps({ liveCallCount: 0 });
+    renderHook((p: UseEmergencyBindingOptions) => useEmergencyBinding(phone, p), {
+      initialProps: options,
+    });
+
+    await waitFor(() => expect(spies.reconnectWithEmergency).toHaveBeenCalledWith('ea_1'));
+  });
+});
 
 describe('useEmergencyBinding identity reset', () => {
   it('resets bound / auto-adopt state when the identity (token) changes', async () => {

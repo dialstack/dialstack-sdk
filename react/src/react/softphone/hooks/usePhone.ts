@@ -35,6 +35,17 @@ export type SoftphoneConnectionState =
 
 export interface UsePhoneOptions extends PhoneOptions {
   /**
+   * Adopt an EXISTING phone instead of constructing one from credentials — for
+   * hosts where the phone outlives the UI (a push wake may already have answered
+   * a call before the app opens). Without this the provider constructs a SECOND
+   * phone, re-registers the same SIP AOR, and the in-progress call is invisible.
+   *
+   * An adopted phone is neither connected nor disconnected here, so navigating
+   * away cannot drop a live call. Credential options are ignored while set.
+   */
+  existingPhone?: DialStackPhone | null;
+
+  /**
    * Connect automatically once the phone is constructed (default: true). Set
    * false to render the UI without connecting yet (e.g. token still loading).
    */
@@ -61,25 +72,30 @@ export interface UsePhoneResult {
  * Reconstructs (and reconnects) whenever the credentials change.
  */
 export function usePhone(options: UsePhoneOptions): UsePhoneResult {
-  const { autoConnect = true, onError } = options;
+  const { autoConnect = true, onError, existingPhone } = options;
 
-  // Expose the phone as state so dependents (useCalls, useEmergencyBinding) get a
-  // fresh reference — and re-run their phone-keyed effects — when a reconnect
+  // Phone as state so dependents re-run their phone-keyed effects when a reconnect
   // swaps the instance. Written from the connect effect, never during render.
-  const [phone, setPhone] = useState<DialStackPhone | null>(null);
-  // Seed 'connecting' when autoConnect so the first render already shows it (the
-  // connect effect then only transitions from here, avoiding a synchronous
-  // setState in the effect body). Set to an equal primitive is a React no-op, so
-  // a repeated event doesn't re-render.
+  const [phone, setPhone] = useState<DialStackPhone | null>(existingPhone ?? null);
+  // Seed 'connecting' when autoConnect so the first render shows it without a
+  // synchronous setState in the effect body. An adopted phone is already connected
+  // by its owner, so seeding 'connecting' would render a spinner over a live call.
   const [connection, setConnection] = useState<SoftphoneConnectionState>(
-    autoConnect && options.token ? 'connecting' : 'idle'
+    existingPhone
+      ? existingPhone.isConnected
+        ? 'connected'
+        : existingPhone.isConnecting
+          ? 'connecting'
+          : autoConnect
+            ? 'connecting'
+            : 'idle'
+      : autoConnect && options.token
+        ? 'connecting'
+        : 'idle'
   );
 
-  // Non-credential options are read through latest-value refs so their identity
-  // stays out of the connect-effect deps (see useLatestRef). The phone reads them
-  // at construct time; a new inline value must not tear down + reconnect the
-  // socket mid-registration. onError is latched so the phone's error listener
-  // always calls the freshest callback.
+  // Non-credential options read through refs so a new inline value stays out of the
+  // connect-effect deps and can't tear down + reconnect the socket mid-registration.
   const handlers = useLatestRef({ onError });
   const emergencyAddressIdRef = useLatestRef(options.emergencyAddressId);
   const iceServersRef = useLatestRef(options.iceServers);
@@ -89,12 +105,65 @@ export function usePhone(options: UsePhoneOptions): UsePhoneResult {
   const onAppResumeRef = useLatestRef(options.onAppResume);
   const onTokenExpiringRef = useLatestRef(options.onTokenExpiring);
 
-  // Construct + connect the phone for the current credentials. Reconnects when a
-  // credential changes; tears down on unmount. Only credentials are deps — the
-  // non-credential options above are read through refs so their identity can't
-  // retrigger this and drop the socket.
+  // Construct + connect the phone for the current credentials; reconnect on
+  // credential change, tear down on unmount. Only credentials are deps.
   const { token, apiBaseUrl, signalingBaseUrl, autoReconnect } = options;
   useEffect(() => {
+    // Adopted phone: subscribe to its lifecycle, but never construct, connect or
+    // disconnect it. Disconnecting on unmount would drop a live call the host owns.
+    if (existingPhone) {
+      let adoptedDisposed = false;
+
+      const guardAdopted = (fn: () => void) => () => {
+        if (!adoptedDisposed) fn();
+      };
+      // Capture each handler so cleanup can off() it: the adopted phone outlives
+      // this component, so leaving listeners attached leaks a fresh set of closures
+      // on every remount (unlike the constructed-phone branch, whose listeners die
+      // with the phone it disconnects).
+      const onConnected = guardAdopted(() => setConnection('connected'));
+      const onReconnecting = guardAdopted(() => setConnection('reconnecting'));
+      const onDisconnected = guardAdopted(() => setConnection('disconnected'));
+      const onErr = (err: PhoneError) => {
+        if (adoptedDisposed) return;
+        handlers.current.onError?.({ code: err.code, message: err.message });
+        if (err.fatal) setConnection('error');
+      };
+      existingPhone.on('connected', onConnected);
+      existingPhone.on('reconnected', onConnected);
+      existingPhone.on('reconnecting', onReconnecting);
+      existingPhone.on('disconnected', onDisconnected);
+      existingPhone.on('error', onErr);
+
+      // Connect if the host has not: a plain foreground launch hands over a
+      // constructed-but-idle phone, and skipping this left the UI showing
+      // 'connected' over a socket that was never opened, so the first outbound
+      // call failed. Skip when a connect is already IN FLIGHT, or connect() throws
+      // 'Phone is already connecting'. Still never DISCONNECT on unmount.
+      if (autoConnect && !existingPhone.isConnected && !existingPhone.isConnecting) {
+        existingPhone.connect().catch((err: unknown) => {
+          if (adoptedDisposed) return;
+          const e = err as PhoneError;
+          handlers.current.onError?.({
+            code: e?.code ?? 'internal_error',
+            message: e?.message ?? String(err),
+          });
+          setConnection('error');
+        });
+      }
+
+      // No setPhone(null): the phone outlives this UI, and nulling it would strand
+      // dependents on a remount.
+      return () => {
+        adoptedDisposed = true;
+        existingPhone.off('connected', onConnected);
+        existingPhone.off('reconnected', onConnected);
+        existingPhone.off('reconnecting', onReconnecting);
+        existingPhone.off('disconnected', onDisconnected);
+        existingPhone.off('error', onErr);
+      };
+    }
+
     if (!token) return;
     let disposed = false;
     const p = phoneFactory({
@@ -167,10 +236,10 @@ export function usePhone(options: UsePhoneOptions): UsePhoneResult {
       setPhone(null);
       setConnection('idle');
     };
-    // The *Ref values are stable useLatestRef containers (identity never changes),
-    // so listing them satisfies exhaustive-deps without ever retriggering: only the
-    // credentials actually reconnect.
+    // The *Ref deps are stable useLatestRef containers, so listing them satisfies
+    // exhaustive-deps without ever retriggering; only credentials reconnect.
   }, [
+    existingPhone,
     token,
     apiBaseUrl,
     signalingBaseUrl,
@@ -186,5 +255,19 @@ export function usePhone(options: UsePhoneOptions): UsePhoneResult {
     onTokenExpiringRef,
   ]);
 
-  return { phone, connection };
+  // Connection is DERIVED, not stored, for an adopted phone: a host can hand over
+  // an already-connected phone AFTER the first render, when the useState seed
+  // ('connecting'/'idle') already ran against a null phone and no 'connected'
+  // event will fire to correct it — so stored `connection` would stick and
+  // placeCall's !== 'connected' gate would block dialing forever. Once listeners
+  // observe a real transition, `connection` holds the truth and wins.
+  const derivedConnection: SoftphoneConnectionState =
+    existingPhone && (connection === 'idle' || connection === 'connecting')
+      ? existingPhone.isConnected
+        ? 'connected'
+        : existingPhone.isConnecting
+          ? 'connecting'
+          : connection
+      : connection;
+  return { phone: existingPhone ?? phone, connection: derivedConnection };
 }

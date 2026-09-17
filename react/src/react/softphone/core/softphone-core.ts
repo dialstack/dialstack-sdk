@@ -98,6 +98,10 @@ export type {
   Call,
   CallState,
   CallEndReason,
+  // Needed by the native provider's `existingPhone` prop: with a native call
+  // surface a call can exist before any phone does, so the host may construct
+  // the phone outside React and hand it in.
+  DialStackPhone,
   EmergencyAddressInput,
   PlatformStorage,
   Ringback,

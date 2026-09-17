@@ -13,7 +13,7 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { usePhone, type UsePhoneOptions } from '../usePhone';
 import { useCalls, type UseCallsOptions } from '../useCalls';
-import type { Call, CallEndReason } from '@dialstack/sdk-webrtc';
+import type { Call, CallEndReason, DialStackPhone } from '@dialstack/sdk-webrtc';
 
 // ---- fakes -----------------------------------------------------------------
 
@@ -36,7 +36,12 @@ class Emitter {
   }
 }
 
+let fakeCallSeq = 0;
+
 class FakeCall extends Emitter {
+  // Mirrors the real Call.id, which the hook forwards on onIncomingCall so a
+  // host can bind a native call-UI session to a specific call.
+  id = `call_fake_${++fakeCallSeq}`;
   state = 'trying';
   isMuted = false;
   duration = 0;
@@ -130,6 +135,12 @@ class FakePhone extends Emitter {
   disconnectCalls = 0;
   callArgs: string[] = [];
   nextCall: FakeCall | null = null;
+  // Mirrors the real DialStackPhone getter. Load-bearing for adoption: the hook
+  // reads it to decide whether the host already connected the phone.
+  isConnected = false;
+  // Also mirrors the real phone: the hook seeds from this on mount so a call that
+  // arrived before the UI existed still reaches React.
+  activeCalls: Call[] = [];
 
   constructor(public options: unknown) {
     super();
@@ -137,10 +148,12 @@ class FakePhone extends Emitter {
   }
   connect(): Promise<void> {
     this.connectCalls += 1;
+    this.isConnected = true;
     return Promise.resolve();
   }
   disconnect(): void {
     this.disconnectCalls += 1;
+    this.isConnected = false;
   }
   call(destination: string): Promise<Call> {
     this.callArgs.push(destination);
@@ -178,6 +191,230 @@ function useComposed(opts: UsePhoneOptions & UseCallsOptions) {
 }
 
 // ---- tests -----------------------------------------------------------------
+
+describe('usePhone existingPhone adoption', () => {
+  it('adopts an already-connected phone without reconnecting or disconnecting it', () => {
+    const adopted = new FakePhone({ token: 'owned-elsewhere' });
+    // What a push wake leaves behind: the host connected the phone before any UI
+    // existed.
+    adopted.isConnected = true;
+    adopted.connectCalls = 0;
+    const constructedBefore = FakePhone.last;
+
+    const { result, unmount } = renderHook(() =>
+      useComposed({ token: 'tok', existingPhone: adopted as unknown as DialStackPhone })
+    );
+
+    // Already connected by its owner: seeding 'connecting' would render a
+    // spinner over a live call.
+    expect(result.current.connection).toBe('connected');
+    // No new phone was built — `token` is ignored while adopting.
+    expect(FakePhone.last).toBe(constructedBefore);
+    // And no redundant connect(): a second one opens a second socket.
+    expect(adopted.connectCalls).toBe(0);
+
+    // Ownership follows construction: unmounting the softphone screen must not
+    // drop a call the host still owns.
+    unmount();
+    expect(adopted.disconnectCalls).toBe(0);
+  });
+
+  it('connects an adopted phone the host has not connected yet', async () => {
+    // A plain foreground launch, as opposed to a wake: the host constructs the
+    // phone at app entry but nothing has opened the socket. Seeding 'connected'
+    // here would show a green UI over a dead socket and the first outbound call
+    // would fail.
+    const adopted = new FakePhone({ token: 'owned-elsewhere' });
+    expect(adopted.isConnected).toBe(false);
+
+    const { result, unmount } = renderHook(() =>
+      useComposed({ token: 'tok', existingPhone: adopted as unknown as DialStackPhone })
+    );
+
+    expect(adopted.connectCalls).toBe(1);
+    await act(async () => {
+      adopted.emit('connected');
+    });
+    expect(result.current.connection).toBe('connected');
+
+    // Connecting it does not transfer ownership of teardown.
+    unmount();
+    expect(adopted.disconnectCalls).toBe(0);
+  });
+
+  it('adopts a call that arrived on the phone before the UI mounted', async () => {
+    // The push-wake case: the host's phone took the call (and here answered it)
+    // with no React tree alive. When the app window finally opens, the call's
+    // 'incoming'/'answered' events are already in the past, so subscribing alone
+    // would render an idle dial pad over a live call.
+    const adopted = new FakePhone({ token: 'owned-elsewhere' });
+    adopted.isConnected = true;
+    const live = new FakeCall('inbound', '1001', null, 'me');
+    live.state = 'active';
+    adopted.activeCalls = [live as unknown as Call];
+
+    const onIncomingCall = jest.fn();
+    const { result } = renderHook(() =>
+      useComposed({
+        token: 'tok',
+        existingPhone: adopted as unknown as DialStackPhone,
+        onIncomingCall,
+      })
+    );
+
+    await waitFor(() => expect(result.current.activeCall).toBeTruthy());
+    // Already answered, so it belongs in activeCall — not left ringing.
+    expect(result.current.activeCall?.id).toBe(live.id);
+    expect(result.current.incomingCalls).toHaveLength(0);
+    // A live call is NOT incoming: the host must not be told to report it as a
+    // new incoming session (double-report to CallKit/Telecom).
+    expect(onIncomingCall).not.toHaveBeenCalled();
+  });
+
+  it('fires onCallEnded for an adopted already-answered call', async () => {
+    // The push-wake teardown case: the host has an open CallKit/Telecom session
+    // for a call it answered before the UI mounted. If adoption does not register
+    // the call for end-notification, the host is never told it ended and the OS
+    // session leaks (a ghost call). onIncomingCall still must NOT fire — it is not
+    // a new incoming — but onCallEnded must.
+    const adopted = new FakePhone({ token: 'owned-elsewhere' });
+    adopted.isConnected = true;
+    const live = new FakeCall('inbound', '1001', null, 'me');
+    live.state = 'active';
+    adopted.activeCalls = [live as unknown as Call];
+
+    const onIncomingCall = jest.fn();
+    const onCallEnded = jest.fn();
+    const { result } = renderHook(() =>
+      useComposed({
+        token: 'tok',
+        existingPhone: adopted as unknown as DialStackPhone,
+        onIncomingCall,
+        onCallEnded,
+      })
+    );
+
+    await waitFor(() => expect(result.current.activeCall?.id).toBe(live.id));
+    expect(onIncomingCall).not.toHaveBeenCalled();
+
+    act(() => live.emit('ended', 'remote_bye' as CallEndReason));
+    expect(onCallEnded).toHaveBeenCalledWith({ reason: 'remote_bye' });
+    expect(result.current.activeCall).toBeNull();
+  });
+
+  it('does not adopt an outbound call through the incoming path', async () => {
+    // activeCalls can hold an outbound leg (host placed a call, then mounted the
+    // UI). Running that through onIncoming would render it as a ringing incoming
+    // card and fire onIncomingCall for a call the user themselves dialed.
+    const adopted = new FakePhone({ token: 'owned-elsewhere' });
+    adopted.isConnected = true;
+    const outbound = new FakeCall('outbound', '1001', null, 'me');
+    outbound.state = 'active';
+    adopted.activeCalls = [outbound as unknown as Call];
+
+    const onIncomingCall = jest.fn();
+    const { result } = renderHook(() =>
+      useComposed({
+        token: 'tok',
+        existingPhone: adopted as unknown as DialStackPhone,
+        onIncomingCall,
+      })
+    );
+
+    // Give adoption a chance to run, then assert it did NOT surface the outbound
+    // as an incoming card or notify the host.
+    await waitFor(() => expect(result.current.connection).toBe('connected'));
+    expect(result.current.incomingCalls).toHaveLength(0);
+    expect(onIncomingCall).not.toHaveBeenCalled();
+  });
+
+  it('syncs connection when an already-connected phone is handed over after first render', async () => {
+    // A host that resolves its module-scope phone asynchronously renders once with
+    // existingPhone null (connection seeds 'connecting'), then hands over an
+    // already-connected phone. Nothing re-fires 'connected', so without syncing to
+    // the live state on adoption, connection sticks at 'connecting' and placeCall's
+    // !== 'connected' gate blocks dialing forever.
+    const adopted = new FakePhone({ token: 'owned-elsewhere' });
+    adopted.isConnected = true;
+
+    const { result, rerender } = renderHook(
+      ({ existingPhone }) => useComposed({ token: 'tok', existingPhone }),
+      { initialProps: { existingPhone: undefined as unknown as DialStackPhone | undefined } }
+    );
+    // First render had no adopted phone: autoConnect seeds 'connecting'.
+    expect(result.current.connection).toBe('connecting');
+
+    await act(async () => {
+      rerender({ existingPhone: adopted as unknown as DialStackPhone });
+    });
+    // Adoption must reflect the live 'connected' state, not stay stuck.
+    expect(result.current.connection).toBe('connected');
+  });
+
+  it('adopts a still-ringing call that arrived before the UI mounted', async () => {
+    // Same seam, but the wake has not been answered yet: it must show as ringing
+    // so the user can accept it, and must NOT be promoted to active.
+    const adopted = new FakePhone({ token: 'owned-elsewhere' });
+    adopted.isConnected = true;
+    const ringing = new FakeCall('inbound', '1001', null, 'me');
+    ringing.state = 'trying';
+    adopted.activeCalls = [ringing as unknown as Call];
+
+    const onIncomingCall = jest.fn();
+    const { result } = renderHook(() =>
+      useComposed({
+        token: 'tok',
+        existingPhone: adopted as unknown as DialStackPhone,
+        onIncomingCall,
+      })
+    );
+
+    await waitFor(() => expect(result.current.incomingCalls).toHaveLength(1));
+    expect(result.current.activeCall).toBeNull();
+    // A still-ringing adopted call IS incoming — the host should be notified.
+    expect(onIncomingCall).toHaveBeenCalledWith(expect.objectContaining({ callId: ringing.id }));
+  });
+
+  it('does not connect an adopted phone when autoConnect is false', () => {
+    const adopted = new FakePhone({ token: 'owned-elsewhere' });
+
+    renderHook(() =>
+      useComposed({
+        token: 'tok',
+        autoConnect: false,
+        existingPhone: adopted as unknown as DialStackPhone,
+      })
+    );
+
+    expect(adopted.connectCalls).toBe(0);
+  });
+
+  it("surfaces an adopted phone's incoming call to the UI", () => {
+    const adopted = new FakePhone({ token: 'owned-elsewhere' });
+    const { result } = renderHook(() =>
+      useComposed({ token: 'tok', existingPhone: adopted as unknown as DialStackPhone })
+    );
+
+    const inbound = new FakeCall('inbound', '+15551112222', 'Alice', 'me');
+    act(() => adopted.emit('incoming', inbound));
+
+    // The whole point of adoption: a call the background runtime owns is
+    // visible to the UI rather than invisible behind a second phone.
+    expect(result.current.incomingCalls).toEqual([inbound as unknown as Call]);
+  });
+
+  it("maps an adopted phone's connection events", () => {
+    const adopted = new FakePhone({ token: 'owned-elsewhere' });
+    const { result } = renderHook(() =>
+      useComposed({ token: 'tok', existingPhone: adopted as unknown as DialStackPhone })
+    );
+
+    act(() => adopted.emit('reconnecting'));
+    expect(result.current.connection).toBe('reconnecting');
+    act(() => adopted.emit('reconnected'));
+    expect(result.current.connection).toBe('connected');
+  });
+});
 
 describe('usePhone connection lifecycle (composed with useCalls)', () => {
   it('connects on mount and maps connection events to state', async () => {
@@ -234,7 +471,13 @@ describe('useCalls multi-call policy', () => {
     // A ringing inbound is NOT the active call until answered — it's an incoming.
     expect(result.current.activeCall).toBeNull();
     expect(result.current.incomingCalls).toEqual([inbound as unknown as Call]);
-    expect(onIncomingCall).toHaveBeenCalledWith({ from: '+15551112222', fromName: 'Alice' });
+    // callId is what a host bridging to a native call UI (CallKit / Telecom)
+    // binds its OS session to, so it must be on the event itself.
+    expect(onIncomingCall).toHaveBeenCalledWith({
+      callId: inbound.id,
+      from: '+15551112222',
+      fromName: 'Alice',
+    });
   });
 
   it('surfaces multiple concurrent incoming calls (call-waiting), not busy', () => {

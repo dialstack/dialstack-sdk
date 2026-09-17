@@ -26,14 +26,24 @@ import {
   type DialStackInstance,
   type FormattingOptions,
 } from '@dialstack/sdk-js/pure';
-import type { Call, CallEndReason } from '@dialstack/sdk-webrtc';
+import type { Call, CallEndReason, DialStackPhone } from '@dialstack/sdk-webrtc';
 
 export type { SoftphoneConnectionState };
 
 export interface SoftphoneProviderProps {
   /**
+   * Adopt an EXISTING phone instead of constructing one from `token`.
+   *
+   * For hosts where the phone outlives the UI — with a native call surface a
+   * call can exist before any phone does. Neither connected nor disconnected by
+   * the provider; the host that created it owns its lifecycle.
+   */
+  existingPhone?: DialStackPhone | null;
+
+  /**
    * WebRTC user session token. The provider constructs a `DialStackPhone` with it
    * and connects. Changing the token reconnects with the new credentials.
+   * Ignored when `existingPhone` is set.
    */
   token: string;
 
@@ -74,7 +84,17 @@ export interface SoftphoneProviderProps {
   onConnectionStateChange?: (event: { state: SoftphoneConnectionState }) => void;
 
   /** Fired when an inbound call arrives. */
-  onIncomingCall?: (event: { from: string; fromName: string | null }) => void;
+  onIncomingCall?: (event: {
+    /**
+     * The call's id — the handle for `callActionsFor()` / `answerCall()`, and
+     * what a host bridging to a native call UI (CallKit / Android Telecom) uses
+     * to bind its OS session to THIS call. Without it the host must guess from
+     * `incomingCalls`, which is wrong as soon as two calls are ringing.
+     */
+    callId: string;
+    from: string;
+    fromName: string | null;
+  }) => void;
 
   /** Fired when a call (in or out) becomes the foreground call. */
   onCallStarted?: (event: { direction: 'inbound' | 'outbound'; peer: string }) => void;
@@ -118,6 +138,7 @@ export const SoftphoneContext = SharedSoftphoneContext;
  * ```
  */
 export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
+  existingPhone,
   token,
   apiBaseUrl,
   onTokenExpiring,
@@ -165,6 +186,7 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
 
   return (
     <SoftphoneProviderBase
+      existingPhone={existingPhone}
       token={token}
       apiBaseUrl={apiBaseUrl}
       onTokenExpiring={onTokenExpiring}
