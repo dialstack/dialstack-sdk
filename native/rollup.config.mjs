@@ -49,12 +49,16 @@ const external = (id) =>
   id === 'libphonenumber-js' ||
   id.startsWith('libphonenumber-js/');
 
-export default [
+// `testing` is a second entry so the fake OS adapter and the contract suite are
+// importable by an integrator's tests without ever entering the runtime bundle.
+const ENTRIES = ['index', 'testing'];
+
+export default ENTRIES.flatMap((entry) => [
   {
-    input: 'src/index.ts',
+    input: `src/${entry}.ts`,
     external,
     output: {
-      file: 'dist/index.js',
+      file: `dist/${entry}.js`,
       format: 'esm',
       sourcemap: true,
     },
@@ -72,15 +76,15 @@ export default [
     ],
   },
   // Self-contained type bundle: rollup-plugin-dts follows the same graph through
-  // the core inline mapping and flattens it into one `dist/index.d.ts` with no
+  // the core inline mapping and flattens it into one `dist/<entry>.d.ts` with no
   // dangling `@dialstack/sdk-react/core` specifier (which plain tsc cannot do).
   {
-    input: 'src/index.ts',
+    input: `src/${entry}.ts`,
     external,
     output: {
-      file: 'dist/index.d.ts',
+      file: `dist/${entry}.d.ts`,
       format: 'esm',
     },
     plugins: [inlineCore(), dts({ tsconfig: './tsconfig.build.json' })],
   },
-];
+]);

@@ -25,6 +25,11 @@
       "types": "./dist/index.d.ts",
       "react-native": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "react-native": "./dist/testing.js",
+      "default": "./dist/testing.js"
     }
   },
   "files": [

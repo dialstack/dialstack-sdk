@@ -1,14 +1,11 @@
-/**
- * SoftphoneProvider (React Native), same API as the web provider. Shared wiring
- * lives in SoftphoneProviderBase (from `@dialstack/sdk-react/core`); this
- * file adds only the native bits: the required `storage` adapter,
- * `locationProvider`, `appearance`/`defaultCountry`, and the InCallManager audio
- * session + ringtone.
- */
+/** SoftphoneProvider (React Native), same API as the web provider. */
 
 import React, { useEffect, useMemo } from 'react';
 import { AppState, Vibration, type AppStateStatus } from 'react-native';
 import InCallManager from 'react-native-incall-manager';
+
+import { nativeSignalingSocket } from './nativeSignalingSocket';
+import type { NativeCallBridge } from './bridge/NativeCallBridge';
 import { type CountryCode } from 'libphonenumber-js';
 import {
   SoftphoneProviderBase,
@@ -23,26 +20,19 @@ import {
   type SoftphoneConnectionState,
   type Call,
   type CallEndReason,
+  type DialStackPhone,
   type EmergencyAddressInput,
   type PlatformStorage,
   type Ringback,
   type AppResumeSubscribe,
-  type SignalingSocketFactory,
 } from '@dialstack/sdk-react/core';
 
-// Derive the appearance type from the theme resolver rather than importing it
-// from the SDK root (which would pull the web component graph into RN).
+// Derived from the resolver, not imported from the SDK root, which would pull
+// the web component graph into RN.
 type AppearanceOptions = Parameters<typeof resolveSoftphonePalette>[0];
 
-/**
- * Outbound ringback for React Native. WebAudio's `AudioContext` (the web core's
- * default `RingbackTone`) doesn't exist on RN, so the synthetic tone is produced
- * by react-native-incall-manager instead. Supplied to the core via
- * `PhoneOptions.ringback`. Every call is guarded so a missing/older InCallManager
- * degrades to a silent no-op rather than throwing — the core (call.ts) never
- * guards the call site. Stateless beyond `playing`, so one shared instance backs
- * every call (outbound ringback plays one call at a time).
- */
+// Outbound ringback for RN: WebAudio's AudioContext (the core's default) doesn't
+// exist on RN. Every call is guarded because the core never guards the call site.
 class InCallManagerRingback implements Ringback {
   private playing = false;
 
@@ -56,7 +46,7 @@ class InCallManagerRingback implements Ringback {
       InCallManager.startRingback('_DTMF_');
       this.playing = true;
     } catch {
-      // No InCallManager / unsupported — ringback is best-effort.
+      // Best-effort.
     }
   }
 
@@ -71,29 +61,11 @@ class InCallManagerRingback implements Ringback {
   }
 }
 
-// One shared instance backs every call — see the class doc above.
 const nativeRingback: Ringback = new InCallManagerRingback();
 
-// The signaling ingress 403s a handshake with no `User-Agent`. iOS's WebSocket
-// (SocketRocket) sends none by default, so we set one explicitly. RN's WebSocket
-// takes a third `options` arg the DOM type doesn't declare; hence the cast.
-const NATIVE_USER_AGENT = 'dialstack-sdk (react-native)';
-
-const nativeSignalingSocket: SignalingSocketFactory = (url, protocols) => {
-  const RNWebSocket = globalThis.WebSocket as unknown as new (
-    url: string,
-    protocols: string[],
-    options: { headers: Record<string, string> }
-  ) => WebSocket;
-  return new RNWebSocket(url, protocols, {
-    headers: { 'User-Agent': NATIVE_USER_AGENT },
-  });
-};
-
-// React Native has no `document`, so the web core's DOM-lifecycle default for
-// detecting a foreground resume can't fire. Supply an AppState-backed variant:
-// the transport uses it to re-verify the connection when the app returns to the
-// foreground (the OS may have torn the socket down while backgrounded).
+// RN has no `document`, so the core's DOM foreground-resume default can't fire.
+// The transport uses this to re-verify the connection on foreground (the OS may
+// have torn the socket down while backgrounded).
 const nativeAppResume: AppResumeSubscribe = (cb) => {
   const sub = AppState.addEventListener('change', (s: AppStateStatus) => {
     if (s === 'active') cb();
@@ -104,63 +76,74 @@ const nativeAppResume: AppResumeSubscribe = (cb) => {
 export type ConnectionState = SoftphoneConnectionState;
 
 export interface SoftphoneProviderProps {
+  /**
+   * Adopt an existing phone instead of constructing one from `token`, for a
+   * native call surface where a call can exist before any phone does. Neither
+   * connected nor disconnected by the provider.
+   */
+  existingPhone?: DialStackPhone | null;
   /** WebRTC user session token. */
   token: string;
   /**
-   * Persistence for the selected E911 address id, so it survives app restarts.
-   * REQUIRED on React Native: the SDK takes no persistence dependency of its own
-   * (react-native-mmkv and AsyncStorage vary by version/architecture and can't be
-   * defaulted safely), so the host supplies a small `PlatformStorage` adapter —
-   * typically MMKV- or AsyncStorage-backed. See the example apps for reference
-   * adapters; a synchronous in-memory adapter is also valid if you don't need
-   * persistence. It only stores the E911 id, nothing sensitive.
+   * Persistence for the selected E911 address id. REQUIRED on RN: the SDK takes
+   * no persistence dependency of its own. A synchronous in-memory adapter is
+   * valid if you don't need persistence.
    */
   storage: PlatformStorage;
   /** API base URL (defaults to the SDK's production endpoint). */
   apiBaseUrl?: string;
   /**
-   * Called shortly before the session token expires (about 60 seconds ahead).
-   * Return a fresh token minted by your backend; the SDK delivers it in-band over
-   * the existing connection — no reconnect and no call disruption. If it rejects,
-   * the SDK keeps the (still-valid) connection open and surfaces an `error`.
+   * Called shortly before the session token expires. Return a fresh token; the
+   * SDK delivers it in-band with no reconnect. On reject the SDK keeps the
+   * still-valid connection and surfaces an `error`.
    */
   onTokenExpiring?: () => Promise<string>;
-  /** Emergency (E911) address id to present on connect; when supplied the host
-   *  manages E911 and the built-in prompt is disabled. */
+  /** E911 address id to present on connect; when supplied the host manages E911
+   *  and the built-in prompt is disabled. */
   emergencyAddressId?: string;
   /**
-   * Optional device-location source for the E911 form. When provided, the
-   * built-in emergency-address form shows a "Use my current location" action
-   * that calls this to prefill the address fields; the host owns the location
-   * permission prompt, geolocation, and reverse-geocoding. Omit for manual entry.
+   * Device-location source for the E911 form's "Use my current location" action;
+   * the host owns the permission prompt, geolocation, and reverse-geocoding.
    */
   locationProvider?: () => Promise<EmergencyAddressInput>;
   /** Connect automatically once mounted (default: true). */
   autoConnect?: boolean;
-  /** Theming — the shared appearance surface (same as the web softphone). */
+  /** Theming — the shared appearance surface. */
   appearance?: AppearanceOptions;
-  /** Locale for UI strings (defaults to English), same surface as the web softphone. */
+  /** Locale for UI strings (defaults to English). */
   locale?: Locale;
   /** Default country for number formatting. */
   defaultCountry?: CountryCode;
   onConnectionStateChange?: (event: { state: ConnectionState }) => void;
-  onIncomingCall?: (event: { from: string; fromName: string | null }) => void;
+  onIncomingCall?: (event: {
+    /** Handle for `callActionsFor()` / `answerCall()`, and what a host bridging
+     *  to a native call UI binds its OS session to. */
+    callId: string;
+    from: string;
+    fromName: string | null;
+  }) => void;
   onCallStarted?: (event: { direction: 'inbound' | 'outbound'; peer: string }) => void;
   onCallEnded?: (event: { reason: CallEndReason }) => void;
   onError?: (event: { code: string; message: string }) => void;
+  /**
+   * The call bridge, when this app reports calls to the OS. Outbound placement
+   * then goes through it, so the OS learns about the call BEFORE it is dialled —
+   * on Android that report is what starts the foreground service, without which
+   * backgrounding mid-dial lets the OS reap the process and drop the call.
+   */
+  bridge?: Pick<NativeCallBridge, 'call'>;
   children: React.ReactNode;
 }
 
-/**
- * The native softphone context: the shared base plus the native-only
- * `locationProvider`. (`palette` is on the base — computed identically to web.)
- */
+/** The native softphone context: the shared base plus the native-only
+ *  `locationProvider`. */
 export interface SoftphoneContextValue extends SoftphoneContextBase {
   /** Host-supplied device-location source for the E911 form, or undefined. */
   locationProvider: (() => Promise<EmergencyAddressInput>) | undefined;
 }
 
 export function SoftphoneProvider({
+  existingPhone,
   token,
   storage,
   apiBaseUrl,
@@ -176,14 +159,23 @@ export function SoftphoneProvider({
   onCallStarted,
   onCallEnded,
   onError,
+  bridge,
   children,
 }: SoftphoneProviderProps): React.JSX.Element {
-  // Stable `extra` identity so the base's context-value memo isn't busted every
-  // render by a fresh object literal.
+  // Stable identity so the base's context-value memo isn't busted every render.
   const extra = useMemo(() => ({ locationProvider }), [locationProvider]);
+
+  // The bridge's BridgeCall is structurally the webrtc Call the softphone renders
+  // — the port is narrow on purpose, so the two types are decoupled by design
+  // rather than by accident.
+  const placeOutbound = useMemo(
+    () => (bridge ? (destination: string) => bridge.call(destination) as Promise<Call> : undefined),
+    [bridge]
+  );
 
   return (
     <SoftphoneProviderBase
+      existingPhone={existingPhone}
       token={token}
       storage={storage}
       ringback={nativeRingback}
@@ -201,22 +193,31 @@ export function SoftphoneProvider({
       onCallStarted={onCallStarted}
       onCallEnded={onCallEnded}
       onError={onError}
+      placeOutbound={placeOutbound}
       extra={extra}
     >
-      {/* Native-only side-effects, as an ordinary child that reads the context. */}
-      <NativeAudioSession />
+      <NativeAudioSession osOwnsCallAudio={bridge !== undefined} />
       {children}
     </SoftphoneProviderBase>
   );
 }
 
-// Drives the InCallManager audio session + ringtone off call state. Renders
-// nothing. Reads the shared context like any other softphone child.
-function NativeAudioSession(): null {
+/**
+ * Ringtone and audio-session ownership.
+ *
+ * `osOwnsCallAudio` is the whole story: with a call bridge, Telecom/CallKit is
+ * already ringing the phone and already owns the mode, so doing either here is
+ * not just duplicated — it breaks capture. InCallManager's ringtone puts the
+ * device in MODE_RINGTONE, and WebRTC cannot initialise the recorder in that
+ * mode: it releases it and never rebuilds, so the answered call has no
+ * microphone. Only inbound calls have a ringing phase, which is why outbound
+ * always worked and inbound never did.
+ */
+function NativeAudioSession({ osOwnsCallAudio }: { osOwnsCallAudio: boolean }): null {
   const { calls, incomingRinging } = useSoftphoneBase();
-  // Hold the audio session while ANY call is connected (not just the foreground
-  // one) so switching/promoting calls doesn't drop the route.
-  const hasConnectedCall = calls.some((c) => c.isConnected);
+  // Hold the session while ANY call is connected so switching/promoting calls
+  // doesn't drop the route. Left to the OS when it owns the call.
+  const hasConnectedCall = !osOwnsCallAudio && calls.some((c) => c.isConnected);
   useEffect(() => {
     if (!hasConnectedCall) return;
     InCallManager.start({ media: 'audio' });
@@ -224,21 +225,14 @@ function NativeAudioSession(): null {
   }, [hasConnectedCall]);
 
   useEffect(() => {
-    if (!incomingRinging) return;
-    // Ringtone audio only: pass a NON-array vibrate arg so InCallManager skips
-    // its own one-shot Vibration.vibrate(pattern, /*repeat*/ false) — that path
-    // both can't loop (hard-coded no-repeat) and, given any array, crashes on
-    // Android 14+ where a [0] waveform is rejected (all-zero timings). We drive
-    // the vibration ourselves below so it repeats for the whole ring.
+    if (osOwnsCallAudio || !incomingRinging) return;
+    // Pass a NON-array vibrate arg so InCallManager skips its own one-shot
+    // vibrate: that path can't loop and, given any array, crashes on Android 14+
+    // (all-zero [0] waveform rejected). We drive the repeating vibration below.
     InCallManager.startRingtone('_DEFAULT_', 0, '', -1);
-    // repeat=true loops the pattern from index 0 until cancel(). Timing is
-    // interpreted per-platform: on Android it's [wait, vibrate, pause] ms; on
-    // iOS durations are ignored (fixed buzz) and the values act as delays
-    // between buzzes. Either way it's a repeating buzz for the whole ring.
-    // No-op on devices without a vibrator (e.g. simulators). Guarded because
-    // Android enforces VIBRATE by throwing: an unguarded throw here would
-    // escape before the cleanup below is registered, stranding the ringtone
-    // we just started so it plays on past answer/decline.
+    // Guarded: Android enforces VIBRATE by throwing, and an unguarded throw here
+    // would escape before the cleanup is registered, stranding the ringtone past
+    // answer/decline.
     try {
       Vibration.vibrate([0, 800, 800], true);
     } catch {
@@ -248,7 +242,7 @@ function NativeAudioSession(): null {
       Vibration.cancel();
       InCallManager.stopRingtone();
     };
-  }, [incomingRinging]);
+  }, [incomingRinging, osOwnsCallAudio]);
   return null;
 }
 

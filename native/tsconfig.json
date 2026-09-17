@@ -12,8 +12,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "types": [],
-    "baseUrl": ".",
+    "types": ["jest"],
     "paths": {
       "@dialstack/sdk-react/core": ["../react/src/react/softphone/core/index.ts"],
       "@dialstack/sdk-webrtc": ["../webrtc/dist/index.d.ts"],

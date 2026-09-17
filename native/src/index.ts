@@ -1,40 +1,27 @@
 /**
- * `@dialstack/sdk-native` — the React Native softphone components.
+ * `@dialstack/sdk-native` — the React Native softphone components, same API as
+ * the web softphone.
  *
- * A separate package from `@dialstack/sdk` on purpose: it carries the React
- * Native peer dependencies, so the web SDK's dependency graph stays structurally
- * free of anything React Native (a web app installing `@dialstack/sdk` can never
- * pull an RN library). It is self-contained — it inlines its own compiled copy
- * of the shared headless core + call-state hooks at build time (the core is
- * authored once in `@dialstack/sdk`'s source and shared at build time only), so
- * it has no runtime dependency on `@dialstack/sdk`.
- *
- * The mobile siblings of the web softphone, with the SAME API: a headless
- * SoftphoneProvider that owns the connection, a batteries-included <Softphone>,
- * and the composable pieces (<DialPad> / <IncomingCall> / <OngoingCall>) for
- * building a bespoke experience.
+ * A separate package from `@dialstack/sdk` so the web SDK's dependency graph
+ * stays free of anything React Native. Self-contained: it inlines its own
+ * compiled copy of the shared headless core at build time, so it has no runtime
+ * dependency on `@dialstack/sdk`.
  *
  * Bring your own WebRTC package (any build whose `registerGlobals()` installs
- * the standard surface — the `react-native-webrtc` peer is optional so a
- * differently-named fork can satisfy it) plus `react-native-incall-manager` /
- * `react-native-svg` (peer deps), supply a `storage` adapter to
- * `<SoftphoneProvider>` (the SDK takes no persistence dependency — back it with
- * MMKV, AsyncStorage, or anything that implements `PlatformStorage`), and pass a
- * WebRTC token.
+ * the standard surface) plus `react-native-incall-manager` / `react-native-svg`,
+ * supply a `storage` adapter to `<SoftphoneProvider>`, and pass a WebRTC token.
  *
  * @example
  * ```tsx
  * import { Softphone, SoftphoneProvider } from '@dialstack/sdk-native';
  *
- * // The provider owns the connection + token (the single entry point); the UI
- * // components are pure consumers under it and can mount/unmount freely.
  * <SoftphoneProvider token={webrtcToken}>
- *   <Softphone />                          // batteries-included UI
- *   // ...or build-your-own: {incoming ? <IncomingCall /> : <DialPad />}
+ *   <Softphone />
  * </SoftphoneProvider>
  * ```
  */
 
+export { nativeSignalingSocket } from './nativeSignalingSocket';
 export {
   SoftphoneProvider,
   useSoftphone,
@@ -56,11 +43,38 @@ export { OngoingCall } from './softphone/OngoingCall';
 export { EmergencyBanner } from './softphone/EmergencyBanner';
 
 // The persistence adapter interface the host implements for the required
-// `storage` prop (an MMKV- or AsyncStorage-backed store; see the example apps).
+// `storage` prop.
 export type { PlatformStorage, EmergencyAddressInput } from '@dialstack/sdk-react/core';
 
-// The call surface, by name. An integrator bridging to the platform's own call
-// UI (CallKit, Telecom) writes functions over these — `(call: Call) => …`,
-// mapping `CallState` onto a native call state — so reaching them structurally
-// through `SoftphoneContextValue['calls'][number]` is not enough.
+// The call surface, by name, so an integrator bridging to the OS call UI can
+// write `(call: Call) => …` functions over it.
 export type { Call, CallState, CallEndReason, UseCallActions } from '@dialstack/sdk-react/core';
+
+// The OS call surface as a library-agnostic port. `@dialstack/sdk-native/testing`
+// has the in-memory fake and the contract suite an adapter must pass.
+export type {
+  OsActiveSession,
+  OsCallAdapter,
+  OsCallEventName,
+  OsCallEvents,
+  OsEndReason,
+  OsIncomingCall,
+  OsOutgoingCall,
+  OsSessionId,
+} from './os/OsCallAdapter';
+
+// The OS⇄SDK call bridge: the one subscriber to both sides. Works with no
+// renderer, so a push-woken headless runtime starts it like the window.
+export { NativeCallBridge, toOsEndReason } from './bridge/NativeCallBridge';
+export type {
+  AppLifecycle,
+  AppLifecycleState,
+  BridgeCall,
+  BridgePhone,
+  BridgePhoneError,
+  NativeCallBridgeOptions,
+} from './bridge/NativeCallBridge';
+export { RuntimeHold } from './bridge/RuntimeHold';
+export { createPhone, getPhone, requirePhone } from './bridge/createPhone';
+export type { CreatePhoneOptions } from './bridge/createPhone';
+export { appLifecycle, registerWakeTask, DEFAULT_WAKE_TASK } from './bridge/reactNative';
