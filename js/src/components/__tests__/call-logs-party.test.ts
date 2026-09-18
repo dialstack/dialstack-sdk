@@ -49,4 +49,13 @@ describe('CallLogsComponent party formatting', () => {
     expect(format('+14186597044', '14186597044')).toBe(format('+14186597044', null));
     expect(format('+15817027849', '(581) 702-7849')).toBe(format('+15817027849', null));
   });
+
+  // libphonenumber reads the leading "*" as a dialing prefix and discards it,
+  // so "*681" — the park slot a call was retrieved from — would render as "681"
+  // and read as a real, wrong extension.
+  it('renders a feature code verbatim', () => {
+    expect(format('*681', null)).toBe('*681');
+    expect(format('*68', null)).toBe('*68');
+    expect(format('#72', null)).toBe('#72');
+  });
 });

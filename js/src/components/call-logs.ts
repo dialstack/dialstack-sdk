@@ -19,6 +19,15 @@ interface CallLogsResponse {
 }
 
 /**
+ * Where an entry sits in its conversation. `none` is a conversation of one
+ * entry, which is the overwhelming majority and carries no grouping mark.
+ *
+ * These are positions in a sequence, not depths in a tree. Every entry of a
+ * conversation is a peer covering its own stretch of it.
+ */
+type GroupPosition = 'none' | 'start' | 'middle' | 'end';
+
+/**
  * Date range filter
  */
 export interface DateRange {
@@ -274,6 +283,12 @@ export class CallLogsComponent extends BaseComponent {
    */
   private formatPhoneNumber(phone: string): string {
     if (!phone) return '';
+
+    // A feature code is not a phone number. libphonenumber discards the leading
+    // "*" or "#" as a dialing prefix, so "*681" — the call park slot a call was
+    // retrieved from — parses as +1681 and formats national as "681", which
+    // reads as a real (and wrong) extension. Show these verbatim.
+    if (/^[*#]/.test(phone)) return phone;
 
     try {
       const defaultCountry = (this.formatting.defaultCountry || 'US') as CountryCode;
@@ -586,6 +601,47 @@ export class CallLogsComponent extends BaseComponent {
           cursor: pointer;
         }
 
+        /* Several entries can be one conversation, because picking a parked
+           caller back up places a new call. A bracket down the left edge spans
+           every entry of one conversation.
+
+           Grouping, not nesting. The entries are consecutive stretches of the
+           same conversation, so none of them contains another, none is
+           indented, and a conversation that fits in a single entry carries no
+           mark at all.
+
+           The bracket is drawn on the first cell whichever column is showing,
+           since every column is individually toggleable. It is a positioned
+           element rather than a border-left for two reasons: the table
+           collapses its borders, which would merge the rule with its
+           neighbours', and the ends need rounding. It sits inside the cell's
+           own left padding so it never reads as the table's edge. */
+        tbody tr.in-conversation > td:first-child {
+          position: relative;
+        }
+
+        tbody tr.in-conversation > td:first-child::before {
+          content: '';
+          position: absolute;
+          left: var(--ds-spacing-sm);
+          top: 0;
+          bottom: 0;
+          width: 2px;
+          background: color-mix(in srgb, var(--ds-color-primary) 45%, transparent);
+        }
+
+        /* Stop the bracket short at both ends so it reads as a span with a
+           beginning and an end rather than a rule running off the table. */
+        tbody tr.conversation-start > td:first-child::before {
+          top: 25%;
+          border-radius: 1px 1px 0 0;
+        }
+
+        tbody tr.conversation-end > td:first-child::before {
+          bottom: 25%;
+          border-radius: 0 0 1px 1px;
+        }
+
         .cell-secondary {
           display: block;
           font-size: var(--ds-font-size-small);
@@ -741,12 +797,87 @@ export class CallLogsComponent extends BaseComponent {
   /**
    * Render the call logs table
    */
+  /**
+   * Group the page by conversation, in the order the conversation happened.
+   *
+   * One conversation does not always fit in one call log. A parked caller
+   * picked back up is a second entry, and they chain when a retriever is itself
+   * parked and someone else picks them up. `related_call` links each entry to a
+   * counterpart, which is enough to rebuild the group. Follow the links, then
+   * order by `started_at`, since a continuation always begins after the call it
+   * continues. That holds even when the opening entry ended early.
+   *
+   * `related_call` does not say which direction it points, and it does not need
+   * to, because ordering by `started_at` decides that.
+   *
+   * The members are peers, not a hierarchy. Each one covers its own stretch of
+   * the conversation, so the position returned says where a member sits in its
+   * group rather than how deep it is nested. A conversation of one entry is
+   * `none` and gets no grouping mark.
+   *
+   * Only entries on this page can be linked up. One that sits on the next page
+   * renders on its own there, which is why a group is rendered where its
+   * first-encountered member fell rather than re-sorted to the top.
+   */
+  private orderByConversation(calls: CallLog[]): Array<{ call: CallLog; group: GroupPosition }> {
+    const byID = new Map(calls.map((c) => [c.id, c]));
+
+    const neighbours = new Map<string, Set<string>>();
+    const link = (a: string, b: string) => {
+      if (!neighbours.has(a)) neighbours.set(a, new Set());
+      neighbours.get(a)?.add(b);
+    };
+    for (const call of calls) {
+      const peer = call.related_call;
+      if (!peer || !byID.has(peer)) continue;
+      link(call.id, peer);
+      link(peer, call.id);
+    }
+
+    const started = (c: CallLog) => new Date(c.started_at).getTime();
+    const emitted = new Set<string>();
+    const ordered: Array<{ call: CallLog; group: GroupPosition }> = [];
+
+    for (const call of calls) {
+      if (emitted.has(call.id)) continue;
+
+      // Collect the whole group this call belongs to, then order it in time.
+      const group: CallLog[] = [];
+      const queue = [call.id];
+      const seen = new Set(queue);
+      while (queue.length > 0) {
+        const id = queue.shift();
+        if (id === undefined) break;
+        const member = byID.get(id);
+        if (!member) continue;
+        group.push(member);
+        for (const next of neighbours.get(id) ?? []) {
+          if (seen.has(next)) continue;
+          seen.add(next);
+          queue.push(next);
+        }
+      }
+      group.sort((a, b) => started(a) - started(b));
+
+      for (const [i, member] of group.entries()) {
+        emitted.add(member.id);
+        let position: GroupPosition = 'middle';
+        if (group.length === 1) position = 'none';
+        else if (i === 0) position = 'start';
+        else if (i === group.length - 1) position = 'end';
+        ordered.push({ call: member, group: position });
+      }
+    }
+
+    return ordered;
+  }
+
   private renderTable(): string {
     const { showDate, showDirection, showFrom, showTo, showDuration, showStatus, showQuality } =
       this.displayOptions;
 
-    const rows = this.callLogs
-      .map((call) => {
+    const rows = this.orderByConversation(this.callLogs)
+      .map(({ call, group }) => {
         // Build row classes
         const rowClasses: string[] = [];
         if (this.classes.row) rowClasses.push(this.classes.row);
@@ -754,18 +885,29 @@ export class CallLogsComponent extends BaseComponent {
           rowClasses.push(this.classes.rowInbound);
         if (call.direction === 'outbound' && this.classes.rowOutbound)
           rowClasses.push(this.classes.rowOutbound);
+        if (group !== 'none') {
+          rowClasses.push('in-conversation');
+          if (group === 'start') rowClasses.push('conversation-start');
+          if (group === 'end') rowClasses.push('conversation-end');
+        }
         const rowClassStr = rowClasses.length > 0 ? ` class="${rowClasses.join(' ')}"` : '';
+        // Separate parts so a host can restyle the grouping, including its two
+        // ends, without having to reimplement the row.
+        const rowPart =
+          group === 'none'
+            ? 'table-row'
+            : `table-row table-row-in-conversation table-row-conversation-${group}`;
 
         // Use custom row renderer if provided
         if (this.customRowRenderer) {
-          return `<tr data-call-id="${call.id}" tabindex="0" role="row" part="table-row"${rowClassStr}>${this.customRowRenderer(call)}</tr>`;
+          return `<tr data-call-id="${call.id}" tabindex="0" role="row" part="${rowPart}"${rowClassStr}>${this.customRowRenderer(call)}</tr>`;
         }
 
         // Pre-compute MOS once for quality column (used in class, tooltip, and value)
         const mos = showQuality ? this.getWorstMos(call) : undefined;
 
         return `
-          <tr data-call-id="${call.id}" tabindex="0" role="row" part="table-row"${rowClassStr}>
+          <tr data-call-id="${call.id}" tabindex="0" role="row" part="${rowPart}"${rowClassStr}>
             ${showDate ? `<td part="cell cell-date">${this.formatDate(call.started_at)}</td>` : ''}
             ${showDirection ? `<td part="cell cell-direction"><span class="badge ${this.getDirectionClass(call.direction)}" part="badge badge-direction">${this.formatDirection(call.direction)}</span></td>` : ''}
             ${showFrom ? `<td part="cell cell-from">${this.formatFromCell(call)}</td>` : ''}

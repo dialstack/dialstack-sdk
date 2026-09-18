@@ -247,6 +247,25 @@ export interface CallLog {
    * requested; null when none.
    */
   did: string | CallLogDID | null;
+  /**
+   * Another call belonging to the same conversation, as a call id; null when
+   * this call stands alone, which is the common case.
+   *
+   * One conversation does not always fit in one call log. Today that happens
+   * when a parked caller is picked back up: the retrieval is a new call from the
+   * retriever's endpoint and so gets its own entry, and the two name each other.
+   * Treat the field as "there is more of this conversation over there" rather
+   * than as a park-specific marker — other flows may populate it later.
+   *
+   * It does not say which way it points, and it does not need to. `started_at`
+   * orders a linked group, and the earliest entry is the one the conversation
+   * started on; follow the links to walk a longer chain.
+   *
+   * The relation can be many-to-one — several entries may name the same call
+   * while it names only one of them back — so do not assume the link round-trips
+   * to the entry you came from.
+   */
+  related_call: string | null;
   direction: 'inbound' | 'outbound' | 'internal';
   from_number: string;
   /**

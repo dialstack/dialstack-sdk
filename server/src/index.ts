@@ -753,6 +753,22 @@ export interface CallLog {
    * calls without a DID.
    */
   did: string | DIDSummary | null;
+  /**
+   * Another call belonging to the same conversation, as a call id; null when
+   * this call stands alone.
+   *
+   * One conversation does not always fit in one call log. Today that happens
+   * when a parked caller is picked back up — the retrieval is a new call from
+   * the retriever's endpoint and gets its own entry — but treat the field as
+   * "there is more of this conversation over there" rather than as a
+   * park-specific marker.
+   *
+   * It carries no direction. `started_at` orders a linked group, and its
+   * earliest member is the one the conversation started on; follow the links to
+   * walk a longer chain. The relation can be many-to-one, so the link does not
+   * always round-trip to the entry you came from.
+   */
+  related_call: string | null;
   direction: CallDirection;
   from_number: string;
   /**
