@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "DialStack OS Integration",
+    "slug": "dialstack-os-integration",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "dialstack-os-integration",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "ai.dialstack.osintegration.example",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "This app needs the microphone to place and receive calls."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0b1220",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "ai.dialstack.osintegration.example",
+      "googleServicesFile": "./google-services.json",
+      "permissions": ["android.permission.MODIFY_AUDIO_SETTINGS", "android.permission.RECORD_AUDIO"]
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0b1220",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 96
+        }
+      ],
+      [
+        "expo-callkit-telecom",
+        {
+          "incomingCallTimeout": 300,
+          "androidEventReceiver": "ai.dialstack.osintegration.example.WakeEventReceiver"
+        }
+      ],
+      "./plugins/withWakeHeadlessService",
+      "./plugins/withLocalRigCleartext"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

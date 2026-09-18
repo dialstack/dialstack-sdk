@@ -173,23 +173,37 @@ const storage: PlatformStorage = {
 
 ## Example apps
 
-Two runnable apps, both wired with the permissions and plugin above:
+Three runnable apps, all wired with the permissions and plugin above:
 
 - [Expo](https://github.com/dialstack/dialstack-sdk/tree/main/examples/mobile/expo)
   — ships the MMKV storage adapter
 - [Bare React Native](https://github.com/dialstack/dialstack-sdk/tree/main/examples/mobile/bare)
   — ships an AsyncStorage adapter
+- [OS integration](https://github.com/dialstack/dialstack-sdk/tree/main/examples/mobile/os-integration)
+  — the worked example for the OS call surface: calls on a locked or killed
+  phone via push wake, `OsCallAdapter` over expo-callkit-telecom. Android is
+  built and verified; iOS is designed for but not yet built.
 
 ## Scope
 
-This package provides the in-app calling surface: the provider, the call state,
-and the React Native UI. The operating system's own call experience — the
-full-screen incoming call, ringing on a locked screen, and waking the app from a
-push — is the integrator's to wire, using the platform frameworks directly (iOS
-PushKit + CallKit, Android FCM + Telecom/ConnectionService).
+This package provides the in-app calling surface — the provider, the call state,
+and the React Native UI — plus the bridge between the SDK and the operating
+system's own call experience.
 
-The seams for that are public. `useSoftphone()` exposes `calls`,
+Binding the two remains the integrator's work, but not from scratch:
+`NativeCallBridge` keeps an OS call session and an SDK `Call` in step in both
+directions, and `OsCallAdapter` is the interface it drives, so the part you write
+is one adapter over your chosen call library rather than the whole state machine.
+A contract suite in `@dialstack/sdk-native/testing` exercises an adapter against
+the behaviours the bridge depends on.
+
+What the package does not ship is the platform wiring itself: the native call
+library (iOS PushKit + CallKit, Android FCM + Telecom/ConnectionService) and the
+push delivery. DialStack stores no device tokens — arranging the push that wakes
+your app is yours. The OS-integration example above is a complete worked wiring
+of both on Android.
+
+The lower-level seams stay public too: `useSoftphone()` exposes `calls`,
 `incomingCalls`, `activeCall` and `actions.callActionsFor(call)`, and every
-`Call` carries a stable `id` and `state`, so a native call session can be
-created, kept in step, and torn down alongside the SDK's own. DialStack stores
-no device tokens — delivering the push that wakes your app is yours to arrange.
+`Call` carries a stable `id` and `state`, so an integrator who wants to drive the
+OS session directly can still do so.

@@ -1,0 +1,286 @@
+diff --git a/node_modules/expo-callkit-telecom/android/src/main/java/expo/modules/callkittelecom/services/CallForegroundService.kt b/node_modules/expo-callkit-telecom/android/src/main/java/expo/modules/callkittelecom/services/CallForegroundService.kt
+new file mode 100644
+index 000000000..9f72f8dab
+--- /dev/null
++++ b/node_modules/expo-callkit-telecom/android/src/main/java/expo/modules/callkittelecom/services/CallForegroundService.kt
+@@ -0,0 +1,149 @@
++package expo.modules.callkittelecom.services
++
++import android.app.Notification
++import android.app.Service
++import android.content.Context
++import android.content.Intent
++import android.content.pm.ServiceInfo
++import android.os.Build
++import android.os.IBinder
++import android.util.Log
++
++/**
++ * Keeps a live call's process AND network alive while the app is backgrounded.
++ *
++ * Core-Telecom's `CallsManager.addCall` grants only a `phoneCall`-type foreground
++ * service delegation, which keeps the process schedulable but does NOT exempt the
++ * app's own sockets (e.g. a WebRTC signalling WebSocket) from background/Doze
++ * network reaping. Without a network-bearing foreground service, a backgrounded
++ * call loses its socket within a few seconds and drops.
++ *
++ * This service promotes the module's existing ongoing-call notification
++ * (NOTIFICATION_ID = 8400) to a real foreground service that also carries
++ * `dataSync` — the type that keeps the socket alive in the background. Reusing the
++ * same notification id means Android renders ONE notification, not two.
++ *
++ * `dataSync` (not `microphone`): Android disallows starting the `microphone` FGS
++ * type from the background, and Telecom already owns call audio; `dataSync` is the
++ * lower-friction network-bearing type. Note `dataSync` has a ~6h/day cumulative
++ * cap on Android 15 — fine per call because the service stops at each call end.
++ */
++class CallForegroundService : Service() {
++    override fun onBind(intent: Intent?): IBinder? = null
++
++    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
++        // A service started via startForegroundService MUST call startForeground()
++        // within a few seconds or the OS raises a timeout and kills it (which, on a
++        // call, drops the call). So ALWAYS call startForeground — never take an
++        // early-return path that skips it. The notification rides in the Intent (a
++        // Notification is Parcelable), which is reliable across the
++        // startForegroundService -> onStartCommand boundary, unlike a static field.
++        val notification: Notification? =
++            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
++                intent?.getParcelableExtra(EXTRA_NOTIFICATION, Notification::class.java)
++            } else {
++                @Suppress("DEPRECATION")
++                intent?.getParcelableExtra(EXTRA_NOTIFICATION)
++            }
++
++        if (notification == null) {
++            // Should not happen (start() always packs it), but we still cannot
++            // leave a foreground-started service without a startForeground call.
++            Log.w(TAG, "onStartCommand with no notification — stopping")
++            stopSelf()
++            return START_NOT_STICKY
++        }
++
++        // Only an ANSWERED (ongoing) call claims microphone. A ringing incoming call
++        // captures no audio, and starting a microphone-type FGS from the background
++        // (the cold-wake path) is disallowed and would throw — so incoming/dialing
++        // request phoneCall + dataSync only. See foregroundTypes().
++        val withMicrophone = intent?.getBooleanExtra(EXTRA_WITH_MICROPHONE, false) ?: false
++
++        try {
++            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
++                startForeground(NOTIFICATION_ID, notification, foregroundTypes(withMicrophone))
++            } else {
++                startForeground(NOTIFICATION_ID, notification)
++            }
++        } catch (e: Exception) {
++            // Log at ERROR unconditionally: a failure here is the difference between
++            // a call surviving the background and dropping, and it's otherwise silent.
++            Log.e(TAG, "startForeground failed", e)
++            stopSelf()
++        }
++        return START_NOT_STICKY
++    }
++
++    private fun foregroundTypes(withMicrophone: Boolean): Int {
++        var types = ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
++            // dataSync keeps the socket alive; both it and phoneCall are allowed
++            // from a background start under the FCM allowlist, so a cold-wake
++            // incoming call keeps its signalling socket while ringing.
++            types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
++
++            // microphone lets the call keep RECORDING while backgrounded (Android 14+
++            // blocks background mic capture without it). Claimed only once the call is
++            // ANSWERED — a ringing call records nothing, and starting a mic-type FGS
++            // from the background (the wake path) is disallowed and throws.
++            if (withMicrophone) {
++                types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
++            }
++        }
++        return types
++    }
++
++    companion object {
++        private const val TAG = "CallForegroundService"
++        private const val EXTRA_NOTIFICATION = "notification"
++        private const val EXTRA_WITH_MICROPHONE = "withMicrophone"
++
++        // Must match CallNotificationManager.NOTIFICATION_ID so the FGS adopts the
++        // existing ongoing-call notification (one notification, not two).
++        private const val NOTIFICATION_ID = 8400
++
++        /**
++         * Promote the call notification to a foreground service. Idempotent: calling
++         * it again while running re-delivers with the current notification, which the
++         * OS treats as a notification update — so the incoming start (phoneCall +
++         * dataSync) can later be upgraded to include microphone by the ongoing start.
++         *
++         * `withMicrophone` is true only for an ANSWERED call. A ringing incoming call
++         * records nothing and starts from the background (the FCM wake path), where a
++         * microphone-type FGS is disallowed and would throw — so incoming/dialing pass
++         * false and claim phoneCall + dataSync only (both allowed under the wake
++         * allowlist, enough to keep the signalling socket alive while ringing).
++         */
++        fun start(context: Context, notification: Notification, withMicrophone: Boolean) {
++            val ctx = context.applicationContext
++            val intent =
++                Intent(ctx, CallForegroundService::class.java)
++                    .putExtra(EXTRA_NOTIFICATION, notification)
++                    .putExtra(EXTRA_WITH_MICROPHONE, withMicrophone)
++            try {
++                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
++                    ctx.startForegroundService(intent)
++                } else {
++                    ctx.startService(intent)
++                }
++            } catch (e: Exception) {
++                // A background-start restriction (e.g. started too late, already in
++                // the background) — the notification itself is still posted by
++                // CallNotificationManager, so the call is not invisible; it just
++                // lacks the network exemption.
++                Log.e(TAG, "startForegroundService failed", e)
++            }
++        }
++
++        /** Stop the foreground service; the notification's own lifecycle is unchanged. */
++        fun stop(context: Context) {
++            val ctx = context.applicationContext
++            try {
++                ctx.stopService(Intent(ctx, CallForegroundService::class.java))
++            } catch (e: Exception) {
++                Log.e(TAG, "stopService failed", e)
++            }
++        }
++    }
++}
+diff --git a/node_modules/expo-callkit-telecom/android/src/main/AndroidManifest.xml b/node_modules/expo-callkit-telecom/android/src/main/AndroidManifest.xml
+index a55ea9e24..8f313b3dd 100644
+--- a/node_modules/expo-callkit-telecom/android/src/main/AndroidManifest.xml
++++ b/node_modules/expo-callkit-telecom/android/src/main/AndroidManifest.xml
+@@ -6,6 +6,13 @@
+   <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
++  <!-- Network-bearing type so a backgrounded call's own sockets (e.g. a WebRTC
++       signalling WebSocket) survive Doze/background reaping. phoneCall alone does
++       not carry this exemption. -->
++  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
++  <!-- Lets the call keep RECORDING (mic) while backgrounded — Android 14+ blocks
++       background mic capture without a microphone-type foreground service. -->
++  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+ 
+   <application>
+     <activity
+@@ -29,5 +36,10 @@
+         <action android:name="com.google.firebase.MESSAGING_EVENT" />
+       </intent-filter>
+     </service>
++
++    <service
++      android:name="expo.modules.callkittelecom.services.CallForegroundService"
++      android:exported="false"
++      android:foregroundServiceType="phoneCall|dataSync|microphone" />
+   </application>
+ </manifest>
+diff --git a/node_modules/expo-callkit-telecom/android/src/main/java/expo/modules/callkittelecom/ExpoCallKitTelecomModule.kt b/node_modules/expo-callkit-telecom/android/src/main/java/expo/modules/callkittelecom/ExpoCallKitTelecomModule.kt
+index f6443f6a8..3477aace5 100644
+--- a/node_modules/expo-callkit-telecom/android/src/main/java/expo/modules/callkittelecom/ExpoCallKitTelecomModule.kt
++++ b/node_modules/expo-callkit-telecom/android/src/main/java/expo/modules/callkittelecom/ExpoCallKitTelecomModule.kt
+@@ -96,6 +96,17 @@ class ExpoCallKitTelecomModule : Module() {
+ 
+         OnNewIntent { intent -> handleAnswerIntent(intent) }
+ 
++        // When a push-wake integration pre-initializes this module from a headless
++        // JS task, OnCreate has already run by the time the user taps the
++        // notification's Answer action — so its handleLaunchIntent() saw no answer
++        // intent. The tap then launches MainActivity fresh, so OnNewIntent does not
++        // fire either (the intent arrives as the launch intent, not a re-delivered
++        // one). The ACTION_ANSWER intent would fall between both hooks and the call
++        // would time out "unanswered". Re-check the launch intent whenever the
++        // activity enters the foreground; handleAnswerIntent clears the action
++        // after handling it, so this is idempotent.
++        OnActivityEntersForeground { handleLaunchIntent() }
++
+         // Register per-event observers
+         OnStartObserving(CallEvents.CALL_SESSION_ADDED) {
+             CallEventEmitter.startObserving(CallEvents.CALL_SESSION_ADDED)
+diff --git a/node_modules/expo-callkit-telecom/android/src/main/java/expo/modules/callkittelecom/managers/CallNotificationManager.kt b/node_modules/expo-callkit-telecom/android/src/main/java/expo/modules/callkittelecom/managers/CallNotificationManager.kt
+index bc6e57d71..478152f2d 100644
+--- a/node_modules/expo-callkit-telecom/android/src/main/java/expo/modules/callkittelecom/managers/CallNotificationManager.kt
++++ b/node_modules/expo-callkit-telecom/android/src/main/java/expo/modules/callkittelecom/managers/CallNotificationManager.kt
+@@ -15,6 +15,7 @@ import androidx.core.app.NotificationManagerCompat
+ import androidx.core.app.Person
+ import androidx.core.graphics.drawable.IconCompat
+ import expo.modules.callkittelecom.IncomingCallActivity
++import expo.modules.callkittelecom.services.CallForegroundService
+ import expo.modules.callkittelecom.services.CallNotificationReceiver
+ import expo.modules.callkittelecom.utils.CallKitTelecomLog
+ import java.util.UUID
+@@ -230,6 +231,13 @@ object CallNotificationManager {
+                 .build()
+ 
+         postNotification(ctx, callId, displayName, "incoming call")
++        // Promote to a network-bearing foreground service already at the RING, not
++        // just on answer: a cold-wake incoming call must keep its signalling socket
++        // alive (to re-REGISTER and receive the parked INVITE) while it rings with
++        // the app still in the background. A ringing call records nothing, so no
++        // microphone here (and starting a mic FGS from the background would throw) —
++        // phoneCall + dataSync only. The ongoing start adds microphone on answer.
++        CallForegroundService.start(ctx, notification, withMicrophone = false)
+         notify(ctx, notification)
+     }
+ 
+@@ -267,6 +275,13 @@ object CallNotificationManager {
+                 .build()
+ 
+         postNotification(ctx, callId, displayName, "dialing call")
++        // Start the network-bearing foreground service at the EARLIEST call point,
++        // while the app is still foreground (a foreground start has no
++        // background-start restriction). Once running it survives backgrounding, so
++        // the call's socket is protected before the user can background the app.
++        // A dialing call has not connected yet, so it is not recording — no
++        // microphone type. The ongoing start adds it once the call is answered.
++        CallForegroundService.start(ctx, notification, withMicrophone = false)
+         notify(ctx, notification)
+     }
+ 
+@@ -310,6 +325,17 @@ object CallNotificationManager {
+                 .build()
+ 
+         postNotification(ctx, callId, displayName, "ongoing call")
++        // Run the ongoing-call notification as a foreground service carrying a
++        // network-bearing type, so a backgrounded call's socket (e.g. the app's
++        // WebRTC signalling WebSocket) survives Doze/background reaping. Reuses
++        // NOTIFICATION_ID so there is a single notification. `start()` falls back
++        // gracefully if the OS refuses the foreground start.
++        //
++        // The call is answered here and the app is foregrounded, so claim microphone:
++        // this re-delivers on the same service, upgrading a call that woke in the
++        // background as phoneCall + dataSync so it also keeps RECORDING alive when
++        // re-backgrounded.
++        CallForegroundService.start(ctx, notification, withMicrophone = true)
+         notify(ctx, notification)
+     }
+ 
+@@ -319,6 +345,10 @@ object CallNotificationManager {
+         val ctx = context.applicationContext
+         val displayName = callerName ?: "Unknown"
+ 
++        // The call is over: release the network-bearing foreground service. The
++        // "Call ended" notification below is posted independently and auto-cancels.
++        CallForegroundService.stop(ctx)
++
+         val notification =
+             buildBase(ctx, CHANNEL_ONGOING, displayName, "Call ended")
+                 .setOngoing(false)
+@@ -338,6 +368,10 @@ object CallNotificationManager {
+     /** Cancels any active call notification. */
+     fun cancel(context: Context) {
+         cancelDelayedCancel()
++        // Release the foreground service before removing its notification, so a
++        // hard cancel (e.g. an answer-timeout drop) doesn't leave the service
++        // running against a notification that no longer exists.
++        CallForegroundService.stop(context.applicationContext)
+         NotificationManagerCompat.from(context.applicationContext).cancel(NOTIFICATION_ID)
+         CallKitTelecomLog.d(TAG) { "Cancelled call notification" }
+     }
