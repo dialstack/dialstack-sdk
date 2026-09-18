@@ -213,6 +213,19 @@ export interface AccountConfig {
   /** Whether call audio recordings are retained (default: true) */
   recording_enabled?: boolean;
   /**
+   * Whether inbound call audio is retained. Narrows recording_enabled, which
+   * gates every direction, so both must be on (default: true).
+   */
+  recording_inbound_enabled?: boolean;
+  /**
+   * Whether outbound call audio is retained. Turn this off where the law
+   * requires every party to consent and an inbound notice cannot cover it
+   * (default: true).
+   */
+  recording_outbound_enabled?: boolean;
+  /** Whether extension-to-extension call audio is retained (default: true) */
+  recording_internal_enabled?: boolean;
+  /**
    * Whether sensitive information (PII) is redacted from transcripts and audio
    * recordings; transcription is English-only and a recording is downloadable
    * only after redaction completes (default: false)
