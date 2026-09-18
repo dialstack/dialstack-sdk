@@ -292,6 +292,30 @@ type AccountCreateAddress =
 
 export type AccountCreateParams = AccountCreateParamsBase & AccountCreateAddress;
 
+/**
+ * An account's outbound porting PIN.
+ *
+ * The PIN authorises moving the account's phone numbers to another provider. It
+ * is held by the carrier against each of the account's numbers, and the carrier
+ * checks it when a transfer away is requested.
+ */
+export interface AccountPortOutPin {
+  object: 'account_port_out_pin';
+  /**
+   * Five digits, as a string so leading zeros are preserved.
+   *
+   * Null when the account owns no phone numbers — it has no PIN yet, because
+   * there is nothing to protect. The PIN is created with the first number.
+   */
+  pin: string | null;
+}
+
+/** Parameters for replacing an account's outbound porting PIN. */
+export interface AccountPortOutPinUpdateParams {
+  /** Exactly five digits, sent as a string — `"04217"`, not `4217`. */
+  pin: string;
+}
+
 export interface AccountUpdateParams {
   email?: string;
   primary_contact_name?: string;
@@ -3351,6 +3375,37 @@ export class DialStack {
       options?: RequestOptions
     ): Promise<Tos> => {
       return this._request('POST', `/v1/accounts/${accountId}/tos`, params, options);
+    },
+
+    /**
+     * The account's outbound porting PIN. Nested under its parent because it is
+     * a singleton sub-resource, not a field on the account: both reading and
+     * writing it are operations against the carrier that holds the value.
+     */
+    portOutPin: {
+      /**
+       * Retrieve the account's outbound porting PIN. `pin` is null when the
+       * account owns no phone numbers.
+       *
+       * Treat the value like a password: anyone who has it can begin moving the
+       * account's phone numbers to another provider.
+       */
+      retrieve: (accountId: string, options?: RequestOptions): Promise<AccountPortOutPin> => {
+        return this._request('GET', `/v1/accounts/${accountId}/port-out-pin`, undefined, options);
+      },
+
+      /**
+       * Replace the account's outbound porting PIN. Applied to every phone
+       * number on the account, asynchronously — a retrieve immediately
+       * afterwards may still report the previous value.
+       */
+      update: (
+        accountId: string,
+        params: AccountPortOutPinUpdateParams,
+        options?: RequestOptions
+      ): Promise<AccountPortOutPin> => {
+        return this._request('POST', `/v1/accounts/${accountId}/port-out-pin`, params, options);
+      },
     },
   };
 
