@@ -72,6 +72,9 @@ export interface AccountConfig {
   default_agent_visible?: boolean | null;
 }
 
+/** The Service Subscription Agreement an account signs. */
+export type TosVariant = 'standard' | 'hipaa';
+
 export interface Account {
   id: string;
   name?: string | null;
@@ -81,6 +84,13 @@ export interface Account {
   config: AccountConfig;
   /** True when the account has completed every onboarding step. */
   onboarding_complete: boolean;
+  /**
+   * Which Service Subscription Agreement this account must sign. `standard` is
+   * the ordinary agreement; `hipaa` is the healthcare agreement incorporating
+   * the Business Associate Agreement, for customers handling protected health
+   * information.
+   */
+  tos_variant?: TosVariant;
   /**
    * Subscription-agreement coverage. `not_required` — a non-live
    * (sandbox/demo) account, never prompted to accept. `unsigned` — acceptance
@@ -122,6 +132,13 @@ export interface UpdateAccountRequest {
   main_location_id?: string;
   /** Set or clear the template inherited by newly created compatible devices. */
   default_button_template?: string | null;
+  /**
+   * Move the account onto the other Service Subscription Agreement. Accepted
+   * only while the account has not yet accepted its agreement. Once it has,
+   * this returns 409 — changing the required agreement invalidates that
+   * acceptance and blocks the account's calling, including 911.
+   */
+  tos_variant?: TosVariant;
 }
 
 /**

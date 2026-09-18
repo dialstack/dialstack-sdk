@@ -141,6 +141,7 @@ export type {
   OnboardingPortalClasses,
   AccountConfig,
   Account,
+  TosVariant,
   UpdateAccountRequest,
   AccountPricing,
   EffectivePricing,

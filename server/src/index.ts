@@ -157,6 +157,9 @@ type EventCallback<T> = (event: T) => void;
 // API Types
 // ============================================================================
 
+/** The Service Subscription Agreement an account signs. */
+export type TosVariant = 'standard' | 'hipaa';
+
 export interface Account {
   id: string;
   email: string | null;
@@ -166,6 +169,13 @@ export interface Account {
   main_location_id: string | null;
   /** Button template inherited by newly created deskphones and DECT handsets. */
   default_button_template: string | null;
+  /**
+   * Which Service Subscription Agreement this account must sign. `standard` is
+   * the ordinary agreement; `hipaa` is the healthcare agreement incorporating
+   * the Business Associate Agreement, for customers handling protected health
+   * information.
+   */
+  tos_variant?: TosVariant;
   /**
    * Subscription-agreement (SSA/TOS) coverage status. `signed` — a live account
    * whose acceptance matches the current agreement version; `unsigned` — a live
@@ -242,6 +252,13 @@ interface AccountCreateParamsBase {
   config?: AccountConfig;
   /** Agreed monthly rates, in cents. Required when creating an account. */
   pricing: AccountPricingParams;
+  /**
+   * Which Service Subscription Agreement this account must sign. Choose
+   * `hipaa` for a customer handling protected health information — it is the
+   * healthcare agreement incorporating the Business Associate Agreement.
+   * Omit to use your platform's configured default.
+   */
+  tos_variant?: TosVariant;
 }
 
 /**
@@ -270,6 +287,14 @@ export interface AccountUpdateParams {
   main_location_id?: string;
   /** Set or clear the template inherited by newly created compatible devices. */
   default_button_template?: string | null;
+  /**
+   * Move the account onto the other Service Subscription Agreement. Accepted
+   * only while the account has not yet accepted its agreement, typically to
+   * correct a choice made at creation. Once it has accepted, this returns 409:
+   * changing the required agreement invalidates that acceptance and blocks the
+   * account's calling, including 911.
+   */
+  tos_variant?: TosVariant;
 }
 
 export interface AccountListParams {
