@@ -108,6 +108,7 @@ export const NodeConfigPanel = ({
           nodeId={node.id}
           onInvalidDraftChange={onInvalidDraftChange}
           config={config}
+          nodeData={node.data}
           onConfigChange={(updates, display) => onConfigChange(node.id, updates, display)}
           listResources={listResources}
           onCreateResource={onCreateResource}

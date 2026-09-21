@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import type { ConfigPanelProps } from '../registry-types';
 import { OpenResourceLink } from './OpenResourceLink';
 import { ResourceCombobox } from './ResourceCombobox';
@@ -8,7 +8,9 @@ import { TimeoutField } from './fields/TimeoutField';
 import { useResourceGroups } from './hooks/useResourceGroups';
 
 export const InternalDialConfigPanel = ({
+  nodeId,
   config,
+  nodeData,
   onConfigChange,
   listResources,
   onCreateResource,
@@ -36,6 +38,22 @@ export const InternalDialConfigPanel = ({
   // keeps that pair unreachable rather than letting it fail at save, where it
   // arrives as a 400 on the whole plan.
   const minTimeout = timeoutOverride ? 1 : 0;
+
+  // Grey the number only where it is genuinely inert — the override off *and*
+  // the target owning timing of its own. Against a user with no Find Me /
+  // Follow Me ladder the number rings their devices whatever the toggle says,
+  // and a stored 0 skips the node whatever the target owns, so both stay
+  // editable. enrichNode computes this, since the target's timing is known
+  // only once the resource resolves.
+  const timeoutInert = nodeData?.timeoutInert === true;
+
+  // Turning the override on over a skipped node raises the 0 to 1 so the
+  // rejected pair is never stored. Remember it for the length of this edit:
+  // the number is greyed for a target that owns timing, so without this the
+  // toggle would be the only way in and turning it back off would leave a
+  // one-second ring where the plan meant to skip. The panel instance is reused
+  // across selections, so the memory carries the node it belongs to.
+  const promotedFrom = useRef<{ nodeId?: string; timeout: number } | null>(null);
 
   // Target sits above Timeout so it stays anchored under the panel header as
   // the target type and the toggle state change the fields below it.
@@ -71,11 +89,20 @@ export const InternalDialConfigPanel = ({
           { value: 'on', label: locale?.configLabels.timeoutOverrideOn ?? 'On' },
         ]}
         onChange={(next) => {
-          const on = next === 'on';
-          // Turning the override on over a skipped node carries the number up
-          // with it, in the same visible step, so the pair is never stored.
+          if (next === 'on') {
+            promotedFrom.current = timeout === 0 ? { nodeId, timeout: 0 } : null;
+            onConfigChange(
+              timeout === 0 ? { timeout_override: true, timeout: 1 } : { timeout_override: true }
+            );
+            return;
+          }
+          const promoted = promotedFrom.current;
+          const restored = promoted && promoted.nodeId === nodeId ? promoted.timeout : undefined;
+          promotedFrom.current = null;
           onConfigChange(
-            on && timeout === 0 ? { timeout_override: true, timeout: 1 } : { timeout_override: on }
+            restored === undefined
+              ? { timeout_override: false }
+              : { timeout_override: false, timeout: restored }
           );
         }}
       />
@@ -83,7 +110,11 @@ export const InternalDialConfigPanel = ({
         value={timeout}
         min={minTimeout}
         max={300}
-        onChange={(t) => onConfigChange({ timeout: t })}
+        disabled={timeoutInert}
+        onChange={(t) => {
+          promotedFrom.current = null;
+          onConfigChange({ timeout: t });
+        }}
         locale={locale}
       />
     </>

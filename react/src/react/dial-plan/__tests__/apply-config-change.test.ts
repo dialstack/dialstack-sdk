@@ -44,19 +44,18 @@ const change = (
   });
 
 describe('nodeDataAfterConfigChange', () => {
-  it("keeps the badge on the target's own duration after an unrelated edit", () => {
-    // A 600s queue behind a node storing 30: the badge says 600 at load, and
-    // editing anything else must not turn it back into 30.
+  it('keeps the stored duration behind an inactive override after an unrelated edit', () => {
     const loaded = enrichNodeData(
       'internalDial',
       internalDialNode({ target_id: 'qu_1', timeout: 30, timeout_override: false }),
       mapsWith('qu_1', 600),
       defaultDialPlanLocale
     );
-    expect(loaded.timeout).toBe(600);
+    expect(loaded.timeout).toBe(30);
 
     const next = change(loaded, { next: 'n2' }, mapsWith('qu_1', 600));
-    expect(next?.timeout).toBe(600);
+    expect(next?.timeout).toBe(30);
+    expect(next?.timeoutOverride).toBe(false);
   });
 
   it('re-derives the badge when the override is toggled', () => {
@@ -67,7 +66,8 @@ describe('nodeDataAfterConfigChange', () => {
     expect(on?.timeout).toBe(30);
 
     const off = change(on!, { timeout_override: false }, maps);
-    expect(off?.timeout).toBe(600);
+    expect(off?.timeout).toBe(30);
+    expect(off?.timeoutOverride).toBe(false);
   });
 
   it('caps the badge at a laddered user, and stops capping when the target changes', () => {
@@ -85,8 +85,7 @@ describe('nodeDataAfterConfigChange', () => {
     const data = internalDialNode({ target_id: 'user_1', timeout: 30, timeout_override: false });
     const next = change(data, { target_id: 'rg_9' }, emptyMaps(), { targetName: 'Sales' });
     expect(next?.targetName).toBe('Sales');
-    // Nothing knows how long rg_9 rings yet, so the stored number is the best
-    // answer available until it resolves.
+    // The stored number remains available if the override is turned back on.
     expect(next?.timeout).toBe(30);
   });
 
@@ -96,13 +95,13 @@ describe('nodeDataAfterConfigChange', () => {
 });
 
 describe('enrichNodeData', () => {
-  it('lifts the badge onto the target once the target resolves', () => {
+  it('does not replace an inactive override with the target timeout', () => {
     const data = internalDialNode({ target_id: 'rg_9', timeout: 30, timeout_override: false });
     expect(enrichNodeData('internalDial', data, emptyMaps(), defaultDialPlanLocale).timeout).toBe(
       30
     );
     expect(
       enrichNodeData('internalDial', data, mapsWith('rg_9', 45), defaultDialPlanLocale).timeout
-    ).toBe(45);
+    ).toBe(30);
   });
 });

@@ -48,6 +48,12 @@ export interface ConfigPanelProps {
    */
   onInvalidDraftChange?: (invalid: boolean) => void;
   config: Record<string, unknown>;
+  /**
+   * The node's enriched flow data, which carries what resolving its referenced
+   * resources revealed. A panel needs it when a field's behaviour depends on
+   * the target rather than on the stored config alone.
+   */
+  nodeData?: Record<string, unknown>;
   onConfigChange: (updates: Record<string, unknown>, display?: Record<string, unknown>) => void;
   listResources: (
     type: ResourceType,
@@ -118,8 +124,8 @@ export interface ResourceMaps {
    * `timeout_seconds` is how long that target rings a caller on its own — a
    * ring group's or queue's stored timeout, or the sum of a user's Find Me /
    * Follow Me steps — and is absent for a target with no duration of its own.
-   * The canvas badge needs it to print what a node will actually do rather
-   * than the number stored on the node.
+   * An active override uses a user's total to avoid promising more ringing
+   * than its Find Me / Follow Me ladder can provide.
    */
   users: Map<
     string,

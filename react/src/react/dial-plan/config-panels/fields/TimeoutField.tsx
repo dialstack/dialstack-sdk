@@ -6,6 +6,7 @@ interface TimeoutFieldProps {
   value: number;
   min: number;
   max: number;
+  disabled?: boolean;
   onChange: (next: number) => void;
   locale?: DialPlanLocale;
 }
@@ -14,7 +15,14 @@ interface TimeoutFieldProps {
  * Numeric timeout input with built-in clamping. Empty/non-numeric input
  * resolves to `min`. Values outside [min, max] are clamped on every change.
  */
-export const TimeoutField = ({ value, min, max, onChange, locale }: TimeoutFieldProps) => {
+export const TimeoutField = ({
+  value,
+  min,
+  max,
+  disabled = false,
+  onChange,
+  locale,
+}: TimeoutFieldProps) => {
   return (
     <ConfigField label={locale?.configLabels.timeout ?? 'Timeout (seconds)'}>
       <input
@@ -23,6 +31,7 @@ export const TimeoutField = ({ value, min, max, onChange, locale }: TimeoutField
         min={min}
         max={max}
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(Math.min(max, Math.max(min, Number(e.target.value) || min)))}
       />
     </ConfigField>

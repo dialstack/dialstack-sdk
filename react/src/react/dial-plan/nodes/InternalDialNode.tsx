@@ -13,7 +13,12 @@ import type {
 import { NodeHeader, StaticExits } from '../DialPlanNode';
 import { InternalDialConfigPanel } from '../config-panels/InternalDialConfigPanel';
 import { PhoneIcon } from '../icons';
-import { resolveEffectiveTimeout, resolveTargetName, resolveTargetType } from './resolve-target';
+import {
+  resolveOverriddenTimeout,
+  resolveTargetName,
+  resolveTargetType,
+  targetOwnsTiming,
+} from './resolve-target';
 
 export const config: NodeDefinition = {
   type: 'internal_dial',
@@ -24,14 +29,14 @@ export const config: NodeDefinition = {
   color: '#22c55e',
   exits: [{ id: 'next', label: 'Timeout', configKey: 'next', localeExitKey: 'timeout' }],
   configPanel: InternalDialConfigPanel,
-  defaultConfig: { target_id: '', timeout: 30, timeout_override: false },
+  defaultConfig: { target_id: '', timeout: 30, timeout_override: true },
   icon: PhoneIcon,
   renderNode: (data: Record<string, unknown>, reg: NodeTypeRegistration) => (
     <>
       <NodeHeader
         icon={reg.icon}
         label={data.label as string}
-        timeout={data.timeout as number | undefined}
+        timeout={data.timeoutInert ? undefined : (data.timeout as number | undefined)}
         subtitle={data.targetName as string | undefined}
       />
       <div className="ds-dial-plan-node__exits">
@@ -56,15 +61,17 @@ export const config: NodeDefinition = {
     const targetId = data.targetId as string;
     const targetName = resolveTargetName(targetId, maps, locale);
     const targetType = resolveTargetType(targetId, locale);
-    // The badge prints what the node will do, not what is stored on it: the
-    // stored number is inert against a target that owns its own timing unless
-    // this node overrules it.
-    const timeout = resolveEffectiveTimeout(
-      targetId,
-      data.timeout as number | undefined,
-      data.timeoutOverride as boolean,
-      maps
-    );
-    return { ...data, targetName, targetType, timeout, locale };
+    const stored = data.timeout as number | undefined;
+    // The badge is a promise about the call, so it prints nothing rather than a
+    // number the call ignores. What makes the number inert is the target owning
+    // timing of its own, not the override being off: routing applies the node's
+    // number to a user with no Find Me / Follow Me ladder either way. A stored 0
+    // is never inert — every dispatch site reads it as "skip without dialing"
+    // before it reads anything else.
+    const timeoutInert = !data.timeoutOverride && stored !== 0 && targetOwnsTiming(targetId, maps);
+    const timeout = data.timeoutOverride
+      ? resolveOverriddenTimeout(targetId, stored, maps)
+      : stored;
+    return { ...data, targetName, targetType, timeout, timeoutInert, locale };
   },
 };

@@ -649,6 +649,13 @@ export const dialPlanStyles = `
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
 }
 
+.ds-dial-plan-config-field__input:disabled {
+  background: #f1f5f9;
+  color: var(--ds-color-text-secondary, #64748b);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .ds-dial-plan-config-field__input-wrapper {
   position: relative;
   display: flex;
@@ -1020,6 +1027,11 @@ export const dialPlanStyles = `
   background: #12122a;
   border-color: rgba(255, 255, 255, 0.1);
   color: #e2e8f0;
+}
+
+:is(.dark, [data-theme="dark"]) .ds-dial-plan-config-field__input:disabled {
+  background: #1e1e38;
+  color: #94a3b8;
 }
 
 :is(.dark, [data-theme="dark"]) .ds-resource-combobox__trigger {

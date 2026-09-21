@@ -1,9 +1,8 @@
 /**
- * An Internal Extension node's timeout is inert unless the node overrules the
- * target it dials, so the toggle that declares that is the whole feature as far
- * as the editor is concerned. The number alone cannot say it: the editor
- * pre-fills a timeout into every node it creates, so "non-empty" would mean
- * "always".
+ * The timeout is greyed only where it is inert, which is the override off
+ * against a target that owns timing of its own. `timeoutInert` carries that
+ * judgement in from enrichNode, because the target's timing is known only once
+ * the resource resolves.
  */
 
 import React from 'react';
@@ -13,10 +12,16 @@ import { InternalDialConfigPanel } from '../config-panels/InternalDialConfigPane
 // The panel loads its target list on mount. Nothing here asserts on that list,
 // but the resolution still lands mid-test and would warn about an unwrapped
 // update, so every case flushes it first.
-const panel = async (config: Record<string, unknown>, onConfigChange = jest.fn()) => {
+const panel = async (
+  config: Record<string, unknown>,
+  onConfigChange = jest.fn(),
+  nodeData: Record<string, unknown> = {}
+) => {
   render(
     <InternalDialConfigPanel
+      nodeId="n1"
       config={config}
+      nodeData={nodeData}
       onConfigChange={onConfigChange}
       listResources={jest.fn().mockResolvedValue([])}
     />
@@ -25,18 +30,50 @@ const panel = async (config: Record<string, unknown>, onConfigChange = jest.fn()
   return onConfigChange;
 };
 
+// A toggle click is ignored when the segment is already selected, so a case
+// that clicks the toggle twice has to feed each change back as the editor does.
+const statefulPanel = async (initial: Record<string, unknown>) => {
+  const seen: Array<Record<string, unknown>> = [];
+  const Harness = () => {
+    const [config, setConfig] = React.useState(initial);
+    return (
+      <InternalDialConfigPanel
+        nodeId="n1"
+        config={config}
+        nodeData={{}}
+        onConfigChange={(updates) => {
+          seen.push(updates);
+          setConfig((prev) => ({ ...prev, ...updates }));
+        }}
+        listResources={jest.fn().mockResolvedValue([])}
+      />
+    );
+  };
+  render(<Harness />);
+  await act(async () => {});
+  return seen;
+};
+
 const timeoutInput = () => screen.getByRole('spinbutton');
 
 describe('InternalDialConfigPanel timeout override', () => {
-  // The toggle alone decides whether the number governs, so the number stays
-  // editable either way. Greying it out read well but made timeout 0 — the
-  // documented "skip this node without dialing" sentinel — unauthorable: the
-  // only way in was to turn the override on, type 0, and leave a flag on that
-  // becomes live the moment anyone raises the number later.
-  it('leaves the timeout editable whichever way the toggle is set', async () => {
-    await panel({ target_id: 'user_1', timeout: 25 });
-    expect(timeoutInput()).not.toBeDisabled();
+  it('disables the stored timeout once the node reports it inert', async () => {
+    await panel({ target_id: 'qu_1', timeout: 25 }, jest.fn(), { timeoutInert: true });
+    expect(timeoutInput()).toBeDisabled();
     expect(timeoutInput()).toHaveValue(25);
+  });
+
+  // dialNodeRingTimeout is unconditional on the user path, so the stored number
+  // rings a ladder-less user's devices whichever way the toggle is set. Greying
+  // it would lock a live value.
+  it('leaves the timeout editable for a target that owns no timing', async () => {
+    await panel({ target_id: 'user_1', timeout: 25 }, jest.fn(), { timeoutInert: false });
+    expect(timeoutInput()).not.toBeDisabled();
+  });
+
+  it('enables the timeout while the override is on', async () => {
+    await panel({ target_id: 'user_1', timeout: 25, timeout_override: true });
+    expect(timeoutInput()).not.toBeDisabled();
   });
 
   it('authors the skip sentinel without turning the override on', async () => {
@@ -50,7 +87,7 @@ describe('InternalDialConfigPanel timeout override', () => {
     );
   });
 
-  it('defaults to off, so an unmigrated node leaves its target alone', async () => {
+  it('treats a missing flag as off for an existing unmigrated node', async () => {
     await panel({ target_id: 'user_1', timeout: 25 });
 
     expect(screen.getByRole('radio', { name: 'Off' })).toBeChecked();
@@ -74,6 +111,31 @@ describe('InternalDialConfigPanel timeout override', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'On' }));
 
     expect(onConfigChange).toHaveBeenCalledWith({ timeout_override: true, timeout: 1 });
+  });
+
+  // The promotion is the only edit a skipped node behind a timing-owning target
+  // can take, so without the restore an admin who opens the toggle and closes it
+  // again has silently turned "skip" into a one-second ring on every device.
+  it('puts the skip back when the override goes off again', async () => {
+    const seen = await statefulPanel({ target_id: 'qu_1', timeout: 0 });
+
+    fireEvent.click(screen.getByRole('radio', { name: 'On' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Off' }));
+
+    expect(seen).toEqual([
+      { timeout_override: true, timeout: 1 },
+      { timeout_override: false, timeout: 0 },
+    ]);
+  });
+
+  it('keeps a deliberate edit over a promoted skip', async () => {
+    const seen = await statefulPanel({ target_id: 'qu_1', timeout: 0 });
+
+    fireEvent.click(screen.getByRole('radio', { name: 'On' }));
+    fireEvent.change(timeoutInput(), { target: { value: '20' } });
+    fireEvent.click(screen.getByRole('radio', { name: 'Off' }));
+
+    expect(seen[seen.length - 1]).toEqual({ timeout_override: false });
   });
 
   it('refuses to take the timeout back to 0 while the override is on', async () => {

@@ -706,8 +706,8 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
         requestAnimationFrame(() => updateNodeInternals(nodeId));
       }
       // A target picked in the panel was not referenced when the plan loaded,
-      // so nothing knows how long it rings on its own. Resolve it, then enrich
-      // the node again — resolveRoutingTarget caches and never throws.
+      // so resolve its display metadata and any ladder cap used by an active
+      // override, then enrich the node again. The lookup caches and never throws.
       const pickedTargetId = configUpdates.target_id as string | undefined;
       if (pickedTargetId && !resourceMapsRef.current.users.has(pickedTargetId)) {
         void dialstack.resolveRoutingTarget(pickedTargetId).then((resolved) => {

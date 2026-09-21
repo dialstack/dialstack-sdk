@@ -25,35 +25,27 @@ export function resolveTargetName(
 }
 
 /**
- * The duration an Internal Extension node actually produces, for the canvas
- * badge. The node prints a number after its type label, and that number is a
- * promise about what the call will do.
+ * Whether the target carries timing of its own — a ring group's or queue's
+ * stored timeout, or the total of a user's Find Me / Follow Me ladder.
  *
- * A node's own timeout governs only when it overrules the target. Otherwise the
- * target's own timing does: a ring group's or queue's stored timeout, or the
- * total of a user's Find Me / Follow Me ladder. A target with neither — a user
- * with no ladder, a nested dial plan, a shared voicemail box — has nothing more
- * specific to print, so the node's stored number is the best answer available.
- *
- * An override longer than a ladder is inert, because once every step has rung
- * there is nothing left to ring. That makes the ladder its own cap, and it is
- * the one place the override is not symmetric.
- *
- * A stored 0 is not a duration at all: it means "skip this node without
- * dialing", and routing reads it before it reads anything else — so it is what
- * the badge prints whatever the target owns.
+ * This, not the override flag, is what makes a node's stored timeout inert.
+ * Routing applies the node's number to a user's devices unconditionally
+ * (`dialNodeRingTimeout`), and the flag gates only the Find Me / Follow Me
+ * budget — so against a user with no ladder the stored number governs the ring
+ * whether the override is on or off.
  */
-export function resolveEffectiveTimeout(
+export function targetOwnsTiming(targetId: string, maps: ResourceMaps): boolean {
+  return maps.users.get(targetId)?.timeout_seconds !== undefined;
+}
+
+/** The duration an active Internal Extension timeout override can produce. */
+export function resolveOverriddenTimeout(
   targetId: string,
   timeout: number | undefined,
-  timeoutOverride: boolean,
   maps: ResourceMaps
 ): number | undefined {
-  // Read first, exactly as all three dispatch sites do: the node dials nothing,
-  // so neither the target's timing nor the override can say anything about it.
   if (timeout === 0) return 0;
   const own = maps.users.get(targetId)?.timeout_seconds;
-  if (!timeoutOverride) return own ?? timeout;
   if (timeout === undefined) return own;
   // Only a laddered user caps an override, and only a user has a ladder.
   if (targetId.startsWith('user_') && own !== undefined) return Math.min(timeout, own);
