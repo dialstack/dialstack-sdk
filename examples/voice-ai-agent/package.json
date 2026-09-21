@@ -23,7 +23,7 @@
     "@dialstack/sdk-server": "file:../../server",
     "@google/genai": "^2.23.0",
     "alawmulaw": "^6.0.0",
-    "dotenv": "^17.0.0",
+    "dotenv": "^18.0.0",
     "express": "^5.0.0",
     "pino": "^10.0.0",
     "pino-pretty": "^13.0.0",
