@@ -484,7 +484,78 @@ export interface AccountPricingParams {
 
 export type AccountPricingUpdateParams = AccountPricingParams;
 
+/** A destination to ring within a Find-Me/Follow-Me step. */
+export interface FMFMTarget {
+  /** `external` dials a phone number; `user` rings a user's devices. */
+  type: 'external' | 'user';
+  /** Phone number in E.164, when `type` is `external`. */
+  number?: string;
+  /** User id, when `type` is `user`. */
+  id?: string;
+}
+
+/** One rung of a Find-Me/Follow-Me sequence. Targets ring simultaneously. */
+export interface FMFMStep {
+  targets: FMFMTarget[];
+  /** Seconds to ring this step before moving to the next. 1-120. */
+  timeout: number;
+}
+
+/** The Find-Me/Follow-Me ladder itself. Steps are tried in order. */
+export interface FMFMBase {
+  /** 1-5 steps, each with 1-10 targets. */
+  steps: FMFMStep[];
+  fallback: 'voicemail' | 'hangup' | 'target';
+  /** Where to send the call when `fallback` is `target`. */
+  fallback_target?: string;
+  /**
+   * Require external targets to press a key before connecting. Recommended
+   * whenever a step rings a mobile: without it the mobile's carrier voicemail
+   * can answer and win the race, connecting the call to that voicemail rather
+   * than to the person.
+   */
+  confirm_external?: boolean;
+}
+
+/**
+ * An alternate Find-Me/Follow-Me ladder a call can select by `key`.
+ *
+ * This is not the user's primary ladder. The primary is the
+ * `find_me_follow_me` object these sit on, and is what inbound, queue,
+ * ring-group, ring-all and voice-app calls follow; adding alternates changes
+ * none of that. An alternate applies only when a call names it — pass its `key`
+ * as `find_me_follow_me_key` to `calls.create()`.
+ *
+ * An alternate carries the same fields as the ladder itself, and cannot hold
+ * alternates of its own.
+ */
+export interface FMFMAlternate extends FMFMBase {
+  /**
+   * Identifies this alternate in a call. Unique among the ladder's alternates,
+   * and yours to choose, so your app can hardcode it rather than store an id.
+   */
+  key: string;
+}
+
+/** A Find-Me/Follow-Me configuration. */
+export interface FMFM extends FMFMBase {
+  /**
+   * Alternate ladders a call may select by `key` instead of this one.
+   *
+   * Writing `find_me_follow_me` replaces the whole object, alternates
+   * included — they are part of the ladder, not a separate resource. Read the
+   * object, change what you need, and send it back whole.
+   */
+  alternates?: FMFMAlternate[];
+}
+
 export interface UserConfig {
+  /**
+   * The user's Find-Me/Follow-Me sequence, followed by inbound, queue,
+   * ring-group, ring-all and voice-app calls. Send `null` to remove it and ring
+   * the user's devices directly.
+   */
+  find_me_follow_me?: FMFM | null;
   /**
    * Whether incoming calls are held for a wake-up window when the user has no
    * active web/mobile calling session, so a push notification can wake their
@@ -546,6 +617,11 @@ export interface UserUpdateParams {
    */
   do_not_disturb?: boolean;
   config?: {
+    /**
+     * Replace the user's Find-Me/Follow-Me sequence. Pass `null` to remove it
+     * and ring their devices directly. Omit to leave unchanged.
+     */
+    find_me_follow_me?: FMFM | null;
     mobile_push_wakeup?: boolean;
   };
 }
@@ -916,6 +992,16 @@ export interface CallCreateParams {
    * call rings on the way to them.
    */
   did?: string;
+  /**
+   * Ring one of the user's alternate Find-Me/Follow-Me ladders for the first
+   * leg instead of their primary. Pass the alternate's `key`.
+   *
+   * Omit to use the primary, which is the default; an alternate is never
+   * selected implicitly. A key that does not resolve is rejected with a 400
+   * rather than falling back to the primary. Alternates are set under
+   * `config.find_me_follow_me.alternates` on the user.
+   */
+  find_me_follow_me_key?: string;
 }
 
 /** Call recording metadata with a signed download URL. */
