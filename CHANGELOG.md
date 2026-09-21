@@ -5,6 +5,70 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.0](https://github.com/dialstack/dialstack-sdk/compare/v3.2.0...v3.3.0) (2026-09-21)
+
+### Features
+
+- **webrtc/react:** the softphone can merge two calls into a local three-way
+  conference. `SoftphoneContext` gains `mergedCalls`, `isMerged`, `canMerge`,
+  `conferenceAudio`, `mergeCalls()`, `splitMerge()` and `hangupConference()`,
+  and the web in-call screen gets a Merge/Split control. Capped at two legs;
+  incoming calls are refused while merged, and hold applies to the whole
+  conference.
+- **react/softphone:** a host can hand the provider a phone it already owns.
+  `SoftphoneProvider`, `SoftphoneCore` and `usePhone` take `existingPhone`,
+  adopt any calls already live on it, and `onIncomingCall` now reports `callId`
+  — which is what lets a native OS call UI map its session to an SDK call.
+  Outbound calls can be reported to the OS through a `placeOutbound` seam so
+  they survive backgrounding.
+- **webrtc:** `DialStackPhone.setToken()` sets the token for the next connect,
+  for boot or push-wake when `onTokenExpiring` cannot help because the phone
+  is not connected yet. Refuses on a connected or connecting phone. New
+  `isConnecting` getter.
+- **webrtc:** a platform can defer an inbound call's microphone until the call
+  is answered, with `deferInboundCapture`. A deferred capture that then fails
+  surfaces through `Call.onCaptureFailure()` and the new `CaptureDeferred`
+  error.
+- **server:** queues can offer a caller an exit key — `Queue.exit_key` and
+  `exit`, plus a `queue.call.exited` event carrying `wait_seconds`.
+- **js/server:** call logs group by conversation, through the new
+  `CallLog.related_call`.
+- **js/server:** `AccountConfig` gains per-direction recording
+  (`recording_inbound_enabled`, `recording_outbound_enabled`,
+  `recording_internal_enabled`, default true) and
+  `transcript_retention_days` (default 90, maximum 2555).
+  `TranscriptStatus` gains `disabled` and `skipped`.
+- **js/server:** a platform can choose an account's terms variant — new
+  `TosVariant` (`standard` | `hipaa`) on create and update, with
+  `Account.tos_resign_by` exposing a re-signature deadline.
+- **server:** `Account.port_out_pin` — the five-digit PIN a losing carrier
+  requires to port a number away.
+- **js/server:** numbers and users carry a service location, distinct from
+  `directory_listing_location`.
+- **js:** the IVR menu node can accept extension entry, and dial-plan nodes can
+  declare a timeout override in the editor, with the node badge showing what
+  the node will actually do.
+
+### Bug Fixes
+
+- **webrtc:** build only one answer when an offer arrives while the microphone
+  is still being acquired.
+- **server:** stop a park-slot subscription after a 401 or 403 instead of
+  reconnecting against a credential that will keep failing; the rejection is
+  reported through `onError`.
+- **react/softphone:** never rebind the emergency address while a call is up.
+- **js:** render a feature code verbatim in the call log instead of
+  reformatting it as a phone number.
+- **js:** read a user's escalation ladder off the key the API actually emits.
+- **js/server:** `EffectivePricing.per_voiceai_location_rate` is typed optional,
+  matching what the API already returns — it is absent for an account that
+  cannot incur the fee. Absence is not `0`, which remains a billable line with
+  no agreed price.
+
+### Performance
+
+- **js:** drop the count-estimate request the call log made on every page.
+
 ## [3.2.0](https://github.com/dialstack/dialstack-sdk/compare/v3.1.0...v3.2.0) (2026-09-03)
 
 ### Features
