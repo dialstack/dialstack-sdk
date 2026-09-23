@@ -1785,13 +1785,23 @@ export interface HardwareOrder {
   /** What the items cost, in USD cents, at the prices they were sold at. */
   goods_cents: number;
   /**
-   * Quoted shipping in USD cents, passed through at cost and stated separately
-   * from goods. Null means it has not been quoted yet, which is not the same as
-   * free — checkout refuses a null, while `0` is a legitimate quote. Changing
-   * the order's contents clears it.
+   * Shipping in USD cents, passed through at cost and stated separately from
+   * goods. Set when a carrier service is chosen from a shipping quote, at that
+   * quote's price. Null means none has been chosen, which is not the same as
+   * free — checkout refuses a null, while `0` is a legitimate price. Changing
+   * the order's contents or its destination clears it.
    */
   shipping_cents: number | null;
   shipping_quoted_at: string | null;
+  /**
+   * The carrier service chosen for this order, as the distributor names it
+   * (for example `FED_2DY`). Null until a service is chosen.
+   */
+  shipping_method: string | null;
+  /** The name the parcel is addressed to. Required before checkout. */
+  ship_to_recipient: string | null;
+  /** Where the order ships. Required before checkout. */
+  ship_to_address: HardwareOrderAddress | null;
   /**
    * `goods_cents` plus `shipping_cents`. Null until shipping has been quoted:
    * an order with no quote has no total, rather than one that happens to equal
@@ -1821,8 +1831,14 @@ export type HardwareOrderExpand =
  *
  * - `order_not_draft` — the order cannot be placed. Today this is a rejected
  *   order, which cannot be resumed.
- * - `shipping_not_quoted` — quote shipping first. An unquoted order is not a
+ * - `shipping_not_quoted` — no carrier service has been chosen. Create a
+ *   shipping quote and choose a service from it. An unquoted order is not a
  *   free-shipping one.
+ * - `ship_to_incomplete` — the order has no recipient or no shipping address.
+ *   Set `ship_to_recipient` and `ship_to_address` with
+ *   {@link hardwareOrders.update}.
+ * - `shipping_quote_expired` — the quote the service was chosen from has
+ *   expired. Create a new quote and choose a service from it.
  * - `no_debit_authority` — no verified bank account with a live ACH
  *   authorization. Finish bank setup; the order is left as a draft.
  * - `catalog_item_not_priced` — a line was unpriced or withdrawn from the
@@ -1839,6 +1855,8 @@ export interface HardwareOrderCheckoutConflictResponse {
   code:
     | 'order_not_draft'
     | 'shipping_not_quoted'
+    | 'ship_to_incomplete'
+    | 'shipping_quote_expired'
     | 'no_debit_authority'
     | 'catalog_item_not_priced'
     | 'hardware_order_already_debited'
@@ -1849,6 +1867,86 @@ export interface HardwareOrderCheckoutConflictResponse {
 export interface HardwareOrderParams {
   /** At least one line; quantity is 1-100 per line. */
   items: Array<{ hardware_catalog: string; quantity: number }>;
+}
+
+/** A shipping address for a hardware order. */
+export interface HardwareOrderAddress {
+  address_number?: string;
+  street: string;
+  unit?: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country?: string;
+}
+
+/**
+ * Changes to a draft order. Every field is optional and only what is sent
+ * changes, all or nothing: if any part is refused, none of it is applied.
+ */
+export interface HardwareOrderUpdateParams {
+  /**
+   * Replaces the cart. At least one line; quantity is 1-100 per line. Clears
+   * the chosen carrier service, so it cannot be sent with `shipping_method`.
+   */
+  items?: Array<{ hardware_catalog: string; quantity: number }>;
+  /**
+   * The name the parcel is addressed to. Changing it does not clear the
+   * chosen carrier service.
+   */
+  ship_to_recipient?: string;
+  /** Where the order ships. Changing it clears the chosen carrier service. */
+  ship_to_address?: HardwareOrderAddress;
+  /** The shipping quote to choose `shipping_method` from. Sent with it. */
+  shipping_quote?: string;
+  /**
+   * A carrier service from `shipping_quote`. The price is taken from that
+   * quote, never from the request.
+   */
+  shipping_method?: string;
+}
+
+/** One carrier service on a {@link ShippingQuote}. */
+export interface ShippingQuoteOption {
+  carrier: string;
+  /** Service code to pass back as `shipping_method` when choosing this option. */
+  shipping_method: string;
+  /** The service in words. Absent for a service with no known name. */
+  description?: string;
+  /** What this service costs, in USD cents. */
+  amount_cents: number;
+  /** The distributor's delivery estimate, verbatim. Free text, not a date. */
+  estimated_delivery?: string;
+}
+
+/**
+ * What the distributor quoted to ship a draft order, and what it quoted for.
+ * Creating one changes nothing on the order; choose a service from it with
+ * `shipping_quote` and `shipping_method` on {@link hardwareOrders.update}.
+ */
+export interface ShippingQuote {
+  id: string;
+  object: 'shipping_quote';
+  /** ID of the order this quote was taken for. */
+  hardware_order: string;
+  /** Every carrier service on offer, cheapest first. */
+  options: ShippingQuoteOption[];
+  /**
+   * The cart this quote was priced for. It can be chosen from only while the
+   * order holds exactly these quantities.
+   */
+  items: Array<{ hardware_catalog: string; quantity: number }>;
+  /**
+   * The destination this quote was priced for. It can be chosen from only
+   * while the order still ships here.
+   */
+  ship_to_address: HardwareOrderAddress;
+  /**
+   * After this, the quote can no longer be chosen from, and an order whose
+   * service was chosen from it can no longer be checked out.
+   */
+  expires_at: string;
+  created_at: string;
 }
 
 export interface HardwareOrderListParams {
@@ -4456,16 +4554,17 @@ export class DialStack {
     },
 
     /**
-     * Replace the order's line items.
+     * Update a draft order: its items, where it ships, or which carrier
+     * service carries it.
      *
      * Only a draft — an order whose `placed_at` is null — can be changed;
-     * once checked out its contents are frozen and this returns 409. Replacing
-     * the items re-prices the order from the catalog and clears any shipping
-     * quote, since what is in the box is what decides the freight.
+     * once checked out it is frozen and this returns 409. Replacing the items
+     * re-prices the order from the catalog. Changing the items or the address
+     * clears the chosen carrier service, since both decide the freight.
      */
     update: (
       hardwareOrderId: string,
-      params: HardwareOrderParams,
+      params: HardwareOrderUpdateParams,
       options: RequestOptions & { dialstackAccount: string }
     ): Promise<HardwareOrder> => {
       return this._request('POST', `/v1/hardware-orders/${hardwareOrderId}`, params, options);
@@ -4481,11 +4580,12 @@ export class DialStack {
      * exist. Settlement follows days later and moves it to `settled`; a
      * rejection inside that window moves it to `failed`.
      *
-     * Returns 409 if its shipping has not been quoted — an unquoted order is
-     * not a free-shipping one, so it cannot be completed — if a debit already
-     * exists for the order, or if the platform has no verified bank account
-     * with a live ACH authorization to debit. Shipping is quoted by hand today,
-     * so a newly created order is not immediately checkout-able.
+     * Returns 409 if no carrier service has been chosen — an unquoted order is
+     * not a free-shipping one, so it cannot be completed — if the order has no
+     * recipient or shipping address, if the quote the service was chosen from
+     * has expired, if a debit already exists for the order, or if the
+     * platform has no verified bank account with a live ACH authorization to
+     * debit.
      *
      * Safe to retry until a debit exists: an order that was placed but not yet
      * charged is picked up where it left off, and the platform is never debited
@@ -4506,6 +4606,42 @@ export class DialStack {
       options: RequestOptions & { dialstackAccount: string }
     ): Promise<HardwareOrder> => {
       return this._request('POST', `/v1/hardware-orders/${hardwareOrderId}/checkout`, {}, options);
+    },
+
+    /**
+     * Shipping quotes for a draft order. Each create is a live, billable
+     * round trip to the distributor, so request one once the cart and the
+     * destination have settled.
+     */
+    shippingQuotes: {
+      /**
+       * Price the order's contents to its `ship_to_address` and return every
+       * carrier service on offer. Changes nothing on the order.
+       */
+      create: (
+        hardwareOrderId: string,
+        options: RequestOptions & { dialstackAccount: string }
+      ): Promise<ShippingQuote> => {
+        return this._request(
+          'POST',
+          `/v1/hardware-orders/${hardwareOrderId}/shipping-quotes`,
+          {},
+          options
+        );
+      },
+
+      retrieve: (
+        hardwareOrderId: string,
+        shippingQuoteId: string,
+        options: RequestOptions & { dialstackAccount: string }
+      ): Promise<ShippingQuote> => {
+        return this._request(
+          'GET',
+          `/v1/hardware-orders/${hardwareOrderId}/shipping-quotes/${shippingQuoteId}`,
+          undefined,
+          options
+        );
+      },
     },
 
     /** Set or clear a single unit's user, location, or base pre-assignment. */

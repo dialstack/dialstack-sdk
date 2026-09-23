@@ -138,6 +138,77 @@ describe('Hardware orders', () => {
     expect(requestInit().method).toBe('POST');
   });
 
+  it('sets where the order ships without touching the cart', async () => {
+    mockJSON({ id: 'hwo_123', items: [] });
+
+    await dialstack.hardwareOrders.update(
+      'hwo_123',
+      {
+        ship_to_recipient: 'Dana Okafor',
+        ship_to_address: {
+          street: '77 Dock Rd',
+          city: 'Durham',
+          state: 'NC',
+          postal_code: '27701',
+          country: 'US',
+        },
+      },
+      acct
+    );
+
+    expect(JSON.parse(requestInit().body as string)).toEqual({
+      ship_to_recipient: 'Dana Okafor',
+      ship_to_address: {
+        street: '77 Dock Rd',
+        city: 'Durham',
+        state: 'NC',
+        postal_code: '27701',
+        country: 'US',
+      },
+    });
+  });
+
+  it('chooses a carrier service from a shipping quote', async () => {
+    mockJSON({ id: 'hwo_123', shipping_method: 'UPS_GRD', items: [] });
+
+    const order = await dialstack.hardwareOrders.update(
+      'hwo_123',
+      { shipping_quote: 'hwsq_1', shipping_method: 'UPS_GRD' },
+      acct
+    );
+
+    expect(JSON.parse(requestInit().body as string)).toEqual({
+      shipping_quote: 'hwsq_1',
+      shipping_method: 'UPS_GRD',
+    });
+    expect(order.shipping_method).toBe('UPS_GRD');
+  });
+
+  describe('hardwareOrders.shippingQuotes', () => {
+    it('creates a quote for the order', async () => {
+      mockJSON({ id: 'hwsq_1', object: 'shipping_quote', options: [] });
+
+      const quote = await dialstack.hardwareOrders.shippingQuotes.create('hwo_123', acct);
+
+      expect(requestedUrl()).toBe(
+        'https://api.dialstack.ai/v1/hardware-orders/hwo_123/shipping-quotes'
+      );
+      expect(requestInit().method).toBe('POST');
+      expect(quote.id).toBe('hwsq_1');
+    });
+
+    it('retrieves one quote', async () => {
+      mockJSON({ id: 'hwsq_1', object: 'shipping_quote', options: [] });
+
+      await dialstack.hardwareOrders.shippingQuotes.retrieve('hwo_123', 'hwsq_1', acct);
+
+      expect(requestedUrl()).toBe(
+        'https://api.dialstack.ai/v1/hardware-orders/hwo_123/shipping-quotes/hwsq_1'
+      );
+      expect(requestInit().method).toBe('GET');
+    });
+  });
+
   describe('hardwareOrders.updateItem', () => {
     it('sets a unit assignment', async () => {
       mockJSON({ id: 'hwoi_1', user: 'user_123' });
