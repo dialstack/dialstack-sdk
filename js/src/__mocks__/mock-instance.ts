@@ -744,6 +744,12 @@ export function createMockInstance(
             ...request,
             updated_at: new Date().toISOString(),
           } as Device;
+          // The API clears a null or blank serial and omits the key.
+          const serial = request.serial_number?.trim();
+          if ('serial_number' in request) {
+            if (serial) updated.serial_number = serial;
+            else delete updated.serial_number;
+          }
           mockDevices[idx] = updated;
           return updated;
         }

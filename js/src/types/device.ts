@@ -35,6 +35,12 @@ export interface Device {
   type: DeviceType;
   /** Hardware MAC address (e.g., "00:04:13:aa:bb:cc") */
   mac_address: string;
+  /**
+   * Manufacturer serial number from the device label, used to resolve
+   * zero-touch provisioning transfers. `deskphone` and `dect_base` only;
+   * omitted when not set.
+   */
+  serial_number?: string;
   /** Detected vendor (e.g., "snom", "yealink") */
   vendor: string;
   /** Device model (e.g., "D785", "M700") */
@@ -230,6 +236,11 @@ export interface ProvisionedDevice {
   id: string;
   /** Hardware MAC address (e.g., "00:04:13:aa:bb:cc") */
   mac_address: string;
+  /**
+   * Manufacturer serial number from the device label, used to resolve
+   * zero-touch provisioning transfers. Omitted when not set.
+   */
+  serial_number?: string;
   /** Detected vendor (e.g., "snom", "yealink") */
   vendor: string;
   /** Device model (e.g., "D785", "T48S") */
@@ -360,6 +371,12 @@ export interface UpdateDeviceRequest {
   ipei?: string;
   /** Tri-state human-friendly label. */
   name?: string | null;
+  /**
+   * Manufacturer serial number (1-64 letters, digits, or dashes; surrounding
+   * whitespace is trimmed). `deskphone` and `dect_base` only. Send `null` or
+   * an empty string to clear.
+   */
+  serial_number?: string | null;
   /** Tri-state dispatch location. `deskphone` and `dect_base` only. */
   location?: string | null;
   /** @deprecated Use `location`. Retained for backwards compatibility. */

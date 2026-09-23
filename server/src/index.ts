@@ -1441,6 +1441,8 @@ export interface Device {
   location?: string | null;
   status: DeviceStatus;
   overrides?: DeviceSettings;
+  /** Manufacturer serial number, deskphones and DECT bases only. Omitted until set. */
+  serial_number?: string;
   current_ip_address?: string | null;
   last_provisioned_at?: string | null;
   /**
@@ -1536,6 +1538,11 @@ export interface DeviceUpdateParams {
    */
   base?: string | null;
   button_template?: string | null;
+  /**
+   * Manufacturer serial number, deskphones and DECT bases only. Trimmed; `null`
+   * or an empty string clears it.
+   */
+  serial_number?: string | null;
 }
 
 export interface DeviceAssignUserParams {

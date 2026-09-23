@@ -34,6 +34,11 @@ export interface DECTBase {
   id: string;
   /** Hardware MAC address (e.g., "00:04:13:aa:bb:cc") */
   mac_address: string;
+  /**
+   * Manufacturer serial number from the device label, used to resolve
+   * zero-touch provisioning transfers. Omitted when not set.
+   */
+  serial_number?: string;
   /** Detected vendor (e.g., "snom") */
   vendor: string;
   /** Device model (e.g., "M500", "M700", "M900") */
