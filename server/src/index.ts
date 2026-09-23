@@ -543,8 +543,15 @@ export interface FMFMAlternate extends FMFMBase {
   key: string;
 }
 
-/** A Find-Me/Follow-Me configuration. */
-export interface FMFM extends FMFMBase {
+/**
+ * A Find-Me/Follow-Me configuration.
+ *
+ * To give a user alternates while they keep their default routing (ringing
+ * their own devices), send `steps: []` and no `fallback`.
+ */
+export interface FMFM extends Omit<FMFMBase, 'fallback'> {
+  /** Required whenever `steps` is non-empty. */
+  fallback?: FMFMBase['fallback'];
   /**
    * Alternate ladders a call may select by `key` instead of this one.
    *
