@@ -543,15 +543,8 @@ export interface FMFMAlternate extends FMFMBase {
   key: string;
 }
 
-/**
- * A Find-Me/Follow-Me configuration.
- *
- * To give a user alternates while they keep their default routing (ringing
- * their own devices), send `steps: []` and no `fallback`.
- */
-export interface FMFM extends Omit<FMFMBase, 'fallback'> {
-  /** Required whenever `steps` is non-empty. */
-  fallback?: FMFMBase['fallback'];
+/** A Find-Me/Follow-Me configuration with its own primary ladder. */
+export interface FMFMWithPrimary extends FMFMBase {
   /**
    * Alternate ladders a call may select by `key` instead of this one.
    *
@@ -561,6 +554,26 @@ export interface FMFM extends Omit<FMFMBase, 'fallback'> {
    */
   alternates?: FMFMAlternate[];
 }
+
+/**
+ * A Find-Me/Follow-Me configuration with no primary ladder, only alternates.
+ *
+ * The user keeps their default routing (ringing their own devices) for every
+ * call that does not name an alternate. It carries none of the primary's
+ * fields.
+ */
+export interface FMFMAlternatesOnly {
+  /** Always empty; required so a read can still map over `steps` either way. */
+  steps: [];
+  fallback?: never;
+  fallback_target?: never;
+  confirm_external?: false;
+  /** See {@link FMFMWithPrimary.alternates}. At least one. */
+  alternates: FMFMAlternate[];
+}
+
+/** A Find-Me/Follow-Me configuration. */
+export type FMFM = FMFMWithPrimary | FMFMAlternatesOnly;
 
 export interface UserConfig {
   /**
