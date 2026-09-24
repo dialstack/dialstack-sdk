@@ -1854,6 +1854,12 @@ export type HardwareOrderExpand =
  *   expired. Create a new quote and choose a service from it.
  * - `no_debit_authority` — no verified bank account with a live ACH
  *   authorization. Finish bank setup; the order is left as a draft.
+ * - `no_default_payment_method` — a verified, authorized bank account exists
+ *   but none is the default. Set one as the default; the order is left as a
+ *   draft.
+ * - `payment_method_pending_verification` — the bank account is still being
+ *   verified (microdeposits). Complete verification; the order is left as a
+ *   draft.
  * - `catalog_item_not_priced` — a line was unpriced or withdrawn from the
  *   catalog since the draft was built. Remove or replace it.
  * - `hardware_line_backordered` — the distributor is holding part of the
@@ -1875,6 +1881,8 @@ export interface HardwareOrderCheckoutConflictResponse {
     | 'ship_to_incomplete'
     | 'shipping_quote_expired'
     | 'no_debit_authority'
+    | 'no_default_payment_method'
+    | 'payment_method_pending_verification'
     | 'catalog_item_not_priced'
     | 'hardware_line_backordered'
     | 'hardware_order_already_debited'
