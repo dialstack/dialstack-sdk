@@ -1843,6 +1843,10 @@ export type HardwareOrderExpand =
  *   authorization. Finish bank setup; the order is left as a draft.
  * - `catalog_item_not_priced` — a line was unpriced or withdrawn from the
  *   catalog since the draft was built. Remove or replace it.
+ * - `hardware_line_backordered` — the distributor is holding part of the
+ *   order and gives no restock date. The shipping quote the service was chosen
+ *   from lists the held lines in `backordered_lines`. Remove or reduce them and
+ *   choose from a new quote; the draft survives.
  * - `hardware_order_already_debited` — a debit already exists; the order is no
  *   longer checkout-able.
  * - `checkout_resume_window_elapsed` — placed more than 12 hours ago without a
@@ -1859,6 +1863,7 @@ export interface HardwareOrderCheckoutConflictResponse {
     | 'shipping_quote_expired'
     | 'no_debit_authority'
     | 'catalog_item_not_priced'
+    | 'hardware_line_backordered'
     | 'hardware_order_already_debited'
     | 'checkout_resume_window_elapsed'
     | 'debit_parameters_changed';
