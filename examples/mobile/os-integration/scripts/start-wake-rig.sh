@@ -20,7 +20,11 @@ export DIALSTACK_WEBHOOK_SECRET="${DIALSTACK_WEBHOOK_SECRET:-}"
 echo "account: $DIALSTACK_ACCOUNT"
 echo "fcm project: $FCM_PROJECT_ID"
 echo "key length: ${#DIALSTACK_SECRET_KEY}"
-echo "webhook verification: ${DIALSTACK_WEBHOOK_SECRET:+on}${DIALSTACK_WEBHOOK_SECRET:-off (unsigned, local harness)}"
+if [ -n "$DIALSTACK_WEBHOOK_SECRET" ]; then
+  echo "webhook verification: on"
+else
+  echo "webhook verification: off (unsigned, local harness)"
+fi
 
 pkill -f wake-webhook-server >/dev/null 2>&1 || true
 sleep 1

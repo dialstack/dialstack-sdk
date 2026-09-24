@@ -1,0 +1,35 @@
+{
+  "name": "dialstack-click-to-call-example",
+  "main": "index.ts",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "expo": "~57.0.11",
+    "expo-phone-number-hint": "^0.6.0",
+    "expo-splash-screen": "~57.0.5",
+    "expo-status-bar": "~57.0.1",
+    "libphonenumber-js": "^1.13.12",
+    "react": "19.2.3",
+    "react-native": "0.86.2",
+    "react-native-safe-area-context": "~5.7.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~57.0.1",
+    "prettier": "^3.9.6",
+    "typescript": "~6.0.3",
+    "ws": "^8.21.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "rig": "scripts/start-rig.sh",
+    "lint": "expo lint",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "precommit": "npm run format && npm run lint && npm run typecheck"
+  }
+}

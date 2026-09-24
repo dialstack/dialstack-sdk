@@ -1,0 +1,29 @@
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+.metro-health-check*
+npm-debug.*
+.DS_Store
+*.pem
+.env*.local
+*.tsbuildinfo
+
+# generated native folders
+/ios
+/android
+
+# Agent tooling — not part of the worked example
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+.claude/
+.maestro/

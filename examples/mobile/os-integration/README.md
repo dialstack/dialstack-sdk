@@ -99,7 +99,7 @@ register it:
 ```bash
 curl -X POST "$API/v1/webhook_endpoints" -H "Authorization: Bearer $SK" \
   -H 'Content-Type: application/json' \
-  -d '{"url":"https://<your-tunnel>/webhooks/dialstack","events":["call.mobile_push_wakeup"]}'
+  -d '{"url":"https://<your-tunnel>/webhooks/dialstack","enabled_events":["call.mobile_push_wakeup"]}'
 ```
 
 Only this response returns the signing secret — capture it into
