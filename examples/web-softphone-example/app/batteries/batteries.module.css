@@ -3,6 +3,7 @@
   flex-direction: column;
   align-items: center;
   gap: 16px;
+  --ds-softphone-height: 644px;
 }
 
 .caption {

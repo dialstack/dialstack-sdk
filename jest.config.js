@@ -7,6 +7,7 @@ export default {
     '<rootDir>/react/src',
     '<rootDir>/webrtc/src',
     '<rootDir>/server/src',
+    '<rootDir>/native/src',
     // The build guards live here. They protect published promises, so their own
     // detection is unit-tested rather than proven by a red CI run.
     '<rootDir>/scripts',
@@ -47,6 +48,10 @@ export default {
     // the import site rather than making them look like public API.
     '^#storybook-fixtures/types$': '<rootDir>/js/src/__storybook__/types.ts',
     '^#storybook-fixtures/mock-instance$': '<rootDir>/js/src/__mocks__/mock-instance.ts',
+    // Native-only peers with no web implementation, stubbed so the native tests
+    // can run in this suite at all.
+    '^react-native-incall-manager$': '<rootDir>/.storybook-native/shims/incall-manager.ts',
+    '^react-native-webrtc$': '<rootDir>/.storybook-native/shims/webrtc.ts',
   },
   testEnvironment: 'jsdom',
   setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts', '<rootDir>/webrtc/src/setupTests.ts'],

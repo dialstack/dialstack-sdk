@@ -122,6 +122,7 @@ export class MockCall extends Emitter {
 
 export class MockPhone extends Emitter {
   isConnected = false;
+  lastOutbound: MockCall | null = null;
   private seq = 0;
 
   connect(): Promise<void> {
@@ -147,6 +148,7 @@ export class MockPhone extends Emitter {
     // An outbound goes active once the far end answers; keep it simple for the
     // story and mark it active immediately so the in-call screen shows.
     c.state = 'active';
+    this.lastOutbound = c;
     return Promise.resolve(c as unknown as Call);
   }
 

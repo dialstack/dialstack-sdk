@@ -13,9 +13,8 @@
 
 import React from 'react';
 import { useSoftphone } from '../provider/SoftphoneProvider';
-import { softphoneGlyphs } from '../core/icons';
 import { callPeerName, callPeerNumber } from '../hooks';
-import { Glyph } from './Glyph';
+import { IncomingCallCardView } from './views/IncomingCallCardView';
 import type { Call } from '@dialstack/sdk-webrtc';
 
 export const IncomingCallCard: React.FC<{
@@ -24,33 +23,16 @@ export const IncomingCallCard: React.FC<{
 }> = ({ call, compact = false }) => {
   const { answerCall, actions, t, displayNumber } = useSoftphone();
   const peer = callPeerNumber(call);
-  const name = callPeerName(call) || displayNumber(peer) || t('unknownCaller');
+  const resolvedName = callPeerName(call);
 
   return (
-    <div className={`ds-incoming-card ${compact ? 'ds-incoming-card-compact' : ''}`}>
-      <div className="ds-incoming-card-info">
-        <div className="ds-incoming-label">{t('incomingCall')}</div>
-        <div className="ds-peer-name">{name}</div>
-        {callPeerName(call) && <div className="ds-peer-number">{displayNumber(peer)}</div>}
-      </div>
-      <div className="ds-actions ds-actions-incoming">
-        <button
-          type="button"
-          className="ds-action ds-decline"
-          aria-label={t('decline')}
-          onClick={() => actions.callActionsFor(call).reject()}
-        >
-          <Glyph glyph={softphoneGlyphs.hangup} />
-        </button>
-        <button
-          type="button"
-          className="ds-action ds-answer"
-          aria-label={t('answer')}
-          onClick={() => answerCall(call)}
-        >
-          <Glyph glyph={softphoneGlyphs.phone} />
-        </button>
-      </div>
-    </div>
+    <IncomingCallCardView
+      name={resolvedName || displayNumber(peer) || t('unknownCaller')}
+      number={resolvedName ? displayNumber(peer) : null}
+      compact={compact}
+      onAnswer={() => answerCall(call)}
+      onDecline={() => actions.callActionsFor(call).reject()}
+      t={t}
+    />
   );
 };

@@ -14,10 +14,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useSoftphone } from '../provider/SoftphoneProvider';
 import { useDialInput, canPlaceCall } from '../hooks';
-import { dialPadKeys } from '../core/theme';
-import { softphoneGlyphs } from '../core/icons';
-import { Glyph } from './Glyph';
-import { CallErrorChip } from './CallErrorChip';
+import { DialPadView } from './views/DialPadView';
 
 export interface DialPadProps {
   /**
@@ -28,7 +25,7 @@ export interface DialPadProps {
 }
 
 export const DialPad: React.FC<DialPadProps> = ({ autoFocusDestination = false }) => {
-  const { connection, placeCall, emergency, t, scope } = useSoftphone();
+  const { connection, placeCall, emergency, lastError, clearError, t, scope } = useSoftphone();
   const [destination, setDestination] = useState('');
   const { onType, onPasteText } = useDialInput(setDestination);
   const destinationRef = useRef<HTMLInputElement | null>(null);
@@ -40,106 +37,18 @@ export const DialPad: React.FC<DialPadProps> = ({ autoFocusDestination = false }
   const canCall = canPlaceCall(connection, destination, emergency.submitting);
 
   return (
-    <div className={`${scope} ds-softphone`}>
-      <div className="ds-screen ds-screen-dial">
-        <StatusChip />
-        <CallErrorChip />
-        <div className="ds-display">
-          {/* Left spacer mirrors the backspace's width so the number stays
-              centered between two equal-width flanks (no optical left-pull from a
-              lone backspace on the right). Present only when the backspace is. */}
-          {destination.length > 0 && <span className="ds-display-spacer" aria-hidden="true" />}
-          <input
-            ref={destinationRef}
-            className="ds-destination"
-            type="tel"
-            inputMode="tel"
-            value={destination}
-            placeholder={t('destinationPlaceholder')}
-            aria-label={t('destinationPlaceholder')}
-            autoComplete="off"
-            onChange={(e) => onType(e.target.value)}
-            onPaste={(e) => {
-              e.preventDefault();
-              onPasteText(e.clipboardData.getData('text'));
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                if (canCall) void placeCall(destination);
-              }
-            }}
-          />
-          {destination.length > 0 && (
-            <button
-              type="button"
-              className="ds-backspace"
-              aria-label={t('backspace')}
-              onClick={() => setDestination((p) => p.slice(0, -1))}
-            >
-              ⌫
-            </button>
-          )}
-        </div>
-        <div className="ds-keypad" role="group" aria-label={t('title')}>
-          {dialPadKeys.map(({ digit, letters }) => (
-            <button
-              type="button"
-              key={digit}
-              className="ds-key"
-              aria-label={`${digit}${letters ? ' ' + letters : ''}`}
-              onClick={() => setDestination((p) => p + digit)}
-            >
-              <span className="ds-key-digit">{digit}</span>
-              <span className="ds-key-letters">{letters || ' '}</span>
-            </button>
-          ))}
-        </div>
-        <div className="ds-actions">
-          <button
-            type="button"
-            className="ds-action ds-call"
-            aria-label={t('call')}
-            disabled={!canCall}
-            onClick={() => void placeCall(destination)}
-          >
-            <Glyph glyph={softphoneGlyphs.phone} />
-          </button>
-        </div>
-      </div>
-    </div>
+    <DialPadView
+      connection={connection}
+      destination={destination}
+      onDestinationChange={onType}
+      onDestinationPaste={onPasteText}
+      canCall={canCall}
+      onCall={() => void placeCall(destination)}
+      destinationRef={destinationRef}
+      error={lastError}
+      onDismissError={clearError}
+      scope={scope}
+      t={t}
+    />
   );
-};
-
-/** Connection-state chip shown at the top of the dial screen. */
-const StatusChip: React.FC = () => {
-  const { connection, t } = useSoftphone();
-  switch (connection) {
-    case 'connecting':
-      return (
-        <div className="ds-chip ds-chip-pending" role="status">
-          {t('connecting')}
-        </div>
-      );
-    case 'reconnecting':
-      return (
-        <div className="ds-chip ds-chip-pending" role="status">
-          {t('reconnecting')}
-        </div>
-      );
-    case 'disconnected':
-      return (
-        <div className="ds-chip ds-chip-off" role="status">
-          {t('disconnected')}
-        </div>
-      );
-    case 'error':
-      return (
-        <div className="ds-chip ds-chip-error" role="status">
-          {t('connectionError')}
-        </div>
-      );
-    default:
-      return <div className="ds-chip ds-chip-spacer" aria-hidden="true" />;
-  }
 };

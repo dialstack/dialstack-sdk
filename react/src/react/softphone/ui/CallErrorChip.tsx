@@ -7,22 +7,9 @@
 
 import React from 'react';
 import { useSoftphone } from '../provider/SoftphoneProvider';
-import { errorMessageKey } from '../hooks';
+import { CallErrorChipView } from './views/CallErrorChipView';
 
 export const CallErrorChip: React.FC = () => {
   const { lastError, clearError, t } = useSoftphone();
-  if (!lastError) return null;
-  return (
-    <div className="ds-chip ds-chip-error ds-call-error" role="alert">
-      <span>{t(errorMessageKey(lastError.code))}</span>
-      <button
-        type="button"
-        className="ds-call-error-dismiss"
-        aria-label={t('dismiss')}
-        onClick={clearError}
-      >
-        ✕
-      </button>
-    </div>
-  );
+  return <CallErrorChipView error={lastError} onDismiss={clearError} t={t} />;
 };

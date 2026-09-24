@@ -8,7 +8,6 @@
  * only its own transient DTMF-readout, transfer-input and add-call text. Must be
  * rendered inside a `<SoftphoneProvider>`.
  */
-
 import React, { useEffect, useState } from 'react';
 import { useSoftphone } from '../provider/SoftphoneProvider';
 import {
@@ -19,12 +18,10 @@ import {
   useDialInput,
   MAX_CALLS,
 } from '../hooks';
-import { dialPadKeys } from '../core/theme';
-import { softphoneGlyphs } from '../core/icons';
-import { Glyph } from './Glyph';
-import { ControlButton } from './ControlButton';
-import { CallErrorChip } from './CallErrorChip';
 import { AudioDevicePicker } from './AudioDevicePicker';
+import { OngoingCallView } from './views/OngoingCallView';
+import type { OverlayPanel, PeerSummary } from './views/types';
+import type { Call } from '@dialstack/sdk-webrtc';
 
 export const OngoingCall: React.FC = () => {
   const {
@@ -52,6 +49,8 @@ export const OngoingCall: React.FC = () => {
     t,
     displayNumber,
     scope,
+    lastError,
+    clearError,
   } = useSoftphone();
   const { showKeypad, showTransfer, showDevices, showAddCall } = overlays;
   const [dtmfEntered, setDtmfEntered] = useState('');
@@ -60,8 +59,6 @@ export const OngoingCall: React.FC = () => {
   const { onType: onTransferType, onPasteText: onTransferPaste } = useDialInput(setTransferTo);
   const { onType: onAddCallType, onPasteText: onAddCallPaste } = useDialInput(setAddCallTo);
 
-  // Clear the per-call transient text when the foreground call changes. (The
-  // overlay flags themselves reset inside useCallOverlays so web + RN match.)
   const callId = call?.id ?? null;
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset transient text on foreground-call change
@@ -86,17 +83,11 @@ export const OngoingCall: React.FC = () => {
     setDtmfEntered((prev) => prev + digit);
   };
 
-  // An attended transfer is just two switchable calls + a transfer flag, so it
-  // renders the normal in-call view (controls + switch cards). On top we show a
-  // banner for the OTHER transfer leg (the one not currently focused) plus the
-  // Complete/Cancel actions. Its card is excluded from the plain held-calls list
-  // below so it isn't shown twice.
   const inTransfer = consultCall !== null && transferOriginal !== null;
   // The banner + Complete belong ONLY when the FOCUSED call is one of the two
   // transfer legs. With switchable focus the active call can be a third unrelated
   // call — showing the banner then would name the wrong "other leg" and Complete
-  // would bridge legs the user isn't looking at. When focused elsewhere the two
-  // transfer legs just appear as ordinary switch cards below.
+  // would bridge legs the user isn't looking at.
   const focusInTransfer = inTransfer && (call === consultCall || call === transferOriginal);
   const transferOther = focusInTransfer
     ? call === consultCall
@@ -105,19 +96,17 @@ export const OngoingCall: React.FC = () => {
     : null;
   // Bridge only once the consult target is answered — active OR held (the user
   // may have switched focus, holding the consult). Not while it's still ringing.
-  // Only offer Complete when focused on a transfer leg.
   const canComplete = focusInTransfer && consultCall !== null && consultCall.isConnected;
   // A merged leg is un-held, so it normally wouldn't be here — but the server's
   // resume echo lands a beat later, and without this the other party flickers as
   // an "On hold" card in between.
   const switchableHeld = heldCalls.filter((c) => c !== transferOther && !mergedCalls.includes(c));
 
-  // Transfer is disabled while a transfer is already in progress OR more than one
-  // call is live (held/ringing besides the active one). A new transfer in either
-  // situation is ambiguous (which call? on top of the existing consult?), so the
-  // control is shown greyed rather than allowing an invalid/confusing action.
-  // Barred while merged: transferring one leg out of a conference is ambiguous.
   const otherLiveCalls = heldCalls.length + incomingCalls.length;
+  // Disabled while a transfer is already in progress OR more than one call is
+  // live: a new transfer in either situation is ambiguous (which call? on top of
+  // the existing consult?). Barred while merged — transferring one leg out of a
+  // conference is ambiguous too.
   const canStartTransfer = !inTransfer && !isMerged && otherLiveCalls === 0;
 
   // The legs are held and resumed together, so any one of them answers for the
@@ -125,303 +114,101 @@ export const OngoingCall: React.FC = () => {
   // a leg whose own echo has not landed yet.
   const conferenceHeld = isMerged && mergedCalls.some((c) => c.state === 'held');
 
-  // Barred while merged: the new leg would land outside the conference and merge
-  // is hidden while merged, so it could never join.
   const canAddCall = calls.length < MAX_CALLS;
 
-  // Derived rather than reset in an effect: text typed before the cap was hit
-  // must not come back when a ringing leg drops.
   const addCallValue = canAddCall ? addCallTo : '';
 
   const submitAddCall = () => {
     const target = addCallValue.trim();
     if (!target) return;
-    // placeCall reports its own failures through onError, so the overlay closes
-    // on submit rather than waiting on the dial.
     void placeCall(target);
     setAddCallTo('');
     overlays.closeAddCall();
   };
 
+  const summarize = (c: Call): PeerSummary => {
+    const cName = callPeerName(c);
+    const cNumber = callPeerNumber(c);
+    return {
+      id: c.id,
+      name: cName || displayNumber(cNumber) || t('unknownCaller'),
+      number: cName ? displayNumber(cNumber) : null,
+    };
+  };
+
+  const overlay: OverlayPanel = showKeypad
+    ? 'keypad'
+    : showTransfer
+      ? 'transfer'
+      : showDevices
+        ? 'devices'
+        : showAddCall
+          ? 'addcall'
+          : null;
+
+  const toggleOverlay = (panel: Exclude<OverlayPanel, null>): void => {
+    if (panel === 'keypad') overlays.toggleKeypad();
+    else if (panel === 'transfer') overlays.toggleTransfer();
+    else if (panel === 'devices') overlays.toggleDevices();
+    else overlays.toggleAddCall();
+  };
+
   return (
-    <div className={`${scope} ds-softphone`}>
-      <div className="ds-screen ds-screen-incall">
-        {/* Attended-transfer banner: the OTHER leg (tap to switch to it) plus
-            Cancel / Complete. The normal in-call view (controls, etc.) renders
-            below, so mute/hold/keypad stay available while transferring. */}
-        {focusInTransfer && transferOther && (
-          <div className="ds-transfer-banner">
-            {(() => {
-              const otherPeer = callPeerNumber(transferOther);
-              const otherName =
-                callPeerName(transferOther) || displayNumber(otherPeer) || t('unknownCaller');
-              return (
-                <button
-                  type="button"
-                  className="ds-held-call ds-consult-held"
-                  aria-label={`${t('switchToCall')}: ${otherName}`}
-                  onClick={() => switchToCall(transferOther)}
-                >
-                  <div className="ds-peer-name">{otherName}</div>
-                  <div className="ds-callstate-text">{t('transferOriginalOnHold')}</div>
-                </button>
-              );
-            })()}
-            <div className="ds-consult-actions">
-              <button
-                type="button"
-                className="ds-e911-btn ds-e911-btn-secondary"
-                onClick={cancelAttendedTransfer}
-              >
-                {t('cancel')}
-              </button>
-              <button
-                type="button"
-                className="ds-e911-btn"
-                disabled={!canComplete}
-                onClick={completeAttendedTransfer}
-              >
-                {t('transferComplete')}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Other backgrounded calls the user can switch to — click a card to
-            hold the current call and resume that one. Rendered ABOVE the active
-            peer (same as the transfer banner) so the backgrounded call sits above
-            and the active/current call below, consistently. Excludes the transfer
-            leg shown in the banner above (so it isn't listed twice). */}
-        {switchableHeld.length > 0 && (
-          <div className="ds-held-calls" role="group" aria-label={t('heldCallsLabel')}>
-            {switchableHeld.map((held) => {
-              const heldPeer = callPeerNumber(held);
-              const heldName = callPeerName(held) || displayNumber(heldPeer) || t('unknownCaller');
-              return (
-                <button
-                  type="button"
-                  key={held.id}
-                  className="ds-held-call ds-consult-held"
-                  aria-label={`${t('switchToCall')}: ${heldName}`}
-                  onClick={() => switchToCall(held)}
-                >
-                  <div className="ds-peer-name">{heldName}</div>
-                  <div className="ds-callstate-text">{t('heldCallsLabel')}</div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* A conference is ONE conversation with two people, so it renders as a
-            single block naming both — not the active peer with the other stacked
-            above it as a card, which reads as two separate calls. */}
-        {isMerged ? (
-          <div className="ds-peer ds-peer-conference">
-            <div className="ds-callstate-text">{t('conferenceLabel')}</div>
-            <div className="ds-conference-parties">
-              {mergedCalls.map((party) => (
-                <div key={party.id} className="ds-peer-name">
-                  {callPeerName(party) ||
-                    displayNumber(callPeerNumber(party)) ||
-                    t('unknownCaller')}
-                </div>
-              ))}
-            </div>
-            <div className="ds-callstate">
-              <span className="ds-duration">{duration}</span>
-            </div>
-          </div>
-        ) : (
-          <div className="ds-peer">
-            <div className="ds-peer-name">{name}</div>
-            {peerName && <div className="ds-peer-number">{displayNumber(peer)}</div>}
-            <div className="ds-callstate">
-              <span className="ds-callstate-text">{t(callStateLabelKey(call.state))}</span>
-              {/* Duration ticks only while truly live. A held foreground call (e.g.
-                  promoted when the active call ended, or held during a switch) shows
-                  its "On hold" state + the Resume control below, never a running
-                  timer implying live audio. */}
-              {call.state === 'active' && <span className="ds-duration">{duration}</span>}
-            </div>
-          </div>
-        )}
-
-        <CallErrorChip />
-
-        {isActive && showKeypad && canSendDtmf && (
-          <div className="ds-dtmf">
-            <div className="ds-dtmf-readout">{dtmfEntered || ' '}</div>
-            <div className="ds-keypad ds-keypad-dtmf" role="group" aria-label={t('keypad')}>
-              {dialPadKeys.map(({ digit }) => (
-                <button
-                  type="button"
-                  key={digit}
-                  className="ds-key"
-                  aria-label={digit}
-                  onClick={() => sendDtmf(digit)}
-                >
-                  <span className="ds-key-digit">{digit}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {isActive && showTransfer && canStartTransfer && (
-          <div className="ds-transfer">
-            <input
-              className="ds-transfer-input"
-              type="tel"
-              inputMode="tel"
-              value={transferTo}
-              placeholder={t('transferPlaceholder')}
-              aria-label={t('transferPlaceholder')}
-              autoComplete="off"
-              onChange={(e) => onTransferType(e.target.value)}
-              onPaste={(e) => {
-                e.preventDefault();
-                onTransferPaste(e.clipboardData.getData('text'));
-              }}
-            />
-            <div className="ds-transfer-actions">
-              {/* Blind: hand off immediately. */}
-              <button
-                type="button"
-                className="ds-transfer-send ds-transfer-send-secondary"
-                disabled={!transferTo.trim()}
-                onClick={() => {
-                  // Close the transfer overlay only if the hand-off succeeded; a
-                  // failed transfer (routed to onError) leaves it open to retry.
-                  if (actions.transfer(transferTo)) {
-                    setTransferTo('');
-                    overlays.closeTransfer();
-                  }
-                }}
-              >
-                {t('transferNow')}
-              </button>
-              {/* Attended: hold the caller and consult the target first. */}
-              <button
-                type="button"
-                className="ds-transfer-send"
-                disabled={!transferTo.trim()}
-                onClick={() => void startAttendedTransfer(transferTo)}
-              >
-                {t('transferConsult')}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {isActive && showAddCall && canAddCall && (
-          <div className="ds-transfer ds-addcall">
-            <input
-              className="ds-transfer-input"
-              type="tel"
-              inputMode="tel"
-              value={addCallValue}
-              placeholder={t('addCallPlaceholder')}
-              aria-label={t('addCallPlaceholder')}
-              autoComplete="off"
-              onChange={(e) => onAddCallType(e.target.value)}
-              onPaste={(e) => {
-                e.preventDefault();
-                onAddCallPaste(e.clipboardData.getData('text'));
-              }}
-            />
-            <div className="ds-transfer-actions">
-              {/* Holds the current call and dials the new one — the existing
-                  multi-call path, same as answering a second inbound. */}
-              <button
-                type="button"
-                className="ds-transfer-send"
-                disabled={!addCallValue.trim()}
-                onClick={submitAddCall}
-              >
-                {t('addCallSend')}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {isActive && showDevices && <AudioDevicePicker />}
-
-        {isActive && (
-          <div className="ds-controls" role="group">
-            <ControlButton
-              label={call.isMuted ? t('unmute') : t('mute')}
-              glyph={call.isMuted ? softphoneGlyphs.micOff : softphoneGlyphs.mic}
-              on={call.isMuted}
-              onClick={actions.toggleMute}
-            />
-            <ControlButton
-              label={conferenceHeld || call.state === 'held' ? t('resume') : t('hold')}
-              glyph={softphoneGlyphs.pause}
-              on={conferenceHeld || call.state === 'held'}
-              onClick={isMerged ? () => holdConference(!conferenceHeld) : actions.toggleHold}
-            />
-            {canSendDtmf && (
-              <ControlButton
-                label={t('keypad')}
-                glyph={softphoneGlyphs.keypad}
-                on={showKeypad}
-                onClick={overlays.toggleKeypad}
-              />
-            )}
-            <ControlButton
-              label={t('addCall')}
-              glyph={softphoneGlyphs.addCall}
-              on={showAddCall}
-              disabled={!canAddCall || isMerged}
-              onClick={overlays.toggleAddCall}
-            />
-            {/* Transfer and Merge/Split share this slot. They are mutually
-                exclusive by construction — Transfer needs no other live call,
-                Merge needs exactly two — so the row is six controls in every
-                state rather than spilling to a third line when a second call
-                arrives. Position is unchanged either way, so nothing shifts
-                under the user's finger. */}
-            {canMerge || isMerged ? (
-              <ControlButton
-                label={isMerged ? t('split') : t('merge')}
-                glyph={softphoneGlyphs.merge}
-                on={isMerged}
-                onClick={isMerged ? splitMerge : mergeCalls}
-              />
-            ) : (
-              <ControlButton
-                label={t('transfer')}
-                glyph={softphoneGlyphs.transfer}
-                on={showTransfer}
-                disabled={!canStartTransfer}
-                onClick={overlays.toggleTransfer}
-              />
-            )}
-            <ControlButton
-              label={t('audioDevices')}
-              glyph={softphoneGlyphs.speaker}
-              on={showDevices}
-              onClick={overlays.toggleDevices}
-            />
-          </div>
-        )}
-
-        <div className="ds-actions">
-          {/* While merged this screen shows ONE conversation, so its single Hang
-              up ends the whole conference — dropping only the focused leg would
-              leave the user still connected to the other party after they
-              believed they had hung up. To drop one party, Split first. */}
-          <button
-            type="button"
-            className="ds-action ds-hangup"
-            aria-label={t('hangUp')}
-            onClick={isMerged ? hangupConference : actions.hangup}
-          >
-            <Glyph glyph={softphoneGlyphs.hangup} />
-          </button>
-        </div>
-      </div>
-    </div>
+    <OngoingCallView
+      peer={{ id: call.id, name, number: peerName ? displayNumber(peer) : null }}
+      stateLabel={t(callStateLabelKey(call.state))}
+      duration={duration}
+      showDuration={call.state === 'active'}
+      isActive={isActive}
+      isMuted={call.isMuted}
+      isHeld={conferenceHeld || call.state === 'held'}
+      isMerged={isMerged}
+      conferenceParties={mergedCalls.map(summarize)}
+      conferenceLabel={t('conferenceLabel')}
+      transferOther={focusInTransfer && transferOther ? summarize(transferOther) : null}
+      canCompleteTransfer={canComplete}
+      onSwitchToTransferOther={() => transferOther && switchToCall(transferOther)}
+      onCancelTransfer={cancelAttendedTransfer}
+      onCompleteTransfer={completeAttendedTransfer}
+      switchableHeld={switchableHeld.map(summarize)}
+      onSwitchToCall={(id) => {
+        const target = switchableHeld.find((c) => c.id === id);
+        if (target) switchToCall(target);
+      }}
+      error={lastError}
+      onDismissError={clearError}
+      overlay={overlay}
+      canSendDtmf={canSendDtmf}
+      dtmfEntered={dtmfEntered}
+      onSendDtmf={sendDtmf}
+      transferTo={transferTo}
+      onTransferToChange={onTransferType}
+      onTransferToPaste={onTransferPaste}
+      onBlindTransfer={() => {
+        if (actions.transfer(transferTo)) {
+          setTransferTo('');
+          overlays.closeTransfer();
+        }
+      }}
+      onConsultTransfer={() => void startAttendedTransfer(transferTo)}
+      addCallTo={addCallValue}
+      onAddCallToChange={onAddCallType}
+      onAddCallToPaste={onAddCallPaste}
+      onSubmitAddCall={submitAddCall}
+      devicesPanel={<AudioDevicePicker />}
+      canStartTransfer={canStartTransfer}
+      canAddCall={canAddCall}
+      canMerge={canMerge}
+      onToggleMute={actions.toggleMute}
+      onToggleHold={isMerged ? () => holdConference(!conferenceHeld) : actions.toggleHold}
+      onToggleOverlay={toggleOverlay}
+      onMergeOrSplit={isMerged ? splitMerge : mergeCalls}
+      // While merged, hang up ends the whole conference rather than one leg —
+      // the legs are one conversation to the user, so dropping a single one
+      // would leave the others live with no way back to them.
+      onHangup={isMerged ? hangupConference : actions.hangup}
+      scope={scope}
+      t={t}
+    />
   );
 };

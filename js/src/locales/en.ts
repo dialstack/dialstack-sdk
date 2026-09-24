@@ -81,7 +81,7 @@ export const en = {
     callWaiting: 'Call waiting',
     // E911 "Are you here?" location confirmation (shown until the session's
     // emergency address is bound to the current network).
-    emergencyPrompt: 'Set your emergency location to be able to place external calls',
+    emergencyPrompt: 'Set your emergency location',
     emergencyHint:
       'Confirm your location before placing calls — required by 911 regulations for internet calling.',
     emergencyConfirm: "Yes, I'm here",

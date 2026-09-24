@@ -4,10 +4,8 @@
  * source of truth — the React Softphone injects it into a scoped <style>, and the
  * class names (`ds-*`) are shared with the markup the component renders.
  */
-
 import { softphoneDimensions, softphoneFontFamily, type SoftphonePalette } from './theme';
 
-/** Build the Softphone stylesheet for a palette. `scope` is a class the rules are nested under. */
 export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'): string {
   const d = softphoneDimensions;
   return `
@@ -27,6 +25,9 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       background: var(--dsd-bg);
       color: var(--dsd-text);
       width: 100%;
+      min-width: 0;
+      height: var(--ds-softphone-height, 100%);
+      min-height: 0;
       max-width: ${d.maxWidth}px;
       margin: 0 auto;
       border-radius: ${d.radius}px;
@@ -36,26 +37,41 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       box-sizing: border-box;
     }
     .${scope} * { box-sizing: border-box; }
-    /* Every exported piece (DialPad, OngoingCall, IncomingCall, IncomingStack,
-       IncomingCallCard, EmergencyBanner) self-wraps in its own \`.ds-softphone\`
-       so it renders correctly standalone — a host can drop any one of them under
-       the provider without hand-supplying scoped wrappers. When one such piece is
-       composed INSIDE another (e.g. IncomingStack renders IncomingCallCards, or
-       <Softphone> stacks several screens), the inner \`.ds-softphone\` would
-       otherwise paint a second card box. Collapse any nested wrapper so only the
-       outermost is the padded card. */
-    .${scope} .ds-softphone { padding: 0; background: none; max-width: none; margin: 0; }
-    .${scope} .ds-screen { display: flex; flex-direction: column; gap: clamp(12px, 3vw, 20px); }
+    .${scope} .ds-softphone {
+      padding: 0; background: none; max-width: none; margin: 0;
+      min-width: 0; flex: 1;
+      height: auto; min-height: 0;
+    }
+    .${scope} .ds-screen {
+      display: flex; flex: 1; flex-direction: column;
+      min-height: 0;
+      gap: clamp(12px, 3vw, 20px);
+      overflow-y: auto;
+      scrollbar-gutter: stable both-edges;
+    }
+    .${scope} .ds-screen > *:not(.ds-actions) { flex-shrink: 0; }
+    .${scope} .ds-screen > .ds-actions {
+      position: sticky; bottom: 0;
+      background: var(--dsd-bg);
+      padding-bottom: 2px;
+    }
+
+    .${scope} .ds-screen-dial { position: relative; padding-top: 26px; }
 
     .${scope} .ds-chip {
-      align-self: center;
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      width: fit-content;
+      margin-inline: auto;
       font-size: 12px;
       font-weight: 600;
       padding: 4px 12px;
       border-radius: 999px;
       letter-spacing: 0.02em;
     }
-    .${scope} .ds-chip-spacer { visibility: hidden; }
+    .${scope} .ds-chip-spacer { visibility: hidden; position: absolute; }
     .${scope} .ds-chip-pending { background: var(--dsd-surface); color: var(--dsd-text-secondary); }
     .${scope} .ds-chip-off { background: var(--dsd-surface); color: var(--dsd-text-secondary); }
     .${scope} .ds-chip-error { background: color-mix(in srgb, var(--dsd-danger) 16%, transparent); color: var(--dsd-danger); }
@@ -65,6 +81,8 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       gap: 8px;
       max-width: 100%;
       text-align: left;
+      position: static;
+      align-self: stretch;
     }
     .${scope} .ds-call-error-dismiss {
       border: none;
@@ -76,21 +94,16 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       padding: 0;
     }
 
-    /* The number must center on the keypad's axis. The backspace flanks the input
-       on the right, so an equal-width invisible spacer flanks it on the left — the
-       input then centers between two 40px flanks and reads as truly centered (a
-       lone backspace would optically pull the number left even when the box math
-       centers). */
     .${scope} .ds-display { display: flex; align-items: center; min-height: 56px; gap: 8px; }
     .${scope} .ds-display-spacer { width: 40px; flex: none; }
     .${scope} .ds-destination {
       flex: 1; min-width: 0;
-      font-size: clamp(24px, 7vw, 32px);
-      font-weight: 500;
+      font-size: clamp(22px, 6vw, 28px);
+      font-weight: 600;
+      font-family: inherit;
       text-align: center;
       border: none; outline: none; background: transparent;
       color: var(--dsd-text);
-      letter-spacing: 0.02em;
     }
     .${scope} .ds-destination::placeholder { color: var(--dsd-text-secondary); opacity: 0.7; }
     .${scope} .ds-backspace {
@@ -102,13 +115,18 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     .${scope} .ds-backspace:hover { background: var(--dsd-surface); color: var(--dsd-text); }
 
     .${scope} .ds-keypad {
-      display: grid; grid-template-columns: repeat(3, 1fr);
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: ${d.keyGap}px;
       justify-items: center;
+      max-width: min(${d.keyMaxSize * 3 + d.keyGap * 2}px, 100%);
+      width: 100%; margin: 0 auto;
+      flex: 1 1 auto; min-height: 0;
+      align-content: center;
     }
     .${scope} .ds-key {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      width: 100%; aspect-ratio: 1 / 1; max-width: 84px;
+      aspect-ratio: 1 / 1; width: 100%; max-width: ${d.keyMaxSize}px;
+      height: auto;
       border: none; border-radius: 999px;
       background: var(--dsd-surface); color: var(--dsd-text);
       cursor: pointer; gap: 2px;
@@ -125,7 +143,11 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     }
     .${scope} .ds-keypad-dtmf .ds-key { aspect-ratio: auto; padding: 10px 0; max-width: 72px; }
 
-    .${scope} .ds-actions { display: flex; justify-content: center; gap: clamp(24px, 12vw, 72px); }
+    .${scope} .ds-actions {
+      display: flex; justify-content: center; gap: clamp(24px, 12vw, 72px);
+      margin-top: auto; padding-top: clamp(8px, 2vw, 16px);
+      flex: 0 0 auto;
+    }
     .${scope} .ds-actions-incoming { justify-content: space-evenly; }
     .${scope} .ds-action {
       width: ${d.actionButtonSize}px; height: ${d.actionButtonSize}px;
@@ -143,6 +165,17 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     .${scope} .ds-call:not(:disabled):hover, .${scope} .ds-answer:hover,
     .${scope} .ds-hangup:hover, .${scope} .ds-decline:hover { filter: brightness(1.06); }
 
+    .${scope} .ds-peer {
+      flex: 1 1 auto;
+      min-height: min-content;
+      justify-content: center;
+    }
+    .${scope} .ds-display {
+      flex: 0 1 auto; min-height: 0;
+      justify-content: center;
+    }
+    .${scope} .ds-controls { flex: 0 1 auto; min-height: 0; }
+    .${scope} .ds-controls-slot { visibility: hidden; pointer-events: none; }
     .${scope} .ds-peer { text-align: center; display: flex; flex-direction: column; gap: 4px; }
     .${scope} .ds-peer-name { font-size: clamp(22px, 6vw, 28px); font-weight: 600; word-break: break-word; }
     .${scope} .ds-peer-number { font-size: 15px; color: var(--dsd-text-secondary); }
@@ -170,6 +203,7 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       display: flex; flex-wrap: wrap; justify-content: center;
       gap: 8px 20px;
       max-width: ${(d.controlButtonSize + 12) * 3 + 40}px;
+      align-content: flex-end;
       margin: 0 auto;
     }
     .${scope} .ds-controls > * { flex: 0 0 ${d.controlButtonSize + 12}px; }
@@ -191,14 +225,34 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     .${scope} .ds-control-on .ds-control-label { color: var(--dsd-text); }
     .${scope} .ds-control:disabled { cursor: not-allowed; opacity: 0.4; }
 
-    .${scope} .ds-dtmf { display: flex; flex-direction: column; gap: 10px; }
+    .${scope} .ds-dtmf {
+      display: flex; flex-direction: column; gap: 10px;
+      flex: 1; min-height: 0; justify-content: center;
+    }
+    .${scope} .ds-screen-incall:has(.ds-dtmf) > .ds-peer { flex: 0 0 auto; }
+    .${scope} .ds-screen-incall:has(.ds-transfer) > .ds-peer { flex: 1 1 auto; }
+    .${scope} .ds-keypad-dtmf {
+      flex: 1; min-height: 0;
+      grid-auto-rows: minmax(0, ${d.keyMaxSize}px);
+      align-content: center;
+    }
+    .${scope} .ds-keypad-dtmf .ds-key {
+      aspect-ratio: 1 / 1; width: auto; height: 100%;
+      max-height: ${d.keyMaxSize}px; max-width: 100%; padding: 0;
+    }
+    .${scope} .ds-keypad-close { background: var(--dsd-surface); color: var(--dsd-text); }
+    .${scope} .ds-keypad-close:hover { filter: brightness(0.96); }
     .${scope} .ds-dtmf-readout {
       text-align: center; font-size: 22px; min-height: 28px;
       font-variant-numeric: tabular-nums; letter-spacing: 0.08em;
     }
-    .${scope} .ds-transfer { display: flex; flex-direction: column; gap: 8px; }
+    .${scope} .ds-transfer {
+      display: flex; flex-direction: column; gap: 8px;
+      flex: 0 0 auto; min-height: min-content; justify-content: center;
+      width: 100%; max-width: ${(d.controlButtonSize + 12) * 3 + 40}px; margin: 0 auto;
+    }
     .${scope} .ds-transfer-input {
-      flex: 1; min-width: 0; padding: 12px 14px;
+      flex: 0 0 auto; min-width: 0; padding: 12px 14px;
       border: 1px solid var(--dsd-border); border-radius: ${d.radius}px;
       background: var(--dsd-bg); color: var(--dsd-text); font-size: 16px; outline: none;
     }
@@ -231,16 +285,15 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     .${scope} .ds-device-hint { margin: 0; font-size: 12px; color: var(--dsd-text-muted); }
     .${scope} .ds-device-alert { font-size: 12px; color: var(--dsd-danger); }
 
-    /* Attended-transfer banner (layered over the normal in-call view): the other
-       transfer leg as a switch card + the Cancel/Complete actions. */
     .${scope} .ds-transfer-banner { display: flex; flex-direction: column; gap: 8px; }
     .${scope} .ds-consult-held { opacity: 0.7; }
     .${scope} .ds-consult-actions { display: flex; gap: 8px; }
     .${scope} .ds-consult-actions .ds-e911-btn { flex: 1; }
 
-    /* Multi-call + transfer: switchable held-call cards. Clickable (button reset)
-       to switch focus to that call; the cursor + hover signal it's actionable. */
-    .${scope} .ds-held-calls { display: flex; flex-direction: column; gap: 8px; }
+    .${scope} .ds-held-calls {
+      display: flex; flex-direction: column; gap: 8px;
+      flex: 0 1 auto; min-height: 0; overflow: auto;
+    }
     .${scope} .ds-held-call {
       display: block; width: 100%; cursor: pointer; text-align: center;
       border: 1px solid var(--dsd-border); border-radius: ${d.radius}px;
@@ -249,9 +302,6 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       font-family: inherit;
     }
     .${scope} .ds-held-call:hover { opacity: 1; border-color: var(--dsd-accent); }
-    /* A conference is ONE conversation with two people. The participants sit in a
-       single bordered block under one heading and one timer, so they read as
-       joined rather than as an active call with another stacked above it. */
     .${scope} .ds-conference-parties {
       display: flex; flex-direction: column; align-items: center; gap: 2px;
       border: 1px solid var(--dsd-border); border-radius: ${d.radius}px;
@@ -259,11 +309,6 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       background: var(--dsd-surface);
     }
 
-    /* Multi-call: composite layout — the in-call screen with the ringing
-       call-waiting card(s) as a compact banner ABOVE it. The banner is in normal
-       flow (not absolutely positioned) so it reserves its own space and never
-       overlaps the in-call peer/controls below. (Idle inbound is a dedicated
-       screen, not this banner.) */
     .${scope}.ds-softphone-layout {
       display: flex; flex-direction: column; gap: 12px;
       padding: clamp(12px, 4vw, 24px); background: var(--dsd-bg);
@@ -271,35 +316,32 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     .${scope} .ds-softphone-layout > .ds-softphone { padding: 0; background: none; }
     .${scope} .ds-incoming-overlay { flex: none; }
 
-    /* Batteries-included dial screen: the E911 banner above the dial pad, each in
-       its own scope wrapper. This outer wrapper is the single padded card; the
-       inner dial pad's own .ds-softphone must not add a second card box. The
-       banner (a direct .ds-e911 child) carries its own spacing. */
     .${scope}.ds-dial-screen {
-      display: flex; flex-direction: column;
+      display: flex; flex: 1; flex-direction: column;
       padding: clamp(12px, 4vw, 24px); background: var(--dsd-bg);
     }
-    .${scope} .ds-dial-screen > .ds-softphone { padding: 0; background: none; }
+    .${scope} .ds-dial-screen > .ds-softphone { display: flex; min-height: 0; }
     .${scope} .ds-incoming-stack { display: flex; flex-direction: column; gap: 8px; }
 
-    /* One ringing call's card. Full-size inside the dedicated incoming screen;
-       the compact variant (stacked / call-waiting overlay) shrinks it and puts
-       the answer/decline buttons inline so it takes less space. */
     .${scope} .ds-incoming-card {
-      display: flex; flex-direction: column; gap: clamp(12px, 3vw, 20px);
-      align-items: center; text-align: center;
+      display: flex; flex: 1; flex-direction: column;
+      min-height: 0;
+      gap: clamp(12px, 3vw, 20px);
+      align-items: stretch; text-align: center;
     }
-    .${scope} .ds-incoming-card-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .${scope} .ds-incoming-card-info { min-width: 0; min-height: min-content; }
     .${scope} .ds-incoming-card-compact {
       flex-direction: row; gap: 12px; align-items: center; text-align: left;
+      min-height: 0; flex: none;
       padding: 10px 12px; border: 1px solid var(--dsd-border); border-radius: ${d.radius}px;
       background: var(--dsd-surface); box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
     }
-    .${scope} .ds-incoming-card-compact .ds-incoming-card-info { flex: 1; min-width: 0; }
+    .${scope} .ds-incoming-card-compact .ds-incoming-card-info {
+      flex: 1 1 auto; min-width: 0; min-height: 0; justify-content: center;
+    }
     .${scope} .ds-incoming-card-compact .ds-incoming-label { font-size: 11px; }
-    /* Shrink the peer name/number in a compact card — otherwise they inherit the
-       full-screen in-call sizes (clamp up to 28px) and overflow the small overlay
-       card, colliding with the call behind it. Truncate rather than wrap. */
+    .${scope} .ds-incoming-card-compact .ds-callstate { margin-top: 0; }
+    .${scope} .ds-incoming-card-compact .ds-duration { display: none; }
     .${scope} .ds-incoming-card-compact .ds-peer-name {
       font-size: 15px; font-weight: 600; line-height: 1.2;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -310,15 +352,26 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     .${scope} .ds-incoming-card-compact .ds-actions-incoming { margin: 0; gap: 8px; flex: none; }
     .${scope} .ds-incoming-card-compact .ds-action { width: 44px; height: 44px; }
 
-    /* EmergencyBanner's self-wrap is only a scope carrier — never its own card
-       box. The visible chrome is the .ds-e911 prompt inside; the wrapper stays
-       transparent/paddingless in every context (standalone or composed), and its
-       trailing margin comes from .ds-e911 itself. */
-    .${scope}.ds-e911-root { padding: 0; background: none; max-width: none; margin: 0; }
+    .${scope}.ds-e911-root {
+      padding: 0; background: none; max-width: none; margin: 0;
+      flex: 0 0 auto; height: auto; min-height: 0;
+    }
     .${scope} .ds-e911 {
-      margin-bottom: 12px;
       border: 1px solid var(--dsd-border); border-radius: ${d.radius}px;
       overflow: hidden; background: var(--dsd-surface);
+    }
+    .${scope} .ds-e911-open {
+      position: relative; overflow: visible; z-index: 3;
+    }
+    .${scope} .ds-e911-open > .ds-e911-toggle {
+      border-radius: ${d.radius}px ${d.radius}px 0 0;
+    }
+    .${scope} .ds-e911-open > .ds-e911-body {
+      position: absolute; top: 100%; left: 0; right: 0; z-index: 3;
+      background: color-mix(in srgb, var(--dsd-text) 6%, var(--dsd-bg));
+      border: 1px solid var(--dsd-border); border-top: none;
+      border-radius: 0 0 ${d.radius}px ${d.radius}px;
+      box-shadow: 0 6px 16px rgb(0 0 0 / 0.28), 0 1px 3px rgb(0 0 0 / 0.22);
     }
     .${scope} .ds-e911-toggle {
       display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
@@ -337,7 +390,6 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       padding: 12px; border-top: 1px solid var(--dsd-border);
     }
     .${scope} .ds-e911-hint { font-size: 12px; color: var(--dsd-text-secondary); margin: 0; }
-    /* Saved-address choice buttons ("Are you here?") */
     .${scope} .ds-e911-choice {
       display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
       padding: 10px 12px; border: 1px solid var(--dsd-border); border-radius: 8px;

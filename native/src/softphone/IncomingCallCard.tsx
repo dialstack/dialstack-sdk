@@ -9,13 +9,10 @@
  * <SoftphoneProvider>.
  */
 
-import React, { useMemo } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { softphoneDimensions as D, softphoneGlyphs } from '@dialstack/sdk-react/core';
-import { callPeerName, callPeerNumber } from '@dialstack/sdk-react/core';
-import type { Call } from '@dialstack/sdk-react/core';
+import React from 'react';
+import { callPeerName, callPeerNumber, type Call } from '@dialstack/sdk-react/core';
 import { useSoftphone } from '../SoftphoneProvider';
-import { Glyph, makeStyles } from './primitives';
+import { IncomingCallCardView } from './views/IncomingCallCardView';
 
 export function IncomingCallCard({
   call,
@@ -25,51 +22,18 @@ export function IncomingCallCard({
   compact?: boolean;
 }): React.JSX.Element {
   const { answerCall, actions, displayNumber, t, palette } = useSoftphone();
-  const styles = useMemo(() => makeStyles(palette), [palette]);
   const peerRaw = callPeerNumber(call);
   const peerName = callPeerName(call);
-  const name = peerName || displayNumber(peerRaw) || t('unknownCaller');
-  const size = compact ? D.actionButtonSize * 0.72 : D.actionButtonSize;
 
   return (
-    <View style={compact ? styles.incomingCardCompact : styles.incomingCard}>
-      <View style={compact ? styles.incomingCardInfo : styles.peer}>
-        <Text style={styles.incomingLabel}>{t('incomingCall')}</Text>
-        <Text style={compact ? styles.peerNameCompact : styles.peerName} numberOfLines={1}>
-          {name}
-        </Text>
-        {!!peerName && (
-          <Text style={compact ? styles.peerNumberCompact : styles.peerNumber} numberOfLines={1}>
-            {displayNumber(peerRaw)}
-          </Text>
-        )}
-      </View>
-      <View style={[styles.actions, styles.actionsSpread, compact && styles.actionsCompact]}>
-        <Pressable
-          onPress={() => actions.callActionsFor(call).reject()}
-          accessibilityLabel={t('decline')}
-          style={({ pressed }: { pressed: boolean }) => [
-            styles.action,
-            compact && styles.actionCompact,
-            styles.actionDanger,
-            pressed && styles.actionPressed,
-          ]}
-        >
-          <Glyph glyph={softphoneGlyphs.hangup} size={size * 0.46} color={palette.onAccent} />
-        </Pressable>
-        <Pressable
-          onPress={() => answerCall(call)}
-          accessibilityLabel={t('answer')}
-          style={({ pressed }: { pressed: boolean }) => [
-            styles.action,
-            compact && styles.actionCompact,
-            styles.actionSuccess,
-            pressed && styles.actionPressed,
-          ]}
-        >
-          <Glyph glyph={softphoneGlyphs.phone} size={size * 0.46} color={palette.onAccent} />
-        </Pressable>
-      </View>
-    </View>
+    <IncomingCallCardView
+      palette={palette}
+      t={t}
+      name={peerName || displayNumber(peerRaw) || t('unknownCaller')}
+      number={peerName ? displayNumber(peerRaw) : null}
+      compact={compact}
+      onAnswer={() => answerCall(call)}
+      onDecline={() => actions.callActionsFor(call).reject()}
+    />
   );
 }

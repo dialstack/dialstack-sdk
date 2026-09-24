@@ -5,7 +5,6 @@
  * one module so DialPad / IncomingCall / OngoingCall share them (mirrors how the
  * web components share Glyph + softphone-styles).
  */
-
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
@@ -15,7 +14,6 @@ import {
   type SoftphoneGlyph,
 } from '@dialstack/sdk-react/core';
 
-/** Renders a shared softphone glyph as an SVG path, matching the web <Glyph>. */
 export function Glyph({
   glyph,
   size,
@@ -32,7 +30,6 @@ export function Glyph({
   );
 }
 
-/** The incoming-call pulsing dot, matching the web softphone's ds-incoming-pulse. */
 export function PulseDot({ color }: { color: string }): React.JSX.Element {
   const scale = useRef(new Animated.Value(1)).current;
   const opacity = useRef(new Animated.Value(0.6)).current;
@@ -117,6 +114,62 @@ export function ControlButton({
   );
 }
 
+const CONTROL_SLOTS = 6;
+
+const KEY_MAX = Math.round(D.keyMaxSize * 1.1);
+
+export function Chip({
+  styles,
+  tone = 'info',
+  label,
+  onDismiss,
+  dismissLabel,
+}: {
+  styles: ReturnType<typeof makeStyles>;
+  tone?: 'info' | 'error';
+  label: string;
+  onDismiss?: () => void;
+  dismissLabel?: string;
+}): React.JSX.Element {
+  const error = tone === 'error';
+  const body = (
+    <>
+      <Text style={[styles.chipText, error && styles.chipErrorText]}>{label}</Text>
+      {onDismiss ? <Text style={[styles.chipText, styles.chipErrorText]}>{'\u2715'}</Text> : null}
+    </>
+  );
+  const chipStyle = [styles.chipPill, error && styles.chipError, styles.chip];
+  return onDismiss ? (
+    <Pressable
+      onPress={onDismiss}
+      accessibilityRole="alert"
+      accessibilityLabel={dismissLabel}
+      style={chipStyle}
+    >
+      {body}
+    </Pressable>
+  ) : (
+    <View style={chipStyle}>{body}</View>
+  );
+}
+
+export function ControlsSlot({
+  styles,
+}: {
+  styles: ReturnType<typeof makeStyles>;
+}): React.JSX.Element {
+  return (
+    <View style={[styles.controls, styles.controlsSlot]} pointerEvents="none" accessible={false}>
+      {Array.from({ length: CONTROL_SLOTS }, (_, i) => (
+        <View key={i} style={styles.control}>
+          <View style={styles.controlGlyphWrap} />
+          <Text style={styles.controlLabel}> </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export function chunk<T>(arr: ReadonlyArray<T>, size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
@@ -125,10 +178,10 @@ export function chunk<T>(arr: ReadonlyArray<T>, size: number): T[][] {
 
 export function makeStyles(p: SoftphonePalette) {
   return StyleSheet.create({
-    // A centered card (like the web Softphone) rather than a full-bleed panel.
     outer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: D.space },
     outerLandscape: { justifyContent: 'flex-start', paddingTop: D.space },
     root: {
+      flex: 1,
       width: '100%',
       maxWidth: D.maxWidth,
       alignSelf: 'center',
@@ -140,59 +193,70 @@ export function makeStyles(p: SoftphonePalette) {
 
     chip: {
       alignSelf: 'center',
-      backgroundColor: p.surface,
-      borderRadius: 999,
-      paddingVertical: 4,
-      paddingHorizontal: 12,
-    },
-    chipSpacer: { height: 26 },
-    chipText: { color: p.textSecondary, fontSize: 12, fontWeight: '600' },
-    chipError: { backgroundColor: 'rgba(229,72,77,0.16)' },
-    chipErrorText: { color: p.danger },
-    callError: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
       maxWidth: '100%',
     },
+    chipPill: {
+      backgroundColor: p.surface,
+      borderRadius: 999,
+      paddingVertical: 4,
+      paddingHorizontal: 12,
+    },
+    dialScreen: { position: 'relative', flex: 1, minHeight: 0, gap: D.space },
+    chipText: { color: p.textSecondary, fontSize: 12, fontWeight: '600' },
+    chipError: { backgroundColor: 'rgba(229,72,77,0.16)' },
+    chipErrorText: { color: p.danger },
 
-    display: { flexDirection: 'row', alignItems: 'center', minHeight: 56, gap: 8 },
+    display: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      minHeight: 0,
+      gap: 8,
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 'auto',
+    },
     destination: {
       flex: 1,
+      minWidth: 0,
       fontSize: 30,
       fontWeight: '500',
       color: p.text,
-      // Horizontal centering is set via the TextInput `textAlign` prop (more
-      // reliable than style.textAlign on Android TextInput), not here.
-      // Android EditText carries default internal padding + font padding that
-      // offsets the text off-center inside its own box; zero both so the
-      // centered text lands on the keypad axis (matching web). The row's `gap`
-      // is centering-neutral: the spacer and backspace render under the same
-      // condition, so the flanks are always both-or-neither and stay symmetric.
+      textAlign: 'center',
       paddingVertical: 0,
       paddingHorizontal: 0,
       includeFontPadding: false,
       textAlignVertical: 'center',
     },
     backspace: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-    // Invisible left flank matching the backspace's footprint (RN parity with
-    // .ds-display-spacer). Same box, named for the role it plays.
     displaySpacer: { width: 40, height: 40 },
     backspaceText: { fontSize: 22, color: p.textSecondary },
 
-    keypad: { gap: D.keyGap },
-    keyRow: { flexDirection: 'row', justifyContent: 'space-between', gap: D.keyGap },
+    keypad: {
+      gap: D.keyGap,
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 'auto',
+      justifyContent: 'center',
+      maxWidth: KEY_MAX * 3 + D.keyGap * 2,
+      width: '100%',
+      alignSelf: 'center',
+    },
+    keyRow: { flexDirection: 'row', justifyContent: 'space-between', gap: D.keyGap, flexShrink: 1 },
     key: {
       flex: 1,
       aspectRatio: 1,
-      maxWidth: 84,
+      maxWidth: KEY_MAX,
+      maxHeight: KEY_MAX,
       alignSelf: 'center',
       borderRadius: 999,
       backgroundColor: p.surface,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    keyDtmf: { aspectRatio: undefined, paddingVertical: 12 },
+    keyCompact: { maxWidth: 76, maxHeight: 76 },
     keyPressed: { backgroundColor: p.surfaceActive },
     keyDigit: { fontSize: 26, fontWeight: '500', color: p.text, lineHeight: 30 },
     keyLetters: {
@@ -203,8 +267,18 @@ export function makeStyles(p: SoftphonePalette) {
       marginTop: 2,
     },
 
-    actions: { flexDirection: 'row', justifyContent: 'center', gap: 48 },
-    actionsSpread: { justifyContent: 'space-evenly' },
+    actions: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 48,
+      marginTop: 0,
+      paddingTop: 8,
+      flexGrow: 0,
+      flexShrink: 0,
+      flexBasis: 'auto',
+    },
+    actionsSpread: { justifyContent: 'space-evenly', gap: 72 },
+    actionsInCall: { marginTop: 0 },
     action: {
       width: D.actionButtonSize,
       height: D.actionButtonSize,
@@ -214,13 +288,39 @@ export function makeStyles(p: SoftphonePalette) {
     },
     actionSuccess: { backgroundColor: p.success },
     actionDanger: { backgroundColor: p.danger },
+    actionNeutral: { backgroundColor: p.surface },
     actionDisabled: { opacity: 0.4 },
     actionPressed: { opacity: 0.85 },
 
-    peer: { alignItems: 'center', gap: 4 },
-    peerName: { fontSize: 26, fontWeight: '600', color: p.text, textAlign: 'center' },
+    screen: { flex: 1, minHeight: 0, gap: D.space },
+
+    peer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 'auto',
+      minHeight: 72,
+      gap: 4,
+      alignSelf: 'stretch',
+      width: '100%',
+    },
+    peerName: {
+      fontSize: 26,
+      fontWeight: '600',
+      color: p.text,
+      textAlign: 'center',
+      alignSelf: 'stretch',
+    },
     peerNumber: { fontSize: 15, color: p.textSecondary },
     callState: { alignItems: 'center', marginTop: 6, gap: 2 },
+    dtmfReadout: {
+      textAlign: 'center',
+      fontSize: 22,
+      minHeight: 28,
+      letterSpacing: 0.08 * 22,
+      color: p.text,
+    },
     callStateText: { fontSize: 14, color: p.textSecondary },
     duration: { fontSize: 18, fontWeight: '500', color: p.text },
 
@@ -232,12 +332,12 @@ export function makeStyles(p: SoftphonePalette) {
       color: p.textSecondary,
     },
 
-    // Fixed cell rather than `flex: 1`, which stretches across the row and never wraps.
     controls: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       justifyContent: 'center',
       alignSelf: 'center',
+      flexShrink: 0,
       maxWidth: (D.controlButtonSize + 12) * 3 + 40,
       rowGap: 8,
       columnGap: 20,
@@ -254,14 +354,27 @@ export function makeStyles(p: SoftphonePalette) {
     },
     controlGlyphOn: { backgroundColor: p.accent },
     controlLabel: { fontSize: 12, color: p.textSecondary },
+    controlsSlot: { opacity: 0 },
 
-    dtmfPad: { gap: D.keyGap },
-    transfer: { flexDirection: 'column', gap: 8 },
+    peerCompact: {
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 'auto',
+      minHeight: 0,
+      justifyContent: 'flex-end',
+    },
+    transfer: {
+      flexDirection: 'column',
+      gap: 8,
+      flexGrow: 0,
+      flexShrink: 0,
+      flexBasis: 'auto',
+      justifyContent: 'center',
+      width: '100%',
+      maxWidth: (D.controlButtonSize + 12) * 3 + 40,
+      alignSelf: 'center',
+    },
     transferInput: {
-      // No flex:1 here — unlike web's flex row, an RN column child with flex:1
-      // stretches vertically and collapses the field to an invisible sliver.
-      // minHeight gives it real presence; a surface fill (like the dial keys /
-      // held-call cards) separates it from the screen bg so typed digits read.
       minHeight: 52,
       borderWidth: 1,
       borderColor: p.border,
@@ -286,11 +399,8 @@ export function makeStyles(p: SoftphonePalette) {
     transferSendSecondaryText: { color: p.text, fontWeight: '600' },
     transferSendDisabled: { opacity: 0.5 },
 
-    // ---- Attended-transfer banner (RN parity with .ds-transfer-banner) ----
     consultHeld: { opacity: 0.7 },
 
-    // ---- Multi-call + transfer: switchable held-call cards (parity with the web
-    // ds-held-call). Tap to switch focus to that call. ----
     heldCalls: { gap: 8 },
     heldCall: {
       borderWidth: 1,
@@ -302,19 +412,23 @@ export function makeStyles(p: SoftphonePalette) {
       backgroundColor: p.surface,
     },
 
-    // Composite layout: idle inbound is its own screen; an interrupt during a
-    // call shows the compact card(s) as a banner ABOVE the in-call screen (in
-    // normal flow, so it never overlaps the peer / controls below).
     incomingStack: { gap: 8 },
     layoutWithBanner: { gap: D.space },
 
-    // One ringing call's card. Full-size (column, centered) for the dedicated
-    // incoming screen; compact (row, bordered surface with a shadow) for the
-    // stacked / call-waiting overlay presentations.
-    incomingCard: { gap: D.space, alignItems: 'center' },
-    incomingCardInfo: { flex: 1, gap: 2 },
+    incomingCard: {
+      flex: 1,
+      gap: D.space,
+      alignItems: 'center',
+    },
+    incomingCardInfo: { minHeight: 72, justifyContent: 'center', flex: 1, minWidth: 0, gap: 2 },
+    incomingCardInfoCompact: { minHeight: 0 },
+    incomingLabelCompact: { textAlign: 'left', fontSize: 11 },
     incomingCardCompact: {
       flexDirection: 'row',
+      flexGrow: 0,
+      flexShrink: 0,
+      flexBasis: 'auto',
+      alignSelf: 'stretch',
       alignItems: 'center',
       gap: 12,
       padding: 12,
@@ -323,15 +437,23 @@ export function makeStyles(p: SoftphonePalette) {
       borderRadius: D.radius,
       backgroundColor: p.surface,
     },
-    actionsCompact: { gap: 8, flex: 0 },
+    actionsCompact: {
+      gap: 8,
+      flex: 0,
+      flexShrink: 0,
+      flexBasis: 'auto',
+      justifyContent: 'flex-end',
+      marginTop: 0,
+      paddingTop: 0,
+    },
     actionCompact: { width: D.actionButtonSize * 0.72, height: D.actionButtonSize * 0.72 },
-    // Shrunk peer name/number for the compact card — the full-size peerName (26px)
-    // overflows the small banner card. Truncated to one line (numberOfLines).
     peerNameCompact: { fontSize: 15, fontWeight: '600', color: p.text },
     peerNumberCompact: { fontSize: 12, color: p.textSecondary },
 
-    // ---- E911: compact banner trigger + a mobile Modal form ----
     e911: {
+      flexGrow: 0,
+      flexShrink: 0,
+      flexBasis: 'auto',
       borderWidth: 1,
       borderColor: p.border,
       borderRadius: D.radius,
@@ -354,8 +476,6 @@ export function makeStyles(p: SoftphonePalette) {
       flexShrink: 1,
     },
 
-    // Modal: OPAQUE backdrop (solid palette background — no translucency, so the
-    // dial pad never bleeds through), sheet pinned to the bottom, keyboard-aware.
     e911Backdrop: {
       flex: 1,
       backgroundColor: p.background,
@@ -410,7 +530,6 @@ export function makeStyles(p: SoftphonePalette) {
     },
     e911LocateBtnText: { color: p.accent, fontWeight: '600', fontSize: 15 },
 
-    // Full-width stacked fields (no cramped two-column rows).
     e911Field: { gap: 6 },
     e911Label: { fontSize: 13, color: p.textSecondary },
     e911Input: {

@@ -7,26 +7,19 @@
  *
  * Must be rendered inside a <SoftphoneProvider>.
  */
-
-import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
-import type { Call, CallState } from '@dialstack/sdk-react/core';
+import React, { useEffect, useState } from 'react';
+import type { Call } from '@dialstack/sdk-react/core';
 import {
   callPeerNumber,
   callPeerName,
   callStateLabelKey,
   isCallActive,
   useDialInput,
-} from '@dialstack/sdk-react/core';
-import {
-  dialPadKeys,
-  softphoneDimensions as D,
-  softphoneGlyphs,
   MAX_CALLS,
 } from '@dialstack/sdk-react/core';
 import { useSoftphone } from '../SoftphoneProvider';
 import { CallErrorChip } from './CallErrorChip';
-import { Glyph, ControlButton, chunk, makeStyles } from './primitives';
+import { OngoingCallView, type OverlayPanel, type PeerSummary } from './views/OngoingCallView';
 
 export function OngoingCall(): React.JSX.Element | null {
   const {
@@ -48,324 +41,108 @@ export function OngoingCall(): React.JSX.Element | null {
     t,
     palette,
   } = useSoftphone();
-  const styles = useMemo(() => makeStyles(palette), [palette]);
   const { showKeypad, showTransfer, showAddCall } = overlays;
+  const [dtmfEntered, setDtmfEntered] = useState('');
   const [transferTo, setTransferTo] = useState('');
   const { onType: onTransferType } = useDialInput(setTransferTo);
   const [addCallTo, setAddCallTo] = useState('');
   const { onType: onAddCallType } = useDialInput(setAddCallTo);
 
-  // Clear the per-call transient text when the foreground call changes. (The
-  // overlay flags themselves reset inside useCallOverlays so web + RN match.)
-  // No dtmfEntered readout here — the RN keypad has no readout to reset, unlike
-  // web.
   const callId = call?.id ?? null;
   useEffect(() => {
+    setDtmfEntered('');
     setTransferTo('');
     setAddCallTo('');
   }, [callId]);
 
   if (!call) return null;
 
-  const peerRaw = callPeerNumber(call);
-  const peerName = callPeerName(call);
-  const isActive = isCallActive(call);
-  const name = peerName || displayNumber(peerRaw) || t('unknownCaller');
-  // Only some React Native WebRTC builds expose RTCRtpSender.dtmf (DialStack's
-  // fork does; LiveKit's and Stream's don't), so hide the keypad when the active
-  // build can't send rather than throw on each tap.
-  const canSendDtmf = call.canSendDtmf;
+  const summarize = (c: Call): PeerSummary => {
+    const cName = callPeerName(c);
+    const cNumber = callPeerNumber(c);
+    return {
+      id: c.id,
+      name: cName || displayNumber(cNumber) || t('unknownCaller'),
+      number: cName ? displayNumber(cNumber) : null,
+    };
+  };
 
-  // An attended transfer is just two switchable calls + a transfer flag, so it
-  // renders the normal in-call view (controls + switch cards). On top we show a
-  // banner for the OTHER transfer leg (tap to switch to it) plus Complete/Cancel.
-  // That leg is excluded from the plain held-calls list so it isn't shown twice.
   const inTransfer = consultCall !== null && transferOriginal !== null;
-  // Banner + Complete belong ONLY when the FOCUSED call is one of the two transfer
-  // legs (parity with web). With switchable focus the active call can be a third
-  // unrelated call — the banner would then name the wrong leg and Complete would
-  // bridge legs the user isn't looking at.
   const focusInTransfer = inTransfer && (call === consultCall || call === transferOriginal);
   const transferOther = focusInTransfer
     ? call === consultCall
       ? transferOriginal
       : consultCall
     : null;
-  const canComplete = focusInTransfer && consultCall !== null && consultCall.isConnected;
   const switchableHeld = heldCalls.filter((c: Call) => c !== transferOther);
-  // Disable Transfer while a transfer is already in progress OR more than one
-  // call is live (parity with web) — a new transfer in either case is ambiguous.
-  const canStartTransfer = !inTransfer && heldCalls.length + incomingCalls.length === 0;
-
-  // Same soft cap `useCalls` enforces when accepting another leg — read from the
-  // shared constant rather than repeating the number.
   const canAddCall = calls.length < MAX_CALLS;
-
-  // Parity with web: at the cap the panel is unreachable, so its text must not
-  // read back through when a ringing leg drops. Derived, not reset in an effect.
   const addCallValue = canAddCall ? addCallTo : '';
 
-  const submitAddCall = () => {
-    const target = addCallValue.trim();
-    if (!target) return;
-    // Fire-and-forget: placeCall holds the current call, dials the new one, and
-    // reports its own failures through onError.
-    void placeCall(target);
-    setAddCallTo('');
-    overlays.closeAddCall();
-  };
+  const overlay: OverlayPanel = showKeypad
+    ? 'keypad'
+    : showTransfer
+      ? 'transfer'
+      : showAddCall
+        ? 'addcall'
+        : null;
 
   return (
-    <>
-      {/* Attended-transfer banner: the OTHER leg (tap to switch to it) + Cancel /
-          Complete. The normal in-call view (controls, etc.) renders below, so
-          mute/hold stay available while transferring. */}
-      {focusInTransfer && transferOther && (
-        <>
-          {(() => {
-            const otherName =
-              callPeerName(transferOther) ||
-              displayNumber(callPeerNumber(transferOther)) ||
-              t('unknownCaller');
-            return (
-              <Pressable
-                accessibilityLabel={`${t('switchToCall')}: ${otherName}`}
-                onPress={() => switchToCall(transferOther)}
-                style={[styles.heldCall, styles.consultHeld]}
-              >
-                <Text style={styles.peerName}>{otherName}</Text>
-                <Text style={styles.callStateText}>{t('transferOriginalOnHold')}</Text>
-              </Pressable>
-            );
-          })()}
-          <View style={styles.transferActions}>
-            <Pressable
-              onPress={cancelAttendedTransfer}
-              style={[styles.transferSend, styles.transferSendSecondary]}
-            >
-              <Text style={styles.transferSendSecondaryText}>{t('cancel')}</Text>
-            </Pressable>
-            <Pressable
-              onPress={completeAttendedTransfer}
-              disabled={!canComplete}
-              style={[styles.transferSend, !canComplete && styles.transferSendDisabled]}
-            >
-              <Text style={styles.transferSendText}>{t('transferComplete')}</Text>
-            </Pressable>
-          </View>
-        </>
-      )}
-
-      {/* Other backgrounded calls the user can switch to — tap a card to hold
-          the current call and resume that one. Rendered ABOVE the active peer
-          (same as the transfer banner) so the backgrounded call sits above and
-          the active/current call below, consistently. Excludes the transfer leg
-          shown in the banner above (so it isn't listed twice). */}
-      {switchableHeld.length > 0 && (
-        <View style={styles.heldCalls}>
-          {switchableHeld.map((held: Call) => {
-            const hp = callPeerNumber(held);
-            const hn = callPeerName(held) || displayNumber(hp) || t('unknownCaller');
-            return (
-              <Pressable
-                key={held.id}
-                onPress={() => switchToCall(held)}
-                accessibilityLabel={`${t('switchToCall')}: ${hn}`}
-                style={({ pressed }: { pressed: boolean }) => [
-                  styles.heldCall,
-                  styles.consultHeld,
-                  pressed && styles.keyPressed,
-                ]}
-              >
-                <Text style={styles.peerName}>{hn}</Text>
-                <Text style={styles.callStateText}>{t('heldCallsLabel')}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
-
-      <View style={styles.peer}>
-        <Text style={styles.peerName}>{name}</Text>
-        {!!peerName && <Text style={styles.peerNumber}>{displayNumber(peerRaw)}</Text>}
-        <View style={styles.callState}>
-          <Text style={styles.callStateText}>{t(callStateLabelKey(call.state as CallState))}</Text>
-          {/* Duration ticks only while truly live; a held foreground call shows
-              its "On hold" state + Resume control, never a running timer. */}
-          {call.state === 'active' && <Text style={styles.duration}>{duration}</Text>}
-        </View>
-      </View>
-
-      <CallErrorChip />
-
-      {isActive && showKeypad && canSendDtmf && (
-        <View style={styles.dtmfPad}>
-          {chunk(dialPadKeys, 3).map((row, i) => (
-            <View key={i} style={styles.keyRow}>
-              {row.map(({ digit }) => (
-                <Pressable
-                  key={digit}
-                  onPress={() => actions.sendDtmf(digit)}
-                  accessibilityLabel={digit}
-                  style={({ pressed }: { pressed: boolean }) => [
-                    styles.key,
-                    styles.keyDtmf,
-                    pressed && styles.keyPressed,
-                  ]}
-                >
-                  <Text style={styles.keyDigit}>{digit}</Text>
-                </Pressable>
-              ))}
-            </View>
-          ))}
-        </View>
-      )}
-
-      {isActive && showTransfer && canStartTransfer && (
-        <View style={styles.transfer}>
-          <TextInput
-            style={styles.transferInput}
-            value={transferTo}
-            onChangeText={onTransferType}
-            placeholder={t('transferPlaceholder')}
-            placeholderTextColor={palette.textSecondary}
-            keyboardType="phone-pad"
-            autoCorrect={false}
-          />
-          <View style={styles.transferActions}>
-            {/* Blind: hand off immediately. */}
-            <Pressable
-              disabled={!transferTo.trim()}
-              onPress={() => {
-                // Close the transfer overlay only on a successful hand-off; a
-                // failed transfer (routed to onError) leaves it open to retry.
-                if (actions.transfer(transferTo)) {
-                  setTransferTo('');
-                  overlays.closeTransfer();
-                }
-              }}
-              style={[
-                styles.transferSend,
-                styles.transferSendSecondary,
-                !transferTo.trim() && styles.transferSendDisabled,
-              ]}
-            >
-              <Text style={styles.transferSendSecondaryText}>{t('transferNow')}</Text>
-            </Pressable>
-            {/* Attended: hold the caller and consult the target first. */}
-            <Pressable
-              disabled={!transferTo.trim()}
-              onPress={() => void startAttendedTransfer(transferTo)}
-              style={[styles.transferSend, !transferTo.trim() && styles.transferSendDisabled]}
-            >
-              <Text style={styles.transferSendText}>{t('transferConsult')}</Text>
-            </Pressable>
-          </View>
-        </View>
-      )}
-
-      {isActive && showAddCall && canAddCall && (
-        <View style={styles.transfer}>
-          <TextInput
-            style={styles.transferInput}
-            value={addCallValue}
-            onChangeText={onAddCallType}
-            placeholder={t('addCallPlaceholder')}
-            placeholderTextColor={palette.textSecondary}
-            keyboardType="phone-pad"
-            autoCorrect={false}
-          />
-          <View style={styles.transferActions}>
-            {/* Holds the current call and dials the new one. */}
-            <Pressable
-              disabled={!addCallValue.trim()}
-              onPress={submitAddCall}
-              style={[styles.transferSend, !addCallValue.trim() && styles.transferSendDisabled]}
-            >
-              <Text style={styles.transferSendText}>{t('addCallSend')}</Text>
-            </Pressable>
-          </View>
-        </View>
-      )}
-
-      {isActive && (
-        <View style={styles.controls}>
-          <ControlButton
-            label={call.isMuted ? t('unmute') : t('mute')}
-            glyph={call.isMuted ? softphoneGlyphs.micOff : softphoneGlyphs.mic}
-            on={call.isMuted}
-            onPress={actions.toggleMute}
-            palette={palette}
-            styles={styles}
-          />
-          <ControlButton
-            label={call.state === 'held' ? t('resume') : t('hold')}
-            glyph={softphoneGlyphs.pause}
-            on={call.state === 'held'}
-            onPress={actions.toggleHold}
-            palette={palette}
-            styles={styles}
-          />
-          {canSendDtmf && (
-            <ControlButton
-              label={t('keypad')}
-              glyph={softphoneGlyphs.keypad}
-              on={showKeypad}
-              onPress={overlays.toggleKeypad}
-              palette={palette}
-              styles={styles}
-            />
-          )}
-          <ControlButton
-            label={t('transfer')}
-            glyph={softphoneGlyphs.transfer}
-            on={showTransfer}
-            onPress={overlays.toggleTransfer}
-            palette={palette}
-            styles={styles}
-            disabled={!canStartTransfer}
-          />
-          <ControlButton
-            label={t('addCall')}
-            glyph={softphoneGlyphs.addCall}
-            on={showAddCall}
-            onPress={overlays.toggleAddCall}
-            palette={palette}
-            styles={styles}
-            disabled={!canAddCall}
-          />
-          {/* Placeholder so the control grid matches web's button count. Device
-              selection on native routes through the OS audio session rather than
-              setSinkId/getUserMedia constraints, so it is not wired up yet. */}
-          <ControlButton
-            label={t('audioDevices')}
-            glyph={softphoneGlyphs.speaker}
-            on={false}
-            onPress={() => {}}
-            palette={palette}
-            styles={styles}
-            disabled
-          />
-        </View>
-      )}
-
-      <View style={styles.actions}>
-        <Pressable
-          onPress={actions.hangup}
-          accessibilityLabel={t('hangUp')}
-          style={({ pressed }: { pressed: boolean }) => [
-            styles.action,
-            styles.actionDanger,
-            pressed && styles.actionPressed,
-          ]}
-        >
-          <Glyph
-            glyph={softphoneGlyphs.hangup}
-            size={D.actionButtonSize * 0.46}
-            color={palette.onAccent}
-          />
-        </Pressable>
-      </View>
-    </>
+    <OngoingCallView
+      palette={palette}
+      t={t}
+      peer={summarize(call)}
+      stateLabel={t(callStateLabelKey(call.state))}
+      duration={duration}
+      showDuration={call.state === 'active'}
+      isActive={isCallActive(call)}
+      isMuted={call.isMuted}
+      isHeld={call.state === 'held'}
+      transferOther={transferOther ? summarize(transferOther) : null}
+      canCompleteTransfer={focusInTransfer && consultCall !== null && consultCall.isConnected}
+      onSwitchToTransferOther={() => transferOther && switchToCall(transferOther)}
+      onCancelTransfer={cancelAttendedTransfer}
+      onCompleteTransfer={completeAttendedTransfer}
+      switchableHeld={switchableHeld.map(summarize)}
+      onSwitchToCall={(id: string) => {
+        const target = switchableHeld.find((c: Call) => c.id === id);
+        if (target) switchToCall(target);
+      }}
+      overlay={overlay}
+      canSendDtmf={call.canSendDtmf}
+      onSendDtmf={(digit) => {
+        setDtmfEntered((prev) => prev + digit);
+        actions.sendDtmf(digit);
+      }}
+      dtmfEntered={dtmfEntered}
+      transferTo={transferTo}
+      onTransferToChange={onTransferType}
+      onBlindTransfer={() => {
+        if (actions.transfer(transferTo)) {
+          setTransferTo('');
+          overlays.closeTransfer();
+        }
+      }}
+      onConsultTransfer={() => void startAttendedTransfer(transferTo)}
+      addCallTo={addCallValue}
+      onAddCallToChange={onAddCallType}
+      onSubmitAddCall={() => {
+        const target = addCallValue.trim();
+        if (!target) return;
+        void placeCall(target);
+        setAddCallTo('');
+        overlays.closeAddCall();
+      }}
+      canStartTransfer={!inTransfer && heldCalls.length + incomingCalls.length === 0}
+      canAddCall={canAddCall}
+      onToggleMute={actions.toggleMute}
+      onToggleHold={actions.toggleHold}
+      onToggleOverlay={(panel) => {
+        if (panel === 'keypad') overlays.toggleKeypad();
+        else if (panel === 'transfer') overlays.toggleTransfer();
+        else overlays.toggleAddCall();
+      }}
+      onHangup={actions.hangup}
+      errorChip={<CallErrorChip />}
+    />
   );
 }

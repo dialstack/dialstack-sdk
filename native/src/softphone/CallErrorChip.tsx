@@ -7,26 +7,21 @@
  */
 
 import React, { useMemo } from 'react';
-import { Pressable, Text } from 'react-native';
 import { errorMessageKey } from '@dialstack/sdk-react/core';
 import { useSoftphone } from '../SoftphoneProvider';
-import { makeStyles } from './primitives';
+import { Chip, makeStyles } from './primitives';
 
 export function CallErrorChip(): React.JSX.Element | null {
   const { lastError, clearError, t, palette } = useSoftphone();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   if (!lastError) return null;
   return (
-    <Pressable
-      onPress={clearError}
-      accessibilityRole="alert"
-      accessibilityLabel={t('dismiss')}
-      style={[styles.chip, styles.chipError, styles.callError]}
-    >
-      <Text style={[styles.chipText, styles.chipErrorText]}>
-        {t(errorMessageKey(lastError.code))}
-      </Text>
-      <Text style={[styles.chipText, styles.chipErrorText]}>✕</Text>
-    </Pressable>
+    <Chip
+      styles={styles}
+      tone="error"
+      label={t(errorMessageKey(lastError.code))}
+      onDismiss={clearError}
+      dismissLabel={t('dismiss')}
+    />
   );
 }
