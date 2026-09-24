@@ -165,6 +165,37 @@ describe('dialstackAccount Pattern', () => {
     });
   });
 
+  describe('blockedNumbers', () => {
+    const blocked = { object: 'blocked_number', phone_number: '+14155551234' };
+
+    it('create uses dialstackAccount option', async () => {
+      mockFetch.mockResolvedValueOnce(mockSuccessResponse(blocked));
+      await dialstack.blockedNumbers.create({ phone_number: '+14155551234' }, acct);
+      expectDialStackAccountHeader();
+    });
+
+    it('retrieve addresses the entry by its percent-encoded number', async () => {
+      mockFetch.mockResolvedValueOnce(mockSuccessResponse(blocked));
+      await dialstack.blockedNumbers.retrieve('+14155551234', acct);
+      expectDialStackAccountHeader();
+      expect(mockFetch.mock.calls[0][0]).toContain('/v1/blocked-numbers/%2B14155551234');
+    });
+
+    it('update addresses the entry by its percent-encoded number', async () => {
+      mockFetch.mockResolvedValueOnce(mockSuccessResponse(blocked));
+      await dialstack.blockedNumbers.update('+14155551234', { description: 'spam' }, acct);
+      expectDialStackAccountHeader();
+      expect(mockFetch.mock.calls[0][0]).toContain('/v1/blocked-numbers/%2B14155551234');
+    });
+
+    it('del addresses the entry by its percent-encoded number', async () => {
+      mockFetch.mockResolvedValueOnce(mockDeleteResponse());
+      await dialstack.blockedNumbers.del('+14155551234', acct);
+      expectDialStackAccountHeader();
+      expect(mockFetch.mock.calls[0][0]).toContain('/v1/blocked-numbers/%2B14155551234');
+    });
+  });
+
   describe('dialPlans', () => {
     it('create uses dialstackAccount option', async () => {
       mockFetch.mockResolvedValueOnce(mockSuccessResponse({ id: 'dp_123' }));

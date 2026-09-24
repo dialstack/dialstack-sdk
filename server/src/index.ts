@@ -2147,6 +2147,33 @@ export interface ScheduleListParams {
   page?: string;
 }
 
+// Blocked number types
+
+export interface BlockedNumber {
+  object: 'blocked_number';
+  /** The blocked caller's number, in E.164 format. It identifies the entry. */
+  phone_number: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BlockedNumberCreateParams {
+  /** E.164 preferred; a US/Canada number without a country code is normalized. */
+  phone_number: string;
+  description?: string;
+}
+
+export interface BlockedNumberUpdateParams {
+  /** An empty string or null clears the description. */
+  description: string | null;
+}
+
+export interface BlockedNumberListParams {
+  limit?: number;
+  page?: string;
+}
+
 // Dial Plan types
 // NOTE: These mirror sdk/src/types/dial-plan.ts but are declared inline because
 // the server rollup bundle scopes rootDir to src/server/ — importing from
@@ -4909,6 +4936,71 @@ export class DialStack {
       const path = `/v1/schedules${query ? `?${query}` : ''}`;
 
       const fetchPage = (url: string): Promise<ListResponse<Schedule>> => {
+        return this._request('GET', url, undefined, options);
+      };
+
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+  };
+
+  blockedNumbers = {
+    create: (
+      params: BlockedNumberCreateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<BlockedNumber> => {
+      return this._request('POST', '/v1/blocked-numbers', params, options);
+    },
+
+    /** `phoneNumber` may be E.164 or a US/Canada number without a country code. */
+    retrieve: (
+      phoneNumber: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<BlockedNumber> => {
+      return this._request(
+        'GET',
+        `/v1/blocked-numbers/${encodeURIComponent(phoneNumber)}`,
+        undefined,
+        options
+      );
+    },
+
+    update: (
+      phoneNumber: string,
+      params: BlockedNumberUpdateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<BlockedNumber> => {
+      return this._request(
+        'POST',
+        `/v1/blocked-numbers/${encodeURIComponent(phoneNumber)}`,
+        params,
+        options
+      );
+    },
+
+    del: (
+      phoneNumber: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request(
+        'DELETE',
+        `/v1/blocked-numbers/${encodeURIComponent(phoneNumber)}`,
+        undefined,
+        options
+      );
+    },
+
+    list: (
+      params: BlockedNumberListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
+    ): PaginatedList<BlockedNumber> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
+
+      const query = queryParams.toString();
+      const path = `/v1/blocked-numbers${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<BlockedNumber>> => {
         return this._request('GET', url, undefined, options);
       };
 
