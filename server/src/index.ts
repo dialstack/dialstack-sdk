@@ -4711,8 +4711,8 @@ export class DialStack {
     events: {
       /**
        * Emit a single canned webhook event (fax.*, queue.*, recording.failed,
-       * call.mobile_push_wakeup) for events the call simulator does not drive
-       * behaviorally.
+       * call.mobile_push_wakeup, call.parked, call.unparked) for events the call
+       * simulator does not drive behaviorally.
        */
       create: (
         params: TestEventCreateParams,
