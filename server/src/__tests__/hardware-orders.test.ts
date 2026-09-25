@@ -27,7 +27,7 @@ describe('Hardware orders', () => {
     return mockFetch.mock.calls[0][0];
   }
 
-  function requestInit(): { method: string; body?: string } {
+  function requestInit(): { method: string; body?: string; headers: Record<string, string> } {
     return mockFetch.mock.calls[0][1];
   }
 
@@ -182,6 +182,17 @@ describe('Hardware orders', () => {
       shipping_method: 'UPS_GRD',
     });
     expect(order.shipping_method).toBe('UPS_GRD');
+  });
+
+  it('requests an order for DialStack to place', async () => {
+    mockJSON({ id: 'hwo_123', placed_at: null, requested_at: '2026-09-25T12:00:00Z' });
+
+    const order = await dialstack.hardwareOrders.request('hwo_123', acct);
+
+    expect(requestedUrl()).toBe('https://api.dialstack.ai/v1/hardware-orders/hwo_123/request');
+    expect(requestInit().method).toBe('POST');
+    expect(requestInit().headers['DialStack-Account']).toBe('acct_test123');
+    expect(order.requested_at).toBe('2026-09-25T12:00:00Z');
   });
 
   describe('hardwareOrders.shippingQuotes', () => {

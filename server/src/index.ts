@@ -1807,6 +1807,12 @@ export interface HardwareOrder {
    */
   placed_at: string | null;
   /**
+   * When the platform asked DialStack to place this draft with
+   * {@link hardwareOrders.request}. Null on an order nobody requested, and
+   * again after DialStack declines the request.
+   */
+  requested_at: string | null;
+  /**
    * When the debit was handed to the network. Null while `payment_status` is
    * `unpaid`, set for every other state. Not an authorization — ACH has none.
    */
@@ -1842,7 +1848,10 @@ export interface HardwareOrder {
    * its goods.
    */
   total_cents: number | null;
-  /** Why the order was declined at review. Only set when `rejected`. */
+  /**
+   * Why the order was declined at review, when `rejected`. On a draft, why
+   * DialStack declined its request; requesting again clears it.
+   */
   rejection_reason: string | null;
   /**
    * What was ordered, and what it cost. A quantity of three is one line and
@@ -1859,7 +1868,7 @@ export type HardwareOrderExpand =
   'items.device' | 'items.bundle_catalog' | 'lines.hardware_catalog';
 
 /**
- * 409 body from {@link hardwareOrders.checkout}. One endpoint refuses for
+ * 409 body from {@link hardwareOrders.checkout} and {@link hardwareOrders.request}. Each refuses for
  * several unrelated reasons and the fix for each is somewhere different, so
  * branch on `code` rather than string-matching `error`:
  *
@@ -1893,6 +1902,12 @@ export type HardwareOrderExpand =
  *   debit, past the window in which a retry is guaranteed not to charge twice.
  * - `debit_parameters_changed` — the stored bank account or authorization moved
  *   between attempts, so the debit cannot be retried under the same key.
+ * - `resale_certificate_required` — no accepted, unexpired resale certificate
+ *   is on file. Checkout only.
+ * - `hardware_order_changed_while_pricing` — the order changed while it was
+ *   being priced. Retry. Checkout only.
+ * - `hardware_checkout_live_only` — the account is not live. Hardware is only
+ *   checked out or requested for live accounts.
  */
 export interface HardwareOrderCheckoutConflictResponse {
   error: string;
@@ -1908,7 +1923,10 @@ export interface HardwareOrderCheckoutConflictResponse {
     | 'hardware_line_backordered'
     | 'hardware_order_already_debited'
     | 'checkout_resume_window_elapsed'
-    | 'debit_parameters_changed';
+    | 'debit_parameters_changed'
+    | 'resale_certificate_required'
+    | 'hardware_order_changed_while_pricing'
+    | 'hardware_checkout_live_only';
 }
 
 export interface HardwareOrderParams {
@@ -4693,6 +4711,23 @@ export class DialStack {
       options: RequestOptions & { dialstackAccount: string }
     ): Promise<HardwareOrder> => {
       return this._request('POST', `/v1/hardware-orders/${hardwareOrderId}/checkout`, {}, options);
+    },
+
+    /**
+     * Ask DialStack to place a draft, for a platform that cannot check out
+     * itself yet. Nothing is placed or charged: the order stays a draft with
+     * `requested_at` set, and DialStack places it and arranges payment
+     * separately.
+     *
+     * The order must be placeable as it stands apart from payment and the
+     * resale certificate. Refusals are `409` with the same `code` checkout
+     * returns — see {@link HardwareOrderCheckoutConflictResponse}.
+     */
+    request: (
+      hardwareOrderId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<HardwareOrder> => {
+      return this._request('POST', `/v1/hardware-orders/${hardwareOrderId}/request`, {}, options);
     },
 
     /**
