@@ -68,7 +68,10 @@ export type ButtonParams =
   | { type: 'record_toggle'; target?: Record<string, never> };
 
 export type ButtonCompatibilityReason =
-  'vendor_does_not_support_type' | 'position_out_of_range_for_model' | 'device_has_no_owning_user';
+  | 'vendor_does_not_support_type'
+  | 'position_out_of_range_for_model'
+  | 'device_has_no_owning_user'
+  | 'displaced_by_own_line';
 
 export interface ButtonCompatibilityVerdict {
   supported: boolean;
@@ -161,6 +164,12 @@ export interface MaterializedButton {
 export interface CreateButtonTemplateRequest {
   name: string;
   description?: string;
+  /**
+   * The template's exact layout, created in one call (at most 100). Omit it to
+   * start from a single `line` button at position 1; send `[]` for an empty
+   * template.
+   */
+  buttons?: CreateTemplateButtonRequest[];
 }
 
 export interface UpdateButtonTemplateRequest {

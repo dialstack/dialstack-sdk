@@ -58,6 +58,30 @@ describe('Button templates', () => {
     });
   });
 
+  it('creates a template with its buttons and expands them', async () => {
+    mockJSON({ id: 'btpl_123', name: 'Parks', buttons: [] }, 201);
+
+    await dialstack.buttonTemplates.create(
+      {
+        name: 'Parks',
+        buttons: [
+          { position: 1, label: 'Park 1', type: 'speed_dial', target: { destination: '*681' } },
+        ],
+      },
+      { ...acct, expand: ['buttons'] }
+    );
+
+    expect(requestedUrl()).toBe(
+      'https://api.dialstack.ai/v1/button_templates?expand%5B%5D=buttons'
+    );
+    expect(JSON.parse(requestInit().body as string)).toEqual({
+      name: 'Parks',
+      buttons: [
+        { position: 1, label: 'Park 1', type: 'speed_dial', target: { destination: '*681' } },
+      ],
+    });
+  });
+
   it('lists templates with pagination', async () => {
     mockEmptyList('/v1/button_templates');
 

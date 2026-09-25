@@ -439,8 +439,11 @@ export interface ButtonTemplateButtonsResource {
 }
 
 export interface ButtonTemplatesResource {
-  /** Create a button template */
-  create(request: CreateButtonTemplateRequest): Promise<ButtonTemplate>;
+  /** Create a button template, optionally embedding its buttons in the response */
+  create(
+    request: CreateButtonTemplateRequest,
+    options?: { expand?: Array<'buttons'> }
+  ): Promise<ButtonTemplateWithDetails>;
   /** Retrieve a button template, optionally with per-device compatibility and embedded buttons */
   retrieve(
     templateId: string,

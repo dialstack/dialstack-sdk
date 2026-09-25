@@ -1429,8 +1429,15 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   };
 
   buttonTemplates = {
-    create: async (request: CreateButtonTemplateRequest): Promise<ButtonTemplate> => {
-      const response = await this.fetchApi('/v1/button_templates', {
+    create: async (
+      request: CreateButtonTemplateRequest,
+      options?: { expand?: Array<'buttons'> }
+    ): Promise<ButtonTemplateWithDetails> => {
+      const params = new URLSearchParams();
+      for (const e of options?.expand ?? []) params.append('expand[]', e);
+      const queryString = params.toString();
+      const path = queryString ? `/v1/button_templates?${queryString}` : '/v1/button_templates';
+      const response = await this.fetchApi(path, {
         method: 'POST',
         body: JSON.stringify(request),
       });

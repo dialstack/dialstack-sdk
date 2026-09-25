@@ -1263,7 +1263,10 @@ export interface FaxUpdateParams {
 export type { ButtonCompatibilityVerdict, ButtonParams, ButtonTarget, ButtonType, ButtonTemplate };
 
 export type ButtonCompatibilityReason =
-  'vendor_does_not_support_type' | 'position_out_of_range_for_model' | 'device_has_no_owning_user';
+  | 'vendor_does_not_support_type'
+  | 'position_out_of_range_for_model'
+  | 'device_has_no_owning_user'
+  | 'displaced_by_own_line';
 
 /** Programmable-key compatibility for a device's effective button set. */
 export interface ButtonCompatibilitySummary {
@@ -4241,11 +4244,24 @@ export class DialStack {
    * overrides.
    */
   buttonTemplates = {
+    /**
+     * Create a template. Pass `buttons` to create the whole layout in one call
+     * (omit it to start from a single `line` button), and `expand: ['buttons']`
+     * to get the created buttons back.
+     */
     create: (
       params: ButtonTemplateCreateParams,
-      options: RequestOptions & { dialstackAccount: string }
-    ): Promise<ButtonTemplate> => {
-      return this._request('POST', '/v1/button_templates', params, options);
+      options: RequestOptions & { dialstackAccount: string; expand?: ButtonTemplateExpand[] }
+    ): Promise<ButtonTemplateWithDetails> => {
+      const queryParams = new URLSearchParams();
+      appendExpand(queryParams, options.expand);
+      const query = queryParams.toString();
+      return this._request(
+        'POST',
+        `/v1/button_templates${query ? `?${query}` : ''}`,
+        params,
+        options
+      );
     },
 
     list: (
