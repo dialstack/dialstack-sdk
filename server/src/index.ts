@@ -611,6 +611,12 @@ export interface User {
    * path declines calls to this user. Always emitted on responses.
    */
   do_not_disturb: boolean;
+  /**
+   * The audio clip the voicemail greeting plays, or `null` when the greeting is
+   * the system default or an uploaded one. Deleting the clip resets it to
+   * `null`.
+   */
+  voicemail_greeting_clip: string | null;
   created_at: string;
   updated_at: string;
   /**
@@ -642,6 +648,13 @@ export interface UserUpdateParams {
    * Enable or disable server-side do-not-disturb. Omit to leave unchanged.
    */
   do_not_disturb?: boolean;
+  /**
+   * Use an audio clip as the voicemail greeting. It replaces the current
+   * greeting, and a later upload replaces it in turn. Pass `null` to stop using
+   * a clip (a greeting that isn't a clip is left alone). Omit to leave
+   * unchanged.
+   */
+  voicemail_greeting_clip?: string | null;
   config?: {
     /**
      * Replace the user's Find-Me/Follow-Me sequence. Pass `null` to remove it
@@ -1144,6 +1157,11 @@ export interface VoicemailGreeting {
   greeting_type: VoicemailGreetingType;
   /** Audio format of the stored greeting. */
   format: 'wav';
+  /**
+   * The audio clip used as this greeting, or `null` for an uploaded or recorded
+   * one. Set it with `voicemail_greeting_clip` on the user.
+   */
+  audio_clip: string | null;
   duration_seconds: number;
   /** Size of the stored audio in bytes, post-transcode. */
   size_bytes: number;
@@ -4124,7 +4142,7 @@ export class DialStack {
   voicemailGreetings = {
     /**
      * Upload (or replace) the greeting for an owner. Audio is validated and
-     * transcoded server-side to mono µ-law 8 kHz WAV. Limits: 5 MB and 90
+     * transcoded server-side to mono 16-bit PCM 8 kHz WAV. Limits: 5 MB and 90
      * seconds; accepts WAV (PCM s16 / µ-law / A-law), MP3, AAC, Ogg Vorbis, and
      * Opus. Re-uploading overwrites.
      */
