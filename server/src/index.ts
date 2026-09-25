@@ -2622,6 +2622,17 @@ export interface QueueAddMemberParams {
   position?: number;
 }
 
+/** Omitted fields keep their current value; at least one is required. */
+export interface QueueUpdateMemberParams {
+  /**
+   * Position to move the member to. If another member holds it, the members
+   * in between shift one place and the positions in use stay the same; if it
+   * is free, only this member moves.
+   */
+  position?: number;
+  penalty?: number;
+}
+
 export interface QueueListMembersParams {
   limit?: number;
   /** Opaque cursor from a previous response's `next_page_url`. */
@@ -5313,6 +5324,15 @@ export class DialStack {
       options: RequestOptions & { dialstackAccount: string }
     ): Promise<QueueMember> => {
       return this._request('POST', `/v1/queues/${queueId}/members`, params, options);
+    },
+
+    updateMember: (
+      queueId: string,
+      memberId: string,
+      params: QueueUpdateMemberParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<QueueMember> => {
+      return this._request('POST', `/v1/queues/${queueId}/members/${memberId}`, params, options);
     },
 
     removeMember: (
