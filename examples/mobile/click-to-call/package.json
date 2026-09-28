@@ -21,6 +21,9 @@
     "typescript": "~6.0.3",
     "ws": "^8.21.3"
   },
+  "overrides": {
+    "uuid@<11.1.1": "^11.1.1"
+  },
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
