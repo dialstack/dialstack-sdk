@@ -5,6 +5,67 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.0](https://github.com/dialstack/dialstack-sdk/compare/v3.3.0...v3.4.0) (2026-09-28)
+
+### Features
+
+- **server:** new `blockedNumbers` resource — `create`, `retrieve`, `update`,
+  `del` and a paginated `list`, keyed by phone number.
+- **server:** `queues.updateMember()` changes an existing member's `position`
+  or `penalty` in place.
+- **server:** a user's voicemail greeting can be an audio clip. Set
+  `voicemail_greeting_clip` when updating a user (or `null` to stop using the
+  clip); `User.voicemail_greeting_clip` reports it, and
+  `VoicemailGreeting.audio_clip` is now always present (`null` for an uploaded
+  or recorded greeting).
+- **server:** `find_me_follow_me` is typed on the user config (`FMFM`). Besides
+  the primary ladder it can carry named `alternates`; pass an alternate's `key`
+  as `find_me_follow_me_key` to `calls.create()` to ring that ladder instead.
+  A config may carry alternates only, in which case `steps` is empty and the
+  fallback fields are omitted.
+- **server:** hardware orders gain shipping. `hardwareOrders.update()` now
+  accepts `ship_to_recipient`, `ship_to_address`, `shipping_quote` and
+  `shipping_method` (with `items` optional), orders report the same fields, and
+  `hardwareOrders.shippingQuotes.create()` / `.retrieve()` fetch carrier
+  options for an order.
+- **server:** `hardwareOrders.request()` asks DialStack to place a draft order
+  for a platform that cannot check out itself yet. Nothing is charged; the
+  order stays a draft with `requested_at` set.
+- **server:** new hardware checkout conflict codes: `ship_to_incomplete`,
+  `shipping_quote_expired`, `no_default_payment_method`,
+  `payment_method_pending_verification`, `hardware_line_backordered`,
+  `resale_certificate_required`, `hardware_order_changed_while_pricing` and
+  `hardware_checkout_live_only`.
+- `buttonTemplates.create()` (JS and server) accepts the template's `buttons`
+  to create its full layout in one call, and takes `expand: ['buttons']` to
+  return them. `ButtonCompatibilityReason` gains `displaced_by_own_line`.
+- `serial_number` on `Device`, `ProvisionedDevice` and `DECTBase`, settable
+  (or cleared with `null`) through `UpdateDeviceRequest`. Deskphones and DECT
+  bases only.
+- `AccountConfig.recording_retention_days` controls how long call recording
+  audio is kept (default 365 days, maximum 2555). The documented default for
+  `transcript_retention_days` is now 365 days.
+- **react/softphone:** the web softphone sizes to its host. It fills the height
+  it is given, or the height set with the `--ds-softphone-height` CSS custom
+  property; when the host is too short, the screen scrolls and the call
+  controls stay pinned at the bottom.
+- **react/softphone:** the in-call keypad is now a mode of the call screen
+  rather than an overlay on top of it.
+- **react/softphone:** the emergency-address prompt is one line and expands
+  over the dial pad when opened, instead of pushing it down.
+
+### Bug Fixes
+
+- **react/softphone:** layout fixes across every screen — dial keys stay round
+  and capped in size, the connection indicator no longer overlaps content, the
+  transfer, add-call and call-waiting overlays fit the space they get, and the
+  incoming screen matches the in-call screens, with the caller's name staying
+  put when the call connects.
+- **react/dial-plan:** an Internal Extension node's timeout is shown as inert
+  only when its target controls its own ring timing (a user with a Find Me /
+  Follow Me ladder): the field is greyed out and the node omits the seconds.
+  Elsewhere the stored timeout stays editable and visible.
+
 ## [3.3.0](https://github.com/dialstack/dialstack-sdk/compare/v3.2.0...v3.3.0) (2026-09-21)
 
 ### Features
