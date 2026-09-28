@@ -14,6 +14,7 @@ import { NodeHeader } from '../DialPlanNode';
 import { VoicemailConfigPanel } from '../config-panels/VoicemailConfigPanel';
 import { VoicemailIcon } from '../icons';
 import { resolveTargetName, resolveTargetType } from './resolve-target';
+import { readRef } from '../config-refs';
 
 export const config: NodeDefinition = {
   type: 'voicemail',
@@ -25,7 +26,7 @@ export const config: NodeDefinition = {
   color: '#8b5cf6',
   exits: [],
   configPanel: VoicemailConfigPanel,
-  defaultConfig: { target_id: '', timeout: 0 },
+  defaultConfig: { target: '', target_id: '', timeout: 0 },
   icon: VoicemailIcon,
   renderNode: (data: Record<string, unknown>, reg: NodeTypeRegistration) => (
     <NodeHeader
@@ -36,10 +37,16 @@ export const config: NodeDefinition = {
   ),
   toFlowNode: (node: DialPlanNode) => {
     const n = node as InternalDialNodeType;
-    return { label: 'Voicemail', targetId: n.config.target_id, timeout: 0, originalNode: n };
+    return {
+      label: 'Voicemail',
+      targetId: readRef(n.config, 'target'),
+      timeout: 0,
+      originalNode: n,
+    };
   },
   collectResourceIds: (config: Record<string, unknown>, collector: ResourceCollector) => {
-    if (config.target_id) collector.addTarget(config.target_id as string);
+    const id = readRef(config, 'target');
+    if (id) collector.addTarget(id);
   },
   enrichNode: (data: Record<string, unknown>, maps: ResourceMaps, locale: DialPlanLocale) => {
     const targetId = data.targetId as string;

@@ -13,6 +13,7 @@ import type {
 import { NodeHeader, StaticExits } from '../DialPlanNode';
 import { AudioClipConfigPanel } from '../config-panels/AudioClipConfigPanel';
 import { VolumeIcon } from '../icons';
+import { readRef } from '../config-refs';
 
 export const config: NodeDefinition = {
   type: 'audio_clip',
@@ -23,7 +24,7 @@ export const config: NodeDefinition = {
   color: '#14b8a6',
   exits: [{ id: 'next', label: 'Next', configKey: 'next', localeExitKey: 'next' }],
   configPanel: AudioClipConfigPanel,
-  defaultConfig: { clip_id: '' },
+  defaultConfig: { clip: '', clip_id: '' },
   icon: VolumeIcon,
   renderNode: (data: Record<string, unknown>, reg: NodeTypeRegistration) => (
     <>
@@ -39,7 +40,7 @@ export const config: NodeDefinition = {
   ),
   toFlowNode: (node: DialPlanNode) => {
     const n = node as AudioClipNodeType;
-    return { label: 'Audio Clip', clipId: n.config.clip_id, originalNode: n };
+    return { label: 'Audio Clip', clipId: readRef(n.config, 'clip'), originalNode: n };
   },
   // Legacy plans store this node as `sound_clip`. The default
   // registry alias routes those nodes here; this rewrites them into the
@@ -52,7 +53,8 @@ export const config: NodeDefinition = {
     } as DialPlanNode;
   },
   collectResourceIds: (config: Record<string, unknown>, collector: ResourceCollector) => {
-    if (config.clip_id) collector.addAudioClip(config.clip_id as string);
+    const id = readRef(config, 'clip');
+    if (id) collector.addAudioClip(id);
   },
   enrichNode: (data: Record<string, unknown>, maps: ResourceMaps, locale: DialPlanLocale) => {
     const clip = maps.audioClips.get(data.clipId as string);

@@ -5,6 +5,7 @@ import { ResourceCombobox } from './ResourceCombobox';
 import { ConfigField } from './fields/ConfigField';
 import { SegmentedField } from './fields/SegmentedField';
 import { useResourceGroups } from './hooks/useResourceGroups';
+import { readRef, refUpdate } from '../config-refs';
 
 type VoiceAppMode = 'control' | 'notify';
 
@@ -16,7 +17,7 @@ export const VoiceAppConfigPanel = ({
   onOpenResource,
   locale,
 }: ConfigPanelProps) => {
-  const voiceAppId = (config.voice_app_id as string) ?? '';
+  const voiceAppId = readRef(config, 'voice_app');
   const mode: VoiceAppMode = (config.mode as VoiceAppMode | undefined) ?? 'control';
 
   const { groups, handleCreateResource } = useResourceGroups(
@@ -39,7 +40,7 @@ export const VoiceAppConfigPanel = ({
     if (items.length === 0) return;
     const stillSelectable = items.some((item) => item.id === voiceAppId);
     if (!stillSelectable) {
-      onConfigChange({ voice_app_id: '' }, { voiceAppName: undefined });
+      onConfigChange(refUpdate('voice_app', ''), { voiceAppName: undefined });
     }
   }, [mode, voiceAppId, groups, onConfigChange]);
 
@@ -50,7 +51,9 @@ export const VoiceAppConfigPanel = ({
           groups={groups}
           value={voiceAppId}
           placeholder={locale?.configLabels.searchTargets ?? 'Search targets…'}
-          onSelect={(id, name) => onConfigChange({ voice_app_id: id }, { voiceAppName: name })}
+          onSelect={(id, name) =>
+            onConfigChange(refUpdate('voice_app', id), { voiceAppName: name })
+          }
           onCreateResource={handleCreateResource}
           selectLabel={locale?.combobox.select}
           noResultsLabel={locale?.combobox.noResults}

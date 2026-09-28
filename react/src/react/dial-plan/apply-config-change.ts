@@ -1,5 +1,6 @@
 import type { DialPlanLocale, DialPlanNode } from '@dialstack/sdk-js';
 import { defaultRegistry, nodeDefinitions } from './default-registry';
+import { readRef } from './config-refs';
 import { resolveTargetType } from './nodes/resolve-target';
 import type { ResourceMaps } from './registry-types';
 
@@ -43,7 +44,7 @@ export function nodeDataAfterConfigChange({
     ? reg.toFlowNode(updatedOriginal as unknown as DialPlanNode)
     : { ...data, originalNode: updatedOriginal };
 
-  const targetId = configUpdates.target_id as string | undefined;
+  const targetId = readRef(configUpdates, 'target') || undefined;
   const targetType = targetId ? resolveTargetType(targetId, locale) : undefined;
 
   const def = reg ? nodeDefinitions.find((d) => d.type === (reg.apiType ?? reg.type)) : null;

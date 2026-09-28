@@ -19,6 +19,7 @@ import {
   resolveTargetType,
   targetOwnsTiming,
 } from './resolve-target';
+import { readRef } from '../config-refs';
 
 export const config: NodeDefinition = {
   type: 'internal_dial',
@@ -29,7 +30,7 @@ export const config: NodeDefinition = {
   color: '#22c55e',
   exits: [{ id: 'next', label: 'Timeout', configKey: 'next', localeExitKey: 'timeout' }],
   configPanel: InternalDialConfigPanel,
-  defaultConfig: { target_id: '', timeout: 30, timeout_override: true },
+  defaultConfig: { target: '', target_id: '', timeout: 30, timeout_override: true },
   icon: PhoneIcon,
   renderNode: (data: Record<string, unknown>, reg: NodeTypeRegistration) => (
     <>
@@ -48,14 +49,15 @@ export const config: NodeDefinition = {
     const n = node as InternalDialNodeType;
     return {
       label: 'Internal Extension',
-      targetId: n.config.target_id,
+      targetId: readRef(n.config, 'target'),
       timeout: n.config.timeout,
       timeoutOverride: n.config.timeout_override ?? false,
       originalNode: n,
     };
   },
   collectResourceIds: (config: Record<string, unknown>, collector: ResourceCollector) => {
-    if (config.target_id) collector.addTarget(config.target_id as string);
+    const id = readRef(config, 'target');
+    if (id) collector.addTarget(id);
   },
   enrichNode: (data: Record<string, unknown>, maps: ResourceMaps, locale: DialPlanLocale) => {
     const targetId = data.targetId as string;

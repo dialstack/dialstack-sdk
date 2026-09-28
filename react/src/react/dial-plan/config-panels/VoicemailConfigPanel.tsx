@@ -4,6 +4,7 @@ import { OpenResourceLink } from './OpenResourceLink';
 import { ResourceCombobox } from './ResourceCombobox';
 import { ConfigField } from './fields/ConfigField';
 import { useResourceGroups } from './hooks/useResourceGroups';
+import { readRef, refUpdate } from '../config-refs';
 
 export const VoicemailConfigPanel = ({
   config,
@@ -23,7 +24,7 @@ export const VoicemailConfigPanel = ({
     locale
   );
 
-  const targetId = (config.target_id as string) ?? '';
+  const targetId = readRef(config, 'target');
 
   return (
     <ConfigField label={locale?.configLabels.target ?? 'Target'}>
@@ -32,7 +33,9 @@ export const VoicemailConfigPanel = ({
         value={targetId}
         loading={loading}
         placeholder={locale?.configLabels.searchTargets ?? 'Search targets…'}
-        onSelect={(id, name) => onConfigChange({ target_id: id, timeout: 0 }, { targetName: name })}
+        onSelect={(id, name) =>
+          onConfigChange({ ...refUpdate('target', id), timeout: 0 }, { targetName: name })
+        }
         onCreateResource={handleCreateResource}
         selectLabel={locale?.combobox.select}
         noResultsLabel={locale?.combobox.noResults}

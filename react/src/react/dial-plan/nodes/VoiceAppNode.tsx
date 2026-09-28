@@ -14,6 +14,7 @@ import { ExitRow, NodeHeader } from '../DialPlanNode';
 import { VoiceAppConfigPanel } from '../config-panels/VoiceAppConfigPanel';
 import { BotIcon } from '../icons';
 import { resolveTargetName } from './resolve-target';
+import { readRef, refUpdate } from '../config-refs';
 
 export const config: NodeDefinition = {
   type: 'voice_app',
@@ -24,7 +25,7 @@ export const config: NodeDefinition = {
   color: '#6366f1',
   exits: [{ id: 'next', label: 'Timeout', configKey: 'next', localeExitKey: 'timeout' }],
   configPanel: VoiceAppConfigPanel,
-  defaultConfig: { voice_app_id: '', mode: 'control' },
+  defaultConfig: { voice_app: '', voice_app_id: '', mode: 'control' },
   icon: BotIcon,
   renderNode: (data: Record<string, unknown>, reg: NodeTypeRegistration) => {
     const locale = data.locale as DialPlanLocale | undefined;
@@ -56,7 +57,7 @@ export const config: NodeDefinition = {
     const n = node as VoiceAppNodeType;
     return {
       label: 'Voice App',
-      voiceAppId: n.config.voice_app_id,
+      voiceAppId: readRef(n.config, 'voice_app'),
       mode: n.config.mode ?? 'control',
       originalNode: n,
     };
@@ -68,20 +69,21 @@ export const config: NodeDefinition = {
   // TODO: remove this hook once legacy usage drains.
   normalizeFromAlias: (node: DialPlanNode): DialPlanNode => {
     const config = node.config as unknown as Record<string, unknown>;
-    const targetId = (config.target_id as string | undefined) ?? '';
+    const targetId = readRef(config, 'target');
     const next = config.next as string | undefined;
     return {
       ...node,
       type: 'voice_app',
       config: {
-        voice_app_id: targetId,
+        ...refUpdate('voice_app', targetId),
         mode: 'control',
         ...(next !== undefined ? { next } : {}),
       },
     } as unknown as DialPlanNode;
   },
   collectResourceIds: (config: Record<string, unknown>, collector: ResourceCollector) => {
-    if (config.voice_app_id) collector.addTarget(config.voice_app_id as string);
+    const id = readRef(config, 'voice_app');
+    if (id) collector.addTarget(id);
   },
   enrichNode: (data: Record<string, unknown>, maps: ResourceMaps, locale: DialPlanLocale) => {
     const voiceAppId = data.voiceAppId as string;

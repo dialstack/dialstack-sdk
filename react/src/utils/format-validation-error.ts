@@ -1,7 +1,16 @@
 /** Map API validation error fields to human-readable messages. */
+// Errors name the config key the plan used, so both spellings need an entry.
 const validationMessages: Record<string, string> = {
+  schedule: 'A schedule must be selected in the Schedule node',
   schedule_id: 'A schedule must be selected in the Schedule node',
+  target: 'A target must be selected in the Internal Extension node',
   target_id: 'A target must be selected in the Internal Extension node',
+  prompt_clip: 'A prompt must be selected in the IVR Menu node',
+  prompt_clip_id: 'A prompt must be selected in the IVR Menu node',
+  clip: 'An audio clip must be selected in the Audio Clip node',
+  clip_id: 'An audio clip must be selected in the Audio Clip node',
+  voice_app: 'A voice app must be selected in the Voice App node',
+  voice_app_id: 'A voice app must be selected in the Voice App node',
   phone_number: 'Enter a valid US phone number in the External Number node',
 };
 

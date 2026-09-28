@@ -14,6 +14,7 @@ import type {
 import { NodeHeader, StaticExits } from '../DialPlanNode';
 import { ScheduleConfigPanel } from '../config-panels/ScheduleConfigPanel';
 import { ClockIcon } from '../icons';
+import { readRef } from '../config-refs';
 
 export const config: NodeDefinition = {
   type: 'schedule',
@@ -31,7 +32,7 @@ export const config: NodeDefinition = {
     { id: 'holiday', label: 'Holiday', configKey: 'holiday', localeExitKey: 'holiday' },
   ],
   configPanel: ScheduleConfigPanel,
-  defaultConfig: { schedule_id: '' },
+  defaultConfig: { schedule: '', schedule_id: '' },
   icon: ClockIcon,
   renderNode: (data: Record<string, unknown>, reg: NodeTypeRegistration) => {
     const locale = data.locale as DialPlanLocale | undefined;
@@ -53,13 +54,14 @@ export const config: NodeDefinition = {
     const n = node as ScheduleNodeType;
     return {
       label: 'Schedule',
-      scheduleId: n.config.schedule_id,
+      scheduleId: readRef(n.config, 'schedule'),
       holidayEnabled: n.config.holiday !== undefined,
       originalNode: n,
     };
   },
   collectResourceIds: (config: Record<string, unknown>, collector: ResourceCollector) => {
-    if (config.schedule_id) collector.addSchedule(config.schedule_id as string);
+    const id = readRef(config, 'schedule');
+    if (id) collector.addSchedule(id);
   },
   enrichNode: (data: Record<string, unknown>, maps: ResourceMaps, locale: DialPlanLocale) => {
     const schedule = maps.schedules.get(data.scheduleId as string);
@@ -74,7 +76,7 @@ export const config: NodeDefinition = {
     // saved plan reflects the disabled state instead of resurrecting it on
     // the next serialize. Two-stage check: only react when *this* update
     // touched holiday (key present) AND set it to undefined — otherwise an
-    // unrelated update (e.g. schedule_id change) would also nuke the edge.
+    // unrelated update (e.g. a schedule change) would also nuke the edge.
     if (!('holiday' in configUpdates)) return;
     if (configUpdates.holiday !== undefined) return;
     ctx.setEdges((prev) => {

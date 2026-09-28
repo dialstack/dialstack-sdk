@@ -3,6 +3,7 @@ import type { ConfigPanelProps } from '../registry-types';
 import { ResourceCombobox } from './ResourceCombobox';
 import { ConfigField } from './fields/ConfigField';
 import { useResourceGroups } from './hooks/useResourceGroups';
+import { readRef, refUpdate } from '../config-refs';
 
 export const AudioClipConfigPanel = ({
   config,
@@ -18,7 +19,7 @@ export const AudioClipConfigPanel = ({
     locale
   );
 
-  const clipId = (config.clip_id as string) ?? '';
+  const clipId = readRef(config, 'clip');
 
   return (
     <ConfigField label={locale?.configLabels.audioClip ?? 'Audio Clip'}>
@@ -27,7 +28,7 @@ export const AudioClipConfigPanel = ({
         value={clipId}
         loading={loading}
         placeholder={locale?.configLabels.search ?? 'Search...'}
-        onSelect={(id, name) => onConfigChange({ clip_id: id }, { clipName: name })}
+        onSelect={(id, name) => onConfigChange(refUpdate('clip', id), { clipName: name })}
         onCreateResource={handleCreateResource}
         selectLabel={locale?.combobox.select}
         noResultsLabel={locale?.combobox.noResults}

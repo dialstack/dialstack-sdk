@@ -4,6 +4,7 @@ import { NodeTypeRegistry } from './registry';
 import { createDialPlanNode } from './DialPlanNode';
 import type { NodeDefinition } from './registry-types';
 import type { DialPlanNode } from '@dialstack/sdk-js';
+import { readRef } from './config-refs';
 
 import { config as schedule } from './nodes/ScheduleNode';
 import { config as ringAllUsers } from './nodes/RingAllUsersNode';
@@ -42,12 +43,12 @@ const internalDialReg = defaultRegistry.get('internal_dial');
 if (internalDialReg) {
   internalDialReg.resolveAlias = (node: DialPlanNode) => {
     const config = node.config as unknown as Record<string, unknown>;
-    const targetId = config.target_id as string | undefined;
-    if (targetId?.startsWith('svm_') || (config.timeout === 0 && !config.next)) {
+    const targetId = readRef(config, 'target');
+    if (targetId.startsWith('svm_') || (config.timeout === 0 && !config.next)) {
       return defaultRegistry.get('voicemail');
     }
     // TODO: remove va_ aliasing once legacy usage drains.
-    if (targetId?.startsWith('va_')) {
+    if (targetId.startsWith('va_')) {
       return defaultRegistry.get('voice_app');
     }
     return undefined;

@@ -18,6 +18,7 @@ import { DIAL_PLAN_EDGE_TYPE } from '../registry';
 import { MenuConfigPanel } from '../config-panels/MenuConfigPanel';
 import { digitToHandleId, handleIdToDigit } from '../menu-utils';
 import { GridIcon } from '../icons';
+import { readRef } from '../config-refs';
 
 const exits = [
   { id: 'timeout', label: 'Timeout', configKey: 'timeout_next_node', localeExitKey: 'timeout' },
@@ -35,6 +36,7 @@ export const config: NodeDefinition = {
   allowSelfLoop: true,
   configPanel: MenuConfigPanel,
   defaultConfig: {
+    prompt_clip: '',
     prompt_clip_id: '',
     timeout: 5,
     options: [{ digit: '1' }],
@@ -67,7 +69,7 @@ export const config: NodeDefinition = {
     const n = node as MenuNodeType;
     return {
       label: 'IVR Menu',
-      promptClipId: n.config.prompt_clip_id,
+      promptClipId: readRef(n.config, 'prompt_clip'),
       timeout: n.config.timeout,
       options: n.config.options,
       originalNode: n,
@@ -109,7 +111,8 @@ export const config: NodeDefinition = {
     return edges;
   },
   collectResourceIds: (config: Record<string, unknown>, collector: ResourceCollector) => {
-    if (config.prompt_clip_id) collector.addAudioClip(config.prompt_clip_id as string);
+    const id = readRef(config, 'prompt_clip');
+    if (id) collector.addAudioClip(id);
   },
   enrichNode: (data: Record<string, unknown>, maps: ResourceMaps, locale: DialPlanLocale) => {
     const clip = maps.audioClips.get(data.promptClipId as string);

@@ -6,6 +6,7 @@ import { ConfigField } from './fields/ConfigField';
 import { SegmentedField } from './fields/SegmentedField';
 import { TimeoutField } from './fields/TimeoutField';
 import { useResourceGroups } from './hooks/useResourceGroups';
+import { readRef, refUpdate } from '../config-refs';
 
 export const InternalDialConfigPanel = ({
   nodeId,
@@ -29,7 +30,7 @@ export const InternalDialConfigPanel = ({
     locale
   );
 
-  const targetId = (config.target_id as string) ?? '';
+  const targetId = readRef(config, 'target');
   const timeout = (config.timeout as number) ?? 30;
   const timeoutOverride = (config.timeout_override as boolean) ?? false;
 
@@ -65,7 +66,7 @@ export const InternalDialConfigPanel = ({
           value={targetId}
           loading={loading}
           placeholder={locale?.configLabels.searchTargets ?? 'Search targets…'}
-          onSelect={(id, name) => onConfigChange({ target_id: id }, { targetName: name })}
+          onSelect={(id, name) => onConfigChange(refUpdate('target', id), { targetName: name })}
           onCreateResource={handleCreateResource}
           selectLabel={locale?.combobox.select}
           noResultsLabel={locale?.combobox.noResults}

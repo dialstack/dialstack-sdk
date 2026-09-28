@@ -19,6 +19,27 @@ describe('formatValidationError', () => {
     );
   });
 
+  it('formats errors on the documented key names with the same messages', () => {
+    expect(formatValidationError('/nodes/0/config/schedule: minLength: got 0, want 1')).toBe(
+      'A schedule must be selected in the Schedule node'
+    );
+    expect(formatValidationError('/nodes/0/config/target: minLength: got 0, want 1')).toBe(
+      'A target must be selected in the Internal Extension node'
+    );
+  });
+
+  it.each([
+    ['prompt_clip', 'A prompt must be selected in the IVR Menu node'],
+    ['clip', 'An audio clip must be selected in the Audio Clip node'],
+    ['voice_app', 'A voice app must be selected in the Voice App node'],
+  ])('formats missing %s under either spelling', (key, want) => {
+    for (const field of [key, `${key}_id`]) {
+      expect(formatValidationError(`/nodes/0/config/${field}: minLength: got 0, want 1`)).toBe(
+        want
+      );
+    }
+  });
+
   it('formats missing target_id with known message', () => {
     expect(formatValidationError('/nodes/1/config/target_id: minLength: got 0, want 1')).toBe(
       'A target must be selected in the Internal Extension node'

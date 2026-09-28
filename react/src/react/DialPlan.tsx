@@ -49,6 +49,7 @@ import {
 } from '../utils/dial-plan-graph';
 import { defaultRegistry, nodeDefinitions } from './dial-plan/default-registry';
 import { enrichNodeData, nodeDataAfterConfigChange } from './dial-plan/apply-config-change';
+import { readRef } from './dial-plan/config-refs';
 import { DIAL_PLAN_EDGE_TYPE } from './dial-plan/registry';
 import { SmartEdge } from './dial-plan/SmartEdge';
 import { StartNode } from './dial-plan/StartNode';
@@ -702,13 +703,13 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
         nodesRef,
         updateDirty,
       });
-      if (configUpdates.target_id) {
+      const pickedTargetId = readRef(configUpdates, 'target');
+      if (pickedTargetId) {
         requestAnimationFrame(() => updateNodeInternals(nodeId));
       }
       // A target picked in the panel was not referenced when the plan loaded,
       // so resolve its display metadata and any ladder cap used by an active
       // override, then enrich the node again. The lookup caches and never throws.
-      const pickedTargetId = configUpdates.target_id as string | undefined;
       if (pickedTargetId && !resourceMapsRef.current.users.has(pickedTargetId)) {
         void dialstack.resolveRoutingTarget(pickedTargetId).then((resolved) => {
           if (!resolved) return;

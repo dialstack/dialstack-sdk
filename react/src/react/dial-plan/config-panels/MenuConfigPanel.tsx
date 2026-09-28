@@ -4,6 +4,7 @@ import { ResourceCombobox } from './ResourceCombobox';
 import { ConfigField } from './fields/ConfigField';
 import { TimeoutField } from './fields/TimeoutField';
 import { useResourceGroups } from './hooks/useResourceGroups';
+import { readRef, refUpdate } from '../config-refs';
 
 const ALL_DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '*', '#'];
 
@@ -24,7 +25,7 @@ export const MenuConfigPanel = ({
     locale
   );
 
-  const promptClipId = (config.prompt_clip_id as string) ?? '';
+  const promptClipId = readRef(config, 'prompt_clip');
   const timeout = (config.timeout as number) ?? 5;
   const options = (config.options as Array<{ digit: string; label?: string }>) ?? [{ digit: '1' }];
   const extensionEntry = (config.extension_entry_enabled as boolean) ?? false;
@@ -65,7 +66,9 @@ export const MenuConfigPanel = ({
           value={promptClipId}
           loading={loading}
           placeholder={locale?.configLabels.search ?? 'Search...'}
-          onSelect={(id, name) => onConfigChange({ prompt_clip_id: id }, { promptClipName: name })}
+          onSelect={(id, name) =>
+            onConfigChange(refUpdate('prompt_clip', id), { promptClipName: name })
+          }
           onCreateResource={handleCreateResource}
           selectLabel={locale?.combobox.select}
           noResultsLabel={locale?.combobox.noResults}

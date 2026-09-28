@@ -4,6 +4,7 @@ import { OpenResourceLink } from './OpenResourceLink';
 import { ResourceCombobox } from './ResourceCombobox';
 import { ConfigField } from './fields/ConfigField';
 import { useResourceGroups } from './hooks/useResourceGroups';
+import { readRef, refUpdate } from '../config-refs';
 
 export const ScheduleConfigPanel = ({
   config,
@@ -20,7 +21,7 @@ export const ScheduleConfigPanel = ({
     locale
   );
 
-  const scheduleId = (config.schedule_id as string) ?? '';
+  const scheduleId = readRef(config, 'schedule');
   // Opt-in signal: the holiday key is present (even if null/unwired). When
   // absent, holiday folds into the closed exit.
   const holidayEnabled = config.holiday !== undefined;
@@ -40,7 +41,7 @@ export const ScheduleConfigPanel = ({
           value={scheduleId}
           loading={loading}
           placeholder={locale?.configLabels.searchSchedules ?? 'Search schedules…'}
-          onSelect={(id, name) => onConfigChange({ schedule_id: id }, { scheduleName: name })}
+          onSelect={(id, name) => onConfigChange(refUpdate('schedule', id), { scheduleName: name })}
           onCreateResource={handleCreateResource}
           selectLabel={locale?.combobox.select}
           noResultsLabel={locale?.combobox.noResults}
