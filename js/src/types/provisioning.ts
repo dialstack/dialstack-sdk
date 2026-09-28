@@ -2,6 +2,9 @@
  * Provisioning Configuration Types
  *
  * Types for device provisioning settings that mirror the API's DeviceSettings model.
+ * Keys are snake_case, exactly as they travel on the wire: the SDK sends these
+ * objects as-is, so a key spelled any other way is ignored by the server.
+ *
  * These types support a 4-level configuration inheritance chain:
  * Global -> Platform -> Account -> Device
  *
@@ -37,6 +40,11 @@
 // ============================================================================
 
 /**
+ * Audio codec offered by the phone.
+ */
+export type AudioCodec = 'PCMU' | 'PCMA';
+
+/**
  * Jitter buffer mode for handling network jitter in RTP streams.
  *
  * - `adaptive`: Dynamically adjusts buffer size based on network conditions (recommended)
@@ -55,11 +63,11 @@ export interface JitterBuffer {
   /**
    * Minimum playout delay in milliseconds (typically 40-80ms).
    */
-  minMs?: number;
+  min_ms?: number;
   /**
    * Maximum buffer depth in milliseconds (typically 150-300ms).
    */
-  maxMs?: number;
+  max_ms?: number;
 }
 
 /**
@@ -67,19 +75,24 @@ export interface JitterBuffer {
  */
 export interface AudioSettings {
   /**
+   * Codecs the phone offers, in order of preference. Replaces the parent
+   * layer's list entirely rather than merging with it.
+   */
+  codecs?: AudioCodec[];
+  /**
    * Voice Activity Detection (silence suppression).
    * When true, suppresses transmission during silence to save bandwidth.
    */
-  vadEnabled?: boolean;
+  vad_enabled?: boolean;
   /**
    * Acoustic echo cancellation.
    * Should typically be enabled for speakerphone use.
    */
-  echoCancellation?: boolean;
+  echo_cancellation?: boolean;
   /**
    * Jitter buffer configuration for handling network delay variation.
    */
-  jitterBuffer?: JitterBuffer;
+  jitter_buffer?: JitterBuffer;
 }
 
 /**
@@ -111,19 +124,19 @@ export interface DisplaySettings {
   /**
    * Time format for the phone's clock display.
    */
-  timeFormat?: TimeFormat;
+  time_format?: TimeFormat;
   /**
    * Date format for the phone's date display.
    */
-  dateFormat?: DateFormat;
+  date_format?: DateFormat;
   /**
    * Seconds before the backlight dims/turns off (0 = always on).
    */
-  backlightTimeout?: number;
+  backlight_timeout?: number;
   /**
    * Backlight brightness level.
    */
-  backlightLevel?: BacklightLevel;
+  backlight_level?: BacklightLevel;
 }
 
 /**
@@ -144,8 +157,13 @@ export interface RegionalSettings {
    * ISO 3166-1 alpha-2 country code for telephony tones (e.g., "us", "gb", "de").
    * Controls dial tone, busy tone, and ringback tone patterns.
    */
-  toneScheme?: string;
+  tone_scheme?: string;
 }
+
+/**
+ * SIP signaling transport the phone uses to reach the registrar.
+ */
+export type SipTransport = 'udp' | 'tcp' | 'tls';
 
 /**
  * Network-related device configuration.
@@ -154,21 +172,26 @@ export interface NetworkSettings {
   /**
    * VLAN ID for phone traffic (1-4094). Omit for untagged traffic.
    */
-  vlanId?: number;
+  vlan_id?: number;
   /**
    * DSCP value for SIP signaling packets (0-63).
    * Recommended: 26 (AF31) for signaling.
    */
-  qosDscpSip?: number;
+  qos_dscp_sip?: number;
   /**
    * DSCP value for RTP media packets (0-63).
    * Recommended: 46 (EF) for voice media.
    */
-  qosDscpRtp?: number;
+  qos_dscp_rtp?: number;
   /**
    * Enable RTCP for quality metrics (MOS scores). Defaults to true.
    */
-  rtcpEnabled?: boolean;
+  rtcp_enabled?: boolean;
+  /**
+   * SIP signaling transport. When omitted, the platform default applies.
+   * `tls` is served only to models that support encrypted signaling.
+   */
+  sip_transport?: SipTransport;
 }
 
 /**
@@ -180,24 +203,60 @@ export interface FeatureSettings {
   /**
    * Enable Do Not Disturb button/function.
    */
-  dndEnabled?: boolean;
+  dnd_enabled?: boolean;
   /**
    * Enable call waiting notification and toggle.
    */
-  callWaitingEnabled?: boolean;
+  call_waiting_enabled?: boolean;
   /**
    * Enable call forwarding configuration.
    */
-  callForwardEnabled?: boolean;
+  call_forward_enabled?: boolean;
   /**
    * Enable auto-answer for intercom calls.
    */
-  autoAnswerEnabled?: boolean;
+  auto_answer_enabled?: boolean;
   /**
    * Enable SRTP (encrypted media).
    * Note: Requires server-side SRTP support.
    */
-  srtpEnabled?: boolean;
+  srtp_enabled?: boolean;
+  /**
+   * Play a dial tone on the handset while a call is on hold, as a cue that a
+   * second number can be dialled. Disabled by default; honoured on Snom desk
+   * phones.
+   */
+  call_waiting_dialtone_enabled?: boolean;
+  /**
+   * Ring silently for calls that reach the phone through a ring group, while
+   * every other call keeps its normal ringtone. A silent call still shows on
+   * the screen, flashes the LED and is logged as missed. Disabled by default;
+   * honoured on Snom and Yealink desk phones.
+   */
+  ring_group_silent_ring_enabled?: boolean;
+}
+
+/**
+ * What an automatic resync fetches.
+ */
+export type ResyncMode = 'config_and_firmware' | 'configuration' | 'firmware';
+
+/**
+ * Automatic resync and firmware update settings.
+ */
+export interface ProvisioningSettings {
+  /**
+   * Time of day to resync configuration (HH:MM in 24-hour format, phone local time).
+   */
+  resync_time?: string;
+  /**
+   * What to resync: configuration, firmware, or both.
+   */
+  resync_mode?: ResyncMode;
+  /**
+   * Check for new configuration when the phone boots.
+   */
+  bootup_check_enabled?: boolean;
 }
 
 /**
@@ -206,7 +265,7 @@ export interface FeatureSettings {
  */
 export interface AbstractSettings {
   /**
-   * Audio settings (VAD, echo cancellation, jitter buffer).
+   * Audio settings (codecs, VAD, echo cancellation, jitter buffer).
    */
   audio?: AudioSettings;
   /**
@@ -218,13 +277,17 @@ export interface AbstractSettings {
    */
   regional?: RegionalSettings;
   /**
-   * Network settings (VLAN, QoS, NTP).
+   * Network settings (VLAN, QoS, SIP transport).
    */
   network?: NetworkSettings;
   /**
    * Feature availability settings.
    */
   features?: FeatureSettings;
+  /**
+   * Automatic resync settings.
+   */
+  provisioning?: ProvisioningSettings;
 }
 
 // ============================================================================
@@ -252,17 +315,17 @@ export interface AbstractSettings {
  *       language: 'en-US',
  *     },
  *     features: {
- *       callWaitingEnabled: true,
- *       dndEnabled: true,
+ *       call_waiting_enabled: true,
+ *       dnd_enabled: true,
  *     },
  *   },
  * };
  *
- * // Device-specific override
+ * // Device-specific override: ring group calls ring silently on this phone
  * const deviceSettings: DeviceSettings = {
  *   abstractions: {
- *     display: {
- *       backlightLevel: 'low', // This device is in a dark room
+ *     features: {
+ *       ring_group_silent_ring_enabled: true,
  *     },
  *   },
  * };

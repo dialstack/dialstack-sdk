@@ -170,7 +170,7 @@ describe('DECT Types', () => {
         mac_address: '00:04:13:12:34:56',
         model: 'M500',
         multicell_role: 'data_master',
-        overrides: { vendorOverrides: { custom_key: 'value' } },
+        overrides: { abstractions: { regional: { timezone: 'UTC' } } },
       };
       expect(req.model).toBe('M500');
       expect(req.multicell_role).toBe('data_master');
@@ -198,12 +198,12 @@ describe('DECT Types', () => {
         model: 'M700',
         overrides: {
           abstractions: {
-            network: { vlanId: 200 },
+            network: { vlan_id: 200 },
           },
         },
       };
       expect(req.model).toBe('M700');
-      expect(req.overrides?.abstractions?.network?.vlanId).toBe(200);
+      expect(req.overrides?.abstractions?.network?.vlan_id).toBe(200);
     });
   });
 
@@ -296,15 +296,13 @@ describe('DECT Types', () => {
         overrides: {
           abstractions: {
             regional: { timezone: 'America/New_York' },
-            network: { vlanId: 100, qosDscpRtp: 46 },
+            network: { vlan_id: 100, qos_dscp_rtp: 46 },
           },
-          vendorOverrides: { some_vendor_param: 'value' },
         },
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
       };
       expect(base.overrides?.abstractions?.regional?.timezone).toBe('America/New_York');
-      expect(base.overrides?.vendorOverrides?.some_vendor_param).toBe('value');
     });
 
     it('DECTHandset allows all multicell roles on parent base', () => {

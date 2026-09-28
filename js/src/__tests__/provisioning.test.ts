@@ -41,43 +41,43 @@ describe('Provisioning Types', () => {
       const settings: DeviceSettings = {
         abstractions: {
           audio: {
-            vadEnabled: false,
-            echoCancellation: true,
-            jitterBuffer: {
+            vad_enabled: false,
+            echo_cancellation: true,
+            jitter_buffer: {
               mode: 'adaptive',
-              minMs: 40,
-              maxMs: 200,
+              min_ms: 40,
+              max_ms: 200,
             },
           },
           display: {
-            timeFormat: '24h',
-            dateFormat: 'Y-M-D',
-            backlightTimeout: 60,
-            backlightLevel: 'medium',
+            time_format: '24h',
+            date_format: 'Y-M-D',
+            backlight_timeout: 60,
+            backlight_level: 'medium',
           },
           regional: {
             timezone: 'Europe/London',
             language: 'en-GB',
-            toneScheme: 'gb',
+            tone_scheme: 'gb',
           },
           network: {
-            vlanId: 100,
-            qosDscpSip: 26,
-            qosDscpRtp: 46,
-            rtcpEnabled: true,
+            vlan_id: 100,
+            qos_dscp_sip: 26,
+            qos_dscp_rtp: 46,
+            rtcp_enabled: true,
           },
           features: {
-            dndEnabled: true,
-            callWaitingEnabled: true,
-            callForwardEnabled: true,
-            autoAnswerEnabled: false,
-            srtpEnabled: true,
+            dnd_enabled: true,
+            call_waiting_enabled: true,
+            call_forward_enabled: true,
+            auto_answer_enabled: false,
+            srtp_enabled: true,
           },
         },
       };
 
-      expect(settings.abstractions?.audio?.jitterBuffer?.mode).toBe('adaptive');
-      expect(settings.abstractions?.network?.vlanId).toBe(100);
+      expect(settings.abstractions?.audio?.jitter_buffer?.mode).toBe('adaptive');
+      expect(settings.abstractions?.network?.vlan_id).toBe(100);
     });
   });
 
@@ -128,35 +128,35 @@ describe('Provisioning Types', () => {
     it('JitterBuffer interface works with all optional fields', () => {
       const empty: JitterBuffer = {};
       const partial: JitterBuffer = { mode: 'adaptive' };
-      const full: JitterBuffer = { mode: 'fixed', minMs: 40, maxMs: 200 };
+      const full: JitterBuffer = { mode: 'fixed', min_ms: 40, max_ms: 200 };
       expect(empty).toEqual({});
       expect(partial.mode).toBe('adaptive');
-      expect(full.maxMs).toBe(200);
+      expect(full.max_ms).toBe(200);
     });
 
     it('AudioSettings interface works with all optional fields', () => {
       const empty: AudioSettings = {};
-      const partial: AudioSettings = { vadEnabled: true };
+      const partial: AudioSettings = { vad_enabled: true };
       const full: AudioSettings = {
-        vadEnabled: false,
-        echoCancellation: true,
-        jitterBuffer: { mode: 'adaptive' },
+        vad_enabled: false,
+        echo_cancellation: true,
+        jitter_buffer: { mode: 'adaptive' },
       };
       expect(empty).toEqual({});
-      expect(partial.vadEnabled).toBe(true);
-      expect(full.jitterBuffer?.mode).toBe('adaptive');
+      expect(partial.vad_enabled).toBe(true);
+      expect(full.jitter_buffer?.mode).toBe('adaptive');
     });
 
     it('DisplaySettings interface works with all optional fields', () => {
       const empty: DisplaySettings = {};
       const full: DisplaySettings = {
-        timeFormat: '24h',
-        dateFormat: 'Y-M-D',
-        backlightTimeout: 30,
-        backlightLevel: 'high',
+        time_format: '24h',
+        date_format: 'Y-M-D',
+        backlight_timeout: 30,
+        backlight_level: 'high',
       };
       expect(empty).toEqual({});
-      expect(full.timeFormat).toBe('24h');
+      expect(full.time_format).toBe('24h');
     });
 
     it('RegionalSettings interface works with all optional fields', () => {
@@ -164,7 +164,7 @@ describe('Provisioning Types', () => {
       const full: RegionalSettings = {
         timezone: 'America/New_York',
         language: 'en-US',
-        toneScheme: 'us',
+        tone_scheme: 'us',
       };
       expect(empty).toEqual({});
       expect(full.timezone).toBe('America/New_York');
@@ -173,27 +173,30 @@ describe('Provisioning Types', () => {
     it('NetworkSettings interface works with all optional fields', () => {
       const empty: NetworkSettings = {};
       const full: NetworkSettings = {
-        vlanId: 100,
-        qosDscpSip: 26,
-        qosDscpRtp: 46,
-        rtcpEnabled: true,
+        vlan_id: 100,
+        qos_dscp_sip: 26,
+        qos_dscp_rtp: 46,
+        rtcp_enabled: true,
       };
       expect(empty).toEqual({});
-      expect(full.vlanId).toBe(100);
-      expect(full.rtcpEnabled).toBe(true);
+      expect(full.vlan_id).toBe(100);
+      expect(full.rtcp_enabled).toBe(true);
     });
 
     it('FeatureSettings interface works with all optional fields', () => {
       const empty: FeatureSettings = {};
       const full: FeatureSettings = {
-        dndEnabled: true,
-        callWaitingEnabled: true,
-        callForwardEnabled: true,
-        autoAnswerEnabled: false,
-        srtpEnabled: true,
+        dnd_enabled: true,
+        call_waiting_enabled: true,
+        call_forward_enabled: true,
+        auto_answer_enabled: false,
+        srtp_enabled: true,
+        call_waiting_dialtone_enabled: false,
+        ring_group_silent_ring_enabled: true,
       };
       expect(empty).toEqual({});
-      expect(full.dndEnabled).toBe(true);
+      expect(full.dnd_enabled).toBe(true);
+      expect(full.ring_group_silent_ring_enabled).toBe(true);
     });
 
     it('AbstractSettings interface works with all optional fields', () => {
@@ -202,15 +205,15 @@ describe('Provisioning Types', () => {
         regional: { timezone: 'UTC' },
       };
       const full: AbstractSettings = {
-        audio: { vadEnabled: true },
-        display: { timeFormat: '12h' },
+        audio: { vad_enabled: true },
+        display: { time_format: '12h' },
         regional: { timezone: 'UTC' },
-        network: { vlanId: 100 },
-        features: { dndEnabled: true },
+        network: { vlan_id: 100 },
+        features: { dnd_enabled: true },
       };
       expect(empty).toEqual({});
       expect(partial.regional?.timezone).toBe('UTC');
-      expect(full.features?.dndEnabled).toBe(true);
+      expect(full.features?.dnd_enabled).toBe(true);
     });
   });
 });

@@ -216,6 +216,7 @@ export type {
 // Provisioning configuration types
 export type {
   // Audio types
+  AudioCodec,
   JitterBufferMode,
   JitterBuffer,
   AudioSettings,
@@ -227,9 +228,13 @@ export type {
   // Regional types
   RegionalSettings,
   // Network types
+  SipTransport,
   NetworkSettings,
   // Feature types
   FeatureSettings,
+  // Resync types
+  ResyncMode,
+  ProvisioningSettings,
   // Top-level types
   AbstractSettings,
   DeviceSettings,
