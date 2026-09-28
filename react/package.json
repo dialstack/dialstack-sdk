@@ -175,7 +175,7 @@
     "canvas-confetti": "^1.9.4",
     "cmdk": "^1.1.1",
     "dagre": "^0.8.5",
-    "libphonenumber-js": "^1.13.13"
+    "libphonenumber-js": "^1.13.14"
   },
   "peerDependencies": {
     "@dialstack/sdk-js": ">=3.4.0 <4",
