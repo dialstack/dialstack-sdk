@@ -220,6 +220,22 @@ describe('Hardware orders', () => {
     });
   });
 
+  it('deletes a draft', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 204,
+      json: async () => ({}),
+      text: async () => '',
+      headers: new Headers(),
+    });
+
+    await dialstack.hardwareOrders.del('hwo_123', acct);
+
+    expect(requestedUrl()).toBe('https://api.dialstack.ai/v1/hardware-orders/hwo_123');
+    expect(requestInit().method).toBe('DELETE');
+    expect(requestInit().headers['DialStack-Account']).toBe('acct_test123');
+  });
+
   describe('hardwareOrders.updateItem', () => {
     it('sets a unit assignment', async () => {
       mockJSON({ id: 'hwoi_1', user: 'user_123' });

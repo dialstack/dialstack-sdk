@@ -1838,7 +1838,10 @@ export interface HardwareOrder {
    * (for example `FED_2DY`). Null until a service is chosen.
    */
   shipping_method: string | null;
-  /** The name the parcel is addressed to. Required before checkout. */
+  /**
+   * The name the parcel is addressed to. Optional: when null, the account's
+   * name goes on the shipping label.
+   */
   ship_to_recipient: string | null;
   /** Where the order ships. Required before checkout. */
   ship_to_address: HardwareOrderAddress | null;
@@ -1877,9 +1880,9 @@ export type HardwareOrderExpand =
  * - `shipping_not_quoted` — no carrier service has been chosen. Create a
  *   shipping quote and choose a service from it. An unquoted order is not a
  *   free-shipping one.
- * - `ship_to_incomplete` — the order has no recipient or no shipping address.
- *   Set `ship_to_recipient` and `ship_to_address` with
- *   {@link hardwareOrders.update}.
+ * - `ship_to_incomplete` — the order has no shipping address, or nothing to
+ *   put on the label: no `ship_to_recipient` and an account with no name. Set
+ *   `ship_to_address` (and `ship_to_recipient`) with {@link hardwareOrders.update}.
  * - `shipping_quote_expired` — the quote the service was chosen from has
  *   expired. Create a new quote and choose a service from it.
  * - `no_debit_authority` — no verified bank account with a live ACH
@@ -4687,6 +4690,18 @@ export class DialStack {
     },
 
     /**
+     * Delete a draft order, including a requested one, which withdraws the
+     * request. Permanent. A placed order cannot be deleted: that returns 409
+     * with the code `order_not_draft`.
+     */
+    del: (
+      hardwareOrderId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request('DELETE', `/v1/hardware-orders/${hardwareOrderId}`, undefined, options);
+    },
+
+    /**
      * Place the order and charge for it. This is the moment its prices stop
      * moving, an ACH debit is originated against the bank account the platform
      * authorized, and the order enters the fulfillment queue.
@@ -4698,7 +4713,7 @@ export class DialStack {
      *
      * Returns 409 if no carrier service has been chosen — an unquoted order is
      * not a free-shipping one, so it cannot be completed — if the order has no
-     * recipient or shipping address, if the quote the service was chosen from
+     * shipping address, if the quote the service was chosen from
      * has expired, if a debit already exists for the order, or if the
      * platform has no verified bank account with a live ACH authorization to
      * debit.
