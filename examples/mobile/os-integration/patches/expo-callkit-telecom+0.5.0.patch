@@ -284,3 +284,223 @@ index bc6e57d71..478152f2d 100644
          NotificationManagerCompat.from(context.applicationContext).cancel(NOTIFICATION_ID)
          CallKitTelecomLog.d(TAG) { "Cancelled call notification" }
      }
+diff --git a/node_modules/expo-callkit-telecom/ios/Managers/CallManager.swift b/node_modules/expo-callkit-telecom/ios/Managers/CallManager.swift
+index 98f03ff4ca..13cededd6d 100644
+--- a/node_modules/expo-callkit-telecom/ios/Managers/CallManager.swift
++++ b/node_modules/expo-callkit-telecom/ios/Managers/CallManager.swift
+@@ -1,4 +1,5 @@
+ import CallKit
++import UIKit
+ import os
+ 
+ /// Errors that can occur during call operations.
+@@ -24,6 +25,43 @@ class CallManager: NSObject {
+   private let callController = CXCallController()
+   private let provider: CXProvider
+ 
++  /// CallKit id of each call already reported, by server call id. A VoIP push
++  /// for a call the app already reported (it arrived over the app's own socket
++  /// first) must not become a second CallKit call.
++  private var callIdsByServerCallId: [String: UUID] = [:]
++  /// Claimed ids CallKit has not accepted yet: a report racing one in flight for
++  /// the same server call id must join it, not start a second call.
++  private var pendingCallIds: Set<UUID> = []
++  private let knownCallsLock = NSLock()
++
++  /// Claim `id` for `serverCallId`, or return the CallKit id already reported, or
++  /// being reported, for it. Atomic, so the push and the app's own report of one
++  /// call can't both create a CallKit call when they land together.
++  private func claimCall(_ id: UUID, serverCallId: String) -> UUID? {
++    guard !serverCallId.isEmpty else { return nil }
++    knownCallsLock.lock()
++    defer { knownCallsLock.unlock() }
++    if let existing = callIdsByServerCallId[serverCallId],
++      pendingCallIds.contains(existing)
++        || callController.callObserver.calls.contains(where: { $0.uuid == existing && !$0.hasEnded })
++    {
++      return existing
++    }
++    callIdsByServerCallId[serverCallId] = id
++    pendingCallIds.insert(id)
++    return nil
++  }
++
++  /// Settle a claim once CallKit has answered: keep it if the call was reported.
++  private func settleClaim(_ id: UUID, serverCallId: String, reported: Bool) {
++    knownCallsLock.lock()
++    defer { knownCallsLock.unlock() }
++    pendingCallIds.remove(id)
++    if !reported, callIdsByServerCallId[serverCallId] == id {
++      callIdsByServerCallId.removeValue(forKey: serverCallId)
++    }
++  }
++
+   private let supportsHolding = false
+   private let supportsGrouping = false
+   private let supportsUngrouping = false
+@@ -55,7 +93,8 @@ class CallManager: NSObject {
+ 
+   private override init() {
+     let configuration = CXProviderConfiguration()
+-    configuration.supportsVideo = true
++    // Audio-only calls: without this CallKit offers a video button that does nothing.
++    configuration.supportsVideo = false
+     configuration.maximumCallGroups = 1
+     configuration.maximumCallsPerCallGroup = 1
+     configuration.supportedHandleTypes = [.phoneNumber, .generic]
+@@ -72,6 +111,13 @@ class CallManager: NSObject {
+       configuration.ringtoneSound = ringtone
+     }
+ 
++    // The image behind the call screen's open-the-app button; without it CallKit
++    // shows a blank placeholder. Added to the asset catalog by the app's
++    // withCallKitIcon config plugin.
++    if let icon = UIImage(named: "CallKitIcon") {
++      configuration.iconTemplateImageData = icon.pngData()
++    }
++
+     provider = CXProvider(configuration: configuration)
+ 
+     super.init()
+@@ -285,6 +331,15 @@ class CallManager: NSObject {
+     let id = UUID()
+     Log.call.debug("Reporting incoming call - id: \(id)")
+ 
++    // The push for this call got there first: it is already on screen, so there
++    // is nothing to report. The session is found by its server call id.
++    if let existing = claimCall(id, serverCallId: event.serverCallId) {
++      Log.call.debug(
++        "Call already reported - keeping id: \(existing), serverCallId: \(event.serverCallId)"
++      )
++      return
++    }
++
+     // Prepare audio session before reporting to CallKit
+     AudioManager.shared.prepareAudioSessionForCall(hasVideo: event.hasVideo)
+ 
+@@ -320,17 +375,24 @@ class CallManager: NSObject {
+     update.supportsDTMF = supportsDTMF
+ 
+     do {
+-      try await withCheckedThrowingContinuation {
+-        (continuation: CheckedContinuation<Void, Error>) in
+-        provider.reportNewIncomingCall(with: id, update: update) { error in
+-          if let error = error {
+-            continuation.resume(throwing: error)
+-          } else {
+-            continuation.resume()
++      do {
++        try await withCheckedThrowingContinuation {
++          (continuation: CheckedContinuation<Void, Error>) in
++          provider.reportNewIncomingCall(with: id, update: update) { error in
++            if let error = error {
++              continuation.resume(throwing: error)
++            } else {
++              continuation.resume()
++            }
+           }
+         }
++      } catch let error as CXErrorCodeIncomingCallError where error.code == .callUUIDAlreadyExists {
++        // The push for this call joined our claim and reported this id first:
++        // the call is on screen under it, which is what this report was for.
++        Log.call.debug("Incoming call already reported under this id by its push - id: \(id)")
+       }
+       Log.call.debug("Incoming call reported to CallKit - id: \(id)")
++      settleClaim(id, serverCallId: event.serverCallId, reported: true)
+ 
+       await store.add(session)
+ 
+@@ -345,6 +407,7 @@ class CallManager: NSObject {
+       Log.call.error(
+         "Failed to report incoming call to CallKit - id: \(id), error: \(error.localizedDescription)"
+       )
++      settleClaim(id, serverCallId: event.serverCallId, reported: false)
+       AudioManager.shared.restoreAudioSession()
+       throw error
+     }
+@@ -362,6 +425,21 @@ class CallManager: NSObject {
+     let id = UUID()
+     Log.call.debug("Reporting incoming call (sync) - id: \(id)")
+ 
++    // A push for a call already on screen (it reached the app over its own
++    // socket first): report it again under the SAME id. PushKit requires every
++    // VoIP push to be reported, and CallKit treats a report for a known id as an
++    // update, so no second call appears. Checked before any audio setup, which
++    // must not touch a call that may already be live.
++    if let existing = claimCall(id, serverCallId: event.serverCallId) {
++      Log.call.debug(
++        "Push for a call already reported - reusing id: \(existing), serverCallId: \(event.serverCallId)"
++      )
++      let update = CXCallUpdate()
++      update.hasVideo = event.hasVideo
++      provider.reportNewIncomingCall(with: existing, update: update) { _ in completion(nil) }
++      return
++    }
++
+     // Pre-heat audio session before reporting to CallKit
+     AudioManager.shared.prepareAudioSessionForCall(hasVideo: event.hasVideo)
+ 
+@@ -402,12 +480,14 @@ class CallManager: NSObject {
+         Log.call.error(
+           "Failed to report incoming call to CallKit - id: \(id), error: \(error.localizedDescription)"
+         )
++        self?.settleClaim(id, serverCallId: event.serverCallId, reported: false)
+         AudioManager.shared.restoreAudioSession()
+         completion(error)
+         return
+       }
+ 
+       Log.call.debug("Incoming call reported to CallKit - id: \(id)")
++      self?.settleClaim(id, serverCallId: event.serverCallId, reported: true)
+ 
+       // Now do the async work (store session, emit events, start timeout)
+       Task {
+diff --git a/node_modules/expo-callkit-telecom/android/src/main/java/expo/modules/callkittelecom/managers/CallManager.kt b/node_modules/expo-callkit-telecom/android/src/main/java/expo/modules/callkittelecom/managers/CallManager.kt
+index 0000000..0000000 100644
+--- a/node_modules/expo-callkit-telecom/android/src/main/java/expo/modules/callkittelecom/managers/CallManager.kt
++++ b/node_modules/expo-callkit-telecom/android/src/main/java/expo/modules/callkittelecom/managers/CallManager.kt
+@@ -264,6 +264,14 @@
+                     },
+                 callCapabilities = CallAttributesCompat.SUPPORTS_SET_INACTIVE,
+             )
++
++        // Start the network-keeping foreground service NOW, while the app is still
++        // in the foreground. Handing the call to Telecom can put the app in the
++        // background at once (some OEMs, OnePlus among them, open their own
++        // in-call screen for a self-managed call), and started only inside the
++        // call scope below the service arrived too late: the backgrounded app
++        // lost its signalling socket within seconds and the dial failed.
++        CallNotificationManager.showDialingCall(context, id, recipient.displayName)
+ 
+         val actions = CallActions()
+         val job =
+diff --git a/node_modules/expo-callkit-telecom/android/src/main/java/expo/modules/callkittelecom/services/ExpoCallKitTelecomMessagingService.kt b/node_modules/expo-callkit-telecom/android/src/main/java/expo/modules/callkittelecom/services/ExpoCallKitTelecomMessagingService.kt
+--- a/node_modules/expo-callkit-telecom/android/src/main/java/expo/modules/callkittelecom/services/ExpoCallKitTelecomMessagingService.kt
++++ b/node_modules/expo-callkit-telecom/android/src/main/java/expo/modules/callkittelecom/services/ExpoCallKitTelecomMessagingService.kt
+@@ -1,9 +1,11 @@
+ package expo.modules.callkittelecom.services
+ 
++import android.content.Intent
+ import android.os.Handler
+ import android.os.Looper
+ import android.util.Log
+ import com.google.firebase.messaging.RemoteMessage
++import expo.modules.callkittelecom.events.CallEventEmitter
+ import expo.modules.callkittelecom.managers.CallManager
+ import expo.modules.callkittelecom.managers.VoIPPushManager
+ import expo.modules.callkittelecom.models.IncomingCallEvent
+@@ -77,6 +79,14 @@
+ 
+             CallManager.shared.reportIncomingCall(event)
+             Log.d(TAG, "Reported incoming call from FCM payload")
++            // The app's receiver only hears events no JS was listening for. A warm
++            // app in the background hears the call itself, but its JS timers are
++            // paused until something starts a headless task, so always tell it.
++            sendBroadcast(
++                Intent(CallEventEmitter.ACTION_CALL_EVENT)
++                    .setPackage(packageName)
++                    .putExtra("eventName", "onPushCallReported")
++            )
+         } catch (error: IllegalStateException) {
+             Log.w(TAG, "Ignoring incoming call push while another session exists: ${error.message}")
+         } catch (error: Throwable) {

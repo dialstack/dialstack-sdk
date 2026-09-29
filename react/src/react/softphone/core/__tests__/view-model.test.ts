@@ -316,6 +316,7 @@ describe('errorMessageKey', () => {
       'slow_consumer',
       'transport_closed',
       'ice_fetch_failed',
+      'token_refresh_failed',
     ]) {
       expect(errorMessageKey(code)).toBe('connectionError');
     }

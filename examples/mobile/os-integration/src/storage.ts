@@ -14,6 +14,7 @@ import type { PlatformStorage } from '@dialstack/sdk-native';
 const store = createMMKV();
 
 const SESSION_TOKEN_KEY = 'dialstack.sessionToken';
+const INSTALL_ID_KEY = 'dialstack.installId';
 
 /**
  * The SDK's persistence adapter (stores only the E911 address id). `getItem`
@@ -41,4 +42,17 @@ export function setSessionToken(token: string): void {
 /** The persisted token, or null when nobody has logged in on this device. */
 export function getSessionToken(): string | null {
   return store.getString(SESSION_TOKEN_KEY) ?? null;
+}
+
+/**
+ * A random id for this install, minted once and kept. The push backend keys a
+ * device on it rather than on the push token, which changes across updates and
+ * restores, so a device can't end up registered, and pushed, twice.
+ */
+export function getInstallId(): string {
+  const existing = store.getString(INSTALL_ID_KEY);
+  if (existing) return existing;
+  const id = `inst_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+  store.set(INSTALL_ID_KEY, id);
+  return id;
 }

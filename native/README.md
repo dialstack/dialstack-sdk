@@ -181,8 +181,8 @@ Three runnable apps, all wired with the permissions and plugin above:
   — ships an AsyncStorage adapter
 - [OS integration](https://github.com/dialstack/dialstack-sdk/tree/main/examples/mobile/os-integration)
   — the worked example for the OS call surface: calls on a locked or killed
-  phone via push wake, `OsCallAdapter` over expo-callkit-telecom. Android is
-  built and verified; iOS is designed for but not yet built.
+  phone via push wake, `OsCallAdapter` over expo-callkit-telecom. Built and
+  verified on both Android (FCM + Telecom) and iOS (PushKit + CallKit).
 
 ## Scope
 

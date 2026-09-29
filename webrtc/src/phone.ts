@@ -159,7 +159,7 @@ export class DialStackPhone {
 
   /**
    * A `connect()` is in flight but not yet connected. Consult alongside
-   * `isConnected` — `connect()` throws on a concurrent call.
+   * `isConnected`; a concurrent `connect()` joins the one in flight.
    */
   get isConnecting(): boolean {
     return this.handshake.inFlight;
@@ -180,6 +180,9 @@ export class DialStackPhone {
 
   private transport: Transport | null = null;
   private readonly handshake = new ConnectHandshake();
+  private connectInFlight: Promise<void> | null = null;
+  private tokenMint: Promise<string> | null = null;
+  private tokenMintedAt = -Infinity;
   private iceServers: RTCIceServer[] = [];
   private listeners: { [K in keyof PhoneEventMap]?: Set<Listener<K>> } = {};
   private pendingOutbound: PendingOutbound | null = null;
@@ -394,11 +397,25 @@ export class DialStackPhone {
   }
 
   async connect(): Promise<void> {
-    if (this.transport)
+    if (this.transport && this.isConnected)
       throw new PhoneError({ code: 'invalid_message', message: 'Phone is already connected' });
-    if (this.handshake.inFlight)
-      throw new PhoneError({ code: 'invalid_message', message: 'Phone is already connecting' });
+    // A transport that isn't connected is between automatic reconnect attempts.
+    // Join that reconnect rather than refuse: the caller asked for a session, and
+    // "already connected" would read as having one.
+    if (this.transport) return this.awaitReconnect();
+    // A second caller (a UI adopting a phone the host is already connecting) joins
+    // the connect in flight: refusing it read as a failed connect to that caller.
+    if (this.connectInFlight) return this.connectInFlight;
+    const attempt = this.openSession();
+    this.connectInFlight = attempt;
+    const clear = () => {
+      if (this.connectInFlight === attempt) this.connectInFlight = null;
+    };
+    attempt.then(clear, clear);
+    return attempt;
+  }
 
+  private async openSession(): Promise<void> {
     // Claim the in-flight slot with a fresh token. A disconnect() during the ICE
     // fetch below clears it (no socket exists yet to cancel), so on resume we bail.
     const token = this.handshake.begin();
@@ -415,6 +432,15 @@ export class DialStackPhone {
 
     let iceServers: RTCIceServer[];
     try {
+      if (this.tokenNeedsRefresh()) {
+        await this.freshToken();
+        if (!this.handshake.isTokenCurrent(token)) {
+          throw new PhoneError({
+            code: 'transport_closed',
+            message: 'Disconnected before the softphone finished connecting',
+          });
+        }
+      }
       iceServers = this.iceServersOverride ?? (await this.fetchIceServers());
     } catch (e) {
       this.handshake.releaseToken(token);
@@ -446,18 +472,20 @@ export class DialStackPhone {
 
     transport.on('open', () => {
       if (!isCurrent()) return;
-      // Fresh req_id per authenticate (fires on initial connect and every
-      // auto-reconnect); the `authenticated` echoing it is ours. Snapshot the
-      // presented id so presentedEmergencyAddressId reflects this frame.
-      const reqId = this.nextReqId();
-      this.handshake.stampAuth(reqId);
-      this.presentedEmergencyAddressId_ = this.emergencyAddressId;
-      transport.send({
-        type: 'authenticate',
-        req_id: reqId,
-        token: this.token,
-        ...(this.emergencyAddressId ? { emergency_address_id: this.emergencyAddressId } : {}),
-      });
+      // Synchronous when the token is fresh, so the authenticate frame goes out in
+      // the same turn as the open; only a mint defers it.
+      if (this.tokenNeedsRefresh()) void this.authenticateAfterMint(transport, isCurrent);
+      else this.sendAuthenticate(transport);
+    });
+
+    transport.on('wake', () => {
+      if (!isCurrent()) return;
+      // The refresh timer can't have run while the app was suspended, so a live
+      // session resuming inside the lead window refreshes now rather than waiting
+      // for a timer that is already overdue.
+      if (this.isConnected && !this.pendingRefresh && this.tokenNeedsRefresh()) {
+        void this.fireTokenRefresh();
+      }
     });
 
     transport.on('message', (msg) => {
@@ -468,12 +496,18 @@ export class DialStackPhone {
     transport.on('reconnecting', (attempt, delayMs) => {
       if (!isCurrent()) return;
       this.isConnected = false;
+      this.endCallsOfLostSession();
       this.emit('reconnecting', attempt, delayMs);
     });
 
     transport.on('closed', (reason) => {
       if (!isCurrent()) return;
       this.isConnected = false;
+      // No reconnect follows a 'closed' (the transport schedules one itself
+      // otherwise), so the transport is finished. Drop it: a later connect()
+      // must open a fresh socket, not wait on a reconnect that never comes (a
+      // terminal auth_expired left the phone unable to connect at all).
+      this.transport = null;
       // Forward the fatal error (session_replaced / session_revoked) so the app
       // can distinguish a takeover/revocation from an ordinary drop. Undefined
       // for a non-fatal close (a reconnect will follow) or a user disconnect.
@@ -502,12 +536,136 @@ export class DialStackPhone {
     });
   }
 
+  // An expired token always needs a mint. One merely inside the lead window does
+  // too, unless it was minted moments ago: a consumer minting sub-lead lifetimes
+  // would otherwise be asked again on every use (same floor as the timer's).
+  private tokenNeedsRefresh(): boolean {
+    // Nothing to mint with: send the token as it is and let the server judge it.
+    // The device clock only decides when to mint, never whether a token is sent.
+    if (!this.onTokenExpiring) return false;
+    const msLeft = this.tokenMsLeft();
+    if (msLeft <= 0) return true;
+    if (msLeft > TOKEN_REFRESH_LEAD_MS) return false;
+    return Date.now() - this.tokenMintedAt >= TOKEN_REFRESH_MIN_DELAY_MS;
+  }
+
+  private tokenMsLeft(): number {
+    // No token yet (a fresh install, nothing stored) is as unusable as an expired one.
+    if (!this.token) return 0;
+    const { exp } = decodeTokenClaims(this.token);
+    return exp === null ? Infinity : exp * 1000 - Date.now();
+  }
+
+  // Makes the token fit to send, checked against the clock at the moment of use.
+  // A suspended app runs no timers, so scheduleTokenRefresh can't be what keeps it
+  // fresh. A stale-but-live token whose refresh fails still goes out (the server
+  // decides); an expired one never does.
+  private async freshToken(): Promise<void> {
+    if (!this.tokenNeedsRefresh()) return;
+    const expired = this.tokenMsLeft() <= 0;
+    let fresh: string;
+    try {
+      fresh = await this.mintToken();
+    } catch (e) {
+      if (!expired) return;
+      throw new PhoneError({
+        code: 'token_refresh_failed',
+        message: `The session token has expired and onTokenExpiring failed: ${(e as Error).message}`,
+      });
+    }
+    this.adoptToken(fresh);
+  }
+
+  // One mint at a time, shared by a connect, a reconnect and the in-band refresh
+  // so none of them asks for a second token while one is on its way.
+  private mintToken(): Promise<string> {
+    this.tokenMint ??= this.onTokenExpiring!().finally(() => {
+      this.tokenMint = null;
+    });
+    return this.tokenMint;
+  }
+
+  private async authenticateAfterMint(
+    transport: Transport,
+    isCurrent: () => boolean
+  ): Promise<void> {
+    try {
+      await this.freshToken();
+    } catch (e) {
+      if (!isCurrent()) return;
+      this.emit('error', e as PhoneError);
+      // Abandon this socket; the backoff retry mints again.
+      transport.dropSocket();
+      return;
+    }
+    if (!isCurrent()) return;
+    try {
+      this.sendAuthenticate(transport);
+    } catch {
+      // The socket closed during the mint; its close already scheduled a retry.
+    }
+  }
+
+  private sendAuthenticate(transport: Transport): void {
+    // Fresh req_id per authenticate (fires on initial connect and every
+    // auto-reconnect); the `authenticated` echoing it is ours. Snapshot the
+    // presented id so presentedEmergencyAddressId reflects this frame.
+    const reqId = this.nextReqId();
+    this.handshake.stampAuth(reqId);
+    this.presentedEmergencyAddressId_ = this.emergencyAddressId;
+    transport.send({
+      type: 'authenticate',
+      req_id: reqId,
+      token: this.token,
+      ...(this.emergencyAddressId ? { emergency_address_id: this.emergencyAddressId } : {}),
+    });
+  }
+
+  // Settles with the automatic reconnect in progress: resolves on its
+  // `authenticated`, rejects if the transport gives up or it takes too long.
+  private awaitReconnect(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        timeout.settle();
+        this.off('reconnected', onUp);
+        this.off('connected', onUp);
+        this.off('disconnected', onDown);
+      };
+      const onUp = () => {
+        cleanup();
+        resolve();
+      };
+      const onDown = (error?: PhoneError) => {
+        cleanup();
+        reject(
+          error ??
+            new PhoneError({ code: 'transport_closed', message: 'Disconnected while reconnecting' })
+        );
+      };
+      const timeout = armTimeout(CONNECT_TIMEOUT_MS, () => {
+        cleanup();
+        reject(
+          new PhoneError({
+            code: 'transport_closed',
+            message: 'Timed out waiting for the reconnect',
+          })
+        );
+      });
+      this.on('reconnected', onUp);
+      this.on('connected', onUp);
+      this.on('disconnected', onDown);
+    });
+  }
+
   disconnect(): void {
     // Abort any in-flight connect(): clears the ICE-window token (a resumed
     // connect() bails), clears the outstanding authenticate id (no late frame
     // matches), and rejects the promise waiter with transport_closed now (else it
     // hangs until CONNECT_TIMEOUT ~20s later with a misleading auth_failed).
     this.handshake.abort();
+    // The aborted attempt still settles later; a connect() right after this must
+    // start a new one, not join it.
+    this.connectInFlight = null;
     // Stop the refresh timer first so it can't fire against the socket we're
     // about to tear down (or leak past it).
     this.clearTokenRefreshTimer();
@@ -527,7 +685,9 @@ export class DialStackPhone {
       } catch {
         // Ignore: transport may already be closed.
       }
-      call.dispose();
+      // `ended`, not a silent dispose: owners that tear down on `ended` (an OS
+      // call screen, a call list) would otherwise keep the call forever.
+      call.endLocally('hangup');
     }
     this.activeCalls.length = 0;
     this.transport?.close();
@@ -632,6 +792,7 @@ export class DialStackPhone {
       transport: this.transport,
       iceServers: this.iceServers,
       startConsult: (p, d) => this.startConsult(p, d),
+      nextReqId: () => this.nextReqId(),
       ringback: this.ringback ?? undefined,
       audioInputDeviceId: this.audioInputDeviceId_ ?? undefined,
       audioOutputDeviceId: this.audioOutputDeviceId_ ?? undefined,
@@ -688,7 +849,7 @@ export class DialStackPhone {
           timeout.settle();
           this.pendingOutbound = null;
           this.pendingCall = null;
-          this.activeCalls.push(placed);
+          this.track(placed);
           resolve(placed);
         },
         reject: (err) => {
@@ -703,6 +864,29 @@ export class DialStackPhone {
       sendCreate(offerSdp);
 
       this.pendingCall = call;
+    });
+  }
+
+  // The server destroys a session's calls when its socket closes and never
+  // restores them onto the next one, so once the socket is lost they are over —
+  // keeping them would leave calls that look live but that no action can reach.
+  private endCallsOfLostSession(): void {
+    this.pendingOutbound?.reject(
+      new PhoneError({
+        code: 'transport_closed',
+        message: 'Disconnected before the call connected',
+      })
+    );
+    for (const call of [...this.activeCalls]) call.endLocally('failed');
+  }
+
+  // A call leaves activeCalls however it ends — the server's call.ended or a
+  // local end — so a locally-ended call can't linger as a live one.
+  private track(call: Call): void {
+    this.activeCalls.push(call);
+    call.on('ended', () => {
+      const idx = this.activeCalls.indexOf(call);
+      if (idx >= 0) this.activeCalls.splice(idx, 1);
     });
   }
 
@@ -877,7 +1061,9 @@ export class DialStackPhone {
    * swap a live session's token, `disconnect()` then `setToken()` before `connect()`.
    */
   setToken(token: string): void {
-    if (this.transport)
+    // Between automatic reconnect attempts the next socket authenticates with
+    // this.token, so a new token simply goes out on that attempt.
+    if (this.transport && this.isConnected)
       throw new PhoneError({
         code: 'invalid_message',
         message: 'Cannot setToken() on a connected phone; disconnect() first',
@@ -894,6 +1080,7 @@ export class DialStackPhone {
   // new token is live" always implies "its refresh is scheduled".
   private adoptToken(token: string): void {
     this.token = token;
+    this.tokenMintedAt = Date.now();
     const { userId, exp } = decodeTokenClaims(token);
     // Only overwrite the namespace on a usable user id: a refresh token could be
     // undecodable here, and nulling a valid storageUserId would silently disable
@@ -932,7 +1119,7 @@ export class DialStackPhone {
     const transport = this.transport;
     let fresh: string;
     try {
-      fresh = await this.onTokenExpiring();
+      fresh = await this.mintToken();
     } catch (e) {
       // The connection is still valid; do NOT tear it down. Surface the failure
       // so the app can trigger its sign-in flow; the server's expiry timer still
@@ -1083,10 +1270,15 @@ export class DialStackPhone {
         return;
       }
       case 'error': {
+        // The server's error frames carry no call_id; the req_id it echoes is
+        // what ties an action error back to the call that sent it.
+        const owner = msg.req_id
+          ? this.activeCalls.find((c) => c.ownsRequest(msg.req_id!))
+          : undefined;
         const err = new PhoneError({
           code: (msg.code as PhoneError['code']) ?? 'internal_error',
           message: msg.message,
-          callId: msg.call_id ?? null,
+          callId: msg.call_id ?? owner?.id ?? null,
           fatal: msg.fatal ?? false,
         });
         logError('Softphone server error', {
@@ -1114,6 +1306,7 @@ export class DialStackPhone {
           this.pendingOutbound.reject(err);
         }
         this.emit('error', err);
+        owner?.handleActionError(msg.req_id!);
         return;
       }
       case 'call.trying': {
@@ -1220,10 +1413,6 @@ export class DialStackPhone {
         const call = this.getCall(msg.call_id);
         if (!call) return;
         call.handleServerMessage(msg);
-        if (msg.type === 'call.ended') {
-          const idx = this.activeCalls.indexOf(call);
-          if (idx >= 0) this.activeCalls.splice(idx, 1);
-        }
         return;
       }
       case 'presence.list': {
@@ -1267,6 +1456,7 @@ export class DialStackPhone {
       transport: this.transport!,
       iceServers: this.iceServers,
       startConsult: (p, d) => this.startConsult(p, d),
+      nextReqId: () => this.nextReqId(),
       ringback: this.ringback ?? undefined,
       audioInputDeviceId: this.audioInputDeviceId_ ?? undefined,
       audioOutputDeviceId: this.audioOutputDeviceId_ ?? undefined,
@@ -1275,7 +1465,7 @@ export class DialStackPhone {
     // Register synchronously so the sdp.offer + ICE that arrive immediately after
     // call.incoming route to it, not dropped via getCall()→undefined while the mic
     // permission prompt is open.
-    this.activeCalls.push(call);
+    this.track(call);
     this.emit('incoming', call);
     const reportMicFailure = (e: unknown) => {
       // Capture deliberately not taken yet is not a failure: the call reports one

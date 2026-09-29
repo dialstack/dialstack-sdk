@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["BackgroundTimersModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.backgroundtimers.BackgroundTimersModule"]
+  }
+}

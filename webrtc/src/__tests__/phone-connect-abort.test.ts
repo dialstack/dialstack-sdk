@@ -136,22 +136,39 @@ describe('DialStackPhone connect() aborted by an in-prelude disconnect()', () =>
     expect(phone.isConnected).toBe(false);
   });
 
-  it('rejects a second concurrent connect() instead of opening a parallel socket', async () => {
-    // Two connect() calls with no disconnect() between them: nothing bumps the
-    // generation, so that guard alone wouldn't catch it. The `connecting` flag must
-    // reject the second so it can't open a socket that orphans the first.
+  it('starts a new connect() after disconnect() rather than joining the aborted one', async () => {
     const phone = new DialStackPhone({ token: 'tok', autoReconnect: false });
-    const firstP = phone.connect(); // parks in fetchIceServers()
+    const abortedP = phone.connect();
     await Promise.resolve();
+    phone.disconnect();
+    // Called before the aborted attempt has settled.
+    const freshP = phone.connect();
+    expect(freshP).not.toBe(abortedP);
 
-    await expect(phone.connect()).rejects.toMatchObject({ code: 'invalid_message' });
-
-    // Let the first finish and confirm exactly one socket ever opened.
+    resolveNextIceFetch();
+    await expect(abortedP).rejects.toMatchObject({ code: 'transport_closed' });
     resolveNextIceFetch();
     await flushMicrotasks();
     expect(RecordingWebSocket.instances).toHaveLength(1);
     RecordingWebSocket.instances[0].completeAuth();
-    await firstP;
+    await freshP;
+    expect(phone.isConnected).toBe(true);
+  });
+
+  it('joins a second concurrent connect() instead of opening a parallel socket', async () => {
+    // Two connect() calls with no disconnect() between them: a UI adopting a phone
+    // the host is already connecting. The second must share the first's handshake,
+    // not open a socket that orphans it.
+    const phone = new DialStackPhone({ token: 'tok', autoReconnect: false });
+    const firstP = phone.connect(); // parks in fetchIceServers()
+    await Promise.resolve();
+    const secondP = phone.connect();
+
+    resolveNextIceFetch();
+    await flushMicrotasks();
+    expect(RecordingWebSocket.instances).toHaveLength(1);
+    RecordingWebSocket.instances[0].completeAuth();
+    await Promise.all([firstP, secondP]);
     expect(phone.isConnected).toBe(true);
   });
 

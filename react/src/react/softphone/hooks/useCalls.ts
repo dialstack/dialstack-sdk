@@ -56,6 +56,14 @@ export interface UseCallsOptions {
    * `destination` is already sanitized to E.164 / an extension.
    */
   placeOutbound?: (destination: string) => Promise<Call>;
+
+  /**
+   * Carries out an in-app accept of an incoming call. Defaults to `call.answer()`.
+   * Set it when something else must see the answer first, such as an
+   * integration that answers through another layer and lets that layer answer
+   * the call.
+   */
+  answerIncoming?: (call: Call) => void;
 }
 
 /**
@@ -458,8 +466,15 @@ export function useCalls(
   connection: SoftphoneConnectionState,
   options: UseCallsOptions = {}
 ): UseCallsResult {
-  const { onIncomingCall, onCallStarted, onCallActivated, onCallEnded, onError, placeOutbound } =
-    options;
+  const {
+    onIncomingCall,
+    onCallStarted,
+    onCallActivated,
+    onCallEnded,
+    onError,
+    placeOutbound,
+    answerIncoming,
+  } = options;
 
   const [state, dispatch] = useReducer(callsReducer, IDLE);
   // Clear the call list synchronously DURING render when the phone instance
@@ -553,6 +568,7 @@ export function useCalls(
     onCallEnded,
     onError,
     placeOutbound,
+    answerIncoming,
   });
 
   // Keyed by call because attended transfer wires TWO at once (original + consult).
@@ -738,7 +754,11 @@ export function useCalls(
   // this is the user's explicit accept, which owns the auto-hold + promotion.
   const answerCall = useCallback(
     (call: Call) => {
-      holdThenActivate(() => call.answer(), { type: 'answered', call });
+      holdThenActivate(
+        () =>
+          handlers.current.answerIncoming ? handlers.current.answerIncoming(call) : call.answer(),
+        { type: 'answered', call }
+      );
     },
     [holdThenActivate]
   );

@@ -138,8 +138,8 @@ export function usePhone(options: UsePhoneOptions): UsePhoneResult {
       // Connect if the host has not: a plain foreground launch hands over a
       // constructed-but-idle phone, and skipping this left the UI showing
       // 'connected' over a socket that was never opened, so the first outbound
-      // call failed. Skip when a connect is already IN FLIGHT, or connect() throws
-      // 'Phone is already connecting'. Still never DISCONNECT on unmount.
+      // call failed. A connect the host already has in flight is left to it:
+      // connect() would only join it. Still never DISCONNECT on unmount.
       if (autoConnect && !existingPhone.isConnected && !existingPhone.isConnecting) {
         existingPhone.connect().catch((err: unknown) => {
           if (adoptedDisposed) return;

@@ -54,3 +54,6 @@ CLAUDE.md
 GEMINI.md
 .claude/
 .maestro/
+
+# Local native modules: Gradle output
+modules/*/android/build/

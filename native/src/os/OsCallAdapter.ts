@@ -28,13 +28,28 @@ export interface OsOutgoingCall {
 export type OsEndReason =
   'remoteEnded' | 'unanswered' | 'answeredElsewhere' | 'declinedElsewhere' | 'failed' | 'unknown';
 
+/** Where the OS thinks a session is. `connecting` is answered but not yet reported connected. */
+export type OsSessionStatus = 'ringing' | 'connecting' | 'connected' | 'ended';
+
 export interface OsActiveSession {
   sessionId: OsSessionId;
   callId: string | null;
+  /**
+   * The OS's own view, for reconciling against the SDK call. Optional: an
+   * adapter that can't read it leaves it out and the bridge doesn't reconcile
+   * that field.
+   */
+  status?: OsSessionStatus;
+  held?: boolean;
 }
 
 export interface OsCallEvents {
-  /** A call was reported to the OS — by native code before JS existed, or by `reportIncoming`. */
+  /**
+   * A call was reported to the OS — by native code before JS existed, or by
+   * `reportIncoming`. `callId` is the call_id the session was created with (a
+   * wake push's, or the one passed to `reportIncoming`): the bridge pairs the
+   * session with its call by it, and ends a session that has none.
+   */
   incomingReported: (e: OsActiveSession) => void;
   /** The OS wants to PLACE a call — the user dialled from the platform's own UI
    *  (Recents, Siri, dialer intent), not from the app. */
@@ -66,6 +81,7 @@ export interface OsCallAdapter {
   /** Remote-initiated state only; the OS already knows about its own actions. */
   setHeld(sessionId: OsSessionId, held: boolean): Promise<void>;
   setMuted(sessionId: OsSessionId, muted: boolean): Promise<void>;
+  /** The session the OS currently treats as active, if any. */
   getActiveSession(): Promise<OsActiveSession | null>;
   /**
    * The app's own Answer/End buttons go through the OS too, so every answer —

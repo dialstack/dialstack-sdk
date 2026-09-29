@@ -130,8 +130,10 @@ export interface SoftphoneProviderProps {
    * then goes through it, so the OS learns about the call BEFORE it is dialled —
    * on Android that report is what starts the foreground service, without which
    * backgrounding mid-dial lets the OS reap the process and drop the call.
+   * Answering in-app goes through it too, so the OS answers before the call
+   * starts media (on iOS that is what gives the call its audio).
    */
-  bridge?: Pick<NativeCallBridge, 'call'>;
+  bridge?: Pick<NativeCallBridge, 'call' | 'answer'>;
   children: React.ReactNode;
 }
 
@@ -172,6 +174,10 @@ export function SoftphoneProvider({
     () => (bridge ? (destination: string) => bridge.call(destination) as Promise<Call> : undefined),
     [bridge]
   );
+  const answerIncoming = useMemo(
+    () => (bridge ? (call: Call) => bridge.answer(call.id) : undefined),
+    [bridge]
+  );
 
   return (
     <SoftphoneProviderBase
@@ -194,6 +200,7 @@ export function SoftphoneProvider({
       onCallEnded={onCallEnded}
       onError={onError}
       placeOutbound={placeOutbound}
+      answerIncoming={answerIncoming}
       extra={extra}
     >
       <NativeAudioSession osOwnsCallAudio={bridge !== undefined} />

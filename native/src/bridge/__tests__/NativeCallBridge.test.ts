@@ -9,7 +9,7 @@ const flush = async (): Promise<void> => {
 };
 
 const PUSHED = 'call_pushed';
-const DELIVERED = 'call_delivered';
+const DELIVERED = PUSHED;
 const S1 = '11111111-1111-4111-8111-111111111111';
 
 function rig(overrides: Partial<ConstructorParameters<typeof NativeCallBridge>[0]> = {}) {
@@ -49,6 +49,96 @@ describe('cold wake', () => {
     await flush();
     expect(call.actions).toEqual(['answer']);
     expect(os.isConnected(S1)).toBe(true);
+  });
+
+  it('a decline before arrival rejects that call, not another one arriving first', async () => {
+    const { phone, os, bridge } = rig();
+    os.nativeReportIncoming({ sessionId: S1, callId: PUSHED });
+    bridge.start();
+    await flush();
+    await os.end(S1); // declined from the lock screen before the socket delivered
+    await flush();
+
+    const other = new FakeCall('call_other');
+    phone.emitIncoming(other);
+    await flush();
+    expect(other.actions).not.toContain('reject:decline');
+
+    const declined = new FakeCall(PUSHED);
+    phone.emitIncoming(declined);
+    await flush();
+    expect(declined.actions).toEqual(['reject:decline']);
+  });
+
+  it('forgets a declined wake whose call never arrives, so the next call parks', async () => {
+    // Answered or cancelled elsewhere before this device re-registered: no call.
+    const { phone, os, hold, lifecycle, bridge } = rig({ deliveryDeadlineMs: 5_000 });
+    os.nativeReportIncoming({ sessionId: S1, callId: PUSHED });
+    bridge.start();
+    await flush();
+    await os.end(S1);
+    await flush();
+
+    jest.advanceTimersByTime(5_000);
+    await flush();
+    expect(os.log.filter((l) => l.startsWith(`reportEnded ${S1}`))).toEqual([]);
+    expect(hold.pending()).toBeNull();
+    expect(phone.disconnectCalls).toBe(1);
+
+    await bridge.ensureConnected();
+    lifecycle.set('background');
+    await flush();
+    expect(bridge.getTrace().some((l) => l.includes('keeping the registration'))).toBe(false);
+    expect(phone.disconnectCalls).toBe(2);
+  });
+
+  it('ignores a second incoming for a call id that is still live', async () => {
+    const { phone, os, bridge } = rig();
+    bridge.start();
+    await bridge.ensureConnected();
+    const first = new FakeCall('call_x');
+    phone.emitIncoming(first);
+    await flush();
+    const reports = () => os.log.filter((l) => l.startsWith('reportIncoming')).length;
+    const before = reports();
+
+    phone.emitIncoming(new FakeCall('call_x'));
+    await flush();
+
+    expect(reports()).toBe(before);
+    await os.answer(sessionOf(os));
+    await flush();
+    expect(first.actions).toEqual(['answer']);
+  });
+
+  it('reports the same call id afresh when it rings again after ending', async () => {
+    // The next step of a follow-me, or a queue re-ring: same call_id, new ring.
+    const { phone, os, bridge } = rig();
+    bridge.start();
+    await bridge.ensureConnected();
+    const first = new FakeCall('call_x');
+    phone.emitIncoming(first);
+    await flush();
+    first.emitEnded('no-answer');
+    await flush();
+    const reports = () => os.log.filter((l) => l.startsWith('reportIncoming')).length;
+    const before = reports();
+
+    phone.emitIncoming(new FakeCall('call_x'));
+    await flush();
+
+    expect(reports()).toBe(before + 1);
+  });
+
+  it('ends a wake session whose push carried no call id', async () => {
+    // Nothing can pair with it: every call is matched by call_id, and the push
+    // is where the session's call_id comes from.
+    const { os, bridge } = rig();
+    os.nativeReportIncoming({ sessionId: S1, callId: null });
+    bridge.start();
+    await flush();
+
+    expect(os.log).toContain(`reportEnded ${S1} failed`);
   });
 
   it('reconnects on a wake even when isConnected is a stale-true corpse socket', async () => {
@@ -161,6 +251,36 @@ describe('cold wake', () => {
     expect(hold.pending()).toBeNull();
   });
 
+  it('runs its deadlines on the timers it is given, not the JS ones', async () => {
+    // A backgrounded Android app pauses JS timers; native ones still fire.
+    const pending: Array<{ fn: () => void; ms: number; cleared: boolean }> = [];
+    const timers = {
+      setTimeout: (fn: () => void, ms: number) => {
+        const t = { fn, ms, cleared: false };
+        pending.push(t);
+        return t;
+      },
+      clearTimeout: (t: unknown) => {
+        if (t) (t as { cleared: boolean }).cleared = true;
+      },
+    };
+    const { phone, os, hold, bridge } = rig({ deliveryDeadlineMs: 5_000, timers });
+    os.nativeReportIncoming({ sessionId: S1, callId: PUSHED });
+    bridge.start();
+    await flush();
+    expect(phone.isConnected).toBe(true);
+
+    jest.advanceTimersByTime(60_000);
+    await flush();
+    expect(os.sessionCount()).toBe(1);
+
+    const delivery = pending.find((t) => t.ms === 5_000 && !t.cleared)!;
+    delivery.fn();
+    await flush();
+    expect(os.log).toContain(`reportEnded ${S1} failed`);
+    expect(hold.pending()).toBeNull();
+  });
+
   it('tears down when the socket never comes up', async () => {
     const { phone, os, hold, bridge } = rig({ registrationDeadlineMs: 20_000 });
     phone.manualConnect = true;
@@ -185,18 +305,51 @@ describe('cold wake', () => {
     expect(os.log).toContain(`reportEnded ${S1} failed`);
   });
 
-  it('does not map when the OS describes a different session', async () => {
-    const { phone, os, bridge } = rig();
+  it('ends a native report for a second call while the OS is at its call cap', async () => {
+    // A push for a different call while one is already on the OS screen. At the
+    // default cap of 1 it gets no OS session: Android's Telecom refuses one
+    // outright, CallKit does not, so the bridge enforces the cap on both.
+    const phone = new FakePhone();
+    const os = new FakeOsCallAdapter({ multiCall: true });
+    const bridge = new NativeCallBridge({ phone, os });
+    bridge.start();
+    await bridge.ensureConnected();
+
+    phone.emitIncoming(new FakeCall('call_socket'));
+    await flush();
+    const ours = sessionOf(os);
+
+    os.nativeReportIncoming({ sessionId: 'push-session', callId: 'call_parked' });
+    await flush();
+
+    expect(os.log).toContain('reportEnded push-session failed');
+    // Ours is untouched and still live.
+    expect(os.log).not.toContain(`reportEnded ${ours} failed`);
+  });
+
+  it('still maps its own session when a second one is reported alongside', async () => {
+    // The wake race: a push reports one session while another is already live.
+    // The bridge must ask about the session it was told of, not about whichever
+    // the OS calls active — otherwise its own session reads as missing and the
+    // one nobody can name alerts until the OS times it out.
+    const phone = new FakePhone();
+    const os = new FakeOsCallAdapter({ multiCall: true });
+    const bridge = new NativeCallBridge({ phone, os });
     os.nativeReportIncoming({ sessionId: S1, callId: PUSHED });
     bridge.start();
-    // Simulate a mismatching pull by racing a second native report.
     os.nativeReportIncoming({ sessionId: 'other', callId: 'call_other' });
     await flush();
+
+    expect(bridge.getTrace().some((l) => l.includes('not mapped'))).toBe(false);
+    expect(bridge.getTrace().some((l) => l.includes(`linked ${PUSHED} ⇄ ${S1}`))).toBe(true);
+
+    // And the delivered call pairs with it.
     const call = new FakeCall(DELIVERED);
     phone.emitIncoming(call);
     await flush();
-    // The bridge could not trust the pull for S1, so it reported the call itself.
-    expect(bridge.getTrace().some((l) => l.includes('not mapped'))).toBe(true);
+    await os.answer(S1);
+    await flush();
+    expect(call.actions).toEqual(['answer']);
   });
 });
 
@@ -271,12 +424,32 @@ describe('echo tolerance', () => {
     expect(call.actions).toEqual([]);
   });
 
+  it('an OS hold the call cannot take leaves no token to swallow the next tap', async () => {
+    const { phone, os, bridge } = rig();
+    bridge.start();
+    const call = new FakeCall('c1');
+    phone.emitIncoming(call);
+    await flush();
+    const sid = sessionOf(os);
+
+    // Still ringing: the SDK can't hold it, so nothing is sent and no echo comes.
+    os.hold(sid, true);
+    await flush();
+    expect(call.actions).toEqual([]);
+
+    call.state = 'active';
+    os.hold(sid, true);
+    await flush();
+    expect(call.actions).toEqual(['hold']);
+  });
+
   it('a local hold is not reported back to the OS', async () => {
     const { phone, os, bridge } = rig();
     bridge.start();
     const call = new FakeCall('c1');
     phone.emitIncoming(call);
     await flush();
+    call.state = 'active';
     os.hold(sessionOf(os), true);
     expect(call.actions).toEqual(['hold']);
     call.emitHeld('local');
@@ -387,34 +560,131 @@ describe('lifecycle', () => {
     expect(phone.disconnectCalls).toBe(0);
   });
 
-  it('ensureConnected does not connect when a connect is already in flight on the phone', async () => {
+  it('keeps the registration when backgrounded while an outbound call is being placed', async () => {
+    // Reporting the call to the OS can itself background the app (some Android
+    // skins flash their own call screen), before phone.call() has resolved.
+    const { phone, lifecycle, bridge } = rig();
+    bridge.start();
+    await bridge.ensureConnected();
+    phone.manualCall = true;
+    const placing = bridge.call('15551234567');
+    await flush();
+    lifecycle.set('background');
+    expect(phone.disconnectCalls).toBe(0);
+    phone.resolveCall();
+    await placing;
+  });
+
+  it('drops the registration when the last call ends while the app is in the background', async () => {
+    const { phone, lifecycle, bridge } = rig();
+    bridge.start();
+    await bridge.ensureConnected();
+    const call = new FakeCall('c1');
+    phone.emitIncoming(call);
+    await flush();
+    lifecycle.set('background');
+    expect(phone.disconnectCalls).toBe(0);
+
+    call.emitEnded('no-answer');
+    await flush();
+
+    expect(phone.disconnectCalls).toBe(1);
+  });
+
+  it('keeps the registration when the last call ends in the foreground', async () => {
+    const { phone, lifecycle, bridge } = rig();
+    bridge.start();
+    await bridge.ensureConnected();
+    lifecycle.set('active');
+    const call = new FakeCall('c1');
+    phone.emitIncoming(call);
+    await flush();
+
+    call.emitEnded('hangup');
+    await flush();
+
+    expect(phone.disconnectCalls).toBe(0);
+  });
+
+  it('ensureConnected waits on a connect already in flight on the phone', async () => {
     const { phone, bridge } = rig();
     bridge.start();
     // Something else (the UI provider adopting the same phone) started a connect.
     phone.manualConnect = true;
     void phone.connect();
-    expect(phone.connectCalls).toBe(1);
-    // The bridge must not add a second — connect() would throw "already connecting".
-    await bridge.ensureConnected();
-    expect(phone.connectCalls).toBe(1);
+    let settled = false;
+    void bridge.ensureConnected().then(() => {
+      settled = true;
+    });
+    await flush();
+    // Resolving early would start the wake's delivery deadline before the socket
+    // is registered.
+    expect(settled).toBe(false);
+    phone.resolveConnect();
+    await flush();
+    expect(settled).toBe(true);
   });
 
-  it('ensureConnected is single-flight and re-arms after a disconnect', async () => {
+  it('a wake while the UI is connecting the phone registers and delivers the call', async () => {
+    const { phone, os, bridge } = rig({ deliveryDeadlineMs: 5_000 });
+    bridge.start();
+    phone.manualConnect = true;
+    // The UI mounted first and began connecting.
+    void phone.connect();
+    os.nativeReportIncoming({ sessionId: S1, callId: PUSHED });
+    await flush();
+    phone.resolveConnect();
+    await flush();
+
+    const call = new FakeCall(DELIVERED);
+    phone.emitIncoming(call);
+    await flush();
+    await os.answer(S1);
+    await flush();
+    expect(call.actions).toEqual(['answer']);
+    expect(os.log).not.toContain(`reportEnded ${S1} failed`);
+    // A connect in flight is not a dead socket: the wake joins it instead of
+    // throwing it away and paying for a second mint and handshake.
+    expect(phone.disconnectCalls).toBe(0);
+  });
+
+  it('a wake during an automatic reconnect connects for real instead of trusting the old latch', async () => {
+    const { phone, os, bridge } = rig();
+    bridge.start();
+    await bridge.ensureConnected();
+    expect(phone.connectCalls).toBe(1);
+
+    // Days later the frozen app wakes; its socket is between reconnect attempts.
+    phone.startReconnecting();
+    os.nativeReportIncoming({ sessionId: S1, callId: PUSHED });
+    await flush();
+    expect(phone.connectCalls).toBe(2);
+
+    const call = new FakeCall(DELIVERED);
+    phone.emitIncoming(call);
+    await flush();
+    await os.answer(S1);
+    await flush();
+    expect(call.actions).toEqual(['answer']);
+  });
+
+  it('ensureConnected joins a connect in flight and re-arms after a disconnect', async () => {
     const { phone, bridge } = rig();
     bridge.start();
     phone.manualConnect = true;
     const a = bridge.ensureConnected();
     const b = bridge.ensureConnected();
+    // The phone joins the second call to the first: one connect, one outcome.
     expect(a).toBe(b);
-    expect(phone.connectCalls).toBe(1);
     phone.resolveConnect();
     await a;
+    const calls = phone.connectCalls;
     await bridge.ensureConnected();
-    expect(phone.connectCalls).toBe(1);
+    expect(phone.connectCalls).toBe(calls);
     phone.disconnect();
     phone.manualConnect = false;
     await bridge.ensureConnected();
-    expect(phone.connectCalls).toBe(2);
+    expect(phone.connectCalls).toBe(calls + 1);
   });
 });
 
@@ -432,6 +702,79 @@ describe('answer-before-arrival exclusion', () => {
     phone.emitIncoming(call);
     await flush();
     expect(call.actions).toEqual(['answer']);
+  });
+
+  it('a stale answer deadline does not kill a later call that reused the session id', async () => {
+    // Session ids are recycled. A timer left armed past its own session fires
+    // against the NEXT tap on the same id — so it must be cancelled when the
+    // session is forgotten, and pinned to the tap that armed it.
+    //
+    // Generous wake deadlines so the only timer under test is the answer one.
+    const { phone, os, bridge } = rig({
+      answerTtlMs: 30_000,
+      registrationDeadlineMs: 600_000,
+      deliveryDeadlineMs: 600_000,
+    });
+    os.nativeReportIncoming({ sessionId: S1, callId: PUSHED });
+    bridge.start();
+    await flush();
+
+    // Tap with no call: timer 1 armed for T+30s.
+    await os.answer(S1);
+    await flush();
+
+    // The user gives up; the session goes away before any call arrives.
+    await os.end(S1);
+    await flush();
+
+    // T+20s: the OS recycles the same id for a NEW call, again answered early.
+    jest.advanceTimersByTime(20_000);
+    os.nativeReportIncoming({ sessionId: S1, callId: 'call_pushed_2' });
+    await flush();
+    await os.answer(S1);
+    await flush();
+
+    // T+31s: timer 1's original deadline. It must not touch this session.
+    jest.advanceTimersByTime(11_000);
+    await flush();
+    expect(os.log).not.toContain(`reportEnded ${S1} failed`);
+
+    // The second call is still answerable through its own held tap.
+    const call = new FakeCall('call_pushed_2');
+    phone.emitIncoming(call);
+    await flush();
+    expect(call.actions).toEqual(['answer']);
+    expect(os.isConnected(S1)).toBe(true);
+  });
+
+  it('fails a held answer whose session has no wake deadline to fall back on', async () => {
+    // Why armAnswerDeadline exists at all. An answer can arrive for a session the
+    // bridge never saw reported, so no wake deadline is armed for it; this timer
+    // is the only thing that resolves it. Without it the OS keeps showing its
+    // incoming UI (CallKit holds the answer request open) until the adapter's own
+    // far longer deadline.
+    const { os, bridge } = rig({ answerTtlMs: 30_000 });
+    bridge.start();
+    await flush();
+    // A session the OS holds but never reported to the bridge.
+    (os as unknown as { sessions: Map<string, object> }).sessions.set('ghost-session', {
+      sessionId: 'ghost-session',
+      callId: null,
+      connected: false,
+      answerRequested: false,
+    });
+
+    await os.answer('ghost-session');
+    await flush();
+    expect(os.log).not.toContain('reportEnded ghost-session failed');
+
+    // No call ever arrives, and no wake deadline covers this session.
+    jest.advanceTimersByTime(29_000);
+    await flush();
+    expect(os.log).not.toContain('reportEnded ghost-session failed');
+    jest.advanceTimersByTime(2_000);
+    await flush();
+    expect(os.log).toContain('reportEnded ghost-session failed');
   });
 
   it('a held decline beats a held answer queued for the same session', async () => {
@@ -489,7 +832,7 @@ describe('answer-before-arrival exclusion', () => {
     // ring, not inherit the prior teardown.
     os.nativeReportIncoming({ sessionId: S1, callId: 'call_next' });
     await flush();
-    const next = new FakeCall('call_next_delivered');
+    const next = new FakeCall('call_next');
     phone.emitIncoming(next);
     await flush();
     expect(next.actions).toEqual([]);
@@ -509,7 +852,7 @@ describe('session hygiene', () => {
     // The SAME session id is reused for a fresh, unrelated call.
     os.nativeReportIncoming({ sessionId: S1, callId: 'call_new' });
     await flush();
-    const call = new FakeCall('call_delivered_2');
+    const call = new FakeCall('call_new');
     phone.emitIncoming(call);
     await flush();
     // Must NOT auto-answer from the stale tap/decline of the first wake.
@@ -529,7 +872,7 @@ describe('session hygiene', () => {
     const OTHER = '22222222-2222-4222-8222-222222222222';
     os.nativeReportIncoming({ sessionId: OTHER, callId: 'call_other_push' });
     await flush();
-    const call = new FakeCall('call_other_delivered');
+    const call = new FakeCall('call_other_push');
     phone.emitIncoming(call);
     await flush();
     // Must NOT be auto-declined by S1's stale decline.
@@ -567,6 +910,78 @@ describe('in-app buttons', () => {
     // (unmapped id → no-op is acceptable; a mapped-less known call hangs up)
     expect(() => bridge.answer('unknown')).not.toThrow();
     expect(() => bridge.end('unknown')).not.toThrow();
+  });
+
+  it('leaves no session alerting after an answer, however it was answered', async () => {
+    // Both platforms treat an answer as a REQUEST: the OS keeps showing its
+    // incoming UI until the call is reported connected. A test that only checks
+    // the SDK call answered passes while the phone rings forever.
+    const { phone, os, bridge } = rig();
+    bridge.start();
+    await bridge.ensureConnected();
+    const call = new FakeCall('call_fg');
+    phone.emitIncoming(call);
+    await flush();
+
+    bridge.answer('call_fg');
+    await flush();
+    call.emitAnswered();
+    await flush();
+
+    expect(call.actions).toEqual(['answer']);
+    expect(os.stillAlerting()).toEqual([]);
+  });
+
+  it('reports an in-app hold to the OS', async () => {
+    // The OS's own hold button and call log track held state, so a hold the user
+    // takes in-app has to reach it. `held` carries by='local' for an in-app hold
+    // and by='remote' when the far end holds us — both are news to the OS, which
+    // did not initiate either.
+    const { phone, os, bridge } = rig();
+    bridge.start();
+    await bridge.ensureConnected();
+    const call = new FakeCall('call_fg');
+    phone.emitIncoming(call);
+    await flush();
+    const sid = sessionOf(os);
+
+    call.emitHeld('local');
+    await flush();
+    expect(os.log).toContain(`setHeld ${sid} true`);
+  });
+
+  it('an in-app End on a second, OS-capped call leaves the established call alone', async () => {
+    // The second call is left "handled in-app only" by the maxOsCalls cap, so it
+    // has no OS session of its own. Ending it must not reach the first call's.
+    let clock = 1_000_000;
+    const phone = new FakePhone();
+    const os = new FakeOsCallAdapter();
+    const bridge = new NativeCallBridge({ phone, os, now: () => clock });
+
+    os.nativeReportIncoming({ sessionId: S1, callId: PUSHED });
+    bridge.start();
+    await flush();
+    await os.answer(S1);
+
+    const first = new FakeCall(PUSHED);
+    phone.emitIncoming(first);
+    await flush();
+    expect(first.actions).toEqual(['answer']);
+
+    // A second caller while the first is up, left in-app.
+    clock += 30_000;
+    const second = new FakeCall('call_b');
+    phone.emitIncoming(second);
+    await flush();
+
+    bridge.end('call_b');
+    await flush();
+
+    // The second call went down directly (no session to route through); the
+    // established one is untouched and still up.
+    expect(second.actions).toEqual(['hangup']);
+    expect(first.actions).toEqual(['answer']);
+    expect(os.sessionCount()).toBe(1);
   });
 });
 
@@ -681,37 +1096,11 @@ describe('trace', () => {
   });
 });
 
-describe('duplicate wake fork', () => {
-  it('the second delivery of the same wake does not steal the session; the first stays answered', async () => {
-    const { phone, os, bridge } = rig();
-    os.nativeReportIncoming({ sessionId: S1, callId: PUSHED });
-    bridge.start();
-    await flush();
-    await os.answer(S1); // held
-
-    // The parked INVITE is forked to us TWICE (server double-resume).
-    const first = new FakeCall('call_fork_1');
-    const second = new FakeCall('call_fork_2');
-    phone.emitIncoming(first);
-    await flush();
-    phone.emitIncoming(second);
-    await flush();
-
-    // First adopts S1 and gets the held answer; second is a duplicate → hung up.
-    expect(first.actions).toEqual(['answer']);
-    expect(second.actions).toEqual(['hangup']);
-    // The OS session stays bound to the first call.
-    expect(os.log.filter((l) => l.startsWith('reportConnected'))).toEqual([
-      `reportConnected ${S1}`,
-    ]);
-  });
-
-  it('a new call after the window is left in-app when the OS is at its 1-call cap', async () => {
-    // Same shape as a duplicate fork (unmapped call while a wake call is live), but
-    // it arrives long after the wake was adopted — a genuinely NEW concurrent
-    // caller, not a re-fork. With the default single-call OS cap it is NOT reported
-    // to the OS (the established call owns the session) and NOT hung up: it stays a
-    // live call for the in-app softphone to ring/answer.
+describe('a second concurrent call', () => {
+  it('a second call is left in-app when the OS is at its 1-call cap', async () => {
+    // A second caller while a woken call is up. With the default single-call cap it
+    // is NOT reported to the OS and NOT hung up: it stays a live call for the in-app
+    // softphone to ring and answer.
     let clock = 1_000_000;
     const phone = new FakePhone();
     const os = new FakeOsCallAdapter();
@@ -722,12 +1111,11 @@ describe('duplicate wake fork', () => {
     await flush();
     await os.answer(S1);
 
-    const first = new FakeCall('call_a');
+    const first = new FakeCall(PUSHED);
     phone.emitIncoming(first);
     await flush();
-    expect(first.actions).toEqual(['answer']); // adopted + held answer
+    expect(first.actions).toEqual(['answer']); // paired by id + held answer
 
-    // Advance past the ~5s delivery window: a fork now is a new call.
     clock += 30_000;
     const second = new FakeCall('call_b');
     const reportsBefore = os.log.filter((l) => l.startsWith('reportIncoming')).length;
@@ -753,7 +1141,7 @@ describe('duplicate wake fork', () => {
     await flush();
     await os.answer(S1);
 
-    const first = new FakeCall('call_a');
+    const first = new FakeCall(PUSHED);
     phone.emitIncoming(first);
     await flush();
 
@@ -765,73 +1153,118 @@ describe('duplicate wake fork', () => {
 
     expect(second.actions).not.toContain('hangup');
     expect(os.log.filter((l) => l.startsWith('reportIncoming')).length).toBe(reportsBefore + 1);
-  });
-
-  it('within the delivery window a re-fork is still dropped as a duplicate', async () => {
-    // The guard is narrowed to the window, not removed: a fork of the SAME parked
-    // INVITE that arrives promptly is still a duplicate and must be hung up (the
-    // double-ring this logic exists to prevent).
-    let clock = 1_000_000;
-    const phone = new FakePhone();
-    const os = new FakeOsCallAdapter({ multiCall: true });
-    const bridge = new NativeCallBridge({ phone, os, now: () => clock });
-
-    os.nativeReportIncoming({ sessionId: S1, callId: PUSHED });
-    bridge.start();
+    // Its own session, never the first call's: ending it leaves the first up.
+    bridge.end('call_b');
     await flush();
-    await os.answer(S1);
-
-    const first = new FakeCall('call_a');
-    phone.emitIncoming(first);
-    await flush();
-
-    // A re-fork within the window (clock barely advanced).
-    clock += 500;
-    const dup = new FakeCall('call_a_refork');
-    phone.emitIncoming(dup);
-    await flush();
-    expect(dup.actions).toEqual(['hangup']);
+    expect(os.log.some((l) => l.startsWith(`reportEnded ${S1}`))).toBe(false);
+    expect(first.actions).toEqual(['answer']);
   });
 });
 
-describe('fresh token before register', () => {
-  it('awaits ensureFreshToken before connecting (mint-before-register on wake)', async () => {
-    const order: string[] = [];
-    const { phone } = rig();
-    const origConnect = phone.connect.bind(phone);
-    phone.connect = () => {
-      order.push('connect');
-      return origConnect();
-    };
-    const os = new FakeOsCallAdapter();
-    const bridge = new NativeCallBridge({
-      phone,
-      os,
-      ensureFreshToken: async () => {
-        order.push('refresh');
-        phone.setToken('fresh-token');
-      },
-    });
+describe('reconcile', () => {
+  const RECONCILE_MS = 1_500;
+
+  it('reports connected again when the OS kept an answered call connecting', async () => {
+    const { phone, os, bridge } = rig();
     bridge.start();
-    await bridge.ensureConnected();
-    // Refresh must run, and BEFORE connect.
-    expect(order).toEqual(['refresh', 'connect']);
-    expect(phone.tokens).toEqual(['fresh-token']);
+    const call = new FakeCall('c1');
+    phone.emitIncoming(call);
+    await flush();
+    const sid = sessionOf(os);
+    os.ignoreNext('reportConnected');
+
+    await os.answer(sid);
+    await flush();
+    expect(call.actions).toEqual(['answer']);
+    expect(os.stillAlerting()).toEqual([sid]);
+
+    await jest.advanceTimersByTimeAsync(RECONCILE_MS);
+    expect(os.isConnected(sid)).toBe(true);
+    expect(os.stillAlerting()).toEqual([]);
   });
 
-  it('still connects if ensureFreshToken throws (current token may work)', async () => {
-    const { phone } = rig();
-    const os = new FakeOsCallAdapter();
-    const bridge = new NativeCallBridge({
-      phone,
-      os,
-      ensureFreshToken: async () => {
-        throw new Error('mint endpoint down');
-      },
-    });
+  it('asks the OS to answer when it still rings over a call answered in-app', async () => {
+    // iOS takes a connected report for an incoming call and keeps ringing.
+    const { phone, os, bridge } = rig();
     bridge.start();
-    await bridge.ensureConnected();
-    expect(phone.connectCalls).toBe(1);
+    const call = new FakeCall('c1');
+    phone.emitIncoming(call);
+    await flush();
+    const sid = sessionOf(os);
+    os.failNext('answer');
+    os.ignoreNext('reportConnected');
+
+    call.emitAnswered();
+    await flush();
+    expect(os.isConnected(sid)).toBe(false);
+
+    await jest.advanceTimersByTimeAsync(RECONCILE_MS);
+    expect(os.isConnected(sid)).toBe(true);
+    // The call was already up: nothing answered it a second time.
+    expect(call.actions).toEqual([]);
+  });
+
+  it('puts the OS on hold when it missed a remote hold', async () => {
+    const { phone, os, bridge } = rig();
+    bridge.start();
+    const call = new FakeCall('c1');
+    phone.emitIncoming(call);
+    await flush();
+    const sid = sessionOf(os);
+    call.emitAnswered();
+    await os.answer(sid);
+    await flush();
+    os.ignoreNext('setHeld');
+
+    call.emitHeld('remote');
+    await flush();
+    expect((await os.getActiveSession())?.held).toBe(false);
+
+    await jest.advanceTimersByTimeAsync(RECONCILE_MS);
+    expect((await os.getActiveSession())?.held).toBe(true);
+    expect(call.actions).toEqual([]);
+  });
+
+  it('leaves an OS hold alone while the call is still confirming it', async () => {
+    const { phone, os, bridge } = rig();
+    bridge.start();
+    const call = new FakeCall('c1');
+    phone.emitIncoming(call);
+    await flush();
+    const sid = sessionOf(os);
+    await os.answer(sid);
+    await flush();
+    call.autoConfirm = false;
+
+    os.hold(sid, true);
+    await flush();
+    expect(call.actions).toEqual(['answer', 'hold']);
+    // The OS shows held and the call is still active until the server confirms.
+    await jest.advanceTimersByTimeAsync(RECONCILE_MS);
+    expect(os.log.filter((l) => l.startsWith('setHeld'))).toEqual([]);
+  });
+
+  it('checks again when the app returns to the foreground', async () => {
+    const { phone, os, lifecycle, bridge } = rig();
+    bridge.start();
+    const call = new FakeCall('c1');
+    phone.emitIncoming(call);
+    await flush();
+    const sid = sessionOf(os);
+    await os.answer(sid);
+    await flush();
+    await jest.advanceTimersByTimeAsync(RECONCILE_MS);
+    // The OS lost the hold while the app was away, with no event about it.
+    os.ignoreNext('setHeld');
+    call.emitHeld('remote');
+    await jest.advanceTimersByTimeAsync(0);
+    os.ignoreNext('setHeld');
+    await jest.advanceTimersByTimeAsync(RECONCILE_MS);
+    expect((await os.getActiveSession())?.held).toBe(false);
+
+    lifecycle.set('active');
+    await jest.advanceTimersByTimeAsync(RECONCILE_MS);
+    expect((await os.getActiveSession())?.held).toBe(true);
   });
 });
 
@@ -853,3 +1286,313 @@ function sessionOf(os: FakeOsCallAdapter, nth = 0): string {
   if (!line) throw new Error(`no reportIncoming #${nth}`);
   return line.split(' ')[1]!;
 }
+
+describe('OS report failures', () => {
+  it('rejects the call when the OS will not show it, so the caller is released', async () => {
+    const { phone, os, bridge } = rig();
+    bridge.start();
+    await bridge.ensureConnected();
+    os.failNext('reportIncoming');
+    const call = new FakeCall('c1');
+
+    phone.emitIncoming(call);
+    await flush();
+
+    expect(call.actions).toContain('reject:busy');
+  });
+
+  it('pairs with the push session instead of rejecting when the OS already shows the call', async () => {
+    // The push and the socket landed together: the OS refused our report because
+    // the push's session for this call_id was already up, and its own report
+    // arrived while ours was in flight.
+    const { phone, os, bridge } = rig();
+    bridge.start();
+    await bridge.ensureConnected();
+    os.failNext('reportIncoming');
+    const call = new FakeCall('c1');
+
+    phone.emitIncoming(call);
+    os.nativeReportIncoming({ sessionId: 'push-session', callId: 'c1' });
+    await flush();
+
+    expect(call.actions).not.toContain('reject:busy');
+    await os.answer('push-session');
+    await flush();
+    expect(call.actions).toEqual(['answer']);
+  });
+
+  // An OS that accepts both reports of one call (CallKit does): the push and
+  // our own report land together, and the OS shows two sessions for one call_id.
+  it('ends the second OS session for a call reported by both the push and the socket', async () => {
+    const phone = new FakePhone();
+    const os = new FakeOsCallAdapter({ multiCall: true });
+    const bridge = new NativeCallBridge({ phone, os, maxOsCalls: 2 });
+    bridge.start();
+    await bridge.ensureConnected();
+    const call = new FakeCall('c1');
+
+    phone.emitIncoming(call);
+    os.nativeReportIncoming({ sessionId: 'push-session', callId: 'c1' });
+    await flush();
+
+    expect(os.log).toContain('reportEnded push-session remoteEnded');
+    const ours = os.log.find((l) => l.startsWith('reportIncoming'))!.split(' ')[1]!;
+    await os.answer(ours);
+    await flush();
+    expect(call.actions).toEqual(['answer']);
+  });
+
+  it('ends a push session arriving after its call is already on the OS', async () => {
+    const phone = new FakePhone();
+    const os = new FakeOsCallAdapter({ multiCall: true });
+    const bridge = new NativeCallBridge({ phone, os, maxOsCalls: 2 });
+    bridge.start();
+    await bridge.ensureConnected();
+    phone.emitIncoming(new FakeCall('c1'));
+    await flush();
+
+    os.nativeReportIncoming({ sessionId: 'push-session', callId: 'c1' });
+    await flush();
+
+    expect(os.log).toContain('reportEnded push-session remoteEnded');
+  });
+
+  it('retries the connected report, so the OS stops ringing', async () => {
+    const { phone, os, bridge } = rig();
+    bridge.start();
+    await bridge.ensureConnected();
+    const call = new FakeCall('c1');
+    phone.emitIncoming(call);
+    await flush();
+    const sessionId = os.log.find((l) => l.startsWith('reportIncoming'))!.split(' ')[1]!;
+
+    os.failNext('reportConnected', 2);
+    await os.answer(sessionId);
+    await jest.advanceTimersByTimeAsync(5_000);
+
+    expect(os.stillAlerting()).toEqual([]);
+    expect(call.actions).not.toContain('hangup');
+  });
+
+  it('ends the call on both sides when the OS never takes the connected report', async () => {
+    const { phone, os, bridge } = rig();
+    bridge.start();
+    await bridge.ensureConnected();
+    const call = new FakeCall('c1');
+    phone.emitIncoming(call);
+    await flush();
+    const sessionId = os.log.find((l) => l.startsWith('reportIncoming'))!.split(' ')[1]!;
+
+    os.failNext('reportConnected', 10);
+    await os.answer(sessionId);
+    await jest.advanceTimersByTimeAsync(10_000);
+
+    expect(call.actions).toContain('hangup');
+    expect(os.sessionCount()).toBe(0);
+  });
+
+  it('retries reportEnded until the OS accepts it', async () => {
+    const { phone, os, bridge } = rig();
+    bridge.start();
+    await bridge.ensureConnected();
+    const call = new FakeCall('c1');
+    phone.emitIncoming(call);
+    await flush();
+    expect(os.sessionCount()).toBe(1);
+
+    os.failNext('reportEnded', 2);
+    call.emitEnded('hangup');
+    await jest.advanceTimersByTimeAsync(5_000);
+
+    expect(os.sessionCount()).toBe(0);
+    expect(os.log.filter((l) => l.startsWith('reportEnded'))).toHaveLength(1);
+  });
+});
+
+describe('OS actions whose SDK side fails', () => {
+  async function liveCall() {
+    const r = rig();
+    r.bridge.start();
+    await r.bridge.ensureConnected();
+    const call = new FakeCall('c1');
+    r.phone.emitIncoming(call);
+    await flush();
+    const sessionId = r.os.log.find((l) => l.startsWith('reportIncoming'))!.split(' ')[1]!;
+    return { ...r, call, sessionId };
+  }
+
+  it('hangs up when the OS decline cannot be sent as a reject', async () => {
+    const { os, call, sessionId } = await liveCall();
+    call.failNext.reject = new Error('WebSocket is not open');
+
+    await os.end(sessionId);
+
+    expect(call.actions).toEqual(['reject:decline', 'hangup']);
+  });
+
+  it('puts the OS mute back when the SDK mute fails', async () => {
+    const { os, call, sessionId } = await liveCall();
+    call.emitAnswered();
+    call.failNext.mute = new Error('WebSocket is not open');
+
+    os.mute(sessionId, true);
+    await flush();
+
+    expect(call.isMuted).toBe(false);
+    expect(os.log).toContain(`setMuted ${sessionId} false`);
+  });
+
+  it('puts the OS hold back when the SDK hold is refused', async () => {
+    const { os, call, sessionId } = await liveCall();
+    call.emitAnswered();
+    call.failNext.hold = new Error('call is not active');
+
+    os.hold(sessionId, true);
+    await flush();
+
+    expect(os.log).toContain(`setHeld ${sessionId} false`);
+  });
+
+  it('retries a hold the server fails, then ends the call once none lands', async () => {
+    const { os, phone, call, sessionId } = await liveCall();
+    call.emitAnswered();
+    call.autoConfirm = false;
+
+    os.hold(sessionId, true);
+    for (let i = 0; i < 3; i += 1) {
+      await flush();
+      phone.emitError({ code: 'internal_error', message: 'far end unreachable', callId: 'c1' });
+      await jest.advanceTimersByTimeAsync(2_000);
+    }
+    await flush();
+
+    expect(call.actions.filter((a) => a === 'hold')).toHaveLength(3);
+    expect(call.actions).toContain('hangup');
+  });
+
+  it('stops retrying once a hold lands', async () => {
+    const { os, phone, call, sessionId } = await liveCall();
+    call.emitAnswered();
+    call.autoConfirm = false;
+
+    os.hold(sessionId, true);
+    await flush();
+    phone.emitError({ code: 'internal_error', message: 'glitch', callId: 'c1' });
+    await jest.advanceTimersByTimeAsync(2_000);
+    call.emitHeld('local');
+    await jest.advanceTimersByTimeAsync(30_000);
+
+    expect(call.actions.filter((a) => a === 'hold')).toHaveLength(2);
+    expect(call.actions).not.toContain('hangup');
+  });
+
+  it('puts the OS hold back without retrying when the server refuses on state', async () => {
+    const { os, phone, call, sessionId } = await liveCall();
+    call.emitAnswered();
+    call.autoConfirm = false;
+
+    os.hold(sessionId, true);
+    await flush();
+    phone.emitError({ code: 'invalid_message', message: 'call is not active', callId: 'c1' });
+    await flush();
+
+    expect(call.actions.filter((a) => a === 'hold')).toHaveLength(1);
+    expect(os.log).toContain(`setHeld ${sessionId} false`);
+    expect(call.actions).not.toContain('hangup');
+  });
+
+  it('ignores an error naming another call', async () => {
+    const { os, phone, call, sessionId } = await liveCall();
+    call.emitAnswered();
+    call.autoConfirm = false;
+
+    os.hold(sessionId, true);
+    await flush();
+    phone.emitError({ code: 'invalid_message', message: 'no', callId: 'someone_else' });
+    call.emitHeld('local');
+    await flush();
+
+    expect(os.log).not.toContain(`setHeld ${sessionId} false`);
+  });
+
+  it('ends a call here when the server never confirms its hangup', async () => {
+    const { os, bridge, call, sessionId } = await liveCall();
+    call.emitAnswered();
+    call.autoConfirm = false;
+    os.failNext('end');
+
+    bridge.end('c1');
+    await jest.advanceTimersByTimeAsync(60_000);
+
+    expect(call.actions.filter((a) => a === 'hangup')).toHaveLength(5);
+    expect(os.log).toContain(`reportEnded ${sessionId} failed`);
+  });
+
+  it('does not retry a hangup the server confirms', async () => {
+    const { os, call, sessionId } = await liveCall();
+    call.emitAnswered();
+    call.autoConfirm = false;
+
+    await os.end(sessionId);
+    call.emitEnded('hangup');
+    await jest.advanceTimersByTimeAsync(60_000);
+
+    expect(call.actions.filter((a) => a === 'hangup')).toHaveLength(1);
+  });
+
+  it('survives a DTMF the SDK cannot send', async () => {
+    const { os, call, sessionId } = await liveCall();
+    call.emitAnswered();
+    call.failNext.dtmf = new Error('DTMF sender not available');
+
+    expect(() => os.dtmf(sessionId, '5')).not.toThrow();
+  });
+
+  it('ends in-app when the OS refuses an in-app end', async () => {
+    const { os, bridge, call } = await liveCall();
+    call.emitAnswered();
+    os.failNext('end');
+
+    bridge.end('c1');
+    await flush();
+
+    expect(call.actions).toContain('hangup');
+  });
+});
+
+describe('answering in-app', () => {
+  it('asks the OS to answer an incoming call answered in-app, then fulfils it', async () => {
+    const { phone, os, bridge } = rig();
+    bridge.start();
+    await bridge.ensureConnected();
+    const call = new FakeCall('c1');
+    phone.emitIncoming(call);
+    await flush();
+    const sessionId = os.log.find((l) => l.startsWith('reportIncoming'))!.split(' ')[1]!;
+
+    // The softphone UI answers the SDK call directly, not through the bridge.
+    call.emitAnswered();
+    await flush();
+
+    expect(os.isConnected(sessionId)).toBe(true);
+    expect(os.stillAlerting()).toEqual([]);
+    // The SDK call was already answered; the OS answer must not answer it again.
+    expect(call.actions).not.toContain('answer');
+  });
+
+  it('still reports an outbound call connected when the far end answers', async () => {
+    const { phone, os, bridge } = rig();
+    bridge.start();
+    phone.isConnected = true;
+    const placed = new FakeCall('call_out', '15551234567');
+    phone.callResult = placed;
+    await bridge.call('15551234567');
+    const sessionId = os.log.find((l) => l.startsWith('reportOutgoing'))!.split(' ')[1]!;
+
+    placed.emitAnswered();
+    await flush();
+
+    expect(os.log).toContain(`reportConnected ${sessionId}`);
+    expect(os.log.some((l) => l.startsWith('answer'))).toBe(false);
+  });
+});

@@ -1,3 +1,5 @@
+import { jsTimers, type BridgeTimers } from './timers';
+
 /**
  * "Keep this JS runtime alive" as a promise the platform can await.
  *
@@ -17,14 +19,17 @@ export class RuntimeHold {
   private release: (() => void) | null = null;
   private waiting: Promise<void> | null = null;
 
-  constructor(private readonly ceilingMs = 300_000) {}
+  constructor(
+    private readonly ceilingMs = 300_000,
+    private readonly timers: BridgeTimers = jsTimers
+  ) {}
 
   acquire(): Promise<void> {
     if (this.waiting) return this.waiting;
     this.waiting = new Promise<void>((resolve) => {
-      const timer = setTimeout(() => this.settle(resolve), this.ceilingMs);
+      const timer = this.timers.setTimeout(() => this.settle(resolve), this.ceilingMs);
       this.release = () => {
-        clearTimeout(timer);
+        this.timers.clearTimeout(timer);
         this.settle(resolve);
       };
     });

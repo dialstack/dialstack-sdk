@@ -242,13 +242,13 @@ export type ClientMessage =
   // it does NOT reset the session expiry timer).
   | { type: 'ping'; req_id?: string }
   | { type: 'call.create'; req_id?: string; destination: string; sdp: string }
-  | { type: 'call.answer'; call_id: string }
-  | { type: 'call.reject'; call_id: string; reason?: RejectReason }
-  | { type: 'call.hangup'; call_id: string }
-  | { type: 'call.hold'; call_id: string }
-  | { type: 'call.resume'; call_id: string }
-  | { type: 'call.mute'; call_id: string }
-  | { type: 'call.transfer'; call_id: string; destination: string }
+  | { type: 'call.answer'; req_id?: string; call_id: string }
+  | { type: 'call.reject'; req_id?: string; call_id: string; reason?: RejectReason }
+  | { type: 'call.hangup'; req_id?: string; call_id: string }
+  | { type: 'call.hold'; req_id?: string; call_id: string }
+  | { type: 'call.resume'; req_id?: string; call_id: string }
+  | { type: 'call.mute'; req_id?: string; call_id: string }
+  | { type: 'call.transfer'; req_id?: string; call_id: string; destination: string }
   | {
       type: 'call.transfer.attended';
       req_id?: string;
@@ -257,7 +257,7 @@ export type ClientMessage =
       destination?: string;
       sdp?: string;
     }
-  | { type: 'call.unmute'; call_id: string }
+  | { type: 'call.unmute'; req_id?: string; call_id: string }
   | { type: 'sdp.offer'; call_id: string; sdp: string }
   | { type: 'sdp.answer'; call_id: string; sdp: string }
   | {

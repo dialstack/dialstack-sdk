@@ -106,6 +106,7 @@ function outboundInit(): CallInit {
     transport: { send: jest.fn(), trySend: jest.fn() } as never,
     iceServers: [],
     startConsult: jest.fn(),
+    nextReqId: () => 'req_test',
   };
 }
 

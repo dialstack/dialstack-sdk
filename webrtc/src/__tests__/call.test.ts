@@ -176,6 +176,7 @@ function makeInit(): CallInit {
     transport: { send: jest.fn() } as never,
     iceServers: [],
     startConsult: jest.fn(),
+    nextReqId: () => 'req_test',
   };
 }
 

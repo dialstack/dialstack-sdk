@@ -284,6 +284,7 @@ const CONNECTION_ERROR_CODES = new Set([
   'slow_consumer',
   'transport_closed',
   'ice_fetch_failed',
+  'token_refresh_failed',
 ]);
 
 export function errorMessageKey(code: string): keyof Locale['softphone'] {

@@ -277,7 +277,19 @@ export function makeStyles(p: SoftphonePalette) {
       flexShrink: 0,
       flexBasis: 'auto',
     },
-    actionsSpread: { justifyContent: 'space-evenly', gap: 72 },
+    // Decline and Answer sit out toward the edges, as on the native call screen.
+    // The card centres its children, so the row must take the width itself: shrunk
+    // to its contents, space-between has no room to spread into. Capped at the
+    // softphone's own width so a wide host still reads as a phone, not two buttons
+    // at opposite ends of a tablet.
+    actionsSpread: {
+      alignSelf: 'center',
+      width: '100%',
+      maxWidth: D.maxWidth,
+      justifyContent: 'space-between',
+      paddingHorizontal: D.space * 1.5,
+      gap: 72,
+    },
     actionsInCall: { marginTop: 0 },
     action: {
       width: D.actionButtonSize,
@@ -438,6 +450,9 @@ export function makeStyles(p: SoftphonePalette) {
       backgroundColor: p.surface,
     },
     actionsCompact: {
+      alignSelf: 'auto',
+      width: 'auto',
+      paddingHorizontal: 0,
       gap: 8,
       flex: 0,
       flexShrink: 0,

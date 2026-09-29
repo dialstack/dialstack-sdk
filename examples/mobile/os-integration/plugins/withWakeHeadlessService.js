@@ -51,11 +51,13 @@ import android.os.Build
 import android.util.Log
 
 /**
- * Starts a JS runtime when the callkit module reports a call with no live JS.
+ * Starts the wake task when a push reports a call.
  *
- * Listens for onCallSessionAdded, not onIncomingCallReported: the emitter QUEUES
- * the reported event (flushed to JS later, never broadcast) and only broadcasts
- * events it drops. Session-added is the dropped one that reaches a receiver.
+ * onPushCallReported is sent by our patch to the callkit module's FCM service
+ * for every push call. A warm app in the background receives the call in JS,
+ * but its timers stay paused until a headless task runs, so the wake's
+ * deadlines never fire. onCallSessionAdded is the emitter's own broadcast of an
+ * event no JS was listening for: the cold-wake case, kept as a second trigger.
  *
  * The broadcast is only the process STARTER; the payload is deliberately not
  * forwarded — JS derives the id mapping from the queued event, the only way that
@@ -63,9 +65,10 @@ import android.util.Log
  */
 class WakeEventReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
-    if (intent.getStringExtra("eventName") != "onCallSessionAdded") return
+    val event = intent.getStringExtra("eventName")
+    if (event != "onPushCallReported" && event != "onCallSessionAdded") return
 
-    Log.d("WakeEventReceiver", "call reported with no JS — starting headless JS")
+    Log.d("WakeEventReceiver", "$event — starting headless JS")
     val service = Intent(context, WakeHeadlessService::class.java)
     // Plain startService, NOT startForegroundService: the callkit module already
     // started its own foreground service in this process, so the process is

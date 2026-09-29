@@ -190,6 +190,7 @@ function makeInit(overrides: Partial<CallInit> = {}): CallInit {
     transport: { send: jest.fn() } as never,
     iceServers: [],
     startConsult: jest.fn(),
+    nextReqId: () => 'req_test',
     // No WebAudio under jsdom; the real RingbackTone would no-op, but an explicit
     // stub keeps these tests about media only.
     ringback: { isPlaying: false, start: jest.fn(), stop: jest.fn(), setSinkId: jest.fn() },

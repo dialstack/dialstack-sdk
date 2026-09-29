@@ -45,32 +45,22 @@ export function sessionToken(): string {
 }
 
 // Treats an unparseable token as NOT expired: the server is the authority, and
-// guessing "expired" would discard a token that might work. `leadMs` treats a
-// token dying within that window as already expired.
-function isExpired(token: string, leadMs = 0): boolean {
+// guessing "expired" would discard a token that might work.
+function isExpired(token: string): boolean {
   try {
     const part = token.split('.')[1];
     if (!part) return false;
     const json = decodeBase64Url(part);
     const exp = (JSON.parse(json) as { exp?: number }).exp;
-    return typeof exp === 'number' && exp * 1000 <= Date.now() + leadMs;
+    return typeof exp === 'number' && exp * 1000 <= Date.now();
   } catch {
     return false;
   }
 }
 
-// The pre-connect freshness gate needs headroom: connect() registers with the
-// token and the server's in-band refresh only arms once connected, so a token
-// with seconds left passes an exact check and dies mid-handshake (auth_expired,
-// parked call lost). Also absorbs device clock skew. Matches the SDK's own
-// refresh lead. Applied to the gate only — not to sessionToken()'s storage-vs-
-// seed choice, where it would discard a nearly-live stored token for a stale
-// bundled one.
-const FRESHNESS_LEAD_MS = 60_000;
-
 // Pure-JS base64url decode: `globalThis.atob` is absent/unreliable on Hermes
-// (it threw, so isExpired's catch treated an EXPIRED token as valid and the
-// pre-connect mint never ran) and `Buffer` isn't shipped by RN.
+// (it threw, so isExpired's catch treated an EXPIRED stored token as valid) and
+// `Buffer` isn't shipped by RN.
 const B64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 function decodeBase64Url(seg: string): string {
   const b64 = seg.replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '');
@@ -88,22 +78,6 @@ function decodeBase64Url(seg: string): string {
     }
   }
   return out;
-}
-
-/** Is the current stored/seed token expired, or about to be (within the lead)? */
-export function isSessionTokenExpired(): boolean {
-  const t = getSessionToken() ?? BUNDLED_TOKEN;
-  return !t || isExpired(t, FRESHNESS_LEAD_MS);
-}
-
-/**
- * Return a valid session token, minting a fresh one only if the current is
- * expired. The async counterpart to the sync `sessionToken()` — call it before
- * connecting where awaiting a mint is allowed.
- */
-export async function ensureFreshSessionToken(): Promise<string> {
-  if (!isSessionTokenExpired()) return sessionToken();
-  return refreshSessionToken();
 }
 
 export async function refreshSessionToken(): Promise<string> {

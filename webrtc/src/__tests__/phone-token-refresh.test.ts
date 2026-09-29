@@ -57,10 +57,9 @@ function nowSeconds(): number {
 // Returns the socket so the test can inspect sends and deliver server frames.
 async function connectAuthenticated(phone: DialStackPhone): Promise<FakeWebSocket> {
   const connectPromise = phone.connect();
-  // connect() awaits the (overridden) ICE fetch and opens the socket across a
-  // couple of microtask turns; let those settle before firing `open`.
-  await Promise.resolve();
-  await Promise.resolve();
+  // connect() may mint (a token inside the lead window) and awaits the
+  // (overridden) ICE fetch before opening the socket; let those settle.
+  for (let i = 0; i < 10; i++) await Promise.resolve();
   const ws = FakeWebSocket.instances[FakeWebSocket.instances.length - 1]!;
   ws.fire('open', {});
   // Echo the authenticate req_id, as the real server does — the phone correlates
@@ -292,6 +291,7 @@ describe('DialStackPhone in-band token refresh', () => {
   it('does not send a stale auth.refresh on a transport swapped in during the onTokenExpiring await', async () => {
     const firstToken = makeToken(nowSeconds() + 120);
     let resolveMint: (t: string) => void = () => {};
+    // The timer's mint hangs until the test releases it.
     const onTokenExpiring = jest.fn().mockImplementation(
       () =>
         new Promise<string>((res) => {
@@ -311,10 +311,14 @@ describe('DialStackPhone in-band token refresh', () => {
     await jest.advanceTimersByTimeAsync(65_000);
     expect(onTokenExpiring).toHaveBeenCalledTimes(1);
 
-    // A reconnect swaps in a new transport while the mint is still in flight.
+    // A reconnect swaps in a new transport while the mint is still in flight. Its
+    // token is inside the lead window by now, so it waits on that same mint
+    // rather than asking for a second token.
     const reconnectPromise = phone.reconnect();
-    await Promise.resolve();
-    await Promise.resolve();
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    const minted = makeToken(nowSeconds() + 3600);
+    resolveMint(minted);
+    for (let i = 0; i < 10; i++) await Promise.resolve();
     const ws2 = FakeWebSocket.instances[FakeWebSocket.instances.length - 1]!;
     ws2.fire('open', {});
     ws2.fire('message', {
@@ -327,11 +331,9 @@ describe('DialStackPhone in-band token refresh', () => {
     });
     await reconnectPromise;
 
-    // Now the original mint resolves — its auth.refresh must NOT be sent, on
-    // either socket, because the transport it was captured against is gone.
-    resolveMint(makeToken(nowSeconds() + 3600));
-    await Promise.resolve();
-    await Promise.resolve();
+    expect(onTokenExpiring).toHaveBeenCalledTimes(1);
+    expect(ws2.lastOfType('authenticate')?.token).toBe(minted);
+    // The timer's refresh was for the old transport: no auth.refresh on either.
     expect(ws1.lastOfType('auth.refresh')).toBeUndefined();
     expect(ws2.lastOfType('auth.refresh')).toBeUndefined();
   });
@@ -383,11 +385,13 @@ describe('DialStackPhone in-band token refresh', () => {
     });
 
     const ws = await connectAuthenticated(phone);
+    // The token was already inside the lead window, so connect() minted first.
+    expect(onTokenExpiring).toHaveBeenCalledTimes(1);
 
     // First refresh fires after the min-delay floor (the token is inside the lead
     // window, so the delay was floored rather than scheduled at 0).
     await jest.advanceTimersByTimeAsync(5_000);
-    expect(onTokenExpiring).toHaveBeenCalledTimes(1);
+    expect(onTokenExpiring).toHaveBeenCalledTimes(2);
     const refresh1 = ws.lastOfType('auth.refresh')!;
     ws.fire('message', {
       data: JSON.stringify({ type: 'auth.refreshed', req_id: refresh1.req_id }),
@@ -396,11 +400,11 @@ describe('DialStackPhone in-band token refresh', () => {
     // Immediately after adopting the (still short-lived) token, the next refresh
     // must NOT have fired — the floor holds it off.
     await jest.advanceTimersByTimeAsync(0);
-    expect(onTokenExpiring).toHaveBeenCalledTimes(1);
+    expect(onTokenExpiring).toHaveBeenCalledTimes(2);
 
     // It fires once the min-delay floor elapses — spaced, not spinning.
     await jest.advanceTimersByTimeAsync(5_000);
-    expect(onTokenExpiring).toHaveBeenCalledTimes(2);
+    expect(onTokenExpiring).toHaveBeenCalledTimes(3);
   });
 
   it('schedules nothing when the token has no decodable exp', async () => {

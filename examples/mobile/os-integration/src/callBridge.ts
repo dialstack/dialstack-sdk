@@ -1,6 +1,8 @@
 import { NativeCallBridge, appLifecycle, createPhone } from '@dialstack/sdk-native';
 
-import { API_BASE_URL, ensureFreshSessionToken, refreshSessionToken, sessionToken } from './config';
+import { backgroundTimers } from '../modules/background-timers';
+
+import { API_BASE_URL, refreshSessionToken, sessionToken } from './config';
 import { expoCallKitTelecomAdapter } from './os/expoCallKitTelecomAdapter';
 import { storage } from './storage';
 
@@ -13,8 +15,9 @@ export const phone = createPhone({
   token: sessionToken(),
   apiBaseUrl: API_BASE_URL,
   storage,
-  // Mint a fresh client_secret before the current one lapses (the SDK fires this
-  // ahead of exp). Without it a ~24h dev token dies with a fatal auth_expired.
+  // Mints a fresh client_secret. The phone calls it whenever the token it is about
+  // to use is expired or close to it: before connecting, before every reconnect's
+  // authenticate, on resume, and ahead of exp on a live session.
   onTokenExpiring: refreshSessionToken,
 });
 
@@ -23,13 +26,10 @@ export const bridge = new NativeCallBridge({
   os: expoCallKitTelecomAdapter(),
   lifecycle: appLifecycle,
   log: (m) => console.log(`[call] ${m}`),
-  // Before registering (boot, push-wake, or a foreground resume), mint a fresh
-  // client_secret if the current one is expired and put it on the phone —
-  // otherwise the register would carry a dead token and the parked call is lost.
-  // onTokenExpiring only covers a LIVE session, so it cannot help here.
-  ensureFreshToken: async () => {
-    // config decides whether the current token is still good or a fresh mint is
-    // needed; the bridge just puts the result on the phone before it registers.
-    phone.setToken(await ensureFreshSessionToken());
-  },
+  // One call on the OS surface at a time: this example doesn't support
+  // multi-call yet. Spelled out rather than left to the default because it is
+  // the thing to change first for OS call-waiting.
+  maxOsCalls: 1,
+  // Native, so a wake's deadlines fire in a backgrounded app (see the module).
+  timers: backgroundTimers,
 });

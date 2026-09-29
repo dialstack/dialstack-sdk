@@ -17,6 +17,7 @@ export type PhoneErrorCode =
   | 'slow_consumer'
   | 'transport_closed'
   | 'ice_fetch_failed'
+  | 'token_refresh_failed'
   | 'mic_permission_denied'
   | 'audio_device_unavailable'
   | 'audio_device_in_use';

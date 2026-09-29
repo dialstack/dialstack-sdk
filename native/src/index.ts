@@ -61,6 +61,7 @@ export type {
   OsIncomingCall,
   OsOutgoingCall,
   OsSessionId,
+  OsSessionStatus,
 } from './os/OsCallAdapter';
 
 // The OS⇄SDK call bridge: the one subscriber to both sides. Works with no
@@ -75,6 +76,7 @@ export type {
   NativeCallBridgeOptions,
 } from './bridge/NativeCallBridge';
 export { RuntimeHold } from './bridge/RuntimeHold';
+export type { BridgeTimers } from './bridge/timers';
 export { createPhone, getPhone, requirePhone } from './bridge/createPhone';
 export type { CreatePhoneOptions } from './bridge/createPhone';
 export { appLifecycle, registerWakeTask, DEFAULT_WAKE_TASK } from './bridge/reactNative';

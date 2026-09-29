@@ -94,6 +94,8 @@ export type TransportEvents = {
   message: (msg: ServerMessage) => void;
   closed: (reason: { fatal: boolean; error?: PhoneError }) => void;
   reconnecting: (attempt: number, delayMs: number) => void;
+  // The app resumed. Fired before the liveness probe, whatever the socket state.
+  wake: () => void;
 };
 
 export class Transport {
@@ -196,6 +198,14 @@ export class Transport {
       this.ws.close();
       this.ws = null;
     }
+  }
+
+  /**
+   * Abandon the current socket without ending the transport: its close runs the
+   * normal backoff reconnect. For an attempt that must not authenticate.
+   */
+  dropSocket(): void {
+    this.ws?.close();
   }
 
   private openSocket(): void {
@@ -315,6 +325,7 @@ export class Transport {
   // it claims to be open, probe it with a `ping` and force a reconnect only if
   // no `pong` (or any other frame) comes back in time.
   private onWake(): void {
+    this.listeners.wake?.();
     if (this.closedByUser || this.stopped || this.terminalError || this.reconnectPending) return;
     if (!this.isOpen()) {
       // Already-dead socket (ws null). A reconnect isn't already pending

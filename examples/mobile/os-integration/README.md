@@ -5,10 +5,13 @@ locked or killed phone through the OS call UI, using `@dialstack/sdk-native`'s
 call bridge. Inbound via push wake, answer/decline from the OS surface, in-call
 mute/hold/hang up, and the SDK dial pad for outbound.
 
-**Android is built and verified here. iOS is not.** The design is
-cross-platform — `OsCallAdapter` exists so CallKit slots in where Telecom does —
-but building the iOS half needs an Apple Developer account for the PushKit
-entitlement and an APNs VoIP certificate. Treat it as designed-for and unproven.
+**Both platforms are built and verified** — cold start, push wake, OS ring,
+answer from the lock screen, two-way audio. `OsCallAdapter` is what lets one app
+serve both: CallKit slots in where Telecom does, and the app code above it is
+identical.
+
+The two platforms differ only in how the push is sent: FCM on Android, APNs on
+iOS. See _Testing a wake end to end_ below.
 
 ## Setup
 
@@ -36,10 +39,11 @@ rm -rf node_modules/@dialstack && npm install
 package the app installs — adding `sdk-webrtc` directly gives the app a second
 copy of the phone and `Call` classes.
 
-## Testing a wake end to end on Android
+## Testing a wake end to end
 
 The point of this example is the cold-start path, and it needs a real device or
-emulator, a Firebase project and a real inbound call.
+emulator and a real inbound call. Android is written out in full below; the iOS
+differences are a short section after it.
 
 **1. Firebase.** Create a project and add an **Android** app with package name
 `ai.dialstack.osintegration.example` — it must match `app.json` exactly or the
@@ -165,19 +169,59 @@ distributable. Shipping needs your own keystore, per
 since `prebuild` regenerates `android/`, real signing config belongs in
 `app.json` or an EAS profile.
 
+## The same, on iOS
+
+Only the push differs — APNs instead of FCM. In place of step 1, put your team's
+**APNs auth key** in `.env.local` as `APNS_KEY_PATH`, `APNS_KEY_ID` and
+`APNS_TEAM_ID`; the harness reads them only when an iOS device registers, so an
+Android-only setup needs none of it. Then build with
+
+```bash
+npm run prebuild -- --platform ios
+npx expo run:ios --device --configuration Release
+```
+
+Everything else is identical. Kill the app from the app switcher rather than
+`am kill`, and watch it in Console.app rather than `adb logcat`.
+
+Two things that fail silently rather than erroring:
+
+- **Sandbox vs production.** A locally signed build is signed for development and
+  needs the sandbox APNs host, which is what `APNS_HOST` defaults to. TestFlight
+  and the App Store are signed for production and need `api.push.apple.com`.
+- **`localhost`.** There is no `adb reverse` on iOS, so
+  `EXPO_PUBLIC_WAKE_REGISTRY_URL` has to be your machine's LAN address.
+
+`aps-environment` and the `voip` background mode come from the call library's
+config plugin, so `app.json` needs no iOS block beyond the bundle id.
+
 ## What the wake path does
 
 1. A call arrives for a user with `mobile_push_wakeup` on and no live
    registration. DialStack parks the INVITE and sends the
    `call.mobile_push_wakeup` webhook to the integrator's backend.
-2. The backend sends a high-priority FCM data message to the device.
+2. The backend sends the push — a high-priority FCM data message on Android, an
+   APNs VoIP push on iOS.
 3. The call library reports the call to Telecom/CallKit **with no JS running** —
-   the phone rings instantly — and starts the headless JS task.
+   the phone rings instantly — and starts the app (a headless JS task on Android;
+   PushKit launches the process on iOS).
 4. The app boots, the SDK re-REGISTERs, and DialStack re-forks the parked
    INVITE. An Answer tapped while this ran is applied on arrival.
 
 If nothing is delivered within 5s of registering, the bridge ends the OS session
 and drops the registration so the next call parks again.
+
+One call therefore reaches the app twice, once as the push and once over the
+socket, and both carry the same `call_id`. The push has to include the
+`call.mobile_push_wakeup` webhook's `call_id` (the harness sends it as
+`serverCallId`), and the bridge pairs the OS session with the call that arrives
+on the socket by that id. A push without one gets its OS session ended, since no
+call could ever pair with it.
+
+This example keeps `maxOsCalls` at 1 because it doesn't support multi-call yet:
+a second concurrent call rings in-app but gets no OS session. Android enforces
+one session anyway (Telecom refuses a second); CallKit does not, so the bridge
+applies the cap and the two platforms behave alike.
 
 `scripts/` is a **local test harness**, not the shape of a real integration: it
 keeps device tokens in memory and accepts unsigned webhooks unless

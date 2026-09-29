@@ -1,6 +1,7 @@
 import { USER_ID } from './config';
 import { getWakePushToken } from './os/expoCallKitTelecomAdapter';
 import { requestNotificationPermission } from './permissions';
+import { getInstallId } from './storage';
 
 // The integrator's backend, which receives DialStack's `call.mobile_push_wakeup`
 // webhook and sends the push. The rig in scripts/ plays that role.
@@ -24,7 +25,7 @@ export async function registerForWakePush(log: (m: string) => void = () => {}): 
     const res = await fetch(`${REGISTRY_URL}/devices`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ user_id: USER_ID, token, type }),
+      body: JSON.stringify({ user_id: USER_ID, token, type, device_id: getInstallId() }),
     });
     log(
       res.ok

@@ -121,6 +121,10 @@ export interface CallInit {
   // Hold the mic until this inbound call is answered. Threaded from
   // `PhoneOptions.deferInboundCapture`; see that option for why.
   deferInboundCapture?: boolean;
+  // Mints the req_id stamped on each action frame, so the server's error reply
+  // (which echoes it) can be traced back to this call and this action. Threaded
+  // from the phone so ids stay unique across calls.
+  nextReqId: () => string;
 }
 
 /**
@@ -179,6 +183,13 @@ export class Call {
   }
 
   private transport: Transport;
+  private readonly nextReqId: () => string;
+  // req_ids of the action frames this call sent, so the phone can tie the
+  // server's error reply to this call.
+  private readonly issuedReqIds = new Set<string>();
+  // The subset that were hangups: an error answering one means the server has no
+  // such call, so it is over here too.
+  private readonly hangupReqIds = new Set<string>();
   private readonly startConsult: (parent: Call, destination: string) => Promise<Call>;
   private localStream: MediaStream;
   private remoteStream: MediaStream;
@@ -236,6 +247,7 @@ export class Call {
     this.to = init.to;
     this.state = init.initialState;
     this.transport = init.transport;
+    this.nextReqId = init.nextReqId;
     this.startConsult = init.startConsult;
     this.ringback = init.ringback ?? new RingbackTone();
     this.ringback.setSinkId?.(init.audioOutputDeviceId ?? null);
@@ -476,6 +488,26 @@ export class Call {
     return this.endedSettled || this.state === 'ended';
   }
 
+  private issueReqId(): string {
+    const reqId = this.nextReqId();
+    this.issuedReqIds.add(reqId);
+    return reqId;
+  }
+
+  /** @internal Whether `reqId` names an action frame this call sent. */
+  ownsRequest(reqId: string): boolean {
+    return this.issuedReqIds.has(reqId);
+  }
+
+  /** @internal The server's error reply to one of this call's actions. */
+  handleActionError(reqId: string): void {
+    if (!this.issuedReqIds.delete(reqId)) return;
+    // The server refuses a hangup only when it has no such call (a repeat of one
+    // it already ended is accepted), so any error answering one means the call
+    // is over. Revisit this if the server ever refuses a hangup for another reason.
+    if (this.hangupReqIds.delete(reqId)) this.settleEnded('hangup');
+  }
+
   on<K extends keyof CallEventMap>(event: K, handler: Listener<K>): void {
     let set = this.listeners[event] as Set<Listener<K>> | undefined;
     if (!set) {
@@ -524,18 +556,25 @@ export class Call {
   // ready) and from prepareAnswerForOffer() (to flush a deferred answer).
   private sendAnswer(): void {
     if (this.answerSent || this.state === 'ended' || !this.pendingAnswerSdp) return;
-    this.transport.send({ type: 'call.answer', call_id: this.id });
+    this.transport.send({ type: 'call.answer', req_id: this.issueReqId(), call_id: this.id });
     this.transport.send({ type: 'sdp.answer', call_id: this.id, sdp: this.pendingAnswerSdp });
     this.answerSent = true;
   }
 
   reject(reason: RejectReason = 'decline'): void {
-    this.transport.send({ type: 'call.reject', call_id: this.id, reason });
+    this.transport.send({
+      type: 'call.reject',
+      req_id: this.issueReqId(),
+      call_id: this.id,
+      reason,
+    });
   }
 
   hangup(): void {
     if (this.endedSettled) return;
-    this.transport.send({ type: 'call.hangup', call_id: this.id });
+    const reqId = this.issueReqId();
+    this.hangupReqIds.add(reqId);
+    this.transport.send({ type: 'call.hangup', req_id: reqId, call_id: this.id });
   }
 
   hold(): void {
@@ -547,7 +586,7 @@ export class Call {
     // call) — sending call.hold for a non-active call draws a server
     // `invalid_message: call is not active` that surfaces as a spurious error.
     if (this.state !== 'active') return;
-    this.transport.send({ type: 'call.hold', call_id: this.id });
+    this.transport.send({ type: 'call.hold', req_id: this.issueReqId(), call_id: this.id });
   }
 
   /**
@@ -559,7 +598,11 @@ export class Call {
    */
   setConferenceHold(held: boolean): void {
     if (this.state === 'ended') return;
-    this.transport.send({ type: held ? 'call.hold' : 'call.resume', call_id: this.id });
+    this.transport.send({
+      type: held ? 'call.hold' : 'call.resume',
+      req_id: this.issueReqId(),
+      call_id: this.id,
+    });
   }
 
   /**
@@ -570,13 +613,13 @@ export class Call {
   holdAfterResume(): void {
     if (this.conference) return;
     if (this.state === 'ended') return;
-    this.transport.send({ type: 'call.hold', call_id: this.id });
+    this.transport.send({ type: 'call.hold', req_id: this.issueReqId(), call_id: this.id });
   }
 
   resume(): void {
     // Symmetric to hold(): only a held call can be resumed.
     if (this.state !== 'held') return;
-    this.transport.send({ type: 'call.resume', call_id: this.id });
+    this.transport.send({ type: 'call.resume', req_id: this.issueReqId(), call_id: this.id });
   }
 
   mute(): void {
@@ -612,7 +655,11 @@ export class Call {
     // ever widens what the server permits, so it is always safe — and without it
     // a pre-merge mute would stay `recvonly` with no way back.
     if (!muted || !this.conference) {
-      this.transport.send({ type: muted ? 'call.mute' : 'call.unmute', call_id: this.id });
+      this.transport.send({
+        type: muted ? 'call.mute' : 'call.unmute',
+        req_id: this.issueReqId(),
+        call_id: this.id,
+      });
     }
     // Unmerge restores this track to the wire and re-applies `isMuted`.
     this.localStream.getAudioTracks().forEach((t) => (t.enabled = !muted));
@@ -638,7 +685,12 @@ export class Call {
    */
   transfer(destination: string): void {
     this.assertTransferable();
-    this.transport.send({ type: 'call.transfer', call_id: this.id, destination });
+    this.transport.send({
+      type: 'call.transfer',
+      req_id: this.issueReqId(),
+      call_id: this.id,
+      destination,
+    });
   }
 
   /**
@@ -683,7 +735,12 @@ export class Call {
         callId: this.id,
       });
     }
-    this.transport.send({ type: 'call.transfer.attended', call_id: this.id, step: 'complete' });
+    this.transport.send({
+      type: 'call.transfer.attended',
+      req_id: this.issueReqId(),
+      call_id: this.id,
+      step: 'complete',
+    });
   }
 
   private assertTransferable(): void {
@@ -967,9 +1024,21 @@ export class Call {
     this.releaseMedia();
   }
 
+  /**
+   * @internal End the call here without waiting for the server, because the
+   * socket it lived on is gone. Emits `ended` like a server end, so every owner
+   * tears down the same way.
+   */
+  endLocally(reason: CallEndReason): void {
+    this.settleEnded(reason);
+  }
+
   private settleEnded(reason: CallEndReason): void {
     if (this.endedSettled) return;
     this.endedSettled = true;
+    // Nothing can answer an ended call's actions any more.
+    this.issuedReqIds.clear();
+    this.hangupReqIds.clear();
     this.state = 'ended';
     this.ringback.stop();
     this.stopDurationTimer();

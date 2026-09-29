@@ -4,8 +4,9 @@ import { PhoneError } from './errors.js';
 // that used to be loose fields on DialStackPhone move together. connect() spans
 // two windows no single signal covers, plus the promise waiter:
 //   1. `token`     — the pre-socket ICE-fetch window (no frame exists yet, so a
-//      mid-fetch disconnect() is detected by object identity). Also the
-//      concurrent-connect guard.
+//      mid-fetch disconnect() is detected by object identity). Also what
+//      `isConnecting` reads; a concurrent connect() joins the phone's
+//      `connectInFlight` rather than being refused here.
 //   2. `authReqId` — the post-open authenticate wait; the `authenticated`/`error`
 //      must echo it to be ours.
 //   3. `resolvers` — the connect() promise, settled on the correlated reply.

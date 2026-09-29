@@ -138,6 +138,8 @@ class FakePhone extends Emitter {
   // Mirrors the real DialStackPhone getter. Load-bearing for adoption: the hook
   // reads it to decide whether the host already connected the phone.
   isConnected = false;
+  // A connect() is in flight (the host's, or a push wake's) but not yet connected.
+  isConnecting = false;
   // Also mirrors the real phone: the hook seeds from this on mount so a call that
   // arrived before the UI existed still reaches React.
   activeCalls: Call[] = [];
@@ -240,6 +242,20 @@ describe('usePhone existingPhone adoption', () => {
     // Connecting it does not transfer ownership of teardown.
     unmount();
     expect(adopted.disconnectCalls).toBe(0);
+  });
+
+  it('does not connect an adopted phone whose connect is already in flight', () => {
+    // A push wake is registering the phone when the UI mounts: a second connect
+    // here is how a stale token raced the wake's mint.
+    const adopted = new FakePhone({ token: 'owned-elsewhere' });
+    adopted.isConnecting = true;
+
+    const { unmount } = renderHook(() =>
+      useComposed({ token: 'tok', existingPhone: adopted as unknown as DialStackPhone })
+    );
+
+    expect(adopted.connectCalls).toBe(0);
+    unmount();
   });
 
   it('adopts a call that arrived on the phone before the UI mounted', async () => {

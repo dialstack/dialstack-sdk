@@ -173,6 +173,8 @@ export interface SoftphoneProviderBaseProps<Extra extends object> extends Softph
    * `phone.call`; web never sets it. See `useCalls`.
    */
   placeOutbound?: (destination: string) => Promise<Call>;
+  /** Answers an incoming call accepted in-app. Defaults to `call.answer()`. See `useCalls`. */
+  answerIncoming?: (call: Call) => void;
   /** Platform-only context fields (web: `{ scope }`; native: `{ locationProvider }`). */
   extra: Extra;
   children: React.ReactNode;
@@ -200,6 +202,7 @@ export function SoftphoneProviderBase<Extra extends object>({
   onCallEnded,
   onError,
   placeOutbound,
+  answerIncoming,
   extra,
   children,
 }: SoftphoneProviderBaseProps<Extra>): React.JSX.Element {
@@ -255,6 +258,7 @@ export function SoftphoneProviderBase<Extra extends object>({
     onCallEnded,
     onError: handleError,
     placeOutbound,
+    answerIncoming,
   });
 
   // The hook takes a NON-nullable phone; DISCONNECTED_PHONE stands in so a null

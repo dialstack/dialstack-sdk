@@ -47,7 +47,8 @@
         }
       ],
       "./plugins/withWakeHeadlessService",
-      "./plugins/withLocalRigCleartext"
+      "./plugins/withLocalRigCleartext",
+      "./plugins/withCallKitIcon"
     ],
     "experiments": {
       "typedRoutes": true,

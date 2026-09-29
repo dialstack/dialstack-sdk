@@ -71,7 +71,43 @@ export function runOsCallAdapterContract(
       const { adapter } = await fixture();
       const sessionId = await adapter.reportIncoming({ callId: 'call_1', from: '1002' });
       const active = await adapter.getActiveSession();
-      t.expect(active).toEqual({ sessionId, callId: 'call_1' });
+      t.expect({ sessionId: active?.sessionId, callId: active?.callId }).toEqual({
+        sessionId,
+        callId: 'call_1',
+      });
+    });
+
+    t.it(
+      'getActiveSession reports status and hold as the OS shows them, when it reports them',
+      async () => {
+        // Optional fields: an adapter that leaves one out opts that field out of
+        // the bridge's reconcile. One that reports it must report it right, or the
+        // bridge "corrects" a session that was fine.
+        const { adapter } = await fixture();
+        const sessionId = await adapter.reportIncoming({ callId: 'call_1', from: '1002' });
+        const ringing = await adapter.getActiveSession();
+        if (ringing?.status !== undefined) t.expect(ringing.status).toBe('ringing');
+        await adapter.reportConnected(sessionId);
+        await adapter.setHeld(sessionId, true);
+        await flush();
+        const after = await adapter.getActiveSession();
+        if (after?.status !== undefined) t.expect(after.status).toBe('connected');
+        if (after?.held !== undefined) t.expect(after.held).toBe(true);
+      }
+    );
+
+    t.it('incomingReported carries the call_id the session was reported with', async () => {
+      // The bridge pairs a session with its call by this, with no second lookup.
+      const { adapter } = await fixture();
+      const seen: OsActiveSession[] = [];
+      adapter.on('incomingReported', (e) => seen.push(e));
+      const sessionId = await adapter.reportIncoming({
+        callId: 'call_1',
+        from: '15551234567',
+        displayName: null,
+      });
+      await Promise.resolve();
+      t.expect(seen.find((e) => e.sessionId === sessionId)?.callId).toBe('call_1');
     });
 
     t.it('reportOutgoing opens a live session that reportEnded clears', async () => {
