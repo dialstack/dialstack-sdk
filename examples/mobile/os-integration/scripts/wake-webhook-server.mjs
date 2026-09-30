@@ -10,7 +10,7 @@
  * makes the callee's phone ring — FCM on Android, APNs on iOS. This is the piece
  * DialStack deliberately does NOT do: it stores no device tokens, so mapping a
  * DialStack `user_id` to a push token is the integrator's job
- * (docs/docs/webrtc/mobile.md).
+ * (docs/docs/webrtc/mobile/push-notifications.md).
  *
  * The two platforms need different transports AND different payload shapes, so
  * the device's registered `type` decides both. APNs config is only required once
