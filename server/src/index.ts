@@ -2489,6 +2489,8 @@ export interface Queue {
   timeout_seconds: number;
   /** Per-agent cooldown after each call (0-600 seconds). 0 disables wrap-up. */
   wrap_up_seconds: number;
+  /** Ring members who are on a non-queue call instead of skipping them. Members on a queue call are always skipped. */
+  ring_busy_agents: boolean;
   /** Position-announcement config; null when announcements are disabled. */
   announcements: QueueAnnouncementsConfig | null;
   /** Press-1 callback config; null when callbacks are disabled. */
@@ -2551,6 +2553,8 @@ export interface QueueCreateParams {
   /** How long a caller waits for an agent to answer, 0-3600 seconds (one hour). Defaults to 300. `0` means the 3600 maximum. */
   timeout_seconds?: number;
   wrap_up_seconds?: number;
+  /** Defaults to false. */
+  ring_busy_agents?: boolean;
   /** Provide an object to enable announcements; omit or set null to disable. */
   announcements?: QueueAnnouncementsConfigInput | null;
   /** Provide an object to enable callbacks; omit or set null to disable. */
@@ -2579,6 +2583,7 @@ export interface QueueUpdateParams {
   /** How long a caller waits for an agent to answer, 0-3600 seconds (one hour). `0` means the 3600 maximum. A ring already in progress when the wait is up finishes rather than being cut off. */
   timeout_seconds?: number;
   wrap_up_seconds?: number;
+  ring_busy_agents?: boolean;
   /** Send null to disable announcements; send an object to set/replace the config. */
   announcements?: QueueAnnouncementsConfigInput | null;
   /** Send null to disable callbacks; send an object to set/replace the config. */
