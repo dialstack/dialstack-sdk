@@ -4,6 +4,7 @@ import { backgroundTimers } from '../modules/background-timers';
 
 import { API_BASE_URL, refreshSessionToken, sessionToken } from './config';
 import { expoCallKitTelecomAdapter } from './os/expoCallKitTelecomAdapter';
+import { ringback } from './ringback';
 import { storage } from './storage';
 
 /**
@@ -19,6 +20,7 @@ export const phone = createPhone({
   // to use is expired or close to it: before connecting, before every reconnect's
   // authenticate, on resume, and ahead of exp on a live session.
   onTokenExpiring: refreshSessionToken,
+  ringback,
 });
 
 export const bridge = new NativeCallBridge({

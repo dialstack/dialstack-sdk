@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, Text, TextInput, View } from 'react-native';
 import {
   dialPadKeys,
   softphoneDimensions as D,
@@ -7,7 +7,16 @@ import {
   type Locale,
   type SoftphonePalette,
 } from '@dialstack/sdk-react/core';
-import { Glyph, ControlButton, chunk, makeStyles, ControlsSlot } from '../primitives';
+import {
+  Glyph,
+  ControlButton,
+  KeyboardDoneBar,
+  chunk,
+  makeStyles,
+  ControlsSlot,
+} from '../primitives';
+
+const KEYBOARD_ID = 'dialstack-softphone-call-keyboard';
 
 export interface PeerSummary {
   id: string;
@@ -100,7 +109,8 @@ export function OngoingCallView({
   const inKeypadMode = isActive && overlay === 'keypad' && canSendDtmf;
 
   return (
-    <View style={styles.screen}>
+    // A tap outside the field closes the keyboard, as in other apps.
+    <Pressable style={styles.screen} onPress={Keyboard.dismiss} accessible={false}>
       {}
       {transferOther && (
         <>
@@ -206,6 +216,7 @@ export function OngoingCallView({
             placeholder={t('transferPlaceholder')}
             placeholderTextColor={palette.textSecondary}
             keyboardType="phone-pad"
+            inputAccessoryViewID={KEYBOARD_ID}
             autoCorrect={false}
           />
           <View style={styles.transferActions}>
@@ -242,6 +253,7 @@ export function OngoingCallView({
             placeholder={t('addCallPlaceholder')}
             placeholderTextColor={palette.textSecondary}
             keyboardType="phone-pad"
+            inputAccessoryViewID={KEYBOARD_ID}
             autoCorrect={false}
           />
           <View style={styles.transferActions}>
@@ -353,6 +365,7 @@ export function OngoingCallView({
           </Pressable>
         )}
       </View>
-    </View>
+      <KeyboardDoneBar id={KEYBOARD_ID} label={t('done')} styles={styles} />
+    </Pressable>
   );
 }

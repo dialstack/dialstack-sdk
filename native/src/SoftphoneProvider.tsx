@@ -4,6 +4,7 @@ import React, { useEffect, useMemo } from 'react';
 import { AppState, Vibration, type AppStateStatus } from 'react-native';
 import InCallManager from 'react-native-incall-manager';
 
+import { resolveCallAudio, silentRingback, type CallAudioOwner } from './callAudio';
 import { nativeSignalingSocket } from './nativeSignalingSocket';
 import type { NativeCallBridge } from './bridge/NativeCallBridge';
 import { type CountryCode } from 'libphonenumber-js';
@@ -134,6 +135,14 @@ export interface SoftphoneProviderProps {
    * starts media (on iOS that is what gives the call its audio).
    */
   bridge?: Pick<NativeCallBridge, 'call' | 'answer'>;
+  /**
+   * Who owns call audio: ringing, outbound ringback, the audio session and the
+   * proximity sensor. `'sdk'` (the default): the provider does all of it.
+   * `'host'`: the provider does none of it, for an app that reports calls to
+   * CallKit/Telecom itself, which ring the phone and own the session. Doing any
+   * of it on top of the OS breaks capture. Always `'host'` with a `bridge`.
+   */
+  callAudio?: CallAudioOwner;
   children: React.ReactNode;
 }
 
@@ -162,8 +171,10 @@ export function SoftphoneProvider({
   onCallEnded,
   onError,
   bridge,
+  callAudio: requestedCallAudio,
   children,
 }: SoftphoneProviderProps): React.JSX.Element {
+  const callAudio = resolveCallAudio(bridge !== undefined, requestedCallAudio);
   // Stable identity so the base's context-value memo isn't busted every render.
   const extra = useMemo(() => ({ locationProvider }), [locationProvider]);
 
@@ -184,7 +195,7 @@ export function SoftphoneProvider({
       existingPhone={existingPhone}
       token={token}
       storage={storage}
-      ringback={nativeRingback}
+      ringback={callAudio === 'host' ? silentRingback : nativeRingback}
       createSignalingSocket={nativeSignalingSocket}
       onAppResume={nativeAppResume}
       apiBaseUrl={apiBaseUrl}
@@ -203,7 +214,7 @@ export function SoftphoneProvider({
       answerIncoming={answerIncoming}
       extra={extra}
     >
-      <NativeAudioSession osOwnsCallAudio={bridge !== undefined} />
+      <NativeAudioSession hostOwnsCallAudio={callAudio === 'host'} />
       {children}
     </SoftphoneProviderBase>
   );
@@ -212,19 +223,19 @@ export function SoftphoneProvider({
 /**
  * Ringtone and audio-session ownership.
  *
- * `osOwnsCallAudio` is the whole story: with a call bridge, Telecom/CallKit is
- * already ringing the phone and already owns the mode, so doing either here is
- * not just duplicated — it breaks capture. InCallManager's ringtone puts the
- * device in MODE_RINGTONE, and WebRTC cannot initialise the recorder in that
- * mode: it releases it and never rebuilds, so the answered call has no
- * microphone. Only inbound calls have a ringing phase, which is why outbound
+ * `hostOwnsCallAudio` is the whole story: when the host reports calls to
+ * Telecom/CallKit, the OS is already ringing the phone and already owns the
+ * mode, so doing either here is not just duplicated — it breaks capture.
+ * InCallManager's ringtone puts the device in MODE_RINGTONE, and WebRTC cannot
+ * initialise the recorder in that mode: it releases it and never rebuilds, so
+ * the answered call has no microphone. Only inbound calls have a ringing phase, which is why outbound
  * always worked and inbound never did.
  */
-function NativeAudioSession({ osOwnsCallAudio }: { osOwnsCallAudio: boolean }): null {
+function NativeAudioSession({ hostOwnsCallAudio }: { hostOwnsCallAudio: boolean }): null {
   const { calls, incomingRinging } = useSoftphoneBase();
   // Hold the session while ANY call is connected so switching/promoting calls
-  // doesn't drop the route. Left to the OS when it owns the call.
-  const hasConnectedCall = !osOwnsCallAudio && calls.some((c) => c.isConnected);
+  // doesn't drop the route.
+  const hasConnectedCall = !hostOwnsCallAudio && calls.some((c) => c.isConnected);
   useEffect(() => {
     if (!hasConnectedCall) return;
     InCallManager.start({ media: 'audio' });
@@ -232,7 +243,7 @@ function NativeAudioSession({ osOwnsCallAudio }: { osOwnsCallAudio: boolean }): 
   }, [hasConnectedCall]);
 
   useEffect(() => {
-    if (osOwnsCallAudio || !incomingRinging) return;
+    if (hostOwnsCallAudio || !incomingRinging) return;
     // Pass a NON-array vibrate arg so InCallManager skips its own one-shot
     // vibrate: that path can't loop and, given any array, crashes on Android 14+
     // (all-zero [0] waveform rejected). We drive the repeating vibration below.
@@ -249,7 +260,7 @@ function NativeAudioSession({ osOwnsCallAudio }: { osOwnsCallAudio: boolean }): 
       Vibration.cancel();
       InCallManager.stopRingtone();
     };
-  }, [incomingRinging, osOwnsCallAudio]);
+  }, [incomingRinging, hostOwnsCallAudio]);
   return null;
 }
 

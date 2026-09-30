@@ -23,7 +23,11 @@
       "predictiveBackGestureEnabled": false,
       "package": "ai.dialstack.osintegration.example",
       "googleServicesFile": "./google-services.json",
-      "permissions": ["android.permission.MODIFY_AUDIO_SETTINGS", "android.permission.RECORD_AUDIO"]
+      "permissions": [
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.WAKE_LOCK"
+      ]
     },
     "web": {
       "output": "static",

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, Text, TextInput, View } from 'react-native';
 import {
   dialPadKeys,
   softphoneDimensions as D,
@@ -8,7 +8,9 @@ import {
   type SoftphonePalette,
 } from '@dialstack/sdk-react/core';
 import type { ConnectionState } from '../../SoftphoneProvider';
-import { Chip, Glyph, chunk, makeStyles } from '../primitives';
+import { Chip, Glyph, KeyboardDoneBar, chunk, makeStyles } from '../primitives';
+
+const KEYBOARD_ID = 'dialstack-softphone-dial-keyboard';
 
 export interface DialPadViewProps {
   palette: SoftphonePalette;
@@ -48,7 +50,8 @@ export function DialPadView({
   const label = key ? t(key) : undefined;
 
   return (
-    <View style={styles.dialScreen}>
+    // A tap outside the field closes the keyboard, as in other apps.
+    <Pressable style={styles.dialScreen} onPress={Keyboard.dismiss} accessible={false}>
       {label ? (
         <Chip styles={styles} tone={connection === 'error' ? 'error' : 'info'} label={label} />
       ) : null}
@@ -63,6 +66,7 @@ export function DialPadView({
           placeholder={t('destinationPlaceholder')}
           placeholderTextColor={palette.textSecondary}
           keyboardType="phone-pad"
+          inputAccessoryViewID={KEYBOARD_ID}
           autoCorrect={false}
           autoFocus={autoFocusDestination}
           textAlign="center"
@@ -119,6 +123,7 @@ export function DialPadView({
           />
         </Pressable>
       </View>
-    </View>
+      <KeyboardDoneBar id={KEYBOARD_ID} label={t('done')} styles={styles} />
+    </Pressable>
   );
 }

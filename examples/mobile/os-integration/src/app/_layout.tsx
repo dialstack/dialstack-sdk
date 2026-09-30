@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SoftphoneProvider } from '@dialstack/sdk-native';
 
+import { CallProximity } from '../CallProximity';
 import { bridge, phone } from '../callBridge';
 import { API_BASE_URL, sessionToken } from '../config';
 import { requestMicrophonePermission } from '../permissions';
@@ -52,8 +53,12 @@ export default function RootLayout() {
           // Route the softphone's dial through the bridge so an outbound call is
           // reported to the OS and survives backgrounding, like an incoming one.
           bridge={bridge}
+          // Implied by the bridge; stated because it makes the app responsible for
+          // ringing, the audio session and the proximity sensor (CallProximity).
+          callAudio="host"
           onError={(e) => console.log(`[sdk] error ${e.code ?? '?'}: ${e.message ?? ''}`)}
         >
+          <CallProximity />
           <Stack screenOptions={{ headerShown: false, contentStyle: styles.safe }} />
         </SoftphoneProvider>
       </SafeAreaView>

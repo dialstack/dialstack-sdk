@@ -171,6 +171,23 @@ const storage: PlatformStorage = {
 
 `storage` just needs `getItem`/`setItem`/`removeItem`.
 
+## Call audio
+
+By default `<SoftphoneProvider>` owns call audio through
+`react-native-incall-manager`: it rings inbound calls, plays the outbound
+ringback, and holds the audio session (which also turns on the proximity sensor)
+while a call is connected. The ringback goes only to a phone the provider creates
+from `token`: a phone passed as `existingPhone` keeps the `ringback` it was
+created with, so pass one to `createPhone({ ringback })` yourself.
+
+When the operating system owns the call instead, because you report calls to
+CallKit or Telecom, the provider must stay out of it: the OS rings the phone and
+activates the session itself, and ringing on top of it costs the answered call
+its microphone. Set `callAudio="host"` and the provider does none of the above.
+With a `bridge` it is always `"host"`. Anything you still want, such as the proximity
+sensor, is then yours to drive (`InCallManager.startProximitySensor()` does not
+touch the audio session).
+
 ## Example apps
 
 Three runnable apps, all wired with the permissions and plugin above:

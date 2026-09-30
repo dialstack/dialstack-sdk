@@ -6,7 +6,17 @@
  * web components share Glyph + softphone-styles).
  */
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  Easing,
+  InputAccessoryView,
+  Keyboard,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import {
   softphoneDimensions as D,
@@ -176,6 +186,32 @@ export function chunk<T>(arr: ReadonlyArray<T>, size: number): T[][] {
   return out;
 }
 
+/**
+ * iOS phone-pad keyboards have no return key, so nothing closes them: this bar
+ * rides above the keyboard of any field whose `inputAccessoryViewID` is `id`.
+ * Android needs none (Back closes the keyboard).
+ */
+export function KeyboardDoneBar({
+  id,
+  label,
+  styles,
+}: {
+  id: string;
+  label: string;
+  styles: ReturnType<typeof makeStyles>;
+}): React.JSX.Element | null {
+  if (Platform.OS !== 'ios') return null;
+  return (
+    <InputAccessoryView nativeID={id}>
+      <View style={styles.keyboardDoneBar}>
+        <Pressable onPress={Keyboard.dismiss} hitSlop={8} accessibilityRole="button">
+          <Text style={styles.keyboardDoneText}>{label}</Text>
+        </Pressable>
+      </View>
+    </InputAccessoryView>
+  );
+}
+
 export function makeStyles(p: SoftphonePalette) {
   return StyleSheet.create({
     outer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: D.space },
@@ -205,6 +241,16 @@ export function makeStyles(p: SoftphonePalette) {
       paddingHorizontal: 12,
     },
     dialScreen: { position: 'relative', flex: 1, minHeight: 0, gap: D.space },
+    keyboardDoneBar: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      backgroundColor: p.surface,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: p.border,
+    },
+    keyboardDoneText: { color: p.accent, fontSize: 16, fontWeight: '600' },
     chipText: { color: p.textSecondary, fontSize: 12, fontWeight: '600' },
     chipError: { backgroundColor: 'rgba(229,72,77,0.16)' },
     chipErrorText: { color: p.danger },
