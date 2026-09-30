@@ -1647,6 +1647,12 @@ export interface DeviceCheckSyncLine {
    * no assigned line yet. Paired with `line_number: 0`.
    */
   management?: boolean;
+  /**
+   * True on an entry targeting the credentials of a user recently removed
+   * from the device, which the phone keeps registering with until it fetches
+   * its new configuration. Paired with `line_number: 0`.
+   */
+  retiring?: boolean;
 }
 
 export interface DeviceCheckSyncResponse {
