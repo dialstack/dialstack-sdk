@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shared-tab softphone</title>
+    <script type="importmap">
+      { "imports": { "@dialstack/sdk-webrtc": "/sdk/index.js" } }
+    </script>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 40rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      .status {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+      }
+      .badge {
+        font-size: 0.8rem;
+        padding: 0.1rem 0.5rem;
+        border-radius: 1rem;
+        background: #eee;
+      }
+      .call,
+      .notice {
+        border: 1px solid #ddd;
+        border-radius: 0.5rem;
+        padding: 0.75rem;
+        margin: 0.75rem 0;
+      }
+      .notice {
+        background: #fff8e1;
+      }
+      .error {
+        color: #b00020;
+      }
+      button {
+        margin-right: 0.25rem;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Shared-tab softphone</h1>
+    <p>
+      Open this page in several tabs. Only one tab connects, every tab rings, and you can answer
+      from any of them.
+    </p>
+
+    <div class="status">
+      <strong id="status">connecting</strong>
+      <span class="badge" id="leader" hidden>this tab holds the connection</span>
+      <button id="reconnect" hidden>Use the phone here</button>
+    </div>
+
+    <p class="error" id="error" hidden></p>
+
+    <form class="notice" id="location" hidden>
+      <p>Your network changed. Confirm where you are so that 911 can find you.</p>
+      <input name="address_number" placeholder="Number" size="6" />
+      <input name="street" placeholder="Street" required />
+      <input name="unit" placeholder="Unit" size="6" />
+      <input name="city" placeholder="City" required />
+      <input name="state" placeholder="State" size="3" required />
+      <input name="postal_code" placeholder="ZIP" size="6" required />
+      <button>Save location</button>
+    </form>
+
+    <form id="dial">
+      <input name="destination" placeholder="Number or extension" required />
+      <button>Call</button>
+    </form>
+
+    <div id="calls"></div>
+
+    <script type="module">
+      import { createSharedPhone } from './shared-phone.mjs';
+
+      const $ = (id) => document.getElementById(id);
+      const { apiBaseUrl } = await fetch('/config').then((r) => r.json());
+
+      // Ask for the microphone here, in a tab the user is looking at: the leader
+      // that will use it is often a background tab, where no prompt can appear.
+      // The grant covers the whole origin.
+      async function grantMicrophone() {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
+      }
+
+      function render(state, { isLeader }) {
+        window.phoneState = state; // handy in devtools
+        $('status').textContent = state.status;
+        $('leader').hidden = !isLeader;
+        $('reconnect').hidden = !['replaced', 'disconnected'].includes(state.status);
+        $('location').hidden = !state.needsLocation;
+        $('calls').replaceChildren(...state.calls.map(renderCall));
+      }
+
+      function renderCall(call) {
+        const el = document.createElement('div');
+        el.className = 'call';
+        const who = call.direction === 'inbound' ? call.fromName || call.from : call.to;
+        el.append(`${call.direction} · ${who} · ${call.state}${call.isMuted ? ' · muted' : ''} `);
+        const actions = {
+          ringing: call.direction === 'inbound' ? ['answer', 'reject'] : ['hangup'],
+          trying: ['hangup'],
+          active: ['hold', call.isMuted ? 'unmute' : 'mute', 'hangup'],
+          held: ['resume', 'hangup'],
+        }[call.state] ?? [];
+        for (const action of actions) {
+          const button = document.createElement('button');
+          button.textContent = action;
+          button.onclick = async () => {
+            if (action === 'answer') await grantMicrophone();
+            phone.send({ action, callId: call.id });
+          };
+          el.append(button);
+        }
+        return el;
+      }
+
+      function showError(error) {
+        $('error').hidden = false;
+        $('error').textContent = `${error.action} failed: ${error.message}`;
+        setTimeout(() => ($('error').hidden = true), 5000);
+      }
+
+      const phone = createSharedPhone({
+        fetchToken: () => fetch('/token', { method: 'POST' }).then((r) => r.text()),
+        render,
+        showError,
+        phoneOptions: { apiBaseUrl },
+      });
+      window.sharedPhone = phone; // handy in devtools
+
+      $('dial').onsubmit = async (event) => {
+        event.preventDefault();
+        await grantMicrophone();
+        phone.send({ action: 'call', destination: event.target.destination.value });
+      };
+      $('reconnect').onclick = () => phone.send({ action: 'connect' });
+      $('location').onsubmit = (event) => {
+        event.preventDefault();
+        const fields = Object.fromEntries([...new FormData(event.target)].filter(([, v]) => v));
+        phone.send({ action: 'setEmergencyAddress', address: { ...fields, country: 'US' } });
+      };
+    </script>
+  </body>
+</html>
