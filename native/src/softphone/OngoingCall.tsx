@@ -40,6 +40,7 @@ export function OngoingCall(): React.JSX.Element | null {
     displayNumber,
     t,
     palette,
+    audio,
   } = useSoftphone();
   const { showKeypad, showTransfer, showAddCall } = overlays;
   const [dtmfEntered, setDtmfEntered] = useState('');
@@ -136,6 +137,9 @@ export function OngoingCall(): React.JSX.Element | null {
       canAddCall={canAddCall}
       onToggleMute={actions.toggleMute}
       onToggleHold={actions.toggleHold}
+      speakerOn={audio.speakerOn}
+      canToggleSpeaker={audio.supported}
+      onToggleSpeaker={audio.toggleSpeaker}
       onToggleOverlay={(panel) => {
         if (panel === 'keypad') overlays.toggleKeypad();
         else if (panel === 'transfer') overlays.toggleTransfer();

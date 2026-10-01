@@ -6,7 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SoftphoneProvider } from '@dialstack/sdk-native';
 
 import { CallProximity } from '../CallProximity';
-import { bridge, phone } from '../callBridge';
+import { audioOutput, bridge, phone } from '../callBridge';
 import { API_BASE_URL, sessionToken } from '../config';
 import { requestMicrophonePermission } from '../permissions';
 import { registerForWakePush } from '../pushRegistration';
@@ -56,6 +56,8 @@ export default function RootLayout() {
           // Implied by the bridge; stated because it makes the app responsible for
           // ringing, the audio session and the proximity sensor (CallProximity).
           callAudio="host"
+          // The OS owns the output route too; without this the speaker button is disabled.
+          audioOutput={audioOutput}
           onError={(e) => console.log(`[sdk] error ${e.code ?? '?'}: ${e.message ?? ''}`)}
         >
           <CallProximity />

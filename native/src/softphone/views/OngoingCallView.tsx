@@ -63,6 +63,9 @@ export interface OngoingCallViewProps {
   canAddCall: boolean;
   onToggleMute: () => void;
   onToggleHold: () => void;
+  speakerOn: boolean;
+  canToggleSpeaker: boolean;
+  onToggleSpeaker: () => void;
   onToggleOverlay: (panel: Exclude<OverlayPanel, null>) => void;
   onHangup: () => void;
 
@@ -101,6 +104,9 @@ export function OngoingCallView({
   canAddCall,
   onToggleMute,
   onToggleHold,
+  speakerOn,
+  canToggleSpeaker,
+  onToggleSpeaker,
   onToggleOverlay,
   onHangup,
   errorChip = null,
@@ -317,15 +323,14 @@ export function OngoingCallView({
             styles={styles}
             disabled={!canAddCall}
           />
-          {}
           <ControlButton
-            label={t('audioDevices')}
+            label={t('audioSpeaker')}
             glyph={softphoneGlyphs.speaker}
-            on={false}
-            onPress={() => {}}
+            on={speakerOn}
+            onPress={onToggleSpeaker}
             palette={palette}
             styles={styles}
-            disabled
+            disabled={!canToggleSpeaker}
           />
         </View>
       )}

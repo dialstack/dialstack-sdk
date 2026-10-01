@@ -1,9 +1,14 @@
 /** SoftphoneProvider (React Native), same API as the web provider. */
 
-import React, { useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { AppState, Vibration, type AppStateStatus } from 'react-native';
 import InCallManager from 'react-native-incall-manager';
 
+import {
+  useAudioOutputController,
+  type AudioOutputController,
+  type UseAudioOutput,
+} from './audioOutput';
 import { resolveCallAudio, silentRingback, type CallAudioOwner } from './callAudio';
 import { nativeSignalingSocket } from './nativeSignalingSocket';
 import type { NativeCallBridge } from './bridge/NativeCallBridge';
@@ -143,6 +148,12 @@ export interface SoftphoneProviderProps {
    * of it on top of the OS breaks capture. Always `'host'` with a `bridge`.
    */
   callAudio?: CallAudioOwner;
+  /**
+   * The output route, for a host that owns call audio: without it the in-call
+   * speaker button is disabled, since only the OS integration can move the
+   * route. Ignored unless call audio is `'host'`.
+   */
+  audioOutput?: AudioOutputController;
   children: React.ReactNode;
 }
 
@@ -151,6 +162,7 @@ export interface SoftphoneProviderProps {
 export interface SoftphoneContextValue extends SoftphoneContextBase {
   /** Host-supplied device-location source for the E911 form, or undefined. */
   locationProvider: (() => Promise<EmergencyAddressInput>) | undefined;
+  audio: UseAudioOutput;
 }
 
 export function SoftphoneProvider({
@@ -172,11 +184,30 @@ export function SoftphoneProvider({
   onError,
   bridge,
   callAudio: requestedCallAudio,
+  audioOutput,
   children,
 }: SoftphoneProviderProps): React.JSX.Element {
   const callAudio = resolveCallAudio(bridge !== undefined, requestedCallAudio);
+  // Through a ref: an inline onError would otherwise give `audio`, and so the
+  // context value, a new identity every render.
+  const onErrorRef = useRef(onError);
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+  const reportAudioError = useCallback(
+    (err: unknown) =>
+      onErrorRef.current?.({
+        code: 'audio_output_failed',
+        message: err instanceof Error ? err.message : String(err),
+      }),
+    []
+  );
+  const audio = useAudioOutputController(
+    callAudio === 'host' ? audioOutput : undefined,
+    reportAudioError
+  );
   // Stable identity so the base's context-value memo isn't busted every render.
-  const extra = useMemo(() => ({ locationProvider }), [locationProvider]);
+  const extra = useMemo(() => ({ locationProvider, audio }), [locationProvider, audio]);
 
   // The bridge's BridgeCall is structurally the webrtc Call the softphone renders
   // — the port is narrow on purpose, so the two types are decoupled by design
@@ -273,6 +304,11 @@ export function useSoftphone(): SoftphoneContextValue {
 export function useActiveCall(): { activeCall: Call | null; actions: UseCallActions } {
   const { activeCall, actions } = useSoftphone();
   return { activeCall, actions };
+}
+
+/** The call-audio output route and the speaker toggle. */
+export function useAudioOutput(): UseAudioOutput {
+  return useSoftphone().audio;
 }
 
 /** The currently-ringing inbound call, or null. */

@@ -27,6 +27,7 @@ export {
   useSoftphone,
   useActiveCall,
   useIncomingCall,
+  useAudioOutput,
 } from './SoftphoneProvider';
 export type {
   SoftphoneProviderProps,
@@ -49,6 +50,14 @@ export type { PlatformStorage, EmergencyAddressInput } from '@dialstack/sdk-reac
 // The call surface, by name, so an integrator bridging to the OS call UI can
 // write `(call: Call) => …` functions over it.
 export type { Call, CallState, CallEndReason, UseCallActions } from '@dialstack/sdk-react/core';
+
+// Output routing, implemented by a host that owns call audio.
+export type {
+  AudioOutput,
+  AudioOutputController,
+  AudioOutputKind,
+  UseAudioOutput,
+} from './audioOutput';
 
 // The OS call surface as a library-agnostic port. `@dialstack/sdk-native/testing`
 // has the in-memory fake and the contract suite an adapter must pass.

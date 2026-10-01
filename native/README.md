@@ -188,6 +188,25 @@ With a `bridge` it is always `"host"`. Anything you still want, such as the prox
 sensor, is then yours to drive (`InCallManager.startProximitySensor()` does not
 touch the audio session).
 
+The output route is yours too. Without an `audioOutput` controller the in-call
+speaker button is disabled. To enable it, pass one built over your OS integration:
+
+```tsx
+const audioOutput: AudioOutputController = {
+  current: () => lastReportedRoute, // what the OS reports, same object until it changes
+  onChange: (listener) => subscribeToRouteChanges(listener),
+  setSpeaker: (on) => requestSpeaker(on),
+};
+
+<SoftphoneProvider bridge={bridge} audioOutput={audioOutput}>
+  …
+</SoftphoneProvider>;
+```
+
+The button shows only the route the OS reports. A switch made from the CallKit
+or Telecom UI, a headset, or a car therefore shows up in-app as well.
+`useAudioOutput()` exposes the same state if you build your own UI.
+
 ## Example apps
 
 Three runnable apps, all wired with the permissions and plugin above:

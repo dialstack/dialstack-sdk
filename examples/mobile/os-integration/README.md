@@ -228,11 +228,33 @@ keeps device tokens in memory and accepts unsigned webhooks unless
 `DIALSTACK_WEBHOOK_SECRET` is set. A real integrator runs a deployed server with
 durable token storage, mandatory signature verification and a stable URL.
 
+## Call audio
+
+With a bridge the provider runs with `callAudio="host"`, so CallKit/Telecom own
+the audio session and this app supplies the rest.
+
+- **Speaker button:** the adapter's `audioOutput` feeds the softphone's
+  `audioOutput` prop. It shows only the route the OS reports, so a switch from
+  the CallKit screen or the Android call notification shows up in-app too.
+  The button is a speaker toggle, not a device list: the call library can
+  override to the speaker but cannot select a specific device. A headset takes
+  the route when it connects, and turning the speaker off picks the best
+  non-speaker device.
+- **Ringback:** the call library plays `assets/sounds/ringback.wav`, started and
+  stopped by the SDK through the adapter's `ringback`, with the web's rules:
+  from alerting (180) until answer, and never over early media.
+- **Proximity:** `CallProximity` blanks the screen at the ear from placing a call
+  until it ends, only while the route is the earpiece.
+
+Keep InCallManager to its screen and proximity calls. Its ringback runs its own
+device selection and moves the audio to the speaker behind Telecom's back.
+
 ## Swapping the call library
 
 `src/os/expoCallKitTelecomAdapter.ts` is the only file that imports
 `expo-callkit-telecom`, so a callkeep (or hand-rolled CallKit/Telecom) twin is a
-drop-in. An eslint rule holds that line: a second subscriber to the OS call
+drop-in: it exports the same `expoCallKitTelecom()` shape, `{ os, ringback,
+audioOutput }`, and `src/callBridge.ts` changes one import. An eslint rule holds that line: a second subscriber to the OS call
 events races the bridge on every answer, and the two then disagree about who
 owns the session.
 

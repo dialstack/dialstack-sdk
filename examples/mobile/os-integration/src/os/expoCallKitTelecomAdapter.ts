@@ -2,6 +2,10 @@ import { RTCAudioSession } from '@livekit/react-native-webrtc';
 import * as Calls from 'expo-callkit-telecom';
 import { isValidPhoneNumber } from 'libphonenumber-js';
 import type {
+  AudioOutput,
+  AudioOutputController,
+  AudioOutputKind,
+  CreatePhoneOptions,
   OsCallAdapter,
   OsCallEventName,
   OsCallEvents,
@@ -53,7 +57,25 @@ function remember(s: Calls.CallSession): void {
   if (callId) sessionsByCallId.set(callId, s);
 }
 
-export function expoCallKitTelecomAdapter(): OsCallAdapter {
+/**
+ * The app's one entry point to the call library: the OS call port, the
+ * ringback and the speaker route, wired to each other. A twin for another
+ * library exports this same shape, so swapping libraries stays one import.
+ */
+export function expoCallKitTelecom(): {
+  os: OsCallAdapter;
+  ringback: Ringback;
+  audioOutput: AudioOutputController;
+} {
+  const os = expoCallKitTelecomAdapter();
+  return {
+    os,
+    ringback: expoCallKitTelecomRingback(os),
+    audioOutput: expoCallKitTelecomAudioOutput(os),
+  };
+}
+
+function expoCallKitTelecomAdapter(): OsCallAdapter {
   // Fires for OUR reports and for a wake push's native ones alike. NOT enough on
   // its own: CALL_SESSION_ADDED has a queue limit of 0, so it is dropped rather
   // than replayed to a late-attaching listener, and on a cold wake every listener
@@ -268,6 +290,111 @@ class Fanout {
           this.emit('audioSessionActivated', { sessionId: e.calls[0]?.id ?? null });
         });
     }
+  }
+}
+
+/**
+ * The softphone's speaker button over the library's route API. Takes the
+ * adapter rather than subscribing to activation natively: the library replays
+ * a queued event to its first subscriber only, and that is the adapter's.
+ */
+function expoCallKitTelecomAudioOutput(os: OsCallAdapter): AudioOutputController {
+  const listeners = new Set<(o: AudioOutput | null) => void>();
+  // No route outside a call session: before CallKit activates it, iOS reports
+  // the idle route, usually the speaker, which is not where the call will play.
+  const read = (
+    session: Calls.AudioSession,
+    route: Calls.AudioRoute = session.currentRoute
+  ): AudioOutput | null => (session.isActive ? toAudioOutput(route) : null);
+  let current = read(Calls.getAudioSession());
+  const set = (output: AudioOutput | null): void => {
+    current = output;
+    for (const l of listeners) l(current);
+  };
+
+  // iOS reports this for every route change, the CallKit speaker button
+  // included; Android for Core-Telecom's endpoint changes.
+  Calls.addAudioRouteChangedListener((e) => set(read(Calls.getAudioSession(), e.currentRoute)));
+  os.on('audioSessionActivated', () => set(read(Calls.getAudioSession())));
+  // Not left to a route event: iOS need not send one when the session ends, so
+  // a call that ended on speaker would show speaker until the next call.
+  Calls.addAudioSessionDeactivatedListener(() => set(null));
+
+  return {
+    current: () => current,
+    onChange(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    setSpeaker: async (on) => Calls.setAudioSessionPortOverride(on),
+  };
+}
+
+type Ringback = NonNullable<CreatePhoneOptions['ringback']>;
+
+/**
+ * Outbound ringback through the call library's dialtone, started and stopped by
+ * the SDK: from alerting (180) until answer, and never over early media.
+ * Both platforms skip playback while the call's audio session is inactive, and
+ * on iOS a 180 can arrive before CallKit activates it, so a wanted tone is
+ * retried on activation.
+ */
+function expoCallKitTelecomRingback(os: OsCallAdapter): Ringback {
+  let wanted = false;
+  // Best effort: start() runs inside the core's call.ringing handling, so a
+  // throw would cost the call its 'ringing' event, not just the tone.
+  const tone = (fn: () => void): void => {
+    try {
+      fn();
+    } catch {
+      // The call goes on without a ringback.
+    }
+  };
+  os.on('audioSessionActivated', () => {
+    if (wanted) tone(Calls.playDialtone);
+  });
+  return {
+    get isPlaying() {
+      return wanted;
+    },
+    // Idempotent, per the Ringback contract: the core calls start() on every
+    // 180 and never guards its call sites.
+    start() {
+      if (wanted) return;
+      wanted = true;
+      tone(Calls.playDialtone);
+    },
+    stop() {
+      if (!wanted) return;
+      wanted = false;
+      tone(Calls.stopDialtone);
+    },
+  };
+}
+
+function toAudioOutput(route: Calls.AudioRoute): AudioOutput | null {
+  const port = route.outputs[0];
+  return port ? { id: port.uid, kind: outputKind(port.portType), name: port.portName } : null;
+}
+
+function outputKind(portType: Calls.AudioOutputPortType): AudioOutputKind {
+  switch (portType) {
+    case 'builtInReceiver':
+      return 'earpiece';
+    case 'builtInSpeaker':
+      return 'speaker';
+    case 'headphones':
+      return 'wired';
+    case 'bluetoothA2DP':
+    case 'bluetoothLE':
+    case 'bluetoothHFP':
+      return 'bluetooth';
+    case 'carAudio':
+      return 'car';
+    case 'airPlay':
+      return 'airplay';
+    default:
+      return 'other';
   }
 }
 

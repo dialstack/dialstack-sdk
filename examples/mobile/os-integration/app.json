@@ -47,7 +47,9 @@
         "expo-callkit-telecom",
         {
           "incomingCallTimeout": 300,
-          "androidEventReceiver": "ai.dialstack.osintegration.example.WakeEventReceiver"
+          "androidEventReceiver": "ai.dialstack.osintegration.example.WakeEventReceiver",
+          "sounds": ["./assets/sounds/ringback.wav"],
+          "defaultDialtone": "ringback.wav"
         }
       ],
       "./plugins/withWakeHeadlessService",

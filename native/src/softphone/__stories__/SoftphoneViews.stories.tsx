@@ -116,6 +116,9 @@ const call = (
     canAddCall
     onToggleMute={noop}
     onToggleHold={noop}
+    speakerOn={false}
+    canToggleSpeaker
+    onToggleSpeaker={noop}
     onToggleOverlay={noop}
     onHangup={noop}
     {...over}
@@ -182,6 +185,12 @@ const Grid: React.FC<{ palette: Palette; size?: HostSize }> = ({ palette, size }
     </SoftphoneFrame>
     <SoftphoneFrame label="in call · muted" palette={palette} size={size}>
       {call(palette, { isMuted: true })}
+    </SoftphoneFrame>
+    <SoftphoneFrame label="in call · speaker" palette={palette} size={size}>
+      {call(palette, { speakerOn: true })}
+    </SoftphoneFrame>
+    <SoftphoneFrame label="in call · no audio routing" palette={palette} size={size}>
+      {call(palette, { canToggleSpeaker: false })}
     </SoftphoneFrame>
     <SoftphoneFrame label="in call · held" palette={palette} size={size}>
       {call(palette, { isHeld: true, showDuration: false, stateLabel: 'On hold' })}
