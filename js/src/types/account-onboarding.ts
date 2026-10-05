@@ -42,7 +42,22 @@ export interface E911NotificationConfig {
 export interface AccountConfig {
   region?: string;
   extension_length?: number;
+  /** Whether calls are transcribed. Defaults to true. */
   transcription_enabled?: boolean;
+  /**
+   * Whether inbound calls are transcribed. Narrows transcription_enabled, which
+   * gates every direction, so both must be on. Independent of the recording
+   * flags (default: true).
+   */
+  transcription_inbound_enabled?: boolean;
+  /**
+   * Whether outbound calls are transcribed. A transcript needs the call's
+   * audio, so turn this off where the law requires every party to consent,
+   * even with recording off (default: true).
+   */
+  transcription_outbound_enabled?: boolean;
+  /** Whether extension-to-extension calls are transcribed (default: true) */
+  transcription_internal_enabled?: boolean;
   /** Whether call audio recordings are retained. Defaults to true. */
   recording_enabled?: boolean;
   /**
