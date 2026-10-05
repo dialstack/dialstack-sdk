@@ -58,11 +58,11 @@ export function deriveOnboardingState(snapshot: OnboardingDataSnapshot): Derived
         !!l.address?.postal_code
     );
   if (hasBusinessDetails) completed.account.add('business-details');
-  // team-members: ≥1 user on the account. The account owner is an admin-side
-  // identity and never appears as a user here, so every user is a real team
-  // member; a true empty team can't mark the substep complete. (This used to
-  // discount any user whose email matched the account's contact address, which
-  // wrongly excluded an owner who also holds a seat.)
+  // team-members: ≥1 user on the account. Administrators without phone service
+  // (the owner, to begin with) are not users, so they don't count until they
+  // are given a seat; a true empty team can't mark the substep complete. (This
+  // used to discount any user whose email matched the account's contact
+  // address, which wrongly excluded an owner who also holds a seat.)
   if (hasBusinessDetails && users.length >= 1) completed.account.add('team-members');
 
   // Any unexpired DID — temp or user-ordered — counts as a working number.

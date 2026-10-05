@@ -118,6 +118,15 @@ describe('OnboardingPortal SSA gating', () => {
     await expectPortal();
   });
 
+  it('still loads when the administrators read fails', async () => {
+    // That read only feeds the team-members step's phone-access offer.
+    renderPortal({
+      ...accountWith('not_required'),
+      admin: { users: { list: jest.fn().mockRejectedValue(new Error('forbidden')) } },
+    });
+    await expectPortal();
+  });
+
   it('does not block on a tos load failure when acceptance is not required', async () => {
     renderPortal({
       account: {

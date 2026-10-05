@@ -1,10 +1,12 @@
 /**
  * TeamMembers sub-step of the Account onboarding step.
- * Lists existing users (excluding account owner) and allows adding/removing them.
+ * Lists existing users and allows adding/removing them. Administrators with no
+ * phone service (the account owner, to begin with) are listed too, with a
+ * one-click way to give them a seat, so they are not re-added as duplicates.
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
-import type { Extension } from '@dialstack/sdk-js';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import type { AdminUser, Extension } from '@dialstack/sdk-js';
 import { useOnboarding } from '../../OnboardingContext';
 import { StepNavigation } from '../../StepNavigation';
 import { UserIcon, TrashIcon } from '../../components/icons';
@@ -32,6 +34,7 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
     dialstack,
     locale,
     users: contextUsers,
+    adminUsers,
     extensions: contextExtensions,
     reloadSharedData,
   } = useOnboarding();
@@ -45,11 +48,53 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
   );
 
   const [isAddingUser, setIsAddingUser] = useState(false);
+  const [seatingAdminId, setSeatingAdminId] = useState<string | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [userError, setUserError] = useState<string | null>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  // One mutation at a time: each ends in reloadSharedData(), and two reloads
+  // in flight can land out of order, restoring a stale snapshot.
+  const busy = isAddingUser || !!seatingAdminId || !!deletingUserId;
+
+  // Creates the user, then its extension, rolling the user back if the
+  // extension fails so a retry doesn't hit a duplicate email. Returns whether
+  // it succeeded; failures are reported through userError, after a reload so
+  // the list shows a seat whose rollback failed rather than offering a retry
+  // that can only hit "already exists".
+  const addSeat = useCallback(
+    async (name: string, email: string, extNumber: string): Promise<boolean> => {
+      try {
+        const user = await dialstack.users.create({ name, email });
+
+        try {
+          await dialstack.extensions.create({
+            number: extNumber,
+            target: user.id,
+          });
+        } catch (extErr) {
+          await dialstack.users.del(user.id).catch(() => {});
+          throw extErr;
+        }
+
+        await reloadSharedData();
+        return true;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes('already exists')) {
+          setUserError(t.users.duplicateEmail);
+        } else {
+          setUserError(message);
+        }
+        await reloadSharedData().catch(() => {});
+        return false;
+      }
+    },
+    [dialstack, reloadSharedData, t]
+  );
 
   const handleAddUser = useCallback(async () => {
-    if (isAddingUser) return;
+    if (busy) return;
     setUserError(null);
 
     if (!newUserName.trim()) {
@@ -62,55 +107,44 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
     }
 
     setIsAddingUser(true);
-
-    try {
-      const user = await dialstack.users.create({
-        name: newUserName.trim(),
-        email: newUserEmail.trim(),
-      });
-
-      const extNumber = newUserExtension.trim() || getNextExtensionNumber(contextExtensions);
-
-      try {
-        await dialstack.extensions.create({
-          number: extNumber,
-          target: user.id,
-        });
-      } catch (extErr) {
-        // Roll back user creation on extension failure
-        await dialstack.users.del(user.id).catch(() => {});
-        throw extErr;
-      }
-
-      await reloadSharedData();
+    const added = await addSeat(
+      newUserName.trim(),
+      newUserEmail.trim(),
+      newUserExtension.trim() || getNextExtensionNumber(contextExtensions)
+    );
+    if (added) {
       setNewUserName('');
       setNewUserEmail('');
       // newUserExtension will update via the effect below
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      if (message.includes('already exists')) {
-        setUserError(t.users.duplicateEmail);
-      } else {
-        setUserError(message);
-      }
-    } finally {
-      setIsAddingUser(false);
     }
-  }, [
-    isAddingUser,
-    newUserName,
-    newUserEmail,
-    newUserExtension,
-    contextExtensions,
-    dialstack,
-    reloadSharedData,
-    t,
-    locale,
-  ]);
+    setIsAddingUser(false);
+  }, [busy, newUserName, newUserEmail, newUserExtension, contextExtensions, addSeat, t, locale]);
+
+  const handleGivePhoneAccess = useCallback(
+    async (admin: AdminUser) => {
+      if (busy) return;
+      setUserError(null);
+
+      // A user needs a name, and an administrator who hasn't accepted their
+      // invitation may not have one yet. Hand them to the form instead.
+      const name = admin.name?.trim();
+      if (!name) {
+        setNewUserName('');
+        setNewUserEmail(admin.email);
+        nameInputRef.current?.focus();
+        return;
+      }
+
+      setSeatingAdminId(admin.id);
+      await addSeat(name, admin.email, getNextExtensionNumber(contextExtensions));
+      setSeatingAdminId(null);
+    },
+    [busy, addSeat, contextExtensions]
+  );
 
   const handleRemoveUser = useCallback(
     async (userId: string) => {
-      if (deletingUserId) return;
+      if (busy) return;
       setDeletingUserId(userId);
       try {
         await dialstack.users.del(userId);
@@ -121,7 +155,7 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
         setDeletingUserId(null);
       }
     },
-    [deletingUserId, dialstack, reloadSharedData]
+    [busy, dialstack, reloadSharedData]
   );
 
   // Keep next-extension suggestion in sync with context extensions after mutations.
@@ -130,10 +164,10 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
     setNewUserExtension(getNextExtensionNumber(contextExtensions));
   }, [contextExtensions]);
 
-  // Substep requires ≥1 user on the account. The account owner is an admin-side
-  // identity and is never one of these users, so there is nobody to discount.
-  // Mirror the derive's intent without letting the user advance past a
-  // still-incomplete state.
+  // Substep requires ≥1 user on the account. Administrators without phone
+  // service are listed but don't count until they get a seat. Mirror the
+  // derive's intent without letting the user advance past a still-incomplete
+  // state.
   const hasEnoughUsers = contextUsers.length >= 1;
 
   const handleDone = useCallback(() => {
@@ -144,7 +178,10 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
     onDone();
   }, [hasEnoughUsers, onDone, t]);
 
-  const otherUsers = contextUsers;
+  // The API links an administrator to their user; matching on email here would
+  // second-guess it.
+  const adminsWithoutSeat = adminUsers.filter((a) => a.user === null);
+  const adminUserIds = new Set(adminUsers.map((a) => a.user).filter((id) => id !== null));
 
   return (
     <div>
@@ -156,6 +193,7 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
           <div className="form-group">
             <label className="form-label">{t.users.nameLabel}</label>
             <input
+              ref={nameInputRef}
               className="form-input"
               type="text"
               value={newUserName}
@@ -187,7 +225,7 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
             type="button"
             className="btn btn-secondary btn-add"
             onClick={() => void handleAddUser()}
-            disabled={isAddingUser}
+            disabled={busy}
           >
             {isAddingUser ? t.saving : t.users.addUser}
           </button>
@@ -198,7 +236,7 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
             about the account and go stale after the first member. */}
         <BillingImpactNotice resource="userSeat" count={1} variant="rate" />
 
-        {otherUsers.length === 0 ? (
+        {contextUsers.length === 0 && adminsWithoutSeat.length === 0 ? (
           <div className="no-users">{t.users.noUsers}</div>
         ) : (
           <table className="user-table">
@@ -211,8 +249,36 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
               </tr>
             </thead>
             <tbody>
-              {otherUsers.map((u) => {
+              {adminsWithoutSeat.map((a) => (
+                <tr key={a.id}>
+                  <td className="user-table-name">
+                    <span className="user-avatar">
+                      <UserIcon />
+                    </span>
+                    {a.name ?? ''}
+                    <span className="user-admin-badge">{t.users.adminBadge}</span>
+                  </td>
+                  <td>{a.email}</td>
+                  <td className="user-table-muted">{t.users.noPhoneService}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-give-phone"
+                      disabled={busy}
+                      onClick={() => void handleGivePhoneAccess(a)}
+                    >
+                      {seatingAdminId === a.id
+                        ? t.users.givingPhoneAccess
+                        : t.users.givePhoneAccess}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {contextUsers.map((u) => {
                 const ext = getExtensionForUser(u.id, contextExtensions);
+                // Deleting an administrator's user only drops their seat; they
+                // stay an administrator and reappear above without one.
+                const isAdmin = adminUserIds.has(u.id);
                 return (
                   <tr key={u.id}>
                     <td className="user-table-name">
@@ -220,6 +286,7 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
                         <UserIcon />
                       </span>
                       {u.name ?? ''}
+                      {isAdmin && <span className="user-admin-badge">{t.users.adminBadge}</span>}
                     </td>
                     <td>{u.email ?? ''}</td>
                     <td>{ext ? ext.number : '—'}</td>
@@ -227,8 +294,8 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
                       <button
                         type="button"
                         className="btn-icon-danger"
-                        title={t.users.removeUser}
-                        disabled={!!deletingUserId}
+                        title={isAdmin ? t.users.removePhoneAccess : t.users.removeUser}
+                        disabled={busy}
                         onClick={() => void handleRemoveUser(u.id)}
                       >
                         <TrashIcon />

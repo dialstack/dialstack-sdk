@@ -45,6 +45,28 @@
   height: 16px;
 }
 
+.user-table-muted {
+  font-style: italic;
+}
+
+.user-admin-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+  padding: 0 8px;
+  height: 20px;
+  font-size: 11px;
+  font-weight: var(--ds-font-weight-medium);
+  background: var(--ds-color-surface-subtle);
+  color: var(--ds-color-text-secondary);
+}
+
+.user-table .btn-give-phone {
+  font-size: var(--ds-font-size-small);
+  padding: 2px var(--ds-spacing-sm);
+  white-space: nowrap;
+}
+
 /* ── Add User Form ── */
 .add-user-form {
   display: grid;

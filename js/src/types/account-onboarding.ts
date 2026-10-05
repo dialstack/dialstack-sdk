@@ -278,6 +278,36 @@ export interface OnboardingUser {
   updated_at: string;
 }
 
+/**
+ * A person who can administer the account in the admin portal.
+ *
+ * This is a different population from {@link OnboardingUser}s, not a subset:
+ * an administrator need not have phone service (an account owner usually has
+ * none, and so never appears in `users.list()`), and most users are not
+ * administrators. The two overlap only by email, which {@link AdminUser.user}
+ * resolves for you.
+ */
+export interface AdminUser {
+  id: string;
+  /** Display name, shared across every account this person administers. */
+  name: string | null;
+  /** Portal login address, and the only link to a user. */
+  email: string;
+  /**
+   * Role granted on this account. `owner` is the account's mandatory signer and
+   * a superset of `account_admin`; there is exactly one per account.
+   */
+  role: 'account_admin' | 'owner';
+  /**
+   * This person's user in this account, or `null` when they have no phone
+   * service. The user's id by default; the full object when `expand: ['user']`
+   * is requested.
+   */
+  user: string | OnboardingUser | null;
+  /** When the role was granted on this account. */
+  created_at: string;
+}
+
 export interface CreateUserRequest {
   name?: string;
   email?: string;

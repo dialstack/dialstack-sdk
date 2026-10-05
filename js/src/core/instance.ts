@@ -69,6 +69,7 @@ import type {
   Tos,
   EffectivePricing,
   OnboardingUser,
+  AdminUser,
   CreateUserRequest,
   CreateExtensionRequest,
   AddressSuggestion,
@@ -1815,6 +1816,27 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
           throw new ApiError(message, response.status, code, details);
         }
         return response.json();
+      },
+    },
+  };
+
+  admin = {
+    users: {
+      // Reads every page: the list is newest-first, so the owner, usually the
+      // oldest administrator, is the one a single page would drop.
+      list: async (options?: { limit?: number; expand?: string[] }): Promise<AdminUser[]> => {
+        const params = new URLSearchParams();
+        params.set('limit', String(options?.limit ?? 100));
+        for (const e of options?.expand ?? []) params.append('expand[]', e);
+
+        return this.fetchAllPages<AdminUser>(async () => {
+          const response = await this.fetchApi(`/v1/admin/users?${params.toString()}`);
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Failed to list admin users: ${response.status} ${errorText}`);
+          }
+          return response.json();
+        });
       },
     },
   };

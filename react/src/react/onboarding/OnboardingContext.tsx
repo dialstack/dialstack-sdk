@@ -27,6 +27,7 @@ import {
   type EffectivePricing,
   type OnboardingCollectionOptions,
   type OnboardingUser,
+  type AdminUser,
   type OnboardingLocation,
   type Extension,
 } from '@dialstack/sdk-js';
@@ -71,6 +72,12 @@ export interface OnboardingContextValue {
   pricing: EffectivePricing | null;
   /** Pre-fetched users shared across steps. */
   users: OnboardingUser[];
+  /**
+   * The account's portal administrators. A different population from `users`:
+   * an administrator with `user: null` has no phone service, which is the
+   * account owner's starting state.
+   */
+  adminUsers: AdminUser[];
   /** Pre-fetched extensions shared across steps. */
   extensions: Extension[];
   /** Pre-fetched locations shared across steps. */
@@ -89,6 +96,7 @@ export interface OnboardingProviderProps {
   account: Account | null;
   pricing?: EffectivePricing | null;
   users: OnboardingUser[];
+  adminUsers?: AdminUser[];
   extensions: Extension[];
   locations: OnboardingLocation[];
   reloadSharedData: () => Promise<void>;
@@ -100,6 +108,9 @@ export interface OnboardingProviderProps {
   entryMode?: StepEntryMode;
   children: ReactNode;
 }
+
+// Stable, so an omitted prop doesn't change the context value every render.
+const NO_ADMIN_USERS: AdminUser[] = [];
 
 const OnboardingContext = createContext<OnboardingContextValue | null>(null);
 
@@ -135,6 +146,7 @@ export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({
   account,
   pricing,
   users,
+  adminUsers,
   extensions,
   locations,
   reloadSharedData,
@@ -166,6 +178,7 @@ export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({
       account,
       pricing: pricing ?? null,
       users,
+      adminUsers: adminUsers ?? NO_ADMIN_USERS,
       extensions,
       locations,
       reloadSharedData,
@@ -184,6 +197,7 @@ export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({
       account,
       pricing,
       users,
+      adminUsers,
       extensions,
       locations,
       reloadSharedData,

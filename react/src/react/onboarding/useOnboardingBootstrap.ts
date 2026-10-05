@@ -15,6 +15,7 @@ import { deriveOnboardingState } from './derive';
 import {
   type Account,
   type OnboardingUser,
+  type AdminUser,
   type OnboardingLocation,
   type Tos,
   type EffectivePricing,
@@ -42,6 +43,7 @@ export interface OnboardingBootstrapResult {
      */
     tosLoadFailed: boolean;
     users: OnboardingUser[];
+    adminUsers: AdminUser[];
     extensions: Extension[];
     locations: OnboardingLocation[];
     dids: DIDItem[];
@@ -76,6 +78,7 @@ export function useOnboardingBootstrap(
     effectivePricing: EffectivePricing | null;
     tosLoadFailed: boolean;
     users: OnboardingUser[];
+    adminUsers: AdminUser[];
     extensions: Extension[];
     locations: OnboardingLocation[];
     dids: DIDItem[];
@@ -86,6 +89,7 @@ export function useOnboardingBootstrap(
     effectivePricing: null,
     tosLoadFailed: false,
     users: [],
+    adminUsers: [],
     extensions: [],
     locations: [],
     dids: [],
@@ -99,6 +103,7 @@ export function useOnboardingBootstrap(
       tosResult,
       pricingResult,
       users,
+      adminUsers,
       extensions,
       locations,
       dids,
@@ -123,6 +128,9 @@ export function useOnboardingBootstrap(
         .then((pricing) => ({ pricing, failed: false }))
         .catch(() => ({ pricing: null, failed: true })),
       dialstack.users.list(),
+      // Only feeds the team-members step's "give phone access" offer. Failing
+      // it costs that offer, never onboarding itself.
+      dialstack.admin.users.list().catch(() => [] as AdminUser[]),
       dialstack.extensions.list(),
       dialstack.locations.list(),
       dialstack.fetchAllPages<DIDItem>((opts) => dialstack.phoneNumbers.list(opts)),
@@ -154,6 +162,7 @@ export function useOnboardingBootstrap(
       effectivePricing,
       tosLoadFailed,
       users,
+      adminUsers,
       extensions,
       locations,
       dids,

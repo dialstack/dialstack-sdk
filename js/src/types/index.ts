@@ -148,6 +148,7 @@ export type {
   TosAcceptance,
   Tos,
   OnboardingUser,
+  AdminUser,
   CreateUserRequest,
   CreateExtensionRequest,
   AddressSuggestion,

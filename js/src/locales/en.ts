@@ -505,7 +505,8 @@ export const en = {
       },
       users: {
         heading: 'Team Members',
-        description: 'Add users who will have phone extensions',
+        description:
+          'Add users who will have phone extensions. Administrators without phone service are listed too.',
         nameLabel: 'Full name',
         namePlaceholder: 'John Doe',
         nameRequired: 'Name is required',
@@ -515,9 +516,14 @@ export const en = {
         extensionPlaceholder: 'ex. 103',
         addUser: 'Add User',
         removeUser: 'Remove',
+        removePhoneAccess: 'Remove phone access',
+        adminBadge: 'Admin',
         noUsers: 'No team members added yet.',
         atLeastOne: 'Add at least one team member to continue.',
         duplicateEmail: 'A user with this email already exists.',
+        noPhoneService: 'No phone service',
+        givePhoneAccess: 'Give phone access',
+        givingPhoneAccess: 'Adding…',
       },
       location: {
         heading: 'Business Location',

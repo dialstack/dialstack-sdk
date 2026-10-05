@@ -25,6 +25,7 @@ import {
   type AccountConfig,
   type OnboardingCollectionOptions,
   type OnboardingUser,
+  type AdminUser,
   type Extension,
 } from '@dialstack/sdk-js';
 
@@ -175,9 +176,12 @@ export const mockMatchingDID = {
 
 /** Recursive partial type for overriding nested namespace methods. */
 export type MockInstanceOverrides = {
-  [K in keyof DialStackInstance]?: DialStackInstance[K] extends object
+  [K in Exclude<keyof DialStackInstance, 'admin'>]?: DialStackInstance[K] extends object
     ? { [M in keyof DialStackInstance[K]]?: unknown }
     : unknown;
+} & {
+  // admin nests its resources one level deeper than the other namespaces.
+  admin?: { users?: { [M in keyof DialStackInstance['admin']['users']]?: unknown } };
 };
 
 /** Deep-merge overrides into base, so partial namespace overrides don't clobber siblings. */
@@ -421,6 +425,9 @@ export function createMockInstance(overrides?: MockInstanceOverrides): DialStack
         })),
       },
     },
+    admin: {
+      users: { list: jest.fn().mockResolvedValue([]) },
+    },
     users: {
       create: jest.fn().mockImplementation(async (data: { name: string; email: string }) => ({
         id: 'user_new',
@@ -550,6 +557,7 @@ export function createStatefulExtensionMocks(initialExtensions: Extension[] = [.
 export interface SharedDataOverrides {
   account?: typeof mockAccount;
   users?: typeof mockUsers;
+  adminUsers?: AdminUser[];
   extensions?: Extension[];
   locations?: Array<typeof mockLocation>;
 }
@@ -617,6 +625,9 @@ export async function renderWithOnboarding(
     (await resolveJestMockValue(instanceOverrides?.account?.retrieve, mockAccount));
   const resolvedUsers =
     sharedData?.users ?? (await resolveJestMockValue(instanceOverrides?.users?.list, mockUsers));
+  const resolvedAdminUsers: AdminUser[] =
+    sharedData?.adminUsers ??
+    (await resolveJestMockValue(instanceOverrides?.admin?.users?.list, []));
   const resolvedExtensions =
     sharedData?.extensions ??
     (await resolveJestMockValue(instanceOverrides?.extensions?.list, mockExtensions));
@@ -640,19 +651,22 @@ export async function renderWithOnboarding(
 
   const StatefulWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [users, setUsers] = React.useState<OnboardingUser[]>(resolvedUsers);
+    const [adminUsers, setAdminUsers] = React.useState<AdminUser[]>(resolvedAdminUsers);
     const [extensions, setExtensions] = React.useState<Extension[]>(resolvedExtensions);
     const [locations, setLocations] = React.useState(resolvedLocations);
     const [account, setAccount] = React.useState(resolvedAccount);
 
     const reloadSharedData = React.useCallback(async () => {
-      const [newAccount, newUsers, newExtensions, newLocations] = await Promise.all([
+      const [newAccount, newUsers, newAdminUsers, newExtensions, newLocations] = await Promise.all([
         (instance.account.retrieve as () => Promise<typeof mockAccount>)(),
         (instance.users.list as () => Promise<OnboardingUser[]>)(),
+        (instance.admin.users.list as () => Promise<AdminUser[]>)().catch(() => []),
         (instance.extensions.list as () => Promise<Extension[]>)(),
         (instance.locations.list as () => Promise<Array<typeof mockLocation>>)(),
       ]);
       setAccount(newAccount);
       setUsers(newUsers);
+      setAdminUsers(newAdminUsers);
       setExtensions(newExtensions);
       setLocations(newLocations);
       // Mirror useOnboardingBootstrap: re-derive substep completion from the
@@ -675,6 +689,7 @@ export async function renderWithOnboarding(
           account={account}
           pricing={pricing === undefined ? mockEffectivePricing : pricing}
           users={users}
+          adminUsers={adminUsers}
           extensions={extensions}
           locations={locations}
           reloadSharedData={reloadSharedData}

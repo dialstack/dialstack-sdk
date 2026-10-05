@@ -44,6 +44,7 @@ import type {
   Tos,
   EffectivePricing,
   OnboardingUser,
+  AdminUser,
   OnboardingLocation,
   CreateUserRequest,
   CreateExtensionRequest,
@@ -1024,6 +1025,29 @@ export function createMockInstance(
         retrieve: async () => {
           await delay();
           return { ...mockTosPricing };
+        },
+      },
+    },
+
+    // Every account has an owner, created as a portal administrator with no
+    // phone service. Their seat is resolved by email on each read, the way the
+    // API resolves `user`, so giving them phone access flips it.
+    admin: {
+      users: {
+        list: async (): Promise<AdminUser[]> => {
+          await delay();
+          if (!mockAccount.email) return [];
+          const seat = mockUsersList.find((u) => u.email === mockAccount.email);
+          return [
+            {
+              id: 'admin_user_mock01',
+              name: mockAccount.primary_contact_name ?? null,
+              email: mockAccount.email,
+              role: 'owner',
+              user: seat?.id ?? null,
+              created_at: '2025-01-01T00:00:00Z',
+            },
+          ];
         },
       },
     },

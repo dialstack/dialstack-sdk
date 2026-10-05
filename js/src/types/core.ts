@@ -70,6 +70,7 @@ import type {
   Tos,
   EffectivePricing,
   OnboardingUser,
+  AdminUser,
   CreateUserRequest,
   CreateExtensionRequest,
   AddressSuggestion,
@@ -547,6 +548,20 @@ export interface UsersResource {
   del(userId: string): Promise<void>;
 }
 
+export interface AdminUsersResource {
+  /**
+   * List the people who can administer this account. Not a subset of
+   * `users.list()`: someone listed here may have no phone service at all. Use
+   * each entry's `user` to link the two rather than matching on email.
+   */
+  list(options?: { limit?: number; expand?: string[] }): Promise<AdminUser[]>;
+}
+
+/** Admin-portal resources, as opposed to phone-system ones */
+export interface AdminResource {
+  users: AdminUsersResource;
+}
+
 export interface LocationsResource {
   /** Create a location */
   create(request: CreateLocationRequest): Promise<OnboardingLocation>;
@@ -666,6 +681,7 @@ export interface DialStackInstance {
   dectBases: DECTBasesResource;
   account: AccountResource;
   users: UsersResource;
+  admin: AdminResource;
   locations: LocationsResource;
   addresses: AddressesResource;
 }

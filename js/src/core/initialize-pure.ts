@@ -129,6 +129,7 @@ export async function loadDialstackAndInitialize(
     dectBases: instance.dectBases,
     account: instance.account,
     users: instance.users,
+    admin: instance.admin,
     locations: instance.locations,
     addresses: instance.addresses,
   };
