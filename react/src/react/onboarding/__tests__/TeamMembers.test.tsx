@@ -13,6 +13,7 @@ import {
   createStatefulExtensionMocks,
   mockAccount,
   mockUsers,
+  type RenderOnboardingOptions,
 } from '../__test-helpers__/onboarding';
 
 /**
@@ -45,8 +46,12 @@ describe('TeamMembers', () => {
   });
 
   // Helper: render and wait for loading to finish
-  async function renderTM(instanceOverrides = {}) {
+  async function renderTM(
+    instanceOverrides = {},
+    options: Omit<RenderOnboardingOptions, 'instanceOverrides'> = {}
+  ) {
     const result = await renderWithOnboarding(<TeamMembers {...defaultProps} />, {
+      ...options,
       instanceOverrides,
     });
     await waitFor(() => {
@@ -152,8 +157,40 @@ describe('TeamMembers', () => {
     const { container } = await renderTM();
 
     const extInput = getFieldByLabel(container, 'Extension') as HTMLInputElement;
-    // mockExtensions has '1001', so next should be '1002'
-    expect(extInput.value).toBe('1002');
+    // mockExtensions has '1001'; the lowest free number in the user range is '1000'
+    expect(extInput.value).toBe('1000');
+  });
+
+  it('suggests the user range rather than the number after the dial plan', async () => {
+    const { container } = await renderTM(
+      {},
+      {
+        sharedData: {
+          extensions: [
+            {
+              number: '8000',
+              target: 'dp_01abc',
+              status: 'active' as const,
+              created_at: '2026-01-01T00:00:00Z',
+              updated_at: '2026-01-01T00:00:00Z',
+            },
+          ],
+        },
+      }
+    );
+
+    const extInput = getFieldByLabel(container, 'Extension') as HTMLInputElement;
+    expect(extInput.value).toBe('1000');
+  });
+
+  it('honours a 3-digit extension length', async () => {
+    const { container } = await renderTM(
+      {},
+      { accountConfig: { ...mockAccount.config, extension_length: 3 } }
+    );
+
+    const extInput = getFieldByLabel(container, 'Extension') as HTMLInputElement;
+    expect(extInput.value).toBe('100');
   });
 
   it('uses custom extension number when adding a user', async () => {
@@ -333,6 +370,40 @@ describe('TeamMembers', () => {
     });
   });
 
+  it('reports a taken extension as such, not as a duplicate email', async () => {
+    const { container } = await renderTM({
+      ...extensionsNS({
+        create: jest.fn().mockRejectedValue(new Error('extension number already exists')),
+      }),
+    });
+
+    fireEvent.change(getFieldByLabel(container, 'Full name'), { target: { value: 'Bob' } });
+    fireEvent.change(getFieldByLabel(container, 'Email'), { target: { value: 'bob@example.com' } });
+
+    clickAddUser();
+
+    await waitFor(() => {
+      expect(screen.getByText('This extension is already in use. Choose another.')).toBeTruthy();
+    });
+    expect(screen.queryByText('A user with this email already exists.')).toBeNull();
+  });
+
+  it('asks for an extension instead of creating the user when none is entered', async () => {
+    const createUserMock = jest.fn();
+    const { container } = await renderTM({ ...usersNS({ create: createUserMock }) });
+
+    fireEvent.change(getFieldByLabel(container, 'Full name'), { target: { value: 'Bob' } });
+    fireEvent.change(getFieldByLabel(container, 'Email'), { target: { value: 'bob@example.com' } });
+    fireEvent.change(getFieldByLabel(container, 'Extension'), { target: { value: '' } });
+
+    clickAddUser();
+
+    await waitFor(() => {
+      expect(screen.getByText('Extension is required')).toBeTruthy();
+    });
+    expect(createUserMock).not.toHaveBeenCalled();
+  });
+
   // ==========================================================================
   // Delete affordance
   // ==========================================================================
@@ -478,7 +549,7 @@ describe('TeamMembers', () => {
       });
       await waitFor(() => {
         expect(instance.extensions.create).toHaveBeenCalledWith({
-          number: '101',
+          number: '1000',
           target: 'user_jane',
         });
       });

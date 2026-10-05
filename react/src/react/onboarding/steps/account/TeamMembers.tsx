@@ -8,6 +8,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import type { AdminUser, Extension } from '@dialstack/sdk-js';
 import { useOnboarding } from '../../OnboardingContext';
+import { suggestUserExtension } from '../../extension-number';
 import { StepNavigation } from '../../StepNavigation';
 import { UserIcon, TrashIcon } from '../../components/icons';
 import { ErrorAlert } from '../../components/ErrorAlert';
@@ -18,11 +19,19 @@ export interface TeamMembersProps {
   onDone: () => void;
 }
 
-function getNextExtensionNumber(extensions: Extension[]): string {
-  if (extensions.length === 0) return '101';
-  const numbers = extensions.map((e) => parseInt(e.number, 10)).filter((n) => !isNaN(n));
-  if (numbers.length === 0) return '101';
-  return String(Math.max(...numbers) + 1);
+// Matches the admin portal's fallback when the account has no extension_length.
+const DEFAULT_EXTENSION_LENGTH = 4;
+
+// Suggest from the user range (1xxx on a 4-digit account), not max+1: onboarding
+// creates the dial plan first, so max+1 would put the first user next to it.
+function getNextExtensionNumber(extensions: Extension[], extensionLength: number): string {
+  // A full pool leaves the field blank for the user to fill in.
+  return (
+    suggestUserExtension(
+      extensions.map((e) => e.number),
+      extensionLength
+    ) ?? ''
+  );
 }
 
 function getExtensionForUser(userId: string, extensions: Extension[]): Extension | undefined {
@@ -36,15 +45,17 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
     users: contextUsers,
     adminUsers,
     extensions: contextExtensions,
+    accountConfig,
     reloadSharedData,
   } = useOnboarding();
   const t = locale.accountOnboarding.account;
   const nav = locale.accountOnboarding.nav;
+  const extensionLength = accountConfig?.extension_length ?? DEFAULT_EXTENSION_LENGTH;
 
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserExtension, setNewUserExtension] = useState(() =>
-    getNextExtensionNumber(contextExtensions)
+    getNextExtensionNumber(contextExtensions, extensionLength)
   );
 
   const [isAddingUser, setIsAddingUser] = useState(false);
@@ -74,6 +85,13 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
           });
         } catch (extErr) {
           await dialstack.users.del(user.id).catch(() => {});
+          const message = extErr instanceof Error ? extErr.message : String(extErr);
+          // Not the duplicate-email copy below: this "already exists" is the extension.
+          if (message.includes('already exists')) {
+            setUserError(t.users.extensionTaken);
+            await reloadSharedData().catch(() => {});
+            return false;
+          }
           throw extErr;
         }
 
@@ -105,20 +123,21 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
       setUserError(locale.accountOnboarding.account.details.emailRequired);
       return;
     }
+    const extNumber = newUserExtension.trim();
+    if (!extNumber) {
+      setUserError(t.users.extensionRequired);
+      return;
+    }
 
     setIsAddingUser(true);
-    const added = await addSeat(
-      newUserName.trim(),
-      newUserEmail.trim(),
-      newUserExtension.trim() || getNextExtensionNumber(contextExtensions)
-    );
+    const added = await addSeat(newUserName.trim(), newUserEmail.trim(), extNumber);
     if (added) {
       setNewUserName('');
       setNewUserEmail('');
       // newUserExtension will update via the effect below
     }
     setIsAddingUser(false);
-  }, [busy, newUserName, newUserEmail, newUserExtension, contextExtensions, addSeat, t, locale]);
+  }, [busy, newUserName, newUserEmail, newUserExtension, addSeat, t, locale]);
 
   const handleGivePhoneAccess = useCallback(
     async (admin: AdminUser) => {
@@ -126,20 +145,22 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
       setUserError(null);
 
       // A user needs a name, and an administrator who hasn't accepted their
-      // invitation may not have one yet. Hand them to the form instead.
+      // invitation may not have one yet. A full extension pool likewise leaves
+      // nothing to suggest. Either way, hand them to the form instead.
       const name = admin.name?.trim();
-      if (!name) {
-        setNewUserName('');
+      const extNumber = getNextExtensionNumber(contextExtensions, extensionLength);
+      if (!name || !extNumber) {
+        setNewUserName(name ?? '');
         setNewUserEmail(admin.email);
         nameInputRef.current?.focus();
         return;
       }
 
       setSeatingAdminId(admin.id);
-      await addSeat(name, admin.email, getNextExtensionNumber(contextExtensions));
+      await addSeat(name, admin.email, extNumber);
       setSeatingAdminId(null);
     },
-    [busy, addSeat, contextExtensions]
+    [busy, addSeat, contextExtensions, extensionLength]
   );
 
   const handleRemoveUser = useCallback(
@@ -161,8 +182,8 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
   // Keep next-extension suggestion in sync with context extensions after mutations.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- resync suggestion after external context mutation
-    setNewUserExtension(getNextExtensionNumber(contextExtensions));
-  }, [contextExtensions]);
+    setNewUserExtension(getNextExtensionNumber(contextExtensions, extensionLength));
+  }, [contextExtensions, extensionLength]);
 
   // Substep requires ≥1 user on the account. Administrators without phone
   // service are listed but don't count until they get a seat. Mirror the

@@ -280,7 +280,10 @@ export function createMockInstance(
       await delay();
       let body: unknown = MOCK_EMPTY_RESPONSE;
 
-      if (!empty) {
+      // The onboarding portal pages extensions through fetchApi.
+      if (path.startsWith('/v1/extensions')) {
+        body = { object: 'list', data: [...mockExtensionsList], next_page_url: null };
+      } else if (!empty) {
         if (path.includes('/v1/calls')) body = MOCK_CALLS;
         else if (path.includes('/voicemails')) body = MOCK_VOICEMAILS;
         else if (path.includes('/v1/dialplans/dp_ringall')) body = MOCK_DIAL_PLAN_RING_ALL;

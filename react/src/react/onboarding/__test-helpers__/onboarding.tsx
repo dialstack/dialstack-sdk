@@ -466,7 +466,20 @@ export function createMockInstance(overrides?: MockInstanceOverrides): DialStack
     ? deepMerge(base as Record<string, unknown>, overrides as Record<string, unknown>)
     : base;
 
-  return merged as unknown as DialStackInstance;
+  // Bootstrap pages extensions through fetchApi; serve that from the
+  // extensions.list mock so tests keep overriding extensions in one place.
+  const instance = merged as unknown as DialStackInstance;
+  if (!overrides?.fetchApi) {
+    (instance.fetchApi as jest.Mock).mockImplementation(async (path: string) => {
+      if (!path.startsWith('/v1/extensions')) return undefined;
+      const data = await instance.extensions.list();
+      return {
+        ok: true,
+        json: async () => ({ object: 'list', data, next_page_url: null }),
+      };
+    });
+  }
+  return instance;
 }
 
 // ============================================================================

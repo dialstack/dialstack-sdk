@@ -521,6 +521,8 @@ export const en = {
         noUsers: 'No team members added yet.',
         atLeastOne: 'Add at least one team member to continue.',
         duplicateEmail: 'A user with this email already exists.',
+        extensionRequired: 'Extension is required',
+        extensionTaken: 'This extension is already in use. Choose another.',
         noPhoneService: 'No phone service',
         givePhoneAccess: 'Give phone access',
         givingPhoneAccess: 'Adding…',

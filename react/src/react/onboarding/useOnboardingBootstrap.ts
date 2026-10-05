@@ -12,6 +12,7 @@ import { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } fr
 import { useDialstackComponents } from '@dialstack/sdk-react';
 import { OnboardingProgressStore } from './progress-store';
 import { deriveOnboardingState } from './derive';
+import { listAllExtensions } from './list-all-extensions';
 import {
   type Account,
   type OnboardingUser,
@@ -131,7 +132,7 @@ export function useOnboardingBootstrap(
       // Only feeds the team-members step's "give phone access" offer. Failing
       // it costs that offer, never onboarding itself.
       dialstack.admin.users.list().catch(() => [] as AdminUser[]),
-      dialstack.extensions.list(),
+      listAllExtensions(dialstack),
       dialstack.locations.list(),
       dialstack.fetchAllPages<DIDItem>((opts) => dialstack.phoneNumbers.list(opts)),
       dialstack.devices.list({ type: 'deskphone', expand: ['users'] }).catch(() => [] as Device[]),
