@@ -9,6 +9,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 (`@dialstack/sdk-js`, `-react`, `-webrtc`, `-server`), which release together on
 their own line.
 
+## [0.2.0](https://github.com/dialstack/dialstack-sdk/compare/native-v0.1.1...native-v0.2.0) (2026-10-05)
+
+### Features
+
+- **OS call UI integration.** `NativeCallBridge` connects the softphone to
+  CallKit or Telecom through an `OsCallAdapter` you implement over the OS call
+  library of your choice. It reports incoming and outgoing calls to the OS,
+  keeps answer, decline, hold and hangup in step between the OS and the app,
+  and handles calls that arrive by push (`registerWakeTask` for Android's
+  headless task, `appLifecycle`, `RuntimeHold`). `maxOsCalls` caps how many
+  calls are reported to the OS (default `1`); further calls ring in-app.
+- `createPhone()`, `getPhone()` and `requirePhone()` manage the app's single
+  `DialStackPhone`, so a push-woken runtime and the UI share one phone.
+- `SoftphoneProvider` accepts `existingPhone`, to adopt that phone and the
+  calls already on it, and `bridge`, to place and answer calls through the OS.
+  `onIncomingCall` now receives the call's `callId`.
+- **Call audio.** `callAudio="host"` leaves ringing, ringback and the audio
+  session to the host app (always the case with a `bridge`). Pass
+  `audioOutput` to drive the in-call speaker button, and read the current
+  route with `useAudioOutput()`.
+- `@dialstack/sdk-native/testing` provides `FakeOsCallAdapter`, the
+  `runOsCallAdapterContract` suite an adapter must pass, and `FakePhone`,
+  `FakeCall` and `FakeLifecycle`.
+- The in-call keypad shows the digits you send.
+- `nativeSignalingSocket` is exported for apps that construct their own phone.
+
+### Bug Fixes
+
+- Session token refresh now works on React Native.
+- More reliable connections: `connect()` waits for a connect already in flight
+  instead of throwing, recovers after a disconnect or a lost connection, and
+  never uses an expired session token. A failed token fetch shows as a
+  connection error.
+- The microphone is taken when a call is answered, not while it rings, so
+  calls answered through the OS have audio.
+- Calls always end, and emit `ended`, when they are hung up, disconnected or
+  lost with the connection.
+- The emergency address is never changed during a call.
+- The softphone screens fit the space their host gives them, from small phones
+  to tall layouts, and the dial pad, call screen, incoming card, transfer field
+  and emergency banner no longer overlap.
+
 ## [0.1.1](https://github.com/dialstack/dialstack-sdk/compare/native-v0.1.0...native-v0.1.1) (2026-09-10)
 
 ### Bug Fixes
