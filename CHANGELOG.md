@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.0](https://github.com/dialstack/dialstack-sdk/compare/v3.4.0...v3.5.0) (2026-10-05)
+
+### Features
+
+- **js:** `AccountConfig` gains `transcription_inbound_enabled`,
+  `transcription_outbound_enabled` and `transcription_internal_enabled` to turn
+  transcription on or off per call direction (default `true`). They narrow
+  `transcription_enabled`, which must also be on.
+- **server:** queues gain `ring_busy_agents`, which rings members who are on a
+  non-queue call instead of skipping them. Defaults to `false`.
+- **server:** `DeviceCheckSyncLine.retiring` marks an entry for a user recently
+  removed from the device.
+- **webrtc:** a server error for a call action (hold, hangup, transfer, …) is
+  reported on the phone's `error` event with that call's `callId`, instead of
+  `null`.
+- **react/softphone:** `SoftphoneProvider` accepts an `answerIncoming` prop to
+  replace the default `call.answer()` when a call is accepted in-app.
+
+### Bug Fixes
+
+- **webrtc:** more reliable connections and call teardown. `connect()` and
+  `setToken()` wait for a connect already in flight instead of throwing,
+  `connect()` recovers after `disconnect()` or a lost connection, expired
+  session tokens are never used, and calls always emit `ended` when they end.
+  `PhoneErrorCode` adds `call_limit` and `token_refresh_failed`.
+- **react/softphone:** a failed token fetch shows as a connection error.
+- **react:** the dial plan editor shows nodes saved with the documented
+  `schedule`, `target`, `prompt_clip`, `clip` and `voice_app` keys, which
+  previously opened empty.
+- **js:** `DeviceSettings` and the other provisioning types now use the API's
+  snake_case keys (`vlan_id`, `call_waiting_enabled`, …). The API ignored the
+  previous camelCase keys, so settings written with them had no effect; rename
+  them. Adds `codecs`, `sip_transport`, `call_waiting_dialtone_enabled`,
+  `ring_group_silent_ring_enabled` and `provisioning`.
+- The published packages no longer install build and test tooling as
+  dependencies. The `@xyflow/react` peer range of `@dialstack/sdk-react` is
+  widened to `^12.0.0`.
+
 ## [3.4.0](https://github.com/dialstack/dialstack-sdk/compare/v3.3.0...v3.4.0) (2026-09-28)
 
 ### Features

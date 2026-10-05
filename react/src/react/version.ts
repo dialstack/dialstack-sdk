@@ -1,3 +1,3 @@
 // Rewritten by scripts/sdk-release. Its own file so the release commit conflicts
 // with nothing else.
-export const PACKAGE_VERSION = '3.4.0';
+export const PACKAGE_VERSION = '3.5.0';
