@@ -755,7 +755,7 @@ export const en = {
         focSubtitle:
           'Choose when you want the numbers transferred. Must be at least 5 business days out.',
         focDateLabel: 'Port Date',
-        focTimeLabel: 'Port Time (Eastern)',
+        focTimeLabel: 'Port Time ({zone})',
         focTimePlaceholder: 'Select time',
         documentsTitle: 'Supporting Documents',
         documentsSubtitle:
@@ -820,6 +820,7 @@ export const en = {
         focDateTooSoon: 'Port date must be at least 5 business days from today.',
         focDateTooFar: 'Port date must be within 30 days.',
         focTimeRequired: 'Port time is required.',
+        focTimeOutOfWindow: 'Choose a time between {start} and {end} {zone}.',
         billCopyRequired: 'A phone bill copy is required.',
         signatureRequired: 'Signature is required.',
         eligibilityError: 'Failed to check eligibility. Please try again.',

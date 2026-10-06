@@ -33,6 +33,13 @@ import numbersStyles from '../../styles/numbers-styles.css';
 import { conflictNumberIssues, CONFLICT_KEY, mapNonPortableToIssues } from './port-numbers';
 import { type NumState, type CardMode, numReducer, INITIAL_STATE, E911_POLL_MAX } from './types';
 import { getSidebarActiveKey, validateCallerIdName } from './helpers';
+import {
+  FOC_CARRIER_TIMEZONE,
+  focWindowIn,
+  focZoneLabel,
+  formatFocTime12h,
+  isFocTimeInWindow,
+} from '@dialstack/sdk-js';
 import { PhoneCardStrip } from './content/PhoneCardStrip';
 import { OverviewContent } from './content/OverviewContent';
 import { CallerIdContent } from './content/CallerIdContent';
@@ -80,6 +87,8 @@ export const NumbersStep: React.FC = () => {
     entryMode,
   } = useOnboarding();
   const { onSaveAndExit } = usePortalActions();
+  // Port times are entered in the account's local time and sent with its zone.
+  const focTimeZone = contextAccount?.config?.timezone || FOC_CARRIER_TIMEZONE;
   const [state, dispatch] = useReducer(numReducer, INITIAL_STATE);
   // Capture the entry-mode for the lifetime of this mount. `entryMode` reflects
   // the latest Overview click; we only care about how the user *entered* this
@@ -355,14 +364,25 @@ export const NumbersStep: React.FC = () => {
         if (focDate > maxDate)
           errors.date = t('accountOnboarding.numbers.validation.focDateTooFar');
       }
-      if (!s.portFocTime) errors.time = t('accountOnboarding.numbers.validation.focTimeRequired');
+      if (!s.portFocTime) {
+        errors.time = t('accountOnboarding.numbers.validation.focTimeRequired');
+      } else if (!isFocTimeInWindow(s.portFocDate, s.portFocTime, focTimeZone)) {
+        // The window moves with the date in some zones, so a time picked before
+        // the date changed can fall outside it.
+        const { start, end } = focWindowIn(s.portFocDate, focTimeZone);
+        errors.time = t('accountOnboarding.numbers.validation.focTimeOutOfWindow', {
+          start: formatFocTime12h(start),
+          end: formatFocTime12h(end),
+          zone: focZoneLabel(focTimeZone),
+        });
+      }
       if (Object.keys(errors).length > 0) {
         dispatch({ type: 'port_set_foc_errors', errors });
         return false;
       }
       return true;
     },
-    [t]
+    [t, focTimeZone]
   );
 
   // Submit port order — scoped to current carrier group when in multi-carrier mode
@@ -398,6 +418,7 @@ export const NumbersStep: React.FC = () => {
           },
           requested_foc_date: s.portFocDate,
           requested_foc_time: s.portFocTime || undefined,
+          requested_foc_timezone: focTimeZone,
         };
         const order = await dialstack.portOrders.create(request);
         if (s.portBillFile) await dialstack.portOrders.uploadBillCopy(order.id, s.portBillFile);
@@ -443,7 +464,7 @@ export const NumbersStep: React.FC = () => {
         dispatch({ type: 'port_submit_error', error: portErrorMessage(err) });
       }
     },
-    [dialstack, reloadSharedData, portErrorMessage, t]
+    [dialstack, reloadSharedData, portErrorMessage, t, focTimeZone]
   );
 
   // Submit a single caller ID entry (returns result without dispatching)
@@ -1346,6 +1367,7 @@ export const NumbersStep: React.FC = () => {
           state={state}
           t={t}
           dispatch={dispatch}
+          timeZone={focTimeZone}
           onNext={() => {
             if (validateFocDate(state))
               dispatch({ type: 'set_substep', subStep: 'port-documents' });
@@ -1362,6 +1384,7 @@ export const NumbersStep: React.FC = () => {
           state={state}
           t={t}
           dispatch={dispatch}
+          timeZone={focTimeZone}
           onSubmit={() => void submitPort(state)}
         />
       );

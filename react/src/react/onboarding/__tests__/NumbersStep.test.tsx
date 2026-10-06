@@ -10,6 +10,7 @@ import { screen, waitFor, fireEvent } from '@testing-library/react';
 import { NumbersStep } from '../steps/numbers/NumbersStep';
 import {
   renderWithOnboarding,
+  mockAccount,
   mockDID,
   mockMatchingDID,
   mockLocation,
@@ -1272,6 +1273,32 @@ describe('NumbersStep', () => {
       });
     });
 
+    it('enters the port time in the account zone and sends that zone', async () => {
+      const result = await renderWithOnboarding(<NumbersStep />, {
+        instanceOverrides: {
+          ...defaultLocationsNS(),
+          ...defaultPhoneNumberOrdersNS(),
+          ...defaultPortOrdersNS(),
+          ...defaultAvailablePhoneNumbersNS(),
+        },
+        sharedData: {
+          account: {
+            ...mockAccount,
+            config: { ...mockAccount.config, timezone: 'America/Los_Angeles' },
+          },
+        },
+      });
+      await navigatePortFlowTo(result.instance, 'foc-date');
+
+      expect(document.body.textContent).toContain('Port Time (Pacific Time)');
+      const timeSelect = document.querySelector<HTMLSelectElement>('select')!;
+      const values = Array.from(timeSelect.options).map((o) => o.value);
+      // 08:00–20:00 Eastern is 05:00–17:00 Pacific.
+      expect(values).toContain('05:00');
+      expect(values).toContain('17:00');
+      expect(values).not.toContain('17:30');
+    });
+
     it('completes full port flow end-to-end', async () => {
       const result = await renderNumbers();
       await navigatePortFlowTo(result.instance, 'submitted');
@@ -1287,6 +1314,8 @@ describe('NumbersStep', () => {
             business_name: 'Acme Corp',
             approver_name: 'John Doe',
           }),
+          requested_foc_time: '10:00',
+          requested_foc_timezone: 'America/New_York',
         })
       );
       expect(portOrders.uploadBillCopy).toHaveBeenCalledWith('po_01abc', expect.any(File));

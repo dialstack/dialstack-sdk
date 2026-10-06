@@ -64,6 +64,11 @@ export interface PortOrderDetails {
   subscriber?: PortOrderSubscriber | null;
   requested_foc_date?: string;
   requested_foc_time?: string | null;
+  /**
+   * IANA zone `requested_foc_date` and `requested_foc_time` are wall-clock
+   * values in. Absent unless set on the order, in which case they are Eastern.
+   */
+  requested_foc_timezone?: string;
   actual_foc_date?: string | null;
   losing_carrier?: PortCarrier | null;
   eligibility?: PortNumberEligibility[] | null;
@@ -88,6 +93,8 @@ export interface CreatePortOrderRequest {
   subscriber: PortOrderSubscriber;
   requested_foc_date: string;
   requested_foc_time?: string;
+  /** IANA zone the date and time are read in. Defaults to `America/New_York`. */
+  requested_foc_timezone?: string;
 }
 
 export interface PortableNumber {

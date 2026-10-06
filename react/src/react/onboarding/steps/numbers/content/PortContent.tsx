@@ -6,7 +6,7 @@
  * never user input.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AsYouType } from 'libphonenumber-js';
 import {
   classifyPhoneNumberRows,
@@ -19,6 +19,7 @@ import type { NumState, Dispatcher, TFn } from '../types';
 import { MAX_PHONE_NUMBERS_PER_ORDER, REASON_KEY } from '../port-numbers';
 import { formatPhone } from '../helpers';
 import { US_STATES } from '../../../../../constants/us-states';
+import { focTimeOptions, focZoneLabel, formatFocTime12h } from '@dialstack/sdk-js';
 import { SUCCESS_SVG, CHECK_CIRCLE_SVG, CLOSE_SVG, PLUS_CIRCLE_SVG } from '../../../icons';
 import { BillingImpactNotice } from '../../../components/BillingImpactNotice';
 
@@ -682,11 +683,14 @@ export const PortFocDateContent = ({
   t,
   dispatch,
   onNext,
+  timeZone,
 }: {
   state: NumState;
   t: TFn;
   dispatch: Dispatcher;
   onNext: () => void;
+  /** The zone the port time is entered in: the account's. */
+  timeZone: string;
 }) => {
   const e = state.portFocErrors;
   const today = new Date();
@@ -702,15 +706,16 @@ export const PortFocDateContent = ({
   const maxDate = new Date(today);
   maxDate.setDate(maxDate.getDate() + 30);
   const maxStr = `${maxDate.getFullYear()}-${pad(maxDate.getMonth() + 1)}-${pad(maxDate.getDate())}`;
-  const timeOptions: Array<{ value: string; label: string }> = [];
-  for (let h = 8; h <= 20; h++) {
-    for (const m of ['00', '30']) {
-      if (h === 20 && m === '30') continue;
-      const ampm = h >= 12 ? 'PM' : 'AM';
-      const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
-      timeOptions.push({ value: `${pad(h)}:${m}`, label: `${h12}:${m} ${ampm} ET` });
-    }
-  }
+  // 48 probes of the zone offset, each several Intl formatToParts calls; kept off
+  // the per-keystroke render path.
+  const timeOptions = useMemo(
+    () =>
+      focTimeOptions(state.portFocDate, timeZone).map((value) => ({
+        value,
+        label: formatFocTime12h(value),
+      })),
+    [state.portFocDate, timeZone]
+  );
   return (
     <>
       <h2 className="section-title">{t('accountOnboarding.numbers.port.focTitle')}</h2>
@@ -728,7 +733,9 @@ export const PortFocDateContent = ({
         {e.date && <div className="form-error">{e.date}</div>}
       </div>
       <div className="form-group">
-        <label className="form-label">{t('accountOnboarding.numbers.port.focTimeLabel')}</label>
+        <label className="form-label">
+          {t('accountOnboarding.numbers.port.focTimeLabel', { zone: focZoneLabel(timeZone) })}
+        </label>
         <select
           className={`form-select${e.time ? ' error' : ''}`}
           value={state.portFocTime}
@@ -865,11 +872,13 @@ export const PortReviewContent = ({
   t,
   dispatch,
   onSubmit,
+  timeZone,
 }: {
   state: NumState;
   t: TFn;
   dispatch: Dispatcher;
   onSubmit: () => void;
+  timeZone: string;
 }) => {
   const result = state.portEligibilityResult;
   if (!result) return null;
@@ -926,8 +935,10 @@ export const PortReviewContent = ({
             ...(state.portFocTime
               ? [
                   {
-                    label: t('accountOnboarding.numbers.port.focTimeLabel'),
-                    value: state.portFocTime,
+                    label: t('accountOnboarding.numbers.port.focTimeLabel', {
+                      zone: focZoneLabel(timeZone),
+                    }),
+                    value: formatFocTime12h(state.portFocTime),
                   },
                 ]
               : []),
