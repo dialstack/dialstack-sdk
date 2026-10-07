@@ -11,6 +11,15 @@ export function resolveTargetType(targetId: string, locale: DialPlanLocale): str
   return locale.nodeTypes.internalDial;
 }
 
+/**
+ * A dial plan target hands the call off: the nested plan's own nodes decide
+ * what happens next, so routing never reads the node's timeout, override or
+ * Timeout exit.
+ */
+export function isDialPlanTarget(targetId: string | undefined): boolean {
+  return targetId?.startsWith('dp_') ?? false;
+}
+
 export function resolveTargetName(
   targetId: string,
   maps: ResourceMaps,

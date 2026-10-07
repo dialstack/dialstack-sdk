@@ -1,9 +1,25 @@
 import type { NodeTypes, Edge } from '@xyflow/react';
-import type { NodeTypeRegistration } from './registry-types';
+import type { ExitDefinition, NodeTypeRegistration } from './registry-types';
 import type { DialPlanNode } from '@dialstack/sdk-js';
 
 /** Edge type used for all dial plan connections */
 export const DIAL_PLAN_EDGE_TYPE = 'smoothstep' as const;
+
+export function visibleExitsOf(
+  reg: NodeTypeRegistration,
+  config: Record<string, unknown>
+): ExitDefinition[] {
+  return reg.visibleExits?.(config) ?? reg.exits;
+}
+
+/** IDs of the declared exits this config hides. */
+export function hiddenExitIds(
+  reg: NodeTypeRegistration,
+  config: Record<string, unknown>
+): Set<string> {
+  const visible = visibleExitsOf(reg, config);
+  return new Set(reg.exits.filter((e) => !visible.includes(e)).map((e) => e.id));
+}
 
 export class NodeTypeRegistry {
   private byType = new Map<string, NodeTypeRegistration>();
@@ -65,10 +81,10 @@ export class NodeTypeRegistry {
       return reg.createEdgesForNode(node, nodeMap);
     }
 
+    const config = node.config as unknown as Record<string, unknown>;
     const edges: Edge[] = [];
-    for (const exit of reg.exits) {
-      const targetId = (node.config as unknown as Record<string, unknown>)[exit.configKey] as
-        string | undefined;
+    for (const exit of visibleExitsOf(reg, config)) {
+      const targetId = config[exit.configKey] as string | undefined;
       if (targetId && nodeMap.has(targetId)) {
         edges.push({
           id: `${node.id}-${exit.id}->${targetId}`,

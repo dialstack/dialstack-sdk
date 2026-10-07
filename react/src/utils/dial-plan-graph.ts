@@ -7,7 +7,11 @@
 import type { Node, Edge } from '@xyflow/react';
 import dagre from 'dagre';
 import type { DialPlan, DialPlanNode, StartNodeData } from '@dialstack/sdk-js';
-import { DIAL_PLAN_EDGE_TYPE, type NodeTypeRegistry } from '../react/dial-plan/registry';
+import {
+  DIAL_PLAN_EDGE_TYPE,
+  visibleExitsOf,
+  type NodeTypeRegistry,
+} from '../react/dial-plan/registry';
 import { defaultRegistry } from '../react/dial-plan/default-registry';
 
 // ============================================================================
@@ -205,10 +209,11 @@ export function transformGraphToDialPlan(
     for (const exit of reg.exits) {
       config[exit.configKey] = undefined;
     }
-    // Set from edges
+    // Set from edges, but only for exits this config offers
+    const visible = visibleExitsOf(reg, config);
     for (const edge of edges) {
       if (edge.source !== node.id) continue;
-      const exit = reg.exits.find((e) => e.id === edge.sourceHandle);
+      const exit = visible.find((e) => e.id === edge.sourceHandle);
       if (exit) {
         config[exit.configKey] = edge.target;
       }

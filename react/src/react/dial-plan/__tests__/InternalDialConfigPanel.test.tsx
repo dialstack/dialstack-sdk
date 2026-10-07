@@ -166,3 +166,35 @@ describe('InternalDialConfigPanel timeout override', () => {
     expect(onConfigChange).not.toHaveBeenCalledWith(expect.objectContaining({ timeout: 0 }));
   });
 });
+
+// A dial plan target hands the call off, so routing never reads the node's
+// timing. The panel shows none, and keeps what was stored for when the target
+// changes back.
+describe('InternalDialConfigPanel dial plan target', () => {
+  const props = (config: Record<string, unknown>) => ({
+    nodeId: 'n1',
+    config,
+    nodeData: {},
+    onConfigChange: jest.fn(),
+    listResources: jest.fn().mockResolvedValue([]),
+  });
+
+  it('hides the timeout and the override for a dial plan target', async () => {
+    await panel({ target_id: 'dp_1', timeout: 0, timeout_override: false });
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
+    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument();
+  });
+
+  it('shows them again, with the stored values, once the target is not a dial plan', async () => {
+    const { rerender } = render(
+      <InternalDialConfigPanel {...props({ target_id: 'dp_1', timeout: 25 })} />
+    );
+    await act(async () => {});
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
+
+    rerender(<InternalDialConfigPanel {...props({ target_id: 'user_1', timeout: 25 })} />);
+    await act(async () => {});
+    expect(timeoutInput()).toHaveValue(25);
+    expect(screen.getByRole('radiogroup')).toBeInTheDocument();
+  });
+});

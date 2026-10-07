@@ -7,6 +7,7 @@ import { SegmentedField } from './fields/SegmentedField';
 import { TimeoutField } from './fields/TimeoutField';
 import { useResourceGroups } from './hooks/useResourceGroups';
 import { readRef, refUpdate } from '../config-refs';
+import { isDialPlanTarget } from '../nodes/resolve-target';
 
 export const InternalDialConfigPanel = ({
   nodeId,
@@ -82,42 +83,51 @@ export const InternalDialConfigPanel = ({
           />
         )}
       </ConfigField>
-      <SegmentedField<'off' | 'on'>
-        label={locale?.configLabels.timeoutOverride ?? 'Override resource timeout'}
-        value={timeoutOverride ? 'on' : 'off'}
-        options={[
-          { value: 'off', label: locale?.configLabels.timeoutOverrideOff ?? 'Off' },
-          { value: 'on', label: locale?.configLabels.timeoutOverrideOn ?? 'On' },
-        ]}
-        onChange={(next) => {
-          if (next === 'on') {
-            promotedFrom.current = timeout === 0 ? { nodeId, timeout: 0 } : null;
-            onConfigChange(
-              timeout === 0 ? { timeout_override: true, timeout: 1 } : { timeout_override: true }
-            );
-            return;
-          }
-          const promoted = promotedFrom.current;
-          const restored = promoted && promoted.nodeId === nodeId ? promoted.timeout : undefined;
-          promotedFrom.current = null;
-          onConfigChange(
-            restored === undefined
-              ? { timeout_override: false }
-              : { timeout_override: false, timeout: restored }
-          );
-        }}
-      />
-      <TimeoutField
-        value={timeout}
-        min={minTimeout}
-        max={300}
-        disabled={timeoutInert}
-        onChange={(t) => {
-          promotedFrom.current = null;
-          onConfigChange({ timeout: t });
-        }}
-        locale={locale}
-      />
+      {/* Stored timing is left alone under a dial plan target, so switching
+          back to another target brings back what was there. */}
+      {!isDialPlanTarget(targetId) && (
+        <>
+          <SegmentedField<'off' | 'on'>
+            label={locale?.configLabels.timeoutOverride ?? 'Override resource timeout'}
+            value={timeoutOverride ? 'on' : 'off'}
+            options={[
+              { value: 'off', label: locale?.configLabels.timeoutOverrideOff ?? 'Off' },
+              { value: 'on', label: locale?.configLabels.timeoutOverrideOn ?? 'On' },
+            ]}
+            onChange={(next) => {
+              if (next === 'on') {
+                promotedFrom.current = timeout === 0 ? { nodeId, timeout: 0 } : null;
+                onConfigChange(
+                  timeout === 0
+                    ? { timeout_override: true, timeout: 1 }
+                    : { timeout_override: true }
+                );
+                return;
+              }
+              const promoted = promotedFrom.current;
+              const restored =
+                promoted && promoted.nodeId === nodeId ? promoted.timeout : undefined;
+              promotedFrom.current = null;
+              onConfigChange(
+                restored === undefined
+                  ? { timeout_override: false }
+                  : { timeout_override: false, timeout: restored }
+              );
+            }}
+          />
+          <TimeoutField
+            value={timeout}
+            min={minTimeout}
+            max={300}
+            disabled={timeoutInert}
+            onChange={(t) => {
+              promotedFrom.current = null;
+              onConfigChange({ timeout: t });
+            }}
+            locale={locale}
+          />
+        </>
+      )}
     </>
   );
 };

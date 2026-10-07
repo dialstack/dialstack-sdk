@@ -5,6 +5,7 @@ import { createDialPlanNode } from './DialPlanNode';
 import type { NodeDefinition } from './registry-types';
 import type { DialPlanNode } from '@dialstack/sdk-js';
 import { readRef } from './config-refs';
+import { isDialPlanTarget } from './nodes/resolve-target';
 
 import { config as schedule } from './nodes/ScheduleNode';
 import { config as ringAllUsers } from './nodes/RingAllUsersNode';
@@ -44,7 +45,12 @@ if (internalDialReg) {
   internalDialReg.resolveAlias = (node: DialPlanNode) => {
     const config = node.config as unknown as Record<string, unknown>;
     const targetId = readRef(config, 'target');
-    if (targetId.startsWith('svm_') || (config.timeout === 0 && !config.next)) {
+    // A dial plan target stored with timeout 0 is a hand-off, not a Voicemail
+    // node: the nested plan ignores the 0.
+    if (
+      targetId.startsWith('svm_') ||
+      (config.timeout === 0 && !config.next && !isDialPlanTarget(targetId))
+    ) {
       return defaultRegistry.get('voicemail');
     }
     // TODO: remove va_ aliasing once legacy usage drains.

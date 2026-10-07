@@ -82,6 +82,12 @@ export interface NodeTypeRegistration {
   configPanel: React.ComponentType<ConfigPanelProps>;
   defaultConfig: Record<string, unknown>;
   exits: ExitDefinition[];
+  /**
+   * The subset of `exits` this config offers, when some depend on config. A
+   * hidden exit draws no edge on load, loses its edge when the config hides
+   * it, and is saved empty.
+   */
+  visibleExits?: (config: Record<string, unknown>) => ExitDefinition[];
   /** Render the node content inside the shell. Compose from NodeHeader, ExitRow, StaticExits. */
   renderNode: (data: Record<string, unknown>, reg: NodeTypeRegistration) => React.ReactNode;
   toFlowNode: (node: DialPlanNode) => Record<string, unknown>;

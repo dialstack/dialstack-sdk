@@ -40,7 +40,11 @@ export interface InternalDialNodeConfig {
   target?: string;
   /** @deprecated Use `target`. Retained for backwards compatibility. */
   target_id: string;
-  /** Timeout in seconds before routing to next node */
+  /**
+   * Timeout in seconds before routing to next node. Not used when `target` is
+   * a dial plan: the nested plan takes over and its own nodes decide, so
+   * `timeout_override` and `next` are not used there either.
+   */
   timeout?: number;
   /**
    * Makes `timeout` govern a target that owns a timeout of its own — a user
@@ -56,7 +60,7 @@ export interface InternalDialNodeConfig {
    * read first, so it is unaffected by this flag.
    */
   timeout_override?: boolean;
-  /** Node ID to route to on timeout or busy */
+  /** Node ID to route to on timeout or busy. Not used when `target` is a dial plan. */
   next?: string;
 }
 

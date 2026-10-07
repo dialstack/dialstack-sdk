@@ -50,7 +50,7 @@ import {
 import { defaultRegistry, nodeDefinitions } from './dial-plan/default-registry';
 import { enrichNodeData, nodeDataAfterConfigChange } from './dial-plan/apply-config-change';
 import { readRef } from './dial-plan/config-refs';
-import { DIAL_PLAN_EDGE_TYPE } from './dial-plan/registry';
+import { DIAL_PLAN_EDGE_TYPE, hiddenExitIds } from './dial-plan/registry';
 import { SmartEdge } from './dial-plan/SmartEdge';
 import { StartNode } from './dial-plan/StartNode';
 import { NodeLibrary } from './dial-plan/NodeLibrary';
@@ -693,9 +693,28 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
         updateDirty(next, edgesRef.current);
         return next;
       });
+      const changed = nodesRef.current.find((n) => n.id === nodeId);
+      const reg = defaultRegistry.getByFlowType(changed?.type ?? '');
+      // Drop the edge of any exit the new config hides, rather than leave it
+      // dangling off a handle that is gone.
+      if (reg) {
+        const original = changed?.data.originalNode as DialPlanNode | undefined;
+        const hidden = hiddenExitIds(reg, {
+          ...(original?.config as unknown as Record<string, unknown>),
+          ...configUpdates,
+        });
+        if (hidden.size > 0) {
+          setEdges((prev) => {
+            const kept = prev.filter(
+              (e) => !(e.source === nodeId && hidden.has(e.sourceHandle ?? ''))
+            );
+            if (kept.length === prev.length) return prev;
+            updateDirty(nodesRef.current, kept);
+            return kept;
+          });
+        }
+      }
       // Let the node definition handle config change side-effects
-      const nodeType = nodesRef.current.find((n) => n.id === nodeId)?.type ?? '';
-      const reg = defaultRegistry.getByFlowType(nodeType);
       const def = reg ? nodeDefinitions.find((d) => d.type === (reg.apiType ?? reg.type)) : null;
       def?.onConfigChange?.(nodeId, configUpdates, {
         setEdges,

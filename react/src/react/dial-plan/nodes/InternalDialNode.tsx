@@ -14,6 +14,7 @@ import { NodeHeader, StaticExits } from '../DialPlanNode';
 import { InternalDialConfigPanel } from '../config-panels/InternalDialConfigPanel';
 import { PhoneIcon } from '../icons';
 import {
+  isDialPlanTarget,
   resolveOverriddenTimeout,
   resolveTargetName,
   resolveTargetType,
@@ -32,19 +33,26 @@ export const config: NodeDefinition = {
   configPanel: InternalDialConfigPanel,
   defaultConfig: { target: '', target_id: '', timeout: 30, timeout_override: true },
   icon: PhoneIcon,
-  renderNode: (data: Record<string, unknown>, reg: NodeTypeRegistration) => (
-    <>
-      <NodeHeader
-        icon={reg.icon}
-        label={data.label as string}
-        timeout={data.timeoutInert ? undefined : (data.timeout as number | undefined)}
-        subtitle={data.targetName as string | undefined}
-      />
-      <div className="ds-dial-plan-node__exits">
-        <StaticExits exits={reg.exits} locale={data.locale as DialPlanLocale | undefined} />
-      </div>
-    </>
-  ),
+  renderNode: (data: Record<string, unknown>, reg: NodeTypeRegistration) => {
+    // A dial plan target hands the call off like a Voice App or Voicemail
+    // node, so it shows no timeout and no exit (see visibleExits).
+    const handOff = isDialPlanTarget(data.targetId as string | undefined);
+    return (
+      <>
+        <NodeHeader
+          icon={reg.icon}
+          label={data.label as string}
+          timeout={handOff || data.timeoutInert ? undefined : (data.timeout as number | undefined)}
+          subtitle={data.targetName as string | undefined}
+        />
+        {!handOff && (
+          <div className="ds-dial-plan-node__exits">
+            <StaticExits exits={reg.exits} locale={data.locale as DialPlanLocale | undefined} />
+          </div>
+        )}
+      </>
+    );
+  },
   toFlowNode: (node: DialPlanNode) => {
     const n = node as InternalDialNodeType;
     return {
@@ -55,6 +63,10 @@ export const config: NodeDefinition = {
       originalNode: n,
     };
   },
+  // Routing never reads `next` under a dial plan target, including one stored
+  // before the exit was hidden; hiding it here drops it on the next save.
+  visibleExits: (cfg: Record<string, unknown>) =>
+    isDialPlanTarget(readRef(cfg, 'target')) ? [] : config.exits,
   collectResourceIds: (config: Record<string, unknown>, collector: ResourceCollector) => {
     const id = readRef(config, 'target');
     if (id) collector.addTarget(id);
