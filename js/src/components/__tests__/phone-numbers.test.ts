@@ -349,7 +349,7 @@ describe('PhoneNumbersComponent merge', () => {
     // Once submitted (submitted_at set), the date is meaningful and shown.
     const submitted = await mount(makeInstance([], [], [makePort({ status: 'submitted' })]));
     clickFilter(submitted, 'in_progress');
-    expect(rowsText(submitted)).toMatch(/Jun \d+, 2026/);
+    expect(rowsText(submitted)).toContain('Jun 20, 2026');
   });
 
   it('keeps the cutover date for a port that reached the carrier then hit an exception', async () => {
@@ -359,7 +359,96 @@ describe('PhoneNumbersComponent merge', () => {
     // makePort() defaults to submitted_at set + a requested_foc_date.
     const el = await mount(makeInstance([], [], [makePort({ status: 'exception' })]));
     clickFilter(el, 'in_progress');
-    expect(rowsText(el)).toMatch(/Jun \d+, 2026/);
+    expect(rowsText(el)).toContain('Jun 20, 2026');
+  });
+
+  describe('west of UTC', () => {
+    // Setting process.env.TZ here does nothing: jest hands each test file a copy
+    // of process.env, so the runtime's zone never changes and CI stays on UTC.
+    // Default the viewer zone where the component reads it instead.
+    beforeEach(() => {
+      const original = Date.prototype.toLocaleDateString;
+      jest.spyOn(Date.prototype, 'toLocaleDateString').mockImplementation(function (
+        this: Date,
+        locales,
+        options
+      ) {
+        return original.call(this, locales, {
+          ...options,
+          timeZone: options?.timeZone ?? 'America/Los_Angeles',
+        });
+      });
+    });
+
+    it('shows the requested port date on the requested day', async () => {
+      const el = await mount(
+        makeInstance(
+          [],
+          [],
+          [
+            makePort({
+              details: { phone_numbers: ['+15145551234'], requested_foc_date: '2026-10-13' },
+            }),
+          ]
+        )
+      );
+      clickFilter(el, 'in_progress');
+      expect(rowsText(el)).toContain('Oct 13, 2026');
+    });
+
+    it('shows an evening Eastern carrier FOC on its Eastern day, past UTC midnight', async () => {
+      // 20:00 EDT on Oct 13, the end of the carrier window, is 00:00Z on Oct 14.
+      const el = await mount(
+        makeInstance(
+          [],
+          [],
+          [
+            makePort({
+              status: 'foc',
+              details: {
+                phone_numbers: ['+15145551234'],
+                requested_foc_date: '2026-10-13',
+                actual_foc_date: '2026-10-14T00:00:00Z',
+              },
+            }),
+          ]
+        )
+      );
+      clickFilter(el, 'in_progress');
+      expect(rowsText(el)).toContain('Oct 13, 2026');
+    });
+
+    it("reads a carrier FOC in the order's zone", async () => {
+      // 09:00 in Guam on Oct 14 is still Oct 13 everywhere in the Americas.
+      const el = await mount(
+        makeInstance(
+          [],
+          [],
+          [
+            makePort({
+              status: 'foc',
+              details: {
+                phone_numbers: ['+15145551234'],
+                requested_foc_date: '2026-10-14',
+                requested_foc_timezone: 'Pacific/Guam',
+                actual_foc_date: '2026-10-13T23:00:00Z',
+              },
+            }),
+          ]
+        )
+      );
+      clickFilter(el, 'in_progress');
+      expect(rowsText(el)).toContain('Oct 14, 2026');
+    });
+
+    it('shows a cancellation in the viewer zone', async () => {
+      // 18:00 PDT on Oct 12 is 01:00Z on Oct 13.
+      const el = await mount(
+        makeInstance([makeDID({ disconnected_at: '2026-10-13T01:00:00Z' })], [])
+      );
+      clickFilter(el, 'cancelled');
+      expect(rowsText(el)).toContain('Oct 12, 2026');
+    });
   });
 });
 

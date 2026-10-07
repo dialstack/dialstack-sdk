@@ -13,6 +13,7 @@ import { segmentedControlStyles, tableStyles, paginationStyles } from './shared-
 import './routing-target';
 // eslint-disable-next-line import-x/no-duplicates
 import type { RoutingTargetComponent } from './routing-target';
+import { FOC_CARRIER_TIMEZONE } from '../utils/foc-time';
 import type {
   PhoneNumberItem,
   PhoneNumberStatus,
@@ -105,6 +106,9 @@ export class PhoneNumbersComponent extends BaseComponent {
 
   // Resolved routing target names for sorting (target TypeID → display name)
   private resolvedTargetNames = new Map<string, string>();
+
+  // Port order ID → the zone its carrier FOC instant reads as a calendar day in
+  private portFocTimezones = new Map<string, string>();
 
   // Override classes type for component-specific classes
   protected override classes: PhoneNumbersClasses = {};
@@ -236,6 +240,9 @@ export class PhoneNumbersComponent extends BaseComponent {
     ports: PortOrder[]
   ): PhoneNumberItem[] {
     const map = new Map<string, PhoneNumberItem>();
+    this.portFocTimezones = new Map(
+      ports.map((p) => [p.id, p.details.requested_foc_timezone || FOC_CARRIER_TIMEZONE])
+    );
 
     // Build a set of phone numbers that have an active (non-complete/non-cancelled) port order
     const activePortNumbers = new Set<string>();
@@ -445,7 +452,8 @@ export class PhoneNumbersComponent extends BaseComponent {
     return phone;
   }
 
-  private formatShortDate(dateStr: string): string {
+  /** `timeZone` omitted renders in the viewer's zone, which is right for real instants. */
+  private formatShortDate(dateStr: string, timeZone?: string): string {
     try {
       const date = new Date(dateStr);
       const locale = this.formatting.dateLocale || 'en-US';
@@ -453,10 +461,25 @@ export class PhoneNumbersComponent extends BaseComponent {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
+        timeZone,
       });
     } catch {
       return dateStr;
     }
+  }
+
+  /**
+   * A requested FOC date is a bare YYYY-MM-DD that parses as UTC midnight, so it
+   * is read in UTC. The carrier's actual FOC is an instant, and its window runs
+   * to 20:00 Eastern, past UTC midnight, so it is read in the order's zone.
+   */
+  private formatTransferDate(item: PhoneNumberItem): string {
+    const value = item.transfer_date ?? '';
+    const zone = /^\d{4}-\d{2}-\d{2}$/.test(value)
+      ? 'UTC'
+      : (item.port_order_id && this.portFocTimezones.get(item.port_order_id)) ||
+        FOC_CARRIER_TIMEZONE;
+    return this.formatShortDate(value, zone);
   }
 
   private getStatusLocaleKey(status: PhoneNumberStatus): string {
@@ -1072,7 +1095,7 @@ export class PhoneNumbersComponent extends BaseComponent {
       case 'carrier':
         return this.escapeHtml(item.carrier || '');
       case 'transfer_date':
-        return item.transfer_date ? this.formatShortDate(item.transfer_date) : '';
+        return item.transfer_date ? this.formatTransferDate(item) : '';
       case 'cancelled_date': {
         const ts = item.disconnected_at || item.updated_at;
         return ts ? this.formatShortDate(ts) : '';
