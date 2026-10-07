@@ -139,6 +139,7 @@ export type {
   OnboardingCollectionOptions,
   AccountOnboardingClasses,
   OnboardingPortalClasses,
+  IntercomConfig,
   AccountConfig,
   Account,
   TosVariant,

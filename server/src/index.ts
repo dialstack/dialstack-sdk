@@ -203,7 +203,15 @@ export interface Account {
   updated_at: string;
 }
 
+/** Account admin permission for receiving an auto-answer intercom. */
+export type IntercomConfig =
+  | { mode: 'off' | 'everyone'; users?: never }
+  | { mode: 'selected_users'; /** Up to 1000 distinct active account users. */ users?: string[] };
+
 export interface AccountConfig {
+  /** Admin-key-only intercom recipient policy; component sessions cannot change it.
+   * Omit on update to preserve it; null resets to Off. */
+  intercom?: IntercomConfig | null;
   /** ISO 3166-1 alpha-2 country code (default: "US") */
   region?: string;
   /** Number of digits for extension numbers, 3-6 (default: 4) */
