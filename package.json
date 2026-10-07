@@ -82,7 +82,7 @@
     "canvas-confetti": "^1.9.4",
     "cmdk": "^1.1.1",
     "dagre": "^0.8.5",
-    "eslint": "^10.11.0",
+    "eslint": "^10.12.0",
     "eslint-plugin-compat": "^7.0.2",
     "eslint-plugin-import-x": "^4.17.1",
     "eslint-plugin-react": "^7.0.0",
