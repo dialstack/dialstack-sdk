@@ -33,6 +33,15 @@ export type {
   DeviceReadinessPrerequisite,
 } from './utils/device-readiness';
 
+// The name a device is shown under: override, else its primary user, else its
+// hardware identity. Shared so every surface labels a device the same way.
+export { deviceDisplayName } from './utils/device-display-name';
+export type {
+  DeviceDisplayName,
+  DeviceDisplayNameInput,
+  DeviceDisplayNameSource,
+} from './utils/device-display-name';
+
 // Bulk phone-number entry. Shared so the admin portal and the onboarding portal
 // accept and reject exactly the same input — a number one surface takes and the
 // other refuses is a number left off a port order.
