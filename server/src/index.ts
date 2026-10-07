@@ -1246,6 +1246,7 @@ export interface Fax {
    */
   source_pages: number | null;
   transport: FaxTransport | null;
+  /** Machine-readable reason a failed fax failed. Null unless `status` is `failed`. */
   error_code: string | null;
   attempts: number;
   /** When the fax was marked read. Read state is the null-ness of this field. */
