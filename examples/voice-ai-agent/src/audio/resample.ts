@@ -1,9 +1,11 @@
-// Tiny, dependency-free sample-rate conversion between the three rates we
-// care about:
+// Tiny, dependency-free sample-rate conversion between the rates we care
+// about:
 //
 //   8 kHz   — DialStack media WebSocket (after μ-law decode)
 //   16 kHz  — ElevenLabs input, Gemini Live input
 //   24 kHz  — Gemini Live output
+//   any     — Telnyx output, set by the assistant's voice and only known at
+//             runtime (Downsampler8k)
 //
 // These use linear interpolation / averaging rather than a proper polyphase
 // filter. That is intentional: it keeps the example readable and dep-free,
@@ -58,4 +60,42 @@ export function bufferToPcm16(buf: Buffer): Int16Array {
 /** Pack Int16Array as a little-endian byte Buffer. */
 export function pcm16ToBuffer(pcm: Int16Array): Buffer {
   return Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+}
+
+/**
+ * Streaming downsampler from any rate ≥ 8 kHz to 8 kHz, averaging each source
+ * window. Keeps the leftover samples and the fractional window phase between
+ * chunks, so non-integer ratios (22.05k, 44.1k) and chunk sizes that aren't a
+ * multiple of the ratio neither drop samples nor click at chunk boundaries.
+ */
+export class Downsampler8k {
+  private readonly ratio: number;
+  private pending = new Int16Array(0);
+  private phase = 0; // fractional start of the next window within `pending`
+
+  constructor(fromRate: number) {
+    if (fromRate < 8000) throw new Error(`cannot downsample from ${fromRate} Hz to 8000 Hz`);
+    this.ratio = fromRate / 8000;
+  }
+
+  push(pcm: Int16Array): Int16Array {
+    if (this.ratio === 1) return pcm;
+    const buf = new Int16Array(this.pending.length + pcm.length);
+    buf.set(this.pending);
+    buf.set(pcm, this.pending.length);
+
+    const out = new Int16Array(Math.floor((buf.length - this.phase) / this.ratio));
+    let t = this.phase;
+    for (let i = 0; i < out.length; i++, t += this.ratio) {
+      const start = Math.floor(t);
+      const end = Math.floor(t + this.ratio);
+      let sum = 0;
+      for (let j = start; j < end; j++) sum += buf[j];
+      out[i] = (sum / (end - start)) | 0;
+    }
+    const consumed = Math.floor(t);
+    this.pending = buf.slice(consumed);
+    this.phase = t - consumed;
+    return out;
+  }
 }

@@ -5,6 +5,7 @@ A minimal Node/TypeScript example that connects a [DialStack](https://dialstack.
 - **[ElevenLabs Conversational AI](https://elevenlabs.io/conversational-ai)**, or
 - **[Google Gemini Live](https://ai.google.dev/gemini-api/docs/live)** (via Google AI Studio or Vertex AI), or
 - **[OpenAI Realtime](https://developers.openai.com/api/docs/guides/realtime)** (G.711 μ-law end to end — no transcoding).
+- **[Telnyx AI Assistants](https://developers.telnyx.com/api-reference/websockets/talk-to-an-ai-assistant-over-websocket)** (over Telnyx's conversation WebSocket — no Telnyx number or SIP needed).
 
 The provider is selected with a CLI flag at start time. Audio runs both directions over a single WebSocket; we transcode μ-law ⇄ PCM and resample as needed so each provider gets the format it expects.
 
@@ -15,7 +16,7 @@ This is the runnable companion to the [BYO VoiceAI guide](https://docs.dialstack
 ```
 Caller ──► DialStack ──webhook──► this server ──► attaches /media WebSocket
                                        │
-                                       └──► Voice AI provider (ElevenLabs, Gemini or OpenAI)
+                                       └──► Voice AI provider (ElevenLabs, Gemini, OpenAI or Telnyx)
 ```
 
 1. A Voice App routes the inbound call to your server and DialStack POSTs `call.received` to `/webhook`.
@@ -34,6 +35,7 @@ Caller ──► DialStack ──webhook──► this server ──► attaches
   - **ElevenLabs**: a Conversational AI agent and an API key with **write** access to Agents (`convai_write`; a read-only key can't fetch a signed URL)
   - **Gemini (AI Studio)**: an API key from [aistudio.google.com](https://aistudio.google.com/)
   - **OpenAI**: an API key with Realtime API access from [platform.openai.com](https://platform.openai.com/)
+  - **Telnyx**: an AI Assistant and an API v2 key from the Telnyx Mission Control portal
   - **Gemini (Vertex AI)**: a GCP project with the Vertex AI API enabled and Application Default Credentials configured locally (`gcloud auth application-default login`)
 - A way to expose your local server publicly during development — [cloudflared](https://github.com/cloudflare/cloudflared) or [ngrok](https://ngrok.com/) both work.
 
@@ -70,6 +72,8 @@ GOOGLE_GENAI_USE_VERTEXAI=true npm run dev -- --provider gemini
 
 # OpenAI Realtime
 npm run dev -- --provider openai
+# Telnyx AI Assistant
+npm run dev -- --provider telnyx
 ```
 
 Then call the DID assigned to your Voice App. You should hear the agent answer; speak back and forth as you would with any voice agent.
@@ -78,13 +82,13 @@ Then call the DID assigned to your Voice App. You should hear the agent answer; 
 
 All settings come from environment variables — see [`.env.example`](./.env.example) for the full list with comments. The non-obvious ones:
 
-| Var                         | Notes                                                                                                                                                                                           |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PUBLIC_URL`                | The HTTPS URL where this server is reachable from the public internet. The webhook handler derives the `wss://.../media` URL from this.                                                         |
-| `VOICE_APP_WEBHOOK_SECRET`  | The HMAC secret DialStack uses to sign webhook payloads. Set when you create the Voice App.                                                                                                     |
-| `GOOGLE_GENAI_USE_VERTEXAI` | `true` to route Gemini through Vertex AI (requires `GOOGLE_CLOUD_PROJECT` and ADC). Unset or `false` uses the AI Studio API and `GEMINI_API_KEY`.                                               |
-| `TRANSFER_TARGET`           | Where to transfer the caller when an ElevenLabs agent calls its `transfer_to_human` client tool: an extension, an E.164 number or a `sip:` URI. Unset, the tool call is logged and ignored.     |
-| `LOG_TRANSCRIPTS`           | Set to `true` to log caller and agent transcript text at debug level. **Off by default** — transcripts contain PII (names, account numbers, addresses). Only enable in controlled environments. |
+| Var                         | Notes                                                                                                                                                                                                               |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PUBLIC_URL`                | The HTTPS URL where this server is reachable from the public internet. The webhook handler derives the `wss://.../media` URL from this.                                                                             |
+| `VOICE_APP_WEBHOOK_SECRET`  | The HMAC secret DialStack uses to sign webhook payloads. Set when you create the Voice App.                                                                                                                         |
+| `GOOGLE_GENAI_USE_VERTEXAI` | `true` to route Gemini through Vertex AI (requires `GOOGLE_CLOUD_PROJECT` and ADC). Unset or `false` uses the AI Studio API and `GEMINI_API_KEY`.                                                                   |
+| `TRANSFER_TARGET`           | Where to transfer the caller when an ElevenLabs agent or Telnyx assistant calls its `transfer_to_human` client tool: an extension, an E.164 number or a `sip:` URI. Unset, the tool call is answered with an error. |
+| `LOG_TRANSCRIPTS`           | Set to `true` to log caller and agent transcript text at debug level. **Off by default** — transcripts contain PII (names, account numbers, addresses). Only enable in controlled environments.                     |
 
 ## Layout
 
@@ -98,12 +102,13 @@ src/
 ├── logger.ts           pino
 ├── audio/
 │   ├── mulaw.ts        μ-law ⇄ PCM16 via alawmulaw
-│   └── resample.ts     8k↔16k, 24k→8k linear resampling (dep-free)
+│   └── resample.ts     8k↔16k, 24k→8k, any→8k linear resampling (dep-free)
 └── providers/
     ├── provider.ts     Interface every provider implements
     ├── elevenlabs.ts   ElevenLabs Conversational AI WebSocket
     ├── gemini.ts       Google Gemini Live (AI Studio + Vertex)
-    └── openai.ts       OpenAI Realtime WebSocket
+    ├── openai.ts       OpenAI Realtime WebSocket
+    └── telnyx.ts       Telnyx AI Assistant conversation WebSocket
 ```
 
 ## Provider-specific notes
@@ -129,6 +134,15 @@ src/
 - The agent speaks first: the example sends `response.create` as soon as `session.updated` confirms the configuration.
 - Barge-in: server VAD with `interrupt_response` cancels the response on OpenAI's side, and `input_audio_buffer.speech_started` drops any agent audio still queued for the caller. The example doesn't send `conversation.item.truncate`, so the model's transcript of an interrupted turn may include words the caller never heard.
 
+### Telnyx
+
+- The example connects with `input_sample_rate=8000`, so caller audio is only μ-law-decoded to PCM16 — no resampling on the way in.
+- The output rate is chosen by the assistant's voice, not the client. The example reads it from `session.created` and downsamples to 8 kHz, so changing the voice needs no code change.
+- Barge-in: `input_audio_buffer.speech_started` drops any agent audio still queued for the caller. (Gemini's interruption signal also fires on echo, so it is only logged.)
+- Greeting, prompt, voice and tools are all configured on the assistant in Telnyx; the example sends no instructions.
+- The caller's and called numbers are sent in the first `session.update` as the dynamic variables `caller_number` and `called_number`. Reference them in the assistant's instructions or greeting as `{{caller_number}}`.
+- To let the assistant hand the caller to a person, add a **client-side tool** named `transfer_to_human` to the assistant. When the assistant calls it, the example issues a DialStack `transfer` action to `TRANSFER_TARGET`.
+
 ## Audio plumbing notes
 
 - **Pacing**: outbound frames are emitted at exactly 50 frames/sec using a drift-compensated scheduler. A plain `setInterval(_, 20)` actually fires every ~20.8 ms in Node, which drops you to 48 frames/sec; the call leg then fills the gaps with comfort noise on the far end, which you hear as stutters and missing syllables. If you adapt this code, keep the deadline-anchored scheduler in `session.ts`.
@@ -142,7 +156,7 @@ src/
 ## Out of scope (intentionally)
 
 - **Tool / function calling.** Both providers support it; wiring it through is a separate concern.
-- **Transfer for the other providers.** Only the ElevenLabs provider maps a tool call to a DialStack `transfer`; see the [Voice Apps guide](https://docs.dialstack.ai/guides/voice-apps) to do the same elsewhere.
+- **Transfer for the other providers.** Only the ElevenLabs and Telnyx providers map a tool call to a DialStack `transfer`; see the [Voice Apps guide](https://docs.dialstack.ai/guides/voice-apps) to do the same elsewhere.
 - **Reconnection / retry.** A real production deployment should handle upstream WebSocket disconnects more gracefully.
 
 ## Troubleshooting
@@ -151,6 +165,7 @@ src/
 - **DialStack opens the media socket but no audio plays** — verify `PUBLIC_URL` is `https://` (not `http://`) and reachable from the internet. Check that you have the `attach` URL printed in the logs.
 - **ElevenLabs disconnects immediately** — check the `ElevenLabs WS closed` log line for the close code and reason, and the `unsupported agent audio format` error. Run with `LOG_LEVEL=debug`.
 - **OpenAI handshake fails with HTTP 401** — `OPENAI_API_KEY` is wrong or lacks Realtime access. An `error` event right after connect usually means an invalid `OPENAI_MODEL` or `OPENAI_VOICE`; it is logged with its code.
+- **Telnyx handshake fails with HTTP 401** — `TELNYX_API_KEY` is wrong or not an API v2 key. HTTP 404 usually means a wrong `TELNYX_ASSISTANT_ID`.
 - **Gemini 401 / 403** — for AI Studio, confirm `GEMINI_API_KEY` is set; for Vertex, run `gcloud auth application-default login` and confirm the user/SA has the `Vertex AI User` role on `GOOGLE_CLOUD_PROJECT`.
 - **Choppy or stuttering audio** — the example uses simple linear resampling. If you need higher fidelity, swap in `node-libsamplerate` or similar.
 
