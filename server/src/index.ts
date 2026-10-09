@@ -1825,8 +1825,32 @@ export interface HardwareOrderLine {
   updated_at: string;
 }
 
+/** One parcel the distributor shipped for a hardware order. */
+export interface HardwareOrderShipment {
+  /** The carrier, as the distributor names it (for example `UPS`). */
+  carrier: string;
+  tracking_number: string;
+  /** `YYYY-MM-DD`. */
+  ship_date: string | null;
+  /** The carrier status the distributor last reported. */
+  status: string | null;
+}
+
 export interface HardwareOrder {
   id: string;
+  /**
+   * The account the order ships to: its id, or the full {@link Account} when
+   * `expand: ['account']` is passed.
+   */
+  account: string | Account;
+  /**
+   * The purchase order number the distributor holds this order under. Null
+   * until the order is placed with the distributor, which happens after
+   * review. Changes if the order has to be placed again.
+   */
+  po_number: string | null;
+  /** The shipments the distributor has reported. Empty until the order ships. */
+  shipments: HardwareOrderShipment[];
   payment_status: HardwareOrderPaymentStatus;
   fulfillment_status: HardwareOrderFulfillmentStatus;
   /**
@@ -1897,7 +1921,7 @@ export interface HardwareOrder {
 }
 
 export type HardwareOrderExpand =
-  'items.device' | 'items.bundle_catalog' | 'lines.hardware_catalog';
+  'account' | 'items.device' | 'items.bundle_catalog' | 'lines.hardware_catalog';
 
 /**
  * 409 body from {@link hardwareOrders.checkout} and {@link hardwareOrders.request}. Each refuses for
