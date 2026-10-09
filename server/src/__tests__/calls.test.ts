@@ -157,6 +157,28 @@ describe('Calls', () => {
     });
   });
 
+  describe('calls.delRecording', () => {
+    it('deletes the recording sub-resource', async () => {
+      mockNoContent();
+
+      await dialstack.calls.delRecording('call_123', acct);
+
+      expect(requestedUrl()).toBe('https://api.dialstack.ai/v1/calls/call_123/recording');
+      expect(requestInit().method).toBe('DELETE');
+    });
+  });
+
+  describe('calls.delTranscript', () => {
+    it('deletes the transcript sub-resource', async () => {
+      mockNoContent();
+
+      await dialstack.calls.delTranscript('call_123', acct);
+
+      expect(requestedUrl()).toBe('https://api.dialstack.ai/v1/calls/call_123/transcript');
+      expect(requestInit().method).toBe('DELETE');
+    });
+  });
+
   describe('listeners', () => {
     it('creates a listener with a channel', async () => {
       mockJSON(

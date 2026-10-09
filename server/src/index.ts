@@ -4088,6 +4088,30 @@ export class DialStack {
     },
 
     /**
+     * Permanently delete a call's recorded audio. The transcript, summary and
+     * sentiment are kept; delete them with `delTranscript`. The call stays
+     * in the call log.
+     */
+    delRecording: (
+      callId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request('DELETE', `/v1/calls/${callId}/recording`, undefined, options);
+    },
+
+    /**
+     * Permanently delete a call's transcript, summary and sentiment. The
+     * recording is kept; delete it with `delRecording`. The call stays in
+     * the call log.
+     */
+    delTranscript: (
+      callId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request('DELETE', `/v1/calls/${callId}/transcript`, undefined, options);
+    },
+
+    /**
      * Start streaming live audio from an active call to your WebSocket server.
      * Neither party is aware of the listener.
      */
