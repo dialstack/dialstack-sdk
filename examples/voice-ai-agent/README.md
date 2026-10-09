@@ -31,7 +31,7 @@ Caller ──► DialStack ──webhook──► this server ──► attaches
   - An API key
   - A Voice App with a webhook URL pointing at this server (we'll set this up once you have a public URL)
 - An account on the AI provider(s) you want to use:
-  - **ElevenLabs**: a Conversational AI agent
+  - **ElevenLabs**: a Conversational AI agent and an API key with **write** access to Agents (`convai_write`; a read-only key can't fetch a signed URL)
   - **Gemini (AI Studio)**: an API key from [aistudio.google.com](https://aistudio.google.com/)
   - **OpenAI**: an API key with Realtime API access from [platform.openai.com](https://platform.openai.com/)
   - **Gemini (Vertex AI)**: a GCP project with the Vertex AI API enabled and Application Default Credentials configured locally (`gcloud auth application-default login`)
@@ -40,6 +40,7 @@ Caller ──► DialStack ──webhook──► this server ──► attaches
 ## Setup
 
 ```sh
+npm run build --prefix ../..   # builds the local @dialstack/sdk-server this example links
 npm install
 cp .env.example .env
 # edit .env — fill in the keys for whichever provider you plan to use
@@ -82,6 +83,7 @@ All settings come from environment variables — see [`.env.example`](./.env.exa
 | `PUBLIC_URL`                | The HTTPS URL where this server is reachable from the public internet. The webhook handler derives the `wss://.../media` URL from this.                                                         |
 | `VOICE_APP_WEBHOOK_SECRET`  | The HMAC secret DialStack uses to sign webhook payloads. Set when you create the Voice App.                                                                                                     |
 | `GOOGLE_GENAI_USE_VERTEXAI` | `true` to route Gemini through Vertex AI (requires `GOOGLE_CLOUD_PROJECT` and ADC). Unset or `false` uses the AI Studio API and `GEMINI_API_KEY`.                                               |
+| `TRANSFER_TARGET`           | Where to transfer the caller when an ElevenLabs agent calls its `transfer_to_human` client tool: an extension, an E.164 number or a `sip:` URI. Unset, the tool call is logged and ignored.     |
 | `LOG_TRANSCRIPTS`           | Set to `true` to log caller and agent transcript text at debug level. **Off by default** — transcripts contain PII (names, account numbers, addresses). Only enable in controlled environments. |
 
 ## Layout
@@ -90,7 +92,8 @@ All settings come from environment variables — see [`.env.example`](./.env.exa
 src/
 ├── index.ts            CLI entry; parses --provider; loads env; starts server
 ├── server.ts           Express + ws: POST /webhook, WS /media
-├── webhook.ts          HMAC verification + POST /v1/calls/{id} attach
+├── webhook.ts          HMAC verification + POST /v1/calls/{id} attach / transfer
+├── calls.ts            Calls attached by a verified webhook; gates /media sessions
 ├── session.ts          Per-call audio plumbing (μ-law ↔ PCM, resampling, pacing)
 ├── logger.ts           pino
 ├── audio/
@@ -107,14 +110,16 @@ src/
 
 ### ElevenLabs
 
-- The agent's **input audio format** (`asr.user_input_audio_format`) is not API-overridable per call. Set it to `ulaw_8000` in the agent's Voice settings (or via `PATCH /v1/convai/agents/{id}`) so caller audio is true pass-through. If you leave it as `pcm_16000`, the example will resample for you, but you'll get linear-interpolation artefacts in the transcript path.
-- The agent's **output audio format** (`tts.agent_output_audio_format`) is also overridable from the dashboard. Setting it to `ulaw_8000` skips a downsample on the way back to the caller. The example also requests `ulaw_8000` per-call via `conversation_config_override`, but ElevenLabs only honours that if the override is allow-listed on the agent.
-- ElevenLabs' server-side VAD fires `interruption` events when caller audio overlaps agent audio — including the agent's own voice leaking from the caller's speaker back into the mic. The example **logs but does not flush the queue** on these events; if the interruption is real, ElevenLabs stops sending frames and the queue drains naturally. Flushing on every event cancels the agent mid-sentence on most phones.
+- Set both audio formats on the agent to **μ-law 8000 Hz**: the input format (`asr.user_input_audio_format`) and the output format (`tts.agent_output_audio_format`). Neither is a per-conversation override, so the example sends no override and needs none enabled. It reads the formats from `conversation_initiation_metadata`: `ulaw_8000` is passed through, `pcm_16000` is transcoded, and any other format fails the call with an error log.
+- On an `interruption` event, ElevenLabs has already abandoned the agent's response, so the example drops the audio still queued for the caller and ignores late audio events of that response (lower `event_id`). If echo on the caller's line triggers interruptions, tune the agent's turn settings in ElevenLabs.
+- The caller's and called numbers are sent as the dynamic variables `caller_number` and `called_number`. Reference them in the agent's prompt or first message as `{{caller_number}}`.
+- To let the agent hand the caller to a person, add a **client tool** named `transfer_to_human` to the agent. When the agent calls it, the example issues a DialStack `transfer` action to `TRANSFER_TARGET`. It does not use ElevenLabs' own transfer tools, which act on calls ElevenLabs carries itself.
+- The connection uses a signed URL fetched with `ELEVENLABS_API_KEY`. A `401` from `get-signed-url` means a bad key or one without `convai_write`, a `404` a bad `ELEVENLABS_AGENT_ID`.
 
 ### Gemini Live
 
 - Gemini does not have a built-in "first message" — it waits for input before generating. The example sends a one-shot text turn (`GEMINI_KICKOFF_PROMPT`) right after `connect` so the agent greets the caller without them having to speak first.
-- The same advisory-interrupt treatment applies as ElevenLabs.
+- Gemini's `interrupted` flag is logged, not acted on: it also fires on the agent's own voice echoing back, and flushing on it cuts the agent off mid-sentence.
 - On Vertex AI, the Live API is region-limited. The current preview model is `gemini-live-2.5-flash-native-audio`; check the Vertex AI Live API docs for your region.
 
 ### OpenAI Realtime
@@ -130,17 +135,21 @@ src/
 - **Barge-in**: when a provider emits `interrupt`, the session drops every agent frame still queued for the caller. Only emit it from a signal you trust not to fire on echo.
 - **Format negotiation**: handlers are attached before the upstream WebSocket opens so the `conversation_initiation_metadata` message from ElevenLabs is never raced and dropped.
 
+## Security notes
+
+- `/media` accepts a session only for a call ID this server attached from a signature-verified `call.received` webhook, and takes the account and caller details from that webhook, not from the socket's `begin` message. Without this, anyone who can reach `/media` could open agent sessions on your provider account, or transfer calls with your DialStack key.
+
 ## Out of scope (intentionally)
 
 - **Tool / function calling.** Both providers support it; wiring it through is a separate concern.
-- **Transfer / hand-off.** You can issue another `actions: [{ type: 'transfer', ... }]` update to the call when your agent decides to escalate; see the [Voice Apps guide](https://docs.dialstack.ai/guides/voice-apps).
+- **Transfer for the other providers.** Only the ElevenLabs provider maps a tool call to a DialStack `transfer`; see the [Voice Apps guide](https://docs.dialstack.ai/guides/voice-apps) to do the same elsewhere.
 - **Reconnection / retry.** A real production deployment should handle upstream WebSocket disconnects more gracefully.
 
 ## Troubleshooting
 
 - **Webhook returns 400 "invalid signature"** — `VOICE_APP_WEBHOOK_SECRET` doesn't match the one on the Voice App in DialStack. Re-fetch from the dashboard.
 - **DialStack opens the media socket but no audio plays** — verify `PUBLIC_URL` is `https://` (not `http://`) and reachable from the internet. Check that you have the `attach` URL printed in the logs.
-- **ElevenLabs disconnects immediately** — likely a wrong `ELEVENLABS_AGENT_ID`. The signed-URL request will succeed but the WS will close. Run with `LOG_LEVEL=debug`.
+- **ElevenLabs disconnects immediately** — check the `ElevenLabs WS closed` log line for the close code and reason, and the `unsupported agent audio format` error. Run with `LOG_LEVEL=debug`.
 - **OpenAI handshake fails with HTTP 401** — `OPENAI_API_KEY` is wrong or lacks Realtime access. An `error` event right after connect usually means an invalid `OPENAI_MODEL` or `OPENAI_VOICE`; it is logged with its code.
 - **Gemini 401 / 403** — for AI Studio, confirm `GEMINI_API_KEY` is set; for Vertex, run `gcloud auth application-default login` and confirm the user/SA has the `Vertex AI User` role on `GOOGLE_CLOUD_PROJECT`.
 - **Choppy or stuttering audio** — the example uses simple linear resampling. If you need higher fidelity, swap in `node-libsamplerate` or similar.

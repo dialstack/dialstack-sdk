@@ -10,7 +10,7 @@ import express from 'express';
 import { WebSocketServer } from 'ws';
 import { MediaStream } from '@dialstack/sdk-server';
 import { logger } from './logger.js';
-import { makeWebhookHandler, type WebhookConfig } from './webhook.js';
+import { makeTransfer, makeWebhookHandler, type WebhookConfig } from './webhook.js';
 import { runSession } from './session.js';
 import type { VoiceProvider } from './providers/provider.js';
 
@@ -29,12 +29,9 @@ export function startServer(opts: ServerOptions): http.Server {
   });
 
   // express.raw() so the HMAC verifier sees the exact bytes DialStack signed.
-  app.post(
-    '/webhook',
-    express.raw({ type: 'application/json' }),
-    makeWebhookHandler(opts.webhook),
-  );
+  app.post('/webhook', express.raw({ type: 'application/json' }), makeWebhookHandler(opts.webhook));
 
+  const transfer = makeTransfer(opts.webhook);
   const server = http.createServer(app);
   const wss = new WebSocketServer({ noServer: true });
 
@@ -49,7 +46,7 @@ export function startServer(opts: ServerOptions): http.Server {
   wss.on('connection', (ws) => {
     log.info('media WebSocket connection');
     const stream = new MediaStream(ws);
-    runSession({ stream, makeProvider: opts.makeProvider });
+    runSession({ stream, makeProvider: opts.makeProvider, transfer });
   });
 
   server.listen(opts.port, () => {

@@ -6,6 +6,7 @@ import type { Request, Response } from 'express';
 import { DialStack } from '@dialstack/sdk-server';
 import type { WebhookEvent } from '@dialstack/sdk-server';
 import { logger } from './logger.js';
+import { rememberCall } from './calls.js';
 
 export interface WebhookConfig {
   /** DialStack API base URL (e.g. https://api.dialstack.ai). */
@@ -16,6 +17,17 @@ export interface WebhookConfig {
   webhookSecret: string;
   /** Public wss:// URL of this server's /media endpoint. */
   mediaWsUrl: string;
+}
+
+/** Replace the call's running `attach` with a `transfer`, handing the caller off. */
+export function makeTransfer(cfg: WebhookConfig) {
+  const ds = new DialStack(cfg.apiKey, { apiUrl: cfg.apiBase });
+  return (callId: string, accountId: string, target: string) =>
+    ds.calls.update(
+      callId,
+      { actions: [{ type: 'transfer' as const, target }] },
+      { dialstackAccount: accountId }
+    );
 }
 
 export function makeWebhookHandler(cfg: WebhookConfig) {
@@ -30,7 +42,7 @@ export function makeWebhookHandler(cfg: WebhookConfig) {
       event = DialStack.webhooks.constructEvent<WebhookEvent & { event: string }>(
         req.body as Buffer,
         String(req.header('x-dialstack-signature') ?? ''),
-        cfg.webhookSecret,
+        cfg.webhookSecret
       );
     } catch (err) {
       log.warn({ err }, 'webhook signature verification failed');
@@ -47,11 +59,17 @@ export function makeWebhookHandler(cfg: WebhookConfig) {
       return;
     }
 
+    rememberCall(event.call_id, {
+      accountId: event.account_id,
+      fromNumber: event.from_number,
+      toNumber: event.to_number,
+    });
+
     try {
       await ds.calls.update(
         event.call_id,
         { actions: [{ type: 'attach' as const, url: cfg.mediaWsUrl }] },
-        { dialstackAccount: event.account_id },
+        { dialstackAccount: event.account_id }
       );
     } catch (err) {
       log.error({ err }, 'POST /v1/calls/{id} failed');

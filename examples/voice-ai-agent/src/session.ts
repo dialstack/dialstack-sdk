@@ -15,6 +15,7 @@
 //   5. Either side closing closes the other side.
 
 import { logger } from './logger.js';
+import { takeCall } from './calls.js';
 import type { VoiceProvider } from './providers/provider.js';
 import type {
   MediaStream,
@@ -29,9 +30,10 @@ const CONNECT_TIMEOUT_MS = 15_000;
 export interface SessionOptions {
   stream: MediaStream;
   makeProvider: () => VoiceProvider;
+  transfer: (callId: string, accountId: string, target: string) => Promise<unknown>;
 }
 
-export function runSession({ stream, makeProvider }: SessionOptions): void {
+export function runSession({ stream, makeProvider, transfer }: SessionOptions): void {
   const log = logger.child({ component: 'session' });
 
   const outQueue: Buffer[] = [];
@@ -43,10 +45,35 @@ export function runSession({ stream, makeProvider }: SessionOptions): void {
   stream.once('begin', async (begin: MediaStreamBeginEvent) => {
     log.info({ call_id: begin.call_id, account_id: begin.account_id }, 'call begin');
 
+    const call = takeCall(begin.call_id);
+    if (!call) {
+      log.warn({ call_id: begin.call_id }, 'media socket for a call we did not attach; closing');
+      closeAll('unknown call');
+      return;
+    }
+
     provider = makeProvider();
 
     provider.on('audio', (ulaw) => enqueueProviderAudio(ulaw));
     provider.on('interrupt', () => flushProviderAudio());
+    provider.on('transfer', (done) => {
+      // The transfer replaces the running attach; DialStack then closes this
+      // media socket, which ends the session.
+      const target = process.env.TRANSFER_TARGET;
+      if (!target) {
+        log.warn('agent asked for a transfer but TRANSFER_TARGET is not set');
+        done(new Error('TRANSFER_TARGET is not set'));
+        return;
+      }
+      log.info({ target }, 'transferring the caller');
+      transfer(begin.call_id, call.accountId, target).then(
+        () => done(),
+        (err: unknown) => {
+          log.error({ err }, 'transfer failed');
+          done(err instanceof Error ? err : new Error(String(err)));
+        }
+      );
+    });
     provider.on('close', () => closeAll('provider closed'));
     provider.on('error', (err) => {
       log.error({ err }, 'provider error');
@@ -55,9 +82,14 @@ export function runSession({ stream, makeProvider }: SessionOptions): void {
 
     try {
       await Promise.race([
-        provider.connect(),
+        provider.connect({
+          callId: begin.call_id,
+          accountId: call.accountId,
+          fromNumber: call.fromNumber,
+          toNumber: call.toNumber,
+        }),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('provider connect timeout')), CONNECT_TIMEOUT_MS),
+          setTimeout(() => reject(new Error('provider connect timeout')), CONNECT_TIMEOUT_MS)
         ),
       ]);
     } catch (err) {
