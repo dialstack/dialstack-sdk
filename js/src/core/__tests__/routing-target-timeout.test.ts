@@ -62,3 +62,32 @@ describe('resolveRoutingTarget timeout_seconds', () => {
     expect(target?.timeout_seconds).toBe(20);
   });
 });
+
+describe('resolveRoutingTarget refresh', () => {
+  it('replaces the cached entry with the refetched one', async () => {
+    const instance = instanceReturning({ name: 'Sales', timeout_seconds: 20 });
+    await instance.resolveRoutingTarget('rg_01abc');
+    instance.fetchApi = async () =>
+      ({
+        ok: true,
+        status: 200,
+        json: async () => ({ name: 'Sales East', timeout_seconds: 20 }),
+      }) as unknown as Response;
+
+    await instance.resolveRoutingTarget('rg_01abc', { refresh: true });
+
+    expect((await instance.resolveRoutingTarget('rg_01abc'))?.name).toBe('Sales East');
+  });
+
+  it('keeps the cached entry when the refetch fails', async () => {
+    const instance = instanceReturning({ name: 'Sales', timeout_seconds: 20 });
+    await instance.resolveRoutingTarget('rg_01abc');
+    instance.fetchApi = async () =>
+      ({ ok: false, status: 502, json: async () => ({}) }) as unknown as Response;
+
+    const refreshed = await instance.resolveRoutingTarget('rg_01abc', { refresh: true });
+
+    expect(refreshed?.name).toBe('Sales');
+    expect((await instance.resolveRoutingTarget('rg_01abc'))?.name).toBe('Sales');
+  });
+});

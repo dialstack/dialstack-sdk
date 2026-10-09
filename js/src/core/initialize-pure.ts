@@ -95,8 +95,8 @@ export async function loadDialstackAndInitialize(
     off: (event, handler) => {
       instance.off(event, handler);
     },
-    resolveRoutingTarget: (target) => {
-      return instance.resolveRoutingTarget(target);
+    resolveRoutingTarget: (target, options) => {
+      return instance.resolveRoutingTarget(target, options);
     },
     routingTargets: () => {
       return instance.routingTargets();

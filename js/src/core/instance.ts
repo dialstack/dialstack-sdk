@@ -1983,7 +1983,10 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
    * Resolve a routing target TypeID to its type, display name, and how long it
    * rings a caller on its own — see `timeout_seconds` on the return.
    */
-  async resolveRoutingTarget(target: string): Promise<{
+  async resolveRoutingTarget(
+    target: string,
+    options?: { refresh?: boolean }
+  ): Promise<{
     id: string;
     name: string | null;
     type: RoutingTargetType;
@@ -1991,9 +1994,12 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     timeout_seconds?: number | null;
   } | null> {
     const cached = this.routingTargetCache.get(target);
-    if (cached) return cached;
+    if (cached && !options?.refresh) return cached;
 
-    const promise = this._fetchRoutingTarget(target);
+    let promise = this._fetchRoutingTarget(target);
+    // A failed fetch resolves to null; on a refresh, keep the entry it would
+    // otherwise replace rather than cache a transient failure.
+    if (cached) promise = promise.then((fresh) => fresh ?? cached);
     this.routingTargetCache.set(target, promise);
     return promise;
   }

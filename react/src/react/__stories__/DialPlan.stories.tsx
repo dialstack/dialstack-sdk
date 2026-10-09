@@ -1,7 +1,11 @@
+import React, { useRef } from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
+import type { DialPlanHandle } from '@dialstack/sdk-js';
 import type { DecoratorArgs } from '#storybook-fixtures/types';
+import { createMockInstance } from '#storybook-fixtures/mock-instance';
 import { expect, within, userEvent, waitFor } from 'storybook/test';
 import { DialPlan } from '../DialPlan';
+import { DialstackComponentsProvider } from '../DialstackComponentsProvider';
 
 type Props = React.ComponentProps<typeof DialPlan> & DecoratorArgs;
 
@@ -290,6 +294,71 @@ export const ExternalDialPhoneNumberSave: Story = {
         expect(externalNode).toBeInTheDocument();
         expect(externalNode!.textContent).toContain('(415) 555-1234');
       });
+    });
+  },
+};
+
+// ============================================================================
+// refreshResources: the host edited a target (e.g. renamed it in a modal)
+// ============================================================================
+
+const RefreshHarness = () => {
+  const ref = useRef<DialPlanHandle>(null);
+  const [instance] = React.useState(() => {
+    const base = createMockInstance({ theme: 'light' });
+    let userName = 'Alice Smith';
+    return Object.assign(base, {
+      resolveRoutingTarget: async (target: string) => ({
+        id: target,
+        name: userName,
+        type: 'user' as const,
+        extension_number: '1001',
+      }),
+      renameUser: (name: string) => {
+        userName = name;
+      },
+    });
+  });
+  return (
+    <DialstackComponentsProvider dialstack={instance}>
+      <button
+        type="button"
+        onClick={() => {
+          instance.renameUser('Alice Renamed');
+          void ref.current?.refreshResources();
+        }}
+      >
+        Rename target
+      </button>
+      <DialPlan
+        ref={ref}
+        dialPlanId="dp_01abc"
+        mode="edit"
+        style={{ width: '100%', height: '600px' }}
+      />
+    </DialstackComponentsProvider>
+  );
+};
+
+export const RefreshResourcesAfterRename: Story = {
+  render: () => <RefreshHarness />,
+  play: async ({ canvasElement, step }) => {
+    const canvas = within(canvasElement);
+
+    await step('Node shows the target name resolved at load', async () => {
+      await waitFor(() => expect(canvas.getByText(/^Alice Smith/)).toBeInTheDocument(), {
+        timeout: 5000,
+      });
+    });
+
+    await step('Refreshing after a rename shows the new name', async () => {
+      await userEvent.click(canvas.getByText('Rename target'));
+      await waitFor(() => expect(canvas.getByText(/^Alice Renamed/)).toBeInTheDocument());
+      expect(canvas.queryByText(/^Alice Smith/)).toBeNull();
+    });
+
+    await step('A rename elsewhere is not an unsaved change to the plan', async () => {
+      expect(canvas.getByRole('button', { name: 'Save' })).toBeDisabled();
     });
   },
 };

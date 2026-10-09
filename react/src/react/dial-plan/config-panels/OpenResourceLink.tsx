@@ -13,6 +13,7 @@ export const OpenResourceLink = ({ resourceId, onOpenResource, label }: OpenReso
       className="ds-dial-plan-config-field__open-link"
       onClick={() => onOpenResource(resourceId)}
     >
+      {/* Expand, not external-link: the host decides whether this opens a modal or a tab. */}
       <svg
         width="12"
         height="12"
@@ -23,9 +24,10 @@ export const OpenResourceLink = ({ resourceId, onOpenResource, label }: OpenReso
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
         <polyline points="15 3 21 3 21 9" />
-        <line x1="10" y1="14" x2="21" y2="3" />
+        <polyline points="9 21 3 21 3 15" />
+        <line x1="21" y1="3" x2="14" y2="10" />
+        <line x1="3" y1="21" x2="10" y2="14" />
       </svg>
       {label}
     </button>

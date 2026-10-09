@@ -638,8 +638,14 @@ export interface DialStackInstance {
    * `timeout_seconds` is a ring group's or queue's stored timeout, or the sum
    * of a user's Find Me / Follow Me step timeouts, and is null for a target
    * with no ring duration of its own.
+   *
+   * Results are cached per instance. Pass `refresh: true` after the target was
+   * edited elsewhere to fetch it again and replace the cached entry.
    */
-  resolveRoutingTarget(target: string): Promise<{
+  resolveRoutingTarget(
+    target: string,
+    options?: { refresh?: boolean }
+  ): Promise<{
     id: string;
     name: string | null;
     type: 'user' | 'dial_plan' | 'voice_app' | 'ring_group' | 'queue' | 'shared_voicemail';

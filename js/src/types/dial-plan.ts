@@ -356,6 +356,11 @@ export interface DialPlanLocale {
     search: string;
     searchTargets: string;
     searchSchedules: string;
+    /**
+     * Label of the button that calls `onOpenResource` for the selected target.
+     * The key name predates hosts opening details in a modal; kept for
+     * compatibility with existing custom locales.
+     */
     openInNewTab: string;
     promptClip: string;
     audioClip: string;
@@ -566,6 +571,13 @@ export type DialPlanMode = 'view' | 'edit' | 'preview';
 export interface DialPlanHandle {
   /** Trigger a save programmatically. Resolves when save succeeds, rejects on error. */
   save: () => Promise<void>;
+  /**
+   * Fetch the resources the plan references again and update the nodes that
+   * show them, e.g. after the host let the user rename a target. Pass the IDs
+   * that may have changed to refetch only those; omit them to refetch every
+   * referenced resource. Does not mark the plan as changed.
+   */
+  refreshResources: (resourceIds?: string[]) => Promise<void>;
 }
 
 /** Edge labels for schedule exits */

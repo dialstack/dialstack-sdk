@@ -108,7 +108,11 @@ export interface DialPlanProps {
     type: ResourceType,
     options?: ListResourcesOptions
   ) => Promise<{ id: string; name: string; extension_number?: string } | undefined>;
-  /** Optional callback to open a resource in a new tab. Provided by the host app. */
+  /**
+   * Optional callback to show a resource's details, e.g. in a modal or a new
+   * tab. Provided by the host app. After the resource may have been edited,
+   * call `refreshResources()` on the ref so the nodes show its new values.
+   */
   onOpenResource?: (resourceId: string) => void;
 }
 
@@ -156,21 +160,29 @@ const edgeTypes = {
 // ============================================================================
 
 async function fetchResourceMaps(
-  data: DialPlanData,
-  dialstack: DialStackInstance
+  data: Pick<DialPlanData, 'nodes'>,
+  dialstack: DialStackInstance,
+  options?: { refresh?: boolean; only?: ReadonlySet<string> }
 ): Promise<ResourceMaps> {
   const scheduleIds = new Set<string>();
   const targetIds = new Set<string>();
   const clipIds = new Set<string>();
+  const wanted = (id: string) => !options?.only || options.only.has(id);
 
   // Let each node type declare what resources it needs
   for (const node of data.nodes) {
     const reg = defaultRegistry.resolveType(node);
     const def = reg ? nodeDefinitions.find((d) => d.type === (reg.apiType ?? reg.type)) : null;
     def?.collectResourceIds?.(node.config as unknown as Record<string, unknown>, {
-      addSchedule: (id) => scheduleIds.add(id),
-      addTarget: (id) => targetIds.add(id),
-      addAudioClip: (id) => clipIds.add(id),
+      addSchedule: (id) => {
+        if (wanted(id)) scheduleIds.add(id);
+      },
+      addTarget: (id) => {
+        if (wanted(id)) targetIds.add(id);
+      },
+      addAudioClip: (id) => {
+        if (wanted(id)) clipIds.add(id);
+      },
     });
   }
 
@@ -191,7 +203,7 @@ async function fetchResourceMaps(
     ),
     clipListPromise,
     ...Array.from(targetIds).map(async (id) => {
-      const resolved = await dialstack.resolveRoutingTarget(id);
+      const resolved = await dialstack.resolveRoutingTarget(id, options);
       if (!resolved) return null;
       return {
         id: resolved.id,
@@ -283,6 +295,8 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
     callbacksRef.current.onDirtyChange?.(isDirty);
   }, [isDirty]);
   const [dialPlanMeta, setDialPlanMeta] = useState<{ id: string; name: string } | null>(null);
+  // Bumped by refreshResources so open config panels list resources again.
+  const [resourcesVersion, setResourcesVersion] = useState(0);
   // Refs for current state (avoid stale closures in callbacks)
   const canvasRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef(nodes);
@@ -817,7 +831,50 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
         return [];
       }
     },
-    [dialstack, dialPlanId, dialPlanMeta, locale]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resourcesVersion forces a refetch
+    [dialstack, dialPlanId, dialPlanMeta, locale, resourcesVersion]
+  );
+
+  // ---- Re-resolve referenced resources after the host edited one ----
+  const refreshResources = useCallback(
+    async (resourceIds?: string[]) => {
+      const toPlanNodes = (ns: Node[], es: Edge[]) =>
+        transformGraphToDialPlan(ns, es, defaultRegistry).nodes as DialPlanData['nodes'];
+      const saved = initialGraphRef.current;
+      // Include the saved graph's references so a target removed since the last
+      // save still resolves for the dirty comparison below.
+      const referenced = [
+        ...toPlanNodes(nodesRef.current, edgesRef.current),
+        ...(saved ? toPlanNodes(saved.nodes, saved.edges) : []),
+      ];
+      const fresh = await fetchResourceMaps({ nodes: referenced }, dialstack, {
+        refresh: true,
+        only: resourceIds ? new Set(resourceIds) : undefined,
+      });
+      // Merge rather than replace: entries outside `resourceIds` were not
+      // refetched, and one whose refetch failed keeps its last known values.
+      const prev = resourceMapsRef.current;
+      const maps: ResourceMaps = {
+        schedules: new Map([...prev.schedules, ...fresh.schedules]),
+        users: new Map([...prev.users, ...fresh.users]),
+        audioClips: new Map([...prev.audioClips, ...fresh.audioClips]),
+      };
+      resourceMapsRef.current = maps;
+      const reenrich = (ns: Node[]) =>
+        ns.map((n) => ({
+          ...n,
+          data: enrichNodeData(n.type ?? '', n.data as Record<string, unknown>, maps, locale),
+        }));
+      // The saved graph is re-enriched too: dirty tracking compares node data,
+      // and a rename elsewhere is not an unsaved change to this plan. Read it
+      // after the fetch, since a save may have replaced it in the meantime.
+      const latest = initialGraphRef.current;
+      if (latest) initialGraphRef.current = { ...latest, nodes: reenrich(latest.nodes) };
+      setNodes((ns) => reenrich(ns));
+      setResourcesVersion((v) => v + 1);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- locale is stable
+    [dialstack, setNodes]
   );
 
   // ---- Edit mode: save ----
@@ -853,7 +910,10 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
     }
   }, [dialstack, dialPlanId]);
 
-  useImperativeHandle(ref, () => ({ save: handleSave }), [handleSave]);
+  useImperativeHandle(ref, () => ({ save: handleSave, refreshResources }), [
+    handleSave,
+    refreshResources,
+  ]);
 
   // ---- Edit mode: node click opens config ----
   const handleEditNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
