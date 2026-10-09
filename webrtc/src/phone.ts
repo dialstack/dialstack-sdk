@@ -1344,16 +1344,7 @@ export class DialStackPhone {
         // is swallowed inside prepareAnswerForOffer, so it is not double-emitted
         // here.
         if (call) {
-          void call.prepareAnswerForOffer(msg.sdp).catch((e) =>
-            this.emit(
-              'error',
-              new PhoneError({
-                code: 'call_failed',
-                message: `Failed to prepare answer for incoming call: ${(e as Error).message}`,
-                callId: msg.call_id,
-              })
-            )
-          );
+          void call.prepareAnswerForOffer(msg.sdp).catch(this.answerFailureReporter(call));
         }
         return;
       }
@@ -1471,6 +1462,8 @@ export class DialStackPhone {
       // Capture deliberately not taken yet is not a failure: the call reports one
       // through onCaptureFailure if the mic is still unavailable on answer.
       if (e instanceof CaptureDeferred) return;
+      // A prompt dismissed after the call ended failed nothing: the call is over.
+      if (call.isFinished) return;
       this.emit(
         'error',
         new PhoneError({
@@ -1481,7 +1474,24 @@ export class DialStackPhone {
       );
     };
     call.onCaptureFailure(reportMicFailure);
+    call.onAnswerFailure(this.answerFailureReporter(call));
     call.whenLocalMediaReady().catch(reportMicFailure);
+  }
+
+  private answerFailureReporter(call: Call): (e: unknown) => void {
+    return (e) => {
+      // Backstop for the guards inside Call: whatever an ended call's answer
+      // build throws, the call is over and nothing failed.
+      if (call.isFinished) return;
+      this.emit(
+        'error',
+        new PhoneError({
+          code: 'call_failed',
+          message: `Failed to prepare answer for incoming call: ${(e as Error).message}`,
+          callId: call.id,
+        })
+      );
+    };
   }
 
   private emit<K extends keyof PhoneEventMap>(

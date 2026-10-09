@@ -287,9 +287,18 @@ export class Call {
     // only need the success path. A rejection is swallowed so it cannot surface as
     // an unhandled rejection before the owner attaches.
     void this.localMediaReady.then(async () => {
-      if (this.state === 'ended' || this.answerSent || !this.remoteDescriptionSet) return;
-      await this.buildAnswer();
+      if (this.isFinished || this.answerSent || !this.remoteDescriptionSet) return;
+      // Nothing awaits this build, so its failure would otherwise vanish as an
+      // unhandled rejection and leave the call ringing with no answer sent.
+      await this.buildAnswer().catch(this.reportAnswerFailure);
     }, this.reportCaptureFailure);
+  }
+
+  private reportAnswerFailure: (e: unknown) => void = () => {};
+
+  /** @internal Set by the owner to surface an answer built off the offer path failing. */
+  onAnswerFailure(report: (e: unknown) => void): void {
+    this.reportAnswerFailure = report;
   }
 
   /** Set by the owner to surface a late mic failure, since `Call` has no error event. */
@@ -317,8 +326,15 @@ export class Call {
       // let the OS choose. Skipped for a permission denial (re-prompts, same answer)
       // and for a locked mic (no device of the kind is readable, so there is nothing
       // looser constraints could find).
-      if (!preferred || !isRetryableWithoutDevice(e)) throw e;
+      // A retry for a call that is already over would prompt again for nothing.
+      if (!preferred || !isRetryableWithoutDevice(e) || this.isFinished) throw e;
       stream = await getUserMedia({ audio: true });
+    }
+    // The call ended while the prompt was open: releaseMedia already ran and can't
+    // see these tracks; unstopped, the mic indicator stays lit.
+    if (this.isFinished) {
+      stream.getTracks().forEach(stopTrack);
+      return;
     }
     stream.getTracks().forEach((t) => {
       this.localStream.addTrack(t);
@@ -482,9 +498,11 @@ export class Call {
     });
   }
 
-  // True once the call is over by either path: the server's call.ended (which sets
-  // endedSettled) or a local dispose().
-  private get isFinished(): boolean {
+  /**
+   * @internal True once the call is over by either path: the server's call.ended
+   * (which sets endedSettled) or a local dispose().
+   */
+  get isFinished(): boolean {
     return this.endedSettled || this.state === 'ended';
   }
 
@@ -533,7 +551,8 @@ export class Call {
         callId: this.id,
       });
     }
-    if (this.answerSent) return;
+    // A stale tap on a call that already ended must not take the mic for it.
+    if (this.answerSent || this.isFinished) return;
     // Deferred capture is taken HERE, not on arrival: the OS owns the audio
     // session and only activates it on answer, so acquiring earlier fails and
     // costs the call its mic entirely. Not awaited — answer() stays synchronous,
@@ -555,7 +574,7 @@ export class Call {
   // call has ended, or the answer SDP isn't ready. Called from answer() (when
   // ready) and from prepareAnswerForOffer() (to flush a deferred answer).
   private sendAnswer(): void {
-    if (this.answerSent || this.state === 'ended' || !this.pendingAnswerSdp) return;
+    if (this.answerSent || this.isFinished || !this.pendingAnswerSdp) return;
     this.transport.send({ type: 'call.answer', req_id: this.issueReqId(), call_id: this.id });
     this.transport.send({ type: 'sdp.answer', call_id: this.id, sdp: this.pendingAnswerSdp });
     this.answerSent = true;
@@ -807,9 +826,20 @@ export class Call {
     // buffered while the mic prompt was open can be applied, then wait for the
     // local mic before building the answer — the offer may have arrived while
     // getUserMedia was still pending.
-    await this.peerConnection.setRemoteDescription({ type: 'offer', sdp });
-    this.remoteDescriptionSet = true;
-    await this.flushPendingRemoteCandidates();
+    //
+    // The call can end at any of these awaits — the caller hangs up, another
+    // device in a ring group answers, the user declines — and teardown closes the
+    // peer connection, which then throws on every operation. That is not a
+    // failure to report: the call is simply over, so stop without rejecting.
+    if (this.isFinished) return;
+    try {
+      await this.peerConnection.setRemoteDescription({ type: 'offer', sdp });
+      this.remoteDescriptionSet = true;
+      await this.flushPendingRemoteCandidates();
+    } catch (e) {
+      if (this.isFinished) return;
+      throw e;
+    }
     try {
       await this.localMediaReady;
     } catch {
@@ -819,6 +849,7 @@ export class Call {
       // same denial.
       return;
     }
+    if (this.isFinished) return;
     await this.buildAnswer();
   }
 
@@ -842,12 +873,18 @@ export class Call {
     this.buildingAnswer = true;
     try {
       await this.buildAnswerOnce();
+    } catch (e) {
+      // Teardown mid-build rejects whichever await was in flight (a closed peer
+      // connection, or the ICE wait releaseMedia aborts); see prepareAnswerForOffer.
+      if (!this.isFinished) throw e;
     } finally {
       this.buildingAnswer = false;
     }
   }
 
   private async buildAnswerOnce(): Promise<void> {
+    // Rechecked after every await: the call may have ended while it was pending.
+    if (this.isFinished) return;
     // setRemoteDescription(offer) above already created a track-less sender for
     // each offered m-line, so getSenders() is non-empty here even though no mic
     // is attached yet. Guard on whether a sender actually has a track — keying
@@ -861,10 +898,13 @@ export class Call {
     }
     this.attachDtmfSender();
     const answer = await this.peerConnection.createAnswer();
+    if (this.isFinished) return;
     await this.peerConnection.setLocalDescription(answer);
+    if (this.isFinished) return;
     // Same requirement as startOutbound: the answer must carry at least one
     // candidate, or the negotiated session has no ICE.
     await this.waitForIceGatheringComplete();
+    if (this.isFinished) return;
     this.pendingAnswerSdp = this.peerConnection.localDescription?.sdp ?? answer.sdp ?? null;
     // Flush a deferred answer: answer() may have been clicked before the SDP
     // was ready, in which case it set wantsAnswer instead of sending.
@@ -936,9 +976,17 @@ export class Call {
   }
 
   async acceptRemoteAnswer(sdp: string): Promise<void> {
-    await this.peerConnection.setRemoteDescription({ type: 'answer', sdp });
-    this.remoteDescriptionSet = true;
-    await this.flushPendingRemoteCandidates();
+    // As in prepareAnswerForOffer: an end landing mid-apply closes the connection,
+    // and that is not a failure to report.
+    if (this.isFinished) return;
+    try {
+      await this.peerConnection.setRemoteDescription({ type: 'answer', sdp });
+      this.remoteDescriptionSet = true;
+      await this.flushPendingRemoteCandidates();
+    } catch (e) {
+      if (this.isFinished) return;
+      throw e;
+    }
   }
 
   async addRemoteCandidate(
@@ -946,6 +994,9 @@ export class Call {
     sdpMid: string | null,
     sdpMLineIndex: number | null
   ): Promise<void> {
+    // A disposed call stays routable, but its closed connection rejects every
+    // candidate, and the caller does not await this.
+    if (this.isFinished) return;
     const init: RTCIceCandidateInit =
       candidate == null
         ? (null as unknown as RTCIceCandidateInit)
