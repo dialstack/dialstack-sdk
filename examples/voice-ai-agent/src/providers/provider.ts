@@ -13,9 +13,10 @@
 // pass-throughs; providers that need a different format (Gemini Live wants
 // PCM 16 kHz in, PCM 24 kHz out) do the conversion in their own module.
 //
-// Providers emit `interrupt` when the caller barges in (advisory — callers
-// may use this to react, but the provider handles barge-in internally) and
-// `close` when the upstream connection terminates.
+// Providers emit `interrupt` when the caller barges in; the session then
+// drops any agent audio still queued for the caller. Providers whose
+// barge-in signal also fires on echo (Gemini) don't emit it.
+// `close` fires when the upstream connection terminates.
 
 import { EventEmitter } from 'node:events';
 

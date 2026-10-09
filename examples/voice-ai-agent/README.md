@@ -3,7 +3,8 @@
 A minimal Node/TypeScript example that connects a [DialStack](https://dialstack.ai) phone call to either:
 
 - **[ElevenLabs Conversational AI](https://elevenlabs.io/conversational-ai)**, or
-- **[Google Gemini Live](https://ai.google.dev/gemini-api/docs/live)** (via Google AI Studio or Vertex AI).
+- **[Google Gemini Live](https://ai.google.dev/gemini-api/docs/live)** (via Google AI Studio or Vertex AI), or
+- **[OpenAI Realtime](https://developers.openai.com/api/docs/guides/realtime)** (G.711 μ-law end to end — no transcoding).
 
 The provider is selected with a CLI flag at start time. Audio runs both directions over a single WebSocket; we transcode μ-law ⇄ PCM and resample as needed so each provider gets the format it expects.
 
@@ -14,7 +15,7 @@ This is the runnable companion to the [BYO VoiceAI guide](https://docs.dialstack
 ```
 Caller ──► DialStack ──webhook──► this server ──► attaches /media WebSocket
                                        │
-                                       └──► Voice AI provider (ElevenLabs or Gemini)
+                                       └──► Voice AI provider (ElevenLabs, Gemini or OpenAI)
 ```
 
 1. A Voice App routes the inbound call to your server and DialStack POSTs `call.received` to `/webhook`.
@@ -32,6 +33,7 @@ Caller ──► DialStack ──webhook──► this server ──► attaches
 - An account on the AI provider(s) you want to use:
   - **ElevenLabs**: a Conversational AI agent
   - **Gemini (AI Studio)**: an API key from [aistudio.google.com](https://aistudio.google.com/)
+  - **OpenAI**: an API key with Realtime API access from [platform.openai.com](https://platform.openai.com/)
   - **Gemini (Vertex AI)**: a GCP project with the Vertex AI API enabled and Application Default Credentials configured locally (`gcloud auth application-default login`)
 - A way to expose your local server publicly during development — [cloudflared](https://github.com/cloudflare/cloudflared) or [ngrok](https://ngrok.com/) both work.
 
@@ -64,6 +66,9 @@ npm run dev -- --provider gemini
 
 # Gemini Live (Vertex AI)
 GOOGLE_GENAI_USE_VERTEXAI=true npm run dev -- --provider gemini
+
+# OpenAI Realtime
+npm run dev -- --provider openai
 ```
 
 Then call the DID assigned to your Voice App. You should hear the agent answer; speak back and forth as you would with any voice agent.
@@ -94,7 +99,8 @@ src/
 └── providers/
     ├── provider.ts     Interface every provider implements
     ├── elevenlabs.ts   ElevenLabs Conversational AI WebSocket
-    └── gemini.ts       Google Gemini Live (AI Studio + Vertex)
+    ├── gemini.ts       Google Gemini Live (AI Studio + Vertex)
+    └── openai.ts       OpenAI Realtime WebSocket
 ```
 
 ## Provider-specific notes
@@ -111,9 +117,17 @@ src/
 - The same advisory-interrupt treatment applies as ElevenLabs.
 - On Vertex AI, the Live API is region-limited. The current preview model is `gemini-live-2.5-flash-native-audio`; check the Vertex AI Live API docs for your region.
 
+### OpenAI Realtime
+
+- The session is configured with `audio/pcmu` (G.711 μ-law) for input and output, so audio passes through untouched in both directions.
+- Model, voice and instructions come from `OPENAI_MODEL` (default `gpt-realtime-2.1`), `OPENAI_VOICE` (default `marin`) and `OPENAI_INSTRUCTIONS`. The voice can't change once the agent has spoken in a session.
+- The agent speaks first: the example sends `response.create` as soon as `session.updated` confirms the configuration.
+- Barge-in: server VAD with `interrupt_response` cancels the response on OpenAI's side, and `input_audio_buffer.speech_started` drops any agent audio still queued for the caller. The example doesn't send `conversation.item.truncate`, so the model's transcript of an interrupted turn may include words the caller never heard.
+
 ## Audio plumbing notes
 
 - **Pacing**: outbound frames are emitted at exactly 50 frames/sec using a drift-compensated scheduler. A plain `setInterval(_, 20)` actually fires every ~20.8 ms in Node, which drops you to 48 frames/sec; the call leg then fills the gaps with comfort noise on the far end, which you hear as stutters and missing syllables. If you adapt this code, keep the deadline-anchored scheduler in `session.ts`.
+- **Barge-in**: when a provider emits `interrupt`, the session drops every agent frame still queued for the caller. Only emit it from a signal you trust not to fire on echo.
 - **Format negotiation**: handlers are attached before the upstream WebSocket opens so the `conversation_initiation_metadata` message from ElevenLabs is never raced and dropped.
 
 ## Out of scope (intentionally)
@@ -127,6 +141,7 @@ src/
 - **Webhook returns 400 "invalid signature"** — `VOICE_APP_WEBHOOK_SECRET` doesn't match the one on the Voice App in DialStack. Re-fetch from the dashboard.
 - **DialStack opens the media socket but no audio plays** — verify `PUBLIC_URL` is `https://` (not `http://`) and reachable from the internet. Check that you have the `attach` URL printed in the logs.
 - **ElevenLabs disconnects immediately** — likely a wrong `ELEVENLABS_AGENT_ID`. The signed-URL request will succeed but the WS will close. Run with `LOG_LEVEL=debug`.
+- **OpenAI handshake fails with HTTP 401** — `OPENAI_API_KEY` is wrong or lacks Realtime access. An `error` event right after connect usually means an invalid `OPENAI_MODEL` or `OPENAI_VOICE`; it is logged with its code.
 - **Gemini 401 / 403** — for AI Studio, confirm `GEMINI_API_KEY` is set; for Vertex, run `gcloud auth application-default login` and confirm the user/SA has the `Vertex AI User` role on `GOOGLE_CLOUD_PROJECT`.
 - **Choppy or stuttering audio** — the example uses simple linear resampling. If you need higher fidelity, swap in `node-libsamplerate` or similar.
 

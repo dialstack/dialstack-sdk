@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // CLI entry point.
 //
-//   voice-ai-agent --provider <elevenlabs|gemini> [--port 8080]
+//   voice-ai-agent --provider <elevenlabs|gemini|openai> [--port 8080]
 //
 // All other configuration comes from environment variables (see .env.example).
 // We intentionally keep the CLI surface tiny — provider choice is the one
@@ -13,6 +13,7 @@ import { logger } from './logger.js';
 import { startServer } from './server.js';
 import { ElevenLabsProvider } from './providers/elevenlabs.js';
 import { GeminiProvider } from './providers/gemini.js';
+import { OpenAIProvider } from './providers/openai.js';
 import type { VoiceProvider } from './providers/provider.js';
 
 function main(): void {
@@ -30,7 +31,7 @@ function main(): void {
   }
 
   const provider = values.provider;
-  if (provider !== 'elevenlabs' && provider !== 'gemini') {
+  if (provider !== 'elevenlabs' && provider !== 'gemini' && provider !== 'openai') {
     printUsage();
     process.exit(1);
   }
@@ -55,11 +56,22 @@ function main(): void {
   logger.info({ provider, publicUrl, mediaWsUrl }, 'voice-ai-agent ready');
 }
 
-function providerFactory(name: 'elevenlabs' | 'gemini'): () => VoiceProvider {
+function providerFactory(name: 'elevenlabs' | 'gemini' | 'openai'): () => VoiceProvider {
   if (name === 'elevenlabs') {
     const apiKey = required('ELEVENLABS_API_KEY');
     const agentId = required('ELEVENLABS_AGENT_ID');
     return () => new ElevenLabsProvider({ apiKey, agentId });
+  }
+  if (name === 'openai') {
+    const opts = {
+      apiKey: required('OPENAI_API_KEY'),
+      model: process.env.OPENAI_MODEL || 'gpt-realtime-2.1',
+      voice: process.env.OPENAI_VOICE || 'marin',
+      instructions:
+        process.env.OPENAI_INSTRUCTIONS ||
+        'You are a friendly phone receptionist. Greet the caller and ask how you can help. Keep answers short.',
+    };
+    return () => new OpenAIProvider(opts);
   }
   // Gemini provider reads its own env vars at connect() time so we can
   // surface helpful error messages there rather than at startup.
@@ -77,11 +89,12 @@ function required(name: string): string {
 
 function printUsage(): void {
   process.stdout.write(
-    `Usage: voice-ai-agent --provider <elevenlabs|gemini> [--port 8080]\n\n` +
+    `Usage: voice-ai-agent --provider <elevenlabs|gemini|openai> [--port 8080]\n\n` +
       `Required env vars (see .env.example):\n` +
       `  PUBLIC_URL, DIALSTACK_API_KEY, VOICE_APP_WEBHOOK_SECRET\n` +
       `  ElevenLabs: ELEVENLABS_API_KEY, ELEVENLABS_AGENT_ID\n` +
-      `  Gemini:     GEMINI_API_KEY   (or GOOGLE_GENAI_USE_VERTEXAI=true + GOOGLE_CLOUD_PROJECT)\n`,
+      `  Gemini:     GEMINI_API_KEY   (or GOOGLE_GENAI_USE_VERTEXAI=true + GOOGLE_CLOUD_PROJECT)\n` +
+      `  OpenAI:     OPENAI_API_KEY   (optional: OPENAI_MODEL, OPENAI_VOICE, OPENAI_INSTRUCTIONS)\n`,
   );
 }
 

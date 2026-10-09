@@ -1,7 +1,7 @@
 {
   "name": "dialstack-voice-ai-agent",
   "version": "0.1.0",
-  "description": "Minimal Node/TypeScript example that connects a DialStack call to either ElevenLabs Conversational AI or Google Gemini Live.",
+  "description": "Minimal Node/TypeScript example that connects a DialStack call to a voice AI provider: ElevenLabs Conversational AI, Google Gemini Live or OpenAI Realtime.",
   "license": "MIT",
   "type": "module",
   "bin": {

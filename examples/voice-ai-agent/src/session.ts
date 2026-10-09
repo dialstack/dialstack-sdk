@@ -46,6 +46,7 @@ export function runSession({ stream, makeProvider }: SessionOptions): void {
     provider = makeProvider();
 
     provider.on('audio', (ulaw) => enqueueProviderAudio(ulaw));
+    provider.on('interrupt', () => flushProviderAudio());
     provider.on('close', () => closeAll('provider closed'));
     provider.on('error', (err) => {
       log.error({ err }, 'provider error');
@@ -112,6 +113,11 @@ export function runSession({ stream, makeProvider }: SessionOptions): void {
       combined = combined.subarray(FRAME_BYTES_8K);
     }
     outCarry = combined;
+  }
+
+  function flushProviderAudio(): void {
+    outQueue.length = 0;
+    outCarry = Buffer.alloc(0);
   }
 
   function drainOneFrame(): void {
