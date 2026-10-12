@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.0](https://github.com/dialstack/dialstack-sdk/compare/v3.5.0...v3.6.0) (2026-10-09)
+
+### Features
+
+- `AccountConfig.intercom` (JS and server) sets who may receive an
+  auto-answer intercom: `{ mode: 'off' }`, `{ mode: 'everyone' }`, or
+  `{ mode: 'selected_users', users }`. Omit it on update to keep the current
+  policy; `null` resets it to `everyone`, which is also the default. Only a
+  secret API key can change it — component sessions cannot.
+- **js:** `deviceDisplayName()` resolves the name a device is shown under: its
+  stored name, else its primary user's name (fetch the device with
+  `expand[]=users`), else its hardware identity, and reports which in
+  `source`. A device shared by several users does not take a user's name.
+- **js:** port orders gain `requested_foc_timezone`, the IANA zone that
+  `requested_foc_date` and `requested_foc_time` are read in. It defaults to
+  `America/New_York`. The carrier port-time window helpers (`focTimeOptions`,
+  `isFocTimeInWindow`, `focWindowIn`, `focZoneLabel`, …) are now exported.
+- **js:** `admin.users.list()` lists the account's administrators
+  (`AdminUser`), including those with no phone service; each entry's `user`
+  links to their user. The onboarding portal's team step lists administrators
+  and can give them phone access.
+- **js:** `resolveRoutingTarget()` accepts `{ refresh: true }` to fetch the
+  target again instead of using the cached result.
+- **react:** the `DialPlan` ref gains `refreshResources(resourceIds?)`, which
+  refetches the targets the host edited (for example after `onOpenResource`)
+  and updates the nodes that show them, without marking the plan as changed.
+- **server:** `calls.delRecording()` and `calls.delTranscript()` permanently
+  delete a call's recording, or its transcript, summary and sentiment. The
+  other half and the call log entry are kept.
+- **server:** hardware orders gain `po_number`, `shipments`
+  (`HardwareOrderShipment`) and `account`, which can be expanded with
+  `expand: ['account']`.
+
+### Bug Fixes
+
+- **webrtc:** a call that ends while it is being answered no longer takes or
+  keeps the microphone, sends an answer, or reports mic and answer errors.
+  ICE candidates arriving after a call ends are ignored. An answer that fails
+  on a call that is still live is now reported.
+- **react:** the dial plan editor no longer shows a timeout or a No Answer
+  exit on a node whose target is another dial plan, which takes over the call.
+- **js:** the phone numbers component shows a port's transfer date on the day
+  it was requested, keeps cancellation dates in local time, and reads the
+  carrier's FOC in the order's zone.
+- **react/onboarding:** new users' suggested extensions come from the user
+  range and account for every existing extension, and an extension already in
+  use shows an error.
+
 ## [3.5.0](https://github.com/dialstack/dialstack-sdk/compare/v3.4.0...v3.5.0) (2026-10-05)
 
 ### Features
