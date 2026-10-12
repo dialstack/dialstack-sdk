@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 (`@dialstack/sdk-js`, `-react`, `-webrtc`, `-server`), which release together on
 their own line.
 
+## [0.2.1](https://github.com/dialstack/dialstack-sdk/compare/native-v0.2.0...native-v0.2.1) (2026-10-12)
+
+### Bug Fixes
+
+- A call that ends while it is being answered no longer takes or keeps the
+  microphone, sends an answer, or reports mic and answer errors. ICE
+  candidates arriving after a call ends are ignored. An answer that fails on a
+  call that is still live is now reported.
+
 ## [0.2.0](https://github.com/dialstack/dialstack-sdk/compare/native-v0.1.1...native-v0.2.0) (2026-10-05)
 
 ### Features
