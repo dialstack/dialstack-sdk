@@ -2939,11 +2939,17 @@ export interface ParkSlotSubscriptionOptions {
 // Call Control types
 export interface AttachAction {
   type: 'attach';
+  /** Secure WebSocket URL to stream to. Must use `wss://`. */
   url: string;
 }
 
 export interface TransferAction {
   type: 'transfer';
+  /**
+   * Extension number, E.164 number, or `sip:` URI. A `sip:` transfer is not
+   * encrypted (plain SIP over UDP or TCP, unencrypted audio); use an
+   * `AttachAction` when the audio must be encrypted in transit.
+   */
   target: string;
   mode?: 'blind';
 }
