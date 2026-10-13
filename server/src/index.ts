@@ -330,10 +330,8 @@ export type AccountCreateParams = AccountCreateParamsBase & AccountCreateAddress
 export interface AccountPortOutPin {
   object: 'account_port_out_pin';
   /**
-   * Five digits, as a string so leading zeros are preserved.
-   *
-   * Null when the account owns no phone numbers — it has no PIN yet, because
-   * there is nothing to protect. The PIN is created with the first number.
+   * Five digits, as a string so leading zeros are preserved. Every account is
+   * created with a random PIN.
    */
   pin: string | null;
 }
@@ -3753,13 +3751,13 @@ export class DialStack {
 
     /**
      * The account's outbound porting PIN. Nested under its parent because it is
-     * a singleton sub-resource, not a field on the account: both reading and
-     * writing it are operations against the carrier that holds the value.
+     * a singleton sub-resource, not a field on the account: writing it is an
+     * operation against the carrier that enforces the value.
      */
     portOutPin: {
       /**
        * Retrieve the account's outbound porting PIN. `pin` is null when the
-       * account owns no phone numbers.
+       * account owns no phone numbers and no PIN has been set.
        *
        * Treat the value like a password: anyone who has it can begin moving the
        * account's phone numbers to another provider.
@@ -3770,8 +3768,9 @@ export class DialStack {
 
       /**
        * Replace the account's outbound porting PIN. Applied to every phone
-       * number on the account, asynchronously — a retrieve immediately
-       * afterwards may still report the previous value.
+       * number on the account, asynchronously: for a few minutes a transfer
+       * request is still checked against the previous value. Numbers the
+       * account acquires later are given the new PIN.
        */
       update: (
         accountId: string,
