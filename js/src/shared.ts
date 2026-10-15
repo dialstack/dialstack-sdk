@@ -54,6 +54,8 @@ export {
   readyPhoneNumbers,
 } from './utils/phone-list';
 export type { NumberIssue, ParsedRow, ParseProblemReason, RowStatus } from './utils/phone-list';
+export { describeNonPortable } from './utils/non-portable';
+export type { NonPortableMessages } from './utils/non-portable';
 
 // The carrier's port-time window, read in an order's own zone. Shared for the
 // same reason: a time one surface offers and the other refuses is a port order

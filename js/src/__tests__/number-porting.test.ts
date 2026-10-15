@@ -305,6 +305,7 @@ describe('Number Porting Types', () => {
     it('allows non-portable numbers with location info', () => {
       const nonPortable: NonPortableNumber = {
         phone_number: '+18005551234',
+        reason: 'unsupported_rate_center',
         rate_center: 'WASHINGTON',
         city: 'Washington',
         state: 'DC',
@@ -316,6 +317,7 @@ describe('Number Porting Types', () => {
     it('allows non-portable number without optional fields', () => {
       const nonPortable: NonPortableNumber = {
         phone_number: '+18005551234',
+        reason: 'unsupported_carrier',
       };
       expect(nonPortable.rate_center).toBeUndefined();
     });
@@ -334,6 +336,7 @@ describe('Number Porting Types', () => {
         non_portable_numbers: [
           {
             phone_number: '+18005551234',
+            reason: 'unsupported_rate_center',
             rate_center: 'TOLLFREE',
             city: 'Washington',
             state: 'DC',

@@ -105,8 +105,22 @@ export interface PortableNumber {
   account_number_required: boolean;
 }
 
+/**
+ * The API may add reasons, so the `string` member makes an exhaustive `switch`
+ * still need a default branch.
+ */
+export type NonPortabilityReason =
+  'unsupported_rate_center' | 'unsupported_carrier' | 'unsupported_number' | (string & {});
+
 export interface NonPortableNumber {
   phone_number: string;
+  /**
+   * Always set by the API. Optional only so objects built by hand before it
+   * existed keep compiling; make it required at the next major version.
+   */
+  reason?: NonPortabilityReason;
+  /** The current carrier, when known. */
+  losing_carrier_name?: string;
   rate_center?: string;
   city?: string;
   state?: string;

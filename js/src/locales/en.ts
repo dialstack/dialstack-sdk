@@ -705,7 +705,13 @@ export const en = {
         reasonHasExtension: 'Remove the extension',
         maxPerOrder:
           '{count} numbers — the maximum is {max} per order. Move {excess} into a second port order.',
-        notPortableWithDetail: '{label} ({detail})',
+        unsupportedCarrier: 'Carrier not supported',
+        unsupportedCarrierNamed: 'Carrier not supported ({carrier})',
+        unsupportedArea: 'Area not covered',
+        unsupportedAreaNamed: 'Area not covered ({area})',
+        unsupportedNumber:
+          "No porting information for this number. Check that it's correct and still in service.",
+        notPortableUnknown: "This number can't be ported",
         accountLimit:
           "You've reached the number of phone numbers this account can hold. Contact support to raise the limit, then try again.",
         numbersUnavailable:

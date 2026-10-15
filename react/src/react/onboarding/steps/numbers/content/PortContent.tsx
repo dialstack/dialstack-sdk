@@ -10,13 +10,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AsYouType } from 'libphonenumber-js';
 import {
   classifyPhoneNumberRows,
+  describeNonPortable,
   formatOnBlur,
   formatWhileTyping,
   isPhoneNumberListReady,
   parsePhoneNumberRows,
 } from '@dialstack/sdk-js/pure';
 import type { NumState, Dispatcher, TFn } from '../types';
-import { MAX_PHONE_NUMBERS_PER_ORDER, REASON_KEY } from '../port-numbers';
+import { MAX_PHONE_NUMBERS_PER_ORDER, nonPortableMessages, REASON_KEY } from '../port-numbers';
 import { formatPhone } from '../helpers';
 import { US_STATES } from '../../../../../constants/us-states';
 import { focTimeOptions, focZoneLabel, formatFocTime12h } from '@dialstack/sdk-js';
@@ -340,8 +341,11 @@ export const PortEligibilityContent = ({
                 <span className="num-status-badge num-status-error">
                   {t('accountOnboarding.numbers.port.notPortable')}
                 </span>
+                <div className="num-status-detail">
+                  {describeNonPortable(n, nonPortableMessages(t, false))}
+                </div>
               </td>
-              <td>—</td>
+              <td>{n.losing_carrier_name || '—'}</td>
               <td>—</td>
             </tr>
           ))}

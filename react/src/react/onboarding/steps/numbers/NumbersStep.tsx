@@ -30,7 +30,12 @@ import { OnboardingLayout } from '../../OnboardingLayout';
 import { CheckIcon } from '../../components/icons';
 import numbersStyles from '../../styles/numbers-styles.css';
 
-import { conflictNumberIssues, CONFLICT_KEY, mapNonPortableToIssues } from './port-numbers';
+import {
+  conflictNumberIssues,
+  CONFLICT_KEY,
+  mapNonPortableToIssues,
+  nonPortableMessages,
+} from './port-numbers';
 import { type NumState, type CardMode, numReducer, INITIAL_STATE, E911_POLL_MAX } from './types';
 import { getSidebarActiveKey, validateCallerIdName } from './helpers';
 import {
@@ -290,11 +295,7 @@ export const NumbersStep: React.FC = () => {
         if (nonPortable.length > 0) {
           dispatch({
             type: 'port_set_number_issues',
-            issues: mapNonPortableToIssues(
-              nonPortable,
-              t('accountOnboarding.numbers.port.notPortable'),
-              (v) => t('accountOnboarding.numbers.port.notPortableWithDetail', v)
-            ),
+            issues: mapNonPortableToIssues(nonPortable, nonPortableMessages(t)),
           });
           // Stop here. Advancing would carry the portable subset forward and
           // quietly drop the rest.

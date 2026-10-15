@@ -1,4 +1,12 @@
-import type { NonPortableNumber, NumberIssue, ParseProblemReason } from '@dialstack/sdk-js/pure';
+import {
+  describeNonPortable,
+  type NonPortableMessages,
+  type NonPortableNumber,
+  type NumberIssue,
+  type ParseProblemReason,
+} from '@dialstack/sdk-js/pure';
+
+import type { TFn } from './types';
 
 /**
  * Per-order cap enforced by the API. The account's own phone-number limit is a
@@ -15,19 +23,30 @@ export const REASON_KEY = {
   has_extension: 'accountOnboarding.numbers.port.reasonHasExtension',
 } as const satisfies Record<ParseProblemReason, string>;
 
+/** Onboarding's wording for why a number cannot be ported. */
+export function nonPortableMessages(t: TFn, nameCarrier = true): NonPortableMessages {
+  const key = 'accountOnboarding.numbers.port';
+  return {
+    unsupportedCarrier: (carrier) =>
+      carrier && nameCarrier
+        ? t(`${key}.unsupportedCarrierNamed`, { carrier })
+        : t(`${key}.unsupportedCarrier`),
+    unsupportedArea: (area) =>
+      area ? t(`${key}.unsupportedAreaNamed`, { area }) : t(`${key}.unsupportedArea`),
+    unsupportedNumber: t(`${key}.unsupportedNumber`),
+    unknown: t(`${key}.notPortableUnknown`),
+  };
+}
+
 /** Build issues for numbers the carrier says cannot be ported. */
 export function mapNonPortableToIssues(
   nonPortable: readonly NonPortableNumber[],
-  notPortableLabel: string,
-  withDetail: (values: { label: string; detail: string }) => string
+  messages: NonPortableMessages
 ): NumberIssue[] {
-  return nonPortable.map((np) => {
-    const detail = [np.rate_center, np.city, np.state].filter(Boolean).join(', ');
-    return {
-      e164: np.phone_number,
-      message: detail ? withDetail({ label: notPortableLabel, detail }) : notPortableLabel,
-    };
-  });
+  return nonPortable.map((np) => ({
+    e164: np.phone_number,
+    message: describeNonPortable(np, messages),
+  }));
 }
 
 /**

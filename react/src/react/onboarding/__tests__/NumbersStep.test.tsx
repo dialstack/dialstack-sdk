@@ -1059,7 +1059,14 @@ describe('NumbersStep', () => {
         ...defaultPortOrdersNS({
           checkEligibility: jest.fn().mockResolvedValue({
             portable_numbers: [],
-            non_portable_numbers: [{ phone_number: '+12125551001', city: 'New York', state: 'NY' }],
+            non_portable_numbers: [
+              {
+                phone_number: '+12125551001',
+                reason: 'unsupported_rate_center',
+                city: 'New York',
+                state: 'NY',
+              },
+            ],
           }),
         }),
       });
@@ -1069,7 +1076,7 @@ describe('NumbersStep', () => {
       fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
 
       await waitFor(() => {
-        expect(document.body.textContent).toContain('Not Portable');
+        expect(document.body.textContent).toContain('Area not covered (New York, NY)');
       });
       // The message sits on the row holding that number.
       expect(document.querySelectorAll('.num-port-row-error')).toHaveLength(1);
@@ -1131,7 +1138,14 @@ describe('NumbersStep', () => {
                 account_number_required: false,
               },
             ],
-            non_portable_numbers: [{ phone_number: '+12125551002', city: 'New York', state: 'NY' }],
+            non_portable_numbers: [
+              {
+                phone_number: '+12125551002',
+                reason: 'unsupported_rate_center',
+                city: 'New York',
+                state: 'NY',
+              },
+            ],
           }),
         }),
       });
@@ -1141,7 +1155,7 @@ describe('NumbersStep', () => {
       fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
 
       await waitFor(() => {
-        expect(document.body.textContent).toContain('Not Portable');
+        expect(document.body.textContent).toContain('Area not covered (New York, NY)');
       });
 
       // Still on the numbers step — no eligibility screen, nothing to continue with.
@@ -1156,7 +1170,14 @@ describe('NumbersStep', () => {
         ...defaultPortOrdersNS({
           checkEligibility: jest.fn().mockResolvedValue({
             portable_numbers: [],
-            non_portable_numbers: [{ phone_number: '+12125551001', city: 'New York', state: 'NY' }],
+            non_portable_numbers: [
+              {
+                phone_number: '+12125551001',
+                reason: 'unsupported_rate_center',
+                city: 'New York',
+                state: 'NY',
+              },
+            ],
           }),
         }),
       });
@@ -1166,7 +1187,7 @@ describe('NumbersStep', () => {
       fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
 
       await waitFor(() => {
-        expect(document.body.textContent).toContain('Not Portable');
+        expect(document.body.textContent).toContain('Area not covered (New York, NY)');
       });
       expect(screen.getByRole('button', { name: /Check Eligibility/i })).toBeDisabled();
 

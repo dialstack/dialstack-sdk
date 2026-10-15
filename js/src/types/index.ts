@@ -100,6 +100,7 @@ export type {
   CreatePortOrderRequest,
   PortableNumber,
   NonPortableNumber,
+  NonPortabilityReason,
   PortEligibilityResult,
 } from './number-porting';
 

@@ -251,6 +251,11 @@
   background: color-mix(in srgb, var(--ds-color-danger) 15%, transparent);
   color: var(--ds-color-danger);
 }
+.num-status-detail {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ds-color-text-secondary);
+}
 .num-status-inactive {
   background: var(--ds-color-surface-subtle);
   color: var(--ds-color-text-secondary);
