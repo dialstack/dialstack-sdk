@@ -1455,8 +1455,9 @@ export interface DECTHandset {
   id: string;
   /** Parent base, or null while the handset is stocked but unpaired. */
   base?: string | null;
-  /** International Portable Equipment Identity. */
-  ipei: string;
+  /** International Portable Equipment Identity; `null` for a kit handset
+   *  paired to its base at the factory (slot 1) whose IPEI isn't known yet. */
+  ipei: string | null;
   status: DECTHandsetStatus;
   display_name?: string | null;
   slot_number: number;
@@ -1531,6 +1532,8 @@ export interface Device {
 
   // DECT handset only
   base?: string | null;
+  /** Absent or `null` for a kit handset paired to its base at the factory
+   *  (slot 1) whose IPEI isn't known yet. */
   ipei?: string | null;
   display_name?: string | null;
   slot_number?: number | null;

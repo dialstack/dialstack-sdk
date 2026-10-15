@@ -97,8 +97,11 @@ export interface DECTHandset {
   base?: string | null;
   /** @deprecated Use `base`. Retained for backwards compatibility. */
   base_id: string | null;
-  /** International Portable Equipment Identity (20-char unique identifier) */
-  ipei: string;
+  /** International Portable Equipment Identity (20-char unique identifier).
+   *  `null` for the handset of a kit (such as the snom M253) that left the
+   *  factory paired to its base and whose IPEI isn't known yet: it sits in
+   *  slot 1 of that base and can't be moved until its IPEI is set. */
+  ipei: string | null;
   /** Current handset status */
   status: HandsetStatus;
   /** Optional display name */

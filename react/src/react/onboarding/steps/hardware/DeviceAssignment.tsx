@@ -87,7 +87,8 @@ function getAllAssignableDevices(
       result.push({
         id: hs.id,
         type: 'dect-handset',
-        label: hs.display_name ?? hs.ipei,
+        // A factory-paired kit handset may have neither a name nor an IPEI yet.
+        label: hs.display_name ?? hs.ipei ?? cordlessLabel,
         typeLabel: cordlessLabel,
         baseId,
       });
