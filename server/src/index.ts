@@ -986,9 +986,10 @@ export interface CallLog {
    */
   answered_at: string | null;
   /**
-   * When the winning leg answered, i.e. when live conversation began. Null when
-   * the call never reached a person (abandoned during the greeting or while
-   * ringing, or answered by voicemail).
+   * When the call connected: a user's device or an external number answered,
+   * or a voice app took it with `attach` or `bridge`. Null when the call never
+   * connected (abandoned during the greeting or while ringing) or was answered
+   * by voicemail.
    */
   connected_at: string | null;
   ended_at: string | null;
