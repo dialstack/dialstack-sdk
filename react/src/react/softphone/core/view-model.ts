@@ -107,6 +107,57 @@ export function selectLayout(calls: Call[], activeCall: Call | null = null): Sof
   };
 }
 
+/**
+ * How a call's remote party reads on screen. `name` is the title: the host's
+ * `PeerInfo.name`, else the caller-id name, else the formatted number. `number`
+ * is shown under it only when the title isn't already the number. `avatar` is
+ * the host's, drawn above the title where the screen has room.
+ */
+export interface PeerDisplay {
+  name: string;
+  number: string | null;
+  avatar?: { initials?: string; uri?: string };
+}
+
+export function peerDisplay(
+  call: Call,
+  info: {
+    name?: string;
+    avatar?: PeerDisplay['avatar'];
+  } | null,
+  displayNumber: (value: string) => string,
+  unknownLabel: string
+): PeerDisplay {
+  const number = displayNumber(callPeerNumber(call));
+  const name = info?.name || callPeerName(call) || number || unknownLabel;
+  return {
+    name,
+    number: name !== number && number ? number : null,
+    avatar: info?.avatar,
+  };
+}
+
+/**
+ * The softphone's size tier. `'auto'` (the default) follows the host's size:
+ * compact below about 300x480, full otherwise. `'full'` and `'compact'` pin
+ * one, whatever the host.
+ */
+export type SoftphoneLayoutVariant = 'auto' | 'full' | 'compact';
+
+/** Below this host size (width or height) the softphone uses its compact tier. */
+export const HOST_MIN_WIDTH = 300;
+export const HOST_MIN_HEIGHT = 480;
+
+/** Whether the full-size tier applies, given the variant and the measured host. */
+export function isRoomyLayout(
+  variant: SoftphoneLayoutVariant | undefined,
+  hostIsRoomy: boolean
+): boolean {
+  if (variant === 'compact') return false;
+  if (variant === 'full') return true;
+  return hostIsRoomy;
+}
+
 /** The remote party's raw number/address for a call, by direction. */
 export function callPeerNumber(call: Call): string {
   return call.direction === 'inbound' ? call.from : call.to;

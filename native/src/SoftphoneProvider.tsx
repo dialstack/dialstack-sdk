@@ -31,6 +31,8 @@ import {
   type PlatformStorage,
   type Ringback,
   type AppResumeSubscribe,
+  type ResolvePeer,
+  type SoftphoneLayoutVariant,
 } from '@dialstack/sdk-react/core';
 
 // Derived from the resolver, not imported from the SDK root, which would pull
@@ -132,6 +134,19 @@ export interface SoftphoneProviderProps {
   onCallEnded?: (event: { reason: CallEndReason }) => void;
   onError?: (event: { code: string; message: string }) => void;
   /**
+   * Look up the remote party of each call in your own records (e.g. the customer
+   * behind a caller id). The softphone titles the call with the name and draws the
+   * avatar above it, in its own styles. Also
+   * readable from a custom UI via `useSoftphone().peerInfo(call)`.
+   */
+  resolvePeer?: ResolvePeer;
+  /**
+   * The size tier: `'auto'` (default) follows the softphone's size, compact
+   * below about 300x480; `'full'` keeps the full layout and `'compact'` the
+   * compact one, whatever the size.
+   */
+  layoutVariant?: SoftphoneLayoutVariant;
+  /**
    * The call bridge, when this app reports calls to the OS. Outbound placement
    * then goes through it, so the OS learns about the call BEFORE it is dialled —
    * on Android that report is what starts the foreground service, without which
@@ -182,6 +197,8 @@ export function SoftphoneProvider({
   onCallStarted,
   onCallEnded,
   onError,
+  resolvePeer,
+  layoutVariant,
   bridge,
   callAudio: requestedCallAudio,
   audioOutput,
@@ -241,6 +258,8 @@ export function SoftphoneProvider({
       onCallStarted={onCallStarted}
       onCallEnded={onCallEnded}
       onError={onError}
+      resolvePeer={resolvePeer}
+      layoutVariant={layoutVariant}
       placeOutbound={placeOutbound}
       answerIncoming={answerIncoming}
       extra={extra}

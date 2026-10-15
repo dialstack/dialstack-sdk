@@ -1,6 +1,8 @@
 import React from 'react';
 import { Text, View } from 'react-native';
-import type { SoftphonePalette } from '@dialstack/sdk-react/core';
+import { HOST_MIN_HEIGHT, HOST_MIN_WIDTH, type SoftphonePalette } from '@dialstack/sdk-react/core';
+
+import { HostTierContext } from '../views/useRoomyHost';
 
 export const HOST_SIZES = {
   default: { w: 320, h: 568 },
@@ -24,6 +26,10 @@ export function SoftphoneFrame({
   size?: HostSize;
   children: React.ReactNode;
 }): React.JSX.Element {
+  // Stands in for the <Softphone> root: the tier comes from the host's size, and
+  // the padding steps down with it the same way.
+  const roomy = size.w >= HOST_MIN_WIDTH && size.h >= HOST_MIN_HEIGHT;
+  const space = roomy ? 16 : 10;
   return (
     <View style={{ gap: 6 }}>
       <Text style={{ fontSize: 11, fontWeight: '600', opacity: 0.6, letterSpacing: 0.5 }}>
@@ -33,8 +39,8 @@ export function SoftphoneFrame({
         style={{
           width: size.w,
           height: size.h,
-          padding: 16,
-          gap: 16,
+          padding: space,
+          gap: space,
           overflow: 'hidden',
           backgroundColor: palette.background,
           borderRadius: 14,
@@ -42,7 +48,7 @@ export function SoftphoneFrame({
           borderColor: 'rgba(128,128,128,0.35)',
         }}
       >
-        {children}
+        <HostTierContext.Provider value={roomy}>{children}</HostTierContext.Provider>
       </View>
     </View>
   );

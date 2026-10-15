@@ -10,10 +10,12 @@ import React, { useMemo } from 'react';
 import { errorMessageKey } from '@dialstack/sdk-react/core';
 import { useSoftphone } from '../SoftphoneProvider';
 import { Chip, makeStyles } from './primitives';
+import { useRoomyHost } from './views/useRoomyHost';
 
 export function CallErrorChip(): React.JSX.Element | null {
   const { lastError, clearError, t, palette } = useSoftphone();
-  const styles = useMemo(() => makeStyles(palette), [palette]);
+  const { roomy } = useRoomyHost();
+  const styles = useMemo(() => makeStyles(palette, !roomy), [palette, roomy]);
   if (!lastError) return null;
   return (
     <Chip

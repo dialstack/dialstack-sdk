@@ -4,6 +4,7 @@ import { softphoneGlyphs } from '../../core/icons';
 import { Glyph } from '../Glyph';
 import { CallErrorChipView, type CallErrorChipViewProps } from './CallErrorChipView';
 import { DEFAULT_SCOPE, type SoftphoneViewChrome } from './types';
+import { useRoomyHost } from './useRoomyHost';
 import type { SoftphoneConnectionState } from '../../hooks';
 
 export interface DialPadViewProps extends Omit<SoftphoneViewChrome, 'displayNumber'> {
@@ -31,74 +32,78 @@ export const DialPadView: React.FC<DialPadViewProps> = ({
   onDismissError = () => {},
   scope = DEFAULT_SCOPE,
   t,
-}) => (
-  <div className={`${scope} ds-softphone`}>
-    <div className="ds-screen ds-screen-dial">
-      <StatusChipView connection={connection} t={t} />
-      <CallErrorChipView error={error} onDismiss={onDismissError} t={t} />
-      <div className="ds-display">
-        {}
-        {destination.length > 0 && <span className="ds-display-spacer" aria-hidden="true" />}
-        <input
-          ref={destinationRef}
-          className="ds-destination"
-          type="tel"
-          inputMode="tel"
-          value={destination}
-          placeholder={t('destinationPlaceholder')}
-          aria-label={t('destinationPlaceholder')}
-          autoComplete="off"
-          onChange={(e) => onDestinationChange(e.target.value)}
-          onPaste={(e) => {
-            e.preventDefault();
-            onDestinationPaste(e.clipboardData.getData('text'));
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+}) => {
+  // Tags the host for the compact size tier when it is small.
+  const { ref } = useRoomyHost<HTMLDivElement>();
+  return (
+    <div ref={ref} className={`${scope} ds-softphone`}>
+      <div className="ds-screen ds-screen-dial">
+        <StatusChipView connection={connection} t={t} />
+        <CallErrorChipView error={error} onDismiss={onDismissError} t={t} />
+        <div className="ds-display">
+          {}
+          {destination.length > 0 && <span className="ds-display-spacer" aria-hidden="true" />}
+          <input
+            ref={destinationRef}
+            className="ds-destination"
+            type="tel"
+            inputMode="tel"
+            value={destination}
+            placeholder={t('destinationPlaceholder')}
+            aria-label={t('destinationPlaceholder')}
+            autoComplete="off"
+            onChange={(e) => onDestinationChange(e.target.value)}
+            onPaste={(e) => {
               e.preventDefault();
-              if (canCall) onCall();
-            }
-          }}
-        />
-        {destination.length > 0 && (
+              onDestinationPaste(e.clipboardData.getData('text'));
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                if (canCall) onCall();
+              }
+            }}
+          />
+          {destination.length > 0 && (
+            <button
+              type="button"
+              className="ds-backspace"
+              aria-label={t('backspace')}
+              onClick={() => onDestinationChange(destination.slice(0, -1))}
+            >
+              ⌫
+            </button>
+          )}
+        </div>
+        <div className="ds-keypad" role="group" aria-label={t('title')}>
+          {dialPadKeys.map(({ digit, letters }) => (
+            <button
+              type="button"
+              key={digit}
+              className="ds-key"
+              aria-label={`${digit}${letters ? ' ' + letters : ''}`}
+              onClick={() => onDestinationChange(destination + digit)}
+            >
+              <span className="ds-key-digit">{digit}</span>
+              <span className="ds-key-letters">{letters || ' '}</span>
+            </button>
+          ))}
+        </div>
+        <div className="ds-actions">
           <button
             type="button"
-            className="ds-backspace"
-            aria-label={t('backspace')}
-            onClick={() => onDestinationChange(destination.slice(0, -1))}
+            className="ds-action ds-call"
+            aria-label={t('call')}
+            disabled={!canCall}
+            onClick={onCall}
           >
-            ⌫
+            <Glyph glyph={softphoneGlyphs.phone} />
           </button>
-        )}
-      </div>
-      <div className="ds-keypad" role="group" aria-label={t('title')}>
-        {dialPadKeys.map(({ digit, letters }) => (
-          <button
-            type="button"
-            key={digit}
-            className="ds-key"
-            aria-label={`${digit}${letters ? ' ' + letters : ''}`}
-            onClick={() => onDestinationChange(destination + digit)}
-          >
-            <span className="ds-key-digit">{digit}</span>
-            <span className="ds-key-letters">{letters || ' '}</span>
-          </button>
-        ))}
-      </div>
-      <div className="ds-actions">
-        <button
-          type="button"
-          className="ds-action ds-call"
-          aria-label={t('call')}
-          disabled={!canCall}
-          onClick={onCall}
-        >
-          <Glyph glyph={softphoneGlyphs.phone} />
-        </button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 export const StatusChipView: React.FC<{
   connection: SoftphoneConnectionState;

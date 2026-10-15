@@ -3,6 +3,7 @@ import React from 'react';
 import { Softphone } from '../softphone/ui/Softphone';
 import { SoftphoneProvider } from '../softphone/provider/SoftphoneProvider';
 import type { AppearanceOptions } from '@dialstack/sdk-js';
+import type { SoftphoneLayoutVariant } from '../softphone/core/view-model';
 
 // <Softphone> is a pure consumer of <SoftphoneProvider> (which owns the
 // connection + token). The provider opens a WebSocket for a live phone, so these
@@ -15,12 +16,22 @@ import type { AppearanceOptions } from '@dialstack/sdk-js';
 // <Softphone> itself takes no connection props.
 interface StoryArgs {
   appearance?: AppearanceOptions;
+  layoutVariant?: SoftphoneLayoutVariant;
 }
 
 const meta: Meta<StoryArgs> = {
   title: 'React/Softphone',
-  render: ({ appearance }) => (
-    <SoftphoneProvider token="preview-token" autoConnect={false} appearance={appearance}>
+  // The global preview pins layoutVariant to 'default' for the sdk-js
+  // components; the softphone's own default is 'auto'.
+  args: { layoutVariant: 'auto' },
+  argTypes: { layoutVariant: { control: 'select', options: ['auto', 'full', 'compact'] } },
+  render: ({ appearance, layoutVariant }) => (
+    <SoftphoneProvider
+      token="preview-token"
+      autoConnect={false}
+      appearance={appearance}
+      layoutVariant={layoutVariant}
+    >
       <Softphone />
     </SoftphoneProvider>
   ),
@@ -56,4 +67,9 @@ export const CustomTheme: Story = {
       },
     },
   },
+};
+
+/** Pinned to the compact layout in a full-size host (`layoutVariant="compact"`). */
+export const Compact: Story = {
+  args: { layoutVariant: 'compact' },
 };

@@ -17,6 +17,7 @@ import {
 import type { Locale, SoftphonePalette } from '@dialstack/sdk-react/core';
 import type { EmergencyAddress } from '@dialstack/sdk-webrtc';
 import { Glyph, makeStyles } from '../primitives';
+import { useRoomyHost } from './useRoomyHost';
 
 const EMPTY_FORM: EmergencyAddressInput = {
   address_number: '',
@@ -50,7 +51,8 @@ export function EmergencyBannerView({
   locationProvider = null,
   defaultOpen = false,
 }: EmergencyBannerViewProps): React.JSX.Element {
-  const styles = useMemo(() => makeStyles(palette), [palette]);
+  const { roomy } = useRoomyHost();
+  const styles = useMemo(() => makeStyles(palette, !roomy), [palette, roomy]);
   const [open, setOpen] = useState(defaultOpen);
   const [choosing, setChoosing] = useState(defaultOpen && savedAddresses.length > 0);
   const [form, setForm] = useState<EmergencyAddressInput>(EMPTY_FORM);

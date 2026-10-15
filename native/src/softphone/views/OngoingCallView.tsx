@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { Keyboard, Pressable, Text, TextInput, View } from 'react-native';
 import {
   dialPadKeys,
-  softphoneDimensions as D,
   softphoneGlyphs,
   type Locale,
   type SoftphonePalette,
@@ -15,6 +14,8 @@ import {
   makeStyles,
   ControlsSlot,
 } from '../primitives';
+import { PeerAvatar, PeerRow } from './PeerAvatar';
+import { useRoomyHost } from './useRoomyHost';
 
 const KEYBOARD_ID = 'dialstack-softphone-call-keyboard';
 
@@ -22,6 +23,8 @@ export interface PeerSummary {
   id: string;
   name: string;
   number?: string | null;
+  /** The host's avatar from `resolvePeer`, drawn above the name. */
+  avatar?: { initials?: string; uri?: string };
 }
 
 export type OverlayPanel = 'keypad' | 'transfer' | 'addcall' | null;
@@ -111,12 +114,18 @@ export function OngoingCallView({
   onHangup,
   errorChip = null,
 }: OngoingCallViewProps): React.JSX.Element {
-  const styles = useMemo(() => makeStyles(palette), [palette]);
+  const { roomy, onLayout } = useRoomyHost();
+  const styles = useMemo(() => makeStyles(palette, !roomy), [palette, roomy]);
   const inKeypadMode = isActive && overlay === 'keypad' && canSendDtmf;
 
   return (
     // A tap outside the field closes the keyboard, as in other apps.
-    <Pressable style={styles.screen} onPress={Keyboard.dismiss} accessible={false}>
+    <Pressable
+      style={styles.screen}
+      onPress={Keyboard.dismiss}
+      onLayout={onLayout}
+      accessible={false}
+    >
       {}
       {transferOther && (
         <>
@@ -128,8 +137,10 @@ export function OngoingCallView({
                 onPress={onSwitchToTransferOther}
                 style={[styles.heldCall, styles.consultHeld]}
               >
-                <Text style={styles.peerName}>{otherName}</Text>
-                <Text style={styles.callStateText}>{t('transferOriginalOnHold')}</Text>
+                <PeerRow palette={palette} avatar={transferOther.avatar}>
+                  <Text style={styles.rowName}>{otherName}</Text>
+                  <Text style={styles.callStateText}>{t('transferOriginalOnHold')}</Text>
+                </PeerRow>
               </Pressable>
             );
           })()}
@@ -167,8 +178,10 @@ export function OngoingCallView({
                   pressed && styles.keyPressed,
                 ]}
               >
-                <Text style={styles.peerName}>{hn}</Text>
-                <Text style={styles.callStateText}>{t('heldCallsLabel')}</Text>
+                <PeerRow palette={palette} avatar={held.avatar}>
+                  <Text style={styles.rowName}>{hn}</Text>
+                  <Text style={styles.callStateText}>{t('heldCallsLabel')}</Text>
+                </PeerRow>
               </Pressable>
             );
           })}
@@ -176,6 +189,7 @@ export function OngoingCallView({
       )}
 
       <View style={[styles.peer, inKeypadMode && styles.peerCompact]}>
+        {roomy && !inKeypadMode && <PeerAvatar palette={palette} avatar={peer.avatar} />}
         <Text style={styles.peerName}>{peer.name}</Text>
         {!!peer.number && <Text style={styles.peerNumber}>{peer.number}</Text>}
         <View style={styles.callState}>
@@ -348,7 +362,7 @@ export function OngoingCallView({
           >
             <Glyph
               glyph={softphoneGlyphs.close}
-              size={D.actionButtonSize * 0.46}
+              size={(styles.action.width as number) * 0.46}
               color={palette.text}
             />
           </Pressable>
@@ -364,7 +378,7 @@ export function OngoingCallView({
           >
             <Glyph
               glyph={softphoneGlyphs.hangup}
-              size={D.actionButtonSize * 0.46}
+              size={(styles.action.width as number) * 0.46}
               color={palette.onAccent}
             />
           </Pressable>

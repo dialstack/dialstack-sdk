@@ -7,6 +7,8 @@ import {
   selectLayout,
   callPeerNumber,
   callPeerName,
+  peerDisplay,
+  isRoomyLayout,
   formatCallDuration,
   formatDisplayNumber,
   stripToDialString,
@@ -326,5 +328,48 @@ describe('errorMessageKey', () => {
     for (const code of ['call_failed', 'call_not_found', 'rate_limited', 'invalid_message', '']) {
       expect(errorMessageKey(code)).toBe('callError');
     }
+  });
+});
+
+describe('peerDisplay', () => {
+  const inbound = (fromName: string | null) =>
+    ({ direction: 'inbound', from: '+15551230000', fromName, to: '1001' }) as unknown as Call;
+  const fmt = (v: string) => `fmt(${v})`;
+
+  it('titles the call with the host name and keeps the number under it', () => {
+    expect(peerDisplay(inbound('Caller ID'), { name: 'Jordan Lee' }, fmt, '?')).toMatchObject({
+      name: 'Jordan Lee',
+      number: 'fmt(+15551230000)',
+    });
+  });
+
+  it('falls back to the caller-id name, then the number alone', () => {
+    expect(peerDisplay(inbound('Caller ID'), null, fmt, '?')).toMatchObject({
+      name: 'Caller ID',
+      number: 'fmt(+15551230000)',
+    });
+    expect(peerDisplay(inbound(null), null, fmt, '?')).toMatchObject({
+      name: 'fmt(+15551230000)',
+      number: null,
+    });
+  });
+
+  it('passes the host avatar through', () => {
+    expect(peerDisplay(inbound(null), { avatar: { initials: 'JL' } }, fmt, '?')).toMatchObject({
+      avatar: { initials: 'JL' },
+    });
+  });
+});
+
+describe('isRoomyLayout', () => {
+  it('follows the host size on auto, and by default', () => {
+    expect(isRoomyLayout('auto', true)).toBe(true);
+    expect(isRoomyLayout('auto', false)).toBe(false);
+    expect(isRoomyLayout(undefined, false)).toBe(false);
+  });
+
+  it('pins the tier whatever the host', () => {
+    expect(isRoomyLayout('full', false)).toBe(true);
+    expect(isRoomyLayout('compact', true)).toBe(false);
   });
 });

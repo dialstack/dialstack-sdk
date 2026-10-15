@@ -83,4 +83,7 @@ export type {
   UseDialInput,
   SoftphoneError,
   SoftphoneScreen,
+  PeerInfo,
+  ResolvePeer,
+  SoftphoneLayoutVariant,
 } from './hooks';

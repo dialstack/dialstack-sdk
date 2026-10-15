@@ -10,7 +10,7 @@
  */
 
 import React from 'react';
-import { callPeerName, callPeerNumber, type Call } from '@dialstack/sdk-react/core';
+import { peerDisplay, type Call } from '@dialstack/sdk-react/core';
 import { useSoftphone } from '../SoftphoneProvider';
 import { IncomingCallCardView } from './views/IncomingCallCardView';
 
@@ -21,16 +21,21 @@ export function IncomingCallCard({
   call: Call;
   compact?: boolean;
 }): React.JSX.Element {
-  const { answerCall, actions, displayNumber, t, palette } = useSoftphone();
-  const peerRaw = callPeerNumber(call);
-  const peerName = callPeerName(call);
+  const { answerCall, actions, displayNumber, t, palette, peerInfo } = useSoftphone();
+  const { name, number, avatar } = peerDisplay(
+    call,
+    peerInfo(call),
+    displayNumber,
+    t('unknownCaller')
+  );
 
   return (
     <IncomingCallCardView
       palette={palette}
       t={t}
-      name={peerName || displayNumber(peerRaw) || t('unknownCaller')}
-      number={peerName ? displayNumber(peerRaw) : null}
+      name={name}
+      number={number}
+      avatar={avatar}
       compact={compact}
       onAnswer={() => answerCall(call)}
       onDecline={() => actions.callActionsFor(call).reject()}

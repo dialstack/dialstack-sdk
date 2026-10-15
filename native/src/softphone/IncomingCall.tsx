@@ -14,6 +14,7 @@ import { View } from 'react-native';
 import { useSoftphone } from '../SoftphoneProvider';
 import { IncomingCallCard } from './IncomingCallCard';
 import { makeStyles } from './primitives';
+import { useRoomyHost } from './views/useRoomyHost';
 
 export function IncomingCall(): React.JSX.Element | null {
   const { incomingCalls } = useSoftphone();
@@ -29,7 +30,8 @@ export function IncomingCall(): React.JSX.Element | null {
  */
 export function IncomingStack({ compact }: { compact?: boolean }): React.JSX.Element | null {
   const { incomingCalls, palette } = useSoftphone();
-  const styles = useMemo(() => makeStyles(palette), [palette]);
+  const { roomy } = useRoomyHost();
+  const styles = useMemo(() => makeStyles(palette, !roomy), [palette, roomy]);
   if (incomingCalls.length === 0) return null;
   const isCompact = compact ?? incomingCalls.length > 1;
 

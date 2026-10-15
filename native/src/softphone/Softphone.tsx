@@ -23,6 +23,7 @@ import { EmergencyBanner } from './EmergencyBanner';
 import { IncomingCall, IncomingStack } from './IncomingCall';
 import { OngoingCall } from './OngoingCall';
 import { makeStyles } from './primitives';
+import { HostTierContext, useHostTierBox } from './views/useRoomyHost';
 
 export interface SoftphoneProps {
   autoFocusDestination?: boolean;
@@ -34,7 +35,8 @@ function SoftphoneScreens({
   autoFocusDestination?: boolean;
 }): React.JSX.Element {
   const { calls, palette } = useSoftphone();
-  const styles = useMemo(() => makeStyles(palette), [palette]);
+  const { roomy, onLayout } = useHostTierBox();
+  const styles = useMemo(() => makeStyles(palette, !roomy), [palette, roomy]);
   const { width, height } = useWindowDimensions();
   const landscape = width > height;
   const layout = selectLayout(calls);
@@ -61,8 +63,10 @@ function SoftphoneScreens({
   }
 
   return (
-    <View style={[styles.outer, landscape && styles.outerLandscape]}>
-      <View style={styles.root}>{body}</View>
+    <View style={[styles.outer, landscape && styles.outerLandscape]} onLayout={onLayout}>
+      <HostTierContext.Provider value={roomy}>
+        <View style={styles.root}>{body}</View>
+      </HostTierContext.Provider>
     </View>
   );
 }

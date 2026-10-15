@@ -35,6 +35,9 @@ export type {
 export { useLastError } from './useLastError';
 export type { UseLastError, SoftphoneError } from './useLastError';
 
+export { usePeerResolver } from './usePeerResolver';
+export type { PeerInfo, ResolvePeer } from './usePeerResolver';
+
 export { useDialInput } from './useDialInput';
 export type { UseDialInput } from './useDialInput';
 
@@ -47,6 +50,10 @@ export {
   selectLayout,
   callPeerNumber,
   callPeerName,
+  peerDisplay,
+  isRoomyLayout,
+  HOST_MIN_WIDTH,
+  HOST_MIN_HEIGHT,
   formatCallDuration,
   formatDisplayNumber,
   stripToDialString,
@@ -55,4 +62,9 @@ export {
   callStateLabelKey,
   errorMessageKey,
 } from '../core/view-model';
-export type { SoftphoneScreen, SoftphoneLayout } from '../core/view-model';
+export type {
+  SoftphoneScreen,
+  SoftphoneLayout,
+  PeerDisplay,
+  SoftphoneLayoutVariant,
+} from '../core/view-model';

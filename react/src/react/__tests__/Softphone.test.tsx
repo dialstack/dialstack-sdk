@@ -1148,7 +1148,7 @@ describe('Softphone merge (local conference)', () => {
     expect(screen.getAllByText('Conference').length).toBe(1);
     const parties = document.querySelector('.ds-conference-parties');
     expect(parties).not.toBeNull();
-    expect(parties!.querySelectorAll('.ds-peer-name')).toHaveLength(2);
+    expect(parties!.querySelectorAll('.ds-conference-party-name')).toHaveLength(2);
     expect(parties!.textContent).toContain('Alice');
     expect(document.querySelectorAll('.ds-held-call')).toHaveLength(0);
   });

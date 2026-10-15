@@ -13,7 +13,13 @@ import {
   type SoftphoneContextBase,
 } from './SoftphoneProviderBase';
 import { AudioDevicesProvider, useAudioDevices } from './AudioDevicesProvider';
-import { formatDisplayNumber, type SoftphoneConnectionState, type UseCallActions } from '../hooks';
+import {
+  formatDisplayNumber,
+  type ResolvePeer,
+  type SoftphoneLayoutVariant,
+  type SoftphoneConnectionState,
+  type UseCallActions,
+} from '../hooks';
 import { resolveSoftphonePalette } from '../core/theme';
 import { buildSoftphoneStyles } from '../core/styles';
 import { IncomingRingtone } from '../ui/ringtone';
@@ -105,6 +111,21 @@ export interface SoftphoneProviderProps {
   /** Fired on a non-fatal or fatal phone error. */
   onError?: (event: { code: string; message: string }) => void;
 
+  /**
+   * Look up the remote party of each call in your own records (e.g. the customer
+   * behind a caller id). The softphone titles the call with the name and draws the
+   * avatar above it, in its own styles. Also
+   * readable from a custom UI via `useSoftphone().peerInfo(call)`.
+   */
+  resolvePeer?: ResolvePeer;
+
+  /**
+   * The size tier: `'auto'` (default) follows the host's size, compact below
+   * about 300x480; `'full'` keeps the full layout and `'compact'` the compact
+   * one, whatever the host.
+   */
+  layoutVariant?: SoftphoneLayoutVariant;
+
   /** The softphone UI (or anything that consumes the context). */
   children: React.ReactNode;
 }
@@ -153,6 +174,8 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
   onCallStarted,
   onCallEnded,
   onError,
+  resolvePeer,
+  layoutVariant,
   children,
 }) => {
   const scope = `ds-softphone-${useId().replace(/[:]/g, '')}`;
@@ -201,6 +224,8 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
       onCallStarted={onCallStarted}
       onCallEnded={onCallEnded}
       onError={onError}
+      resolvePeer={resolvePeer}
+      layoutVariant={layoutVariant}
       extra={extra}
     >
       {/* Subscribe to live instance appearance only when a components provider is

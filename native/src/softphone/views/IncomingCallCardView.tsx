@@ -1,18 +1,18 @@
 import React, { useMemo } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import {
-  softphoneDimensions as D,
-  softphoneGlyphs,
-  type Locale,
-  type SoftphonePalette,
-} from '@dialstack/sdk-react/core';
+import { softphoneGlyphs, type Locale, type SoftphonePalette } from '@dialstack/sdk-react/core';
 import { ControlsSlot, Glyph, makeStyles } from '../primitives';
+import type { PeerSummary } from './OngoingCallView';
+import { PeerAvatar } from './PeerAvatar';
+import { useRoomyHost } from './useRoomyHost';
 
 export interface IncomingCallCardViewProps {
   palette: SoftphonePalette;
   t: (key: keyof Locale['softphone']) => string;
   name: string;
   number?: string | null;
+  /** The host's avatar from `resolvePeer`, on the full card only: the compact one has no room. */
+  avatar?: PeerSummary['avatar'];
   compact?: boolean;
   onAnswer: () => void;
   onDecline: () => void;
@@ -23,18 +23,21 @@ export function IncomingCallCardView({
   t,
   name,
   number = null,
+  avatar,
   compact = false,
   onAnswer,
   onDecline,
 }: IncomingCallCardViewProps): React.JSX.Element {
-  const styles = useMemo(() => makeStyles(palette), [palette]);
-  const size = compact ? D.actionButtonSize * 0.72 : D.actionButtonSize;
+  const { roomy, onLayout } = useRoomyHost();
+  const styles = useMemo(() => makeStyles(palette, !roomy), [palette, roomy]);
+  const size = (styles.action.width as number) * (compact ? 0.72 : 1);
 
   return (
-    <View style={compact ? styles.incomingCardCompact : styles.incomingCard}>
+    <View style={compact ? styles.incomingCardCompact : styles.incomingCard} onLayout={onLayout}>
       <View
         style={compact ? [styles.incomingCardInfo, styles.incomingCardInfoCompact] : styles.peer}
       >
+        {!compact && roomy && <PeerAvatar palette={palette} avatar={avatar} />}
         <Text style={compact ? styles.peerNameCompact : styles.peerName} numberOfLines={1}>
           {name}
         </Text>

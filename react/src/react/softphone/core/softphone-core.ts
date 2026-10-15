@@ -26,6 +26,10 @@ export {
   selectLayout,
   callPeerNumber,
   callPeerName,
+  peerDisplay,
+  isRoomyLayout,
+  HOST_MIN_WIDTH,
+  HOST_MIN_HEIGHT,
   formatCallDuration,
   formatDisplayNumber,
   stripToDialString,
@@ -50,6 +54,10 @@ export type {
   SoftphoneError,
   SoftphoneScreen,
   SoftphoneLayout,
+  PeerInfo,
+  ResolvePeer,
+  PeerDisplay,
+  SoftphoneLayoutVariant,
 } from '../hooks';
 
 // The shared provider core (DOM/RN-free). Platform providers build on this.

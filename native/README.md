@@ -207,6 +207,37 @@ The button shows only the route the OS reports. A switch made from the CallKit
 or Telecom UI, a headset, or a car therefore shows up in-app as well.
 `useAudioOutput()` exposes the same state if you build your own UI.
 
+## Showing who's calling
+
+By default a call is titled with the caller-ID name, or the number. To show your
+own record for the other party instead, pass `resolvePeer`. It may be async:
+
+```tsx
+const resolvePeer = useCallback(async (call: Call) => {
+  const number = call.direction === 'inbound' ? call.from : call.to;
+  const contact = await lookupContact(number);
+  if (!contact) return null; // keep the default display
+  return { name: contact.name, avatar: { initials: contact.initials } }; // or { uri }
+}, []);
+
+<SoftphoneProvider token={token} storage={storage} resolvePeer={resolvePeer}>
+  <Softphone />
+</SoftphoneProvider>;
+```
+
+The name becomes the call's title, with the number under it, and the avatar is
+drawn above it. The softphone asks once per call, and again for every live call
+when `resolvePeer` changes. So list the data it reads in the `useCallback`
+dependencies, and a call that arrived before that data loaded still gets its
+name. A custom UI reads the same result from `useSoftphone().peerInfo(call)`.
+
+## Sizing
+
+The softphone fits the box you give it. With the default `layoutVariant="auto"`
+it switches to a compact layout below about 300×480 (smaller keys, buttons and
+type, no avatar), and re-measures on resize and rotation. Pin a tier with
+`layoutVariant="full"` or `layoutVariant="compact"`.
+
 ## Example apps
 
 Three runnable apps, all wired with the permissions and plugin above:

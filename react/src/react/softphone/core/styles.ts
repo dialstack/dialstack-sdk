@@ -179,6 +179,29 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     .${scope} .ds-peer { text-align: center; display: flex; flex-direction: column; gap: 4px; }
     .${scope} .ds-peer-name { font-size: clamp(22px, 6vw, 28px); font-weight: 600; word-break: break-word; }
     .${scope} .ds-peer-number { font-size: 15px; color: var(--dsd-text-secondary); }
+    /* The large avatar shrinks first when the screen runs out of height
+       (flex-shrink well above its siblings'). It is a size container, so its
+       content never holds the peer block open, and below a legible size the
+       disc hides rather than turning into a dot. */
+    .${scope} .ds-peer-avatar {
+      flex: 0 100 64px; min-height: 0; max-height: 64px; width: 64px;
+      align-self: center; margin-bottom: 4px;
+      container-type: size; display: flex; align-items: center; justify-content: center;
+    }
+    .${scope} .ds-peer-avatar-disc {
+      height: 100%; aspect-ratio: 1; border-radius: 999px; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--dsd-accent); color: var(--dsd-on-accent);
+      font-size: 34cqh; font-weight: 600;
+    }
+    .${scope} .ds-peer-avatar-disc img { width: 100%; height: 100%; object-fit: cover; }
+    @container (max-height: 39px) {
+      .${scope} .ds-peer-avatar-disc { display: none; }
+    }
+    .${scope} .ds-peer-avatar-sm { flex: none; width: 32px; height: 32px; margin: 0; }
+    .${scope} .ds-peer-avatar-sm .ds-peer-avatar-disc { font-size: 13px; }
+    .${scope} .ds-peer-row { display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .${scope} .ds-peer-row-text { min-width: 0; text-align: left; }
     .${scope} .ds-callstate { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 6px; }
     .${scope} .ds-callstate-text { font-size: 14px; color: var(--dsd-text-secondary); }
     .${scope} .ds-duration { font-size: 18px; font-variant-numeric: tabular-nums; font-weight: 500; }
@@ -201,11 +224,13 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
 
     .${scope} .ds-controls {
       display: flex; flex-wrap: wrap; justify-content: center;
-      gap: 8px 20px;
-      max-width: ${(d.controlButtonSize + 12) * 3 + 40}px;
+      gap: 8px 12px;
+      max-width: ${(d.controlButtonSize + 12) * 3 + 24}px;
       align-content: flex-end;
       margin: 0 auto;
     }
+    /* Three to a row: the column gap is sized so a row of three fits the
+       narrowest host (inside the scrollbar gutters) instead of wrapping to two. */
     .${scope} .ds-controls > * { flex: 0 0 ${d.controlButtonSize + 12}px; }
     .${scope} .ds-control {
       display: flex; flex-direction: column; align-items: center; gap: 6px;
@@ -229,6 +254,18 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       display: flex; flex-direction: column; gap: 10px;
       flex: 1; min-height: 0; justify-content: center;
     }
+    /* The in-call peer may give up height (its avatar first) before the screen
+       has to scroll; the other children stay rigid. */
+    .${scope} .ds-screen-incall > .ds-peer { flex-shrink: 1; min-height: 0; }
+    .${scope} .ds-screen-incoming > .ds-incoming-card:not(.ds-incoming-card-compact) {
+      flex-shrink: 1; min-height: 0;
+    }
+    .${scope} .ds-incoming-card:not(.ds-incoming-card-compact) > .ds-incoming-card-info {
+      min-height: 0;
+    }
+    /* The invisible controls placeholder (it lines the answer buttons up with
+       the in-call screen) gives up its height before the caller does. */
+    .${scope} .ds-incoming-card > .ds-controls-slot { flex-shrink: 1000; }
     .${scope} .ds-screen-incall:has(.ds-dtmf) > .ds-peer { flex: 0 0 auto; }
     .${scope} .ds-screen-incall:has(.ds-transfer) > .ds-peer { flex: 1 1 auto; }
     .${scope} .ds-keypad-dtmf {
@@ -249,7 +286,7 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     .${scope} .ds-transfer {
       display: flex; flex-direction: column; gap: 8px;
       flex: 0 0 auto; min-height: min-content; justify-content: center;
-      width: 100%; max-width: ${(d.controlButtonSize + 12) * 3 + 40}px; margin: 0 auto;
+      width: 100%; max-width: ${(d.controlButtonSize + 12) * 3 + 24}px; margin: 0 auto;
     }
     .${scope} .ds-transfer-input {
       flex: 0 0 auto; min-width: 0; padding: 12px 14px;
@@ -270,7 +307,7 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
 
     .${scope} .ds-devices {
       display: flex; flex-direction: column; gap: 10px;
-      width: 100%; max-width: ${(d.controlButtonSize + 12) * 3 + 40}px; margin: 0 auto;
+      width: 100%; max-width: ${(d.controlButtonSize + 12) * 3 + 24}px; margin: 0 auto;
     }
     .${scope} .ds-device-row { display: flex; flex-direction: column; gap: 4px; }
     .${scope} .ds-device-label { font-size: 12px; color: var(--dsd-text-muted); }
@@ -307,6 +344,13 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       border: 1px solid var(--dsd-border); border-radius: ${d.radius}px;
       padding: 10px 14px; margin: 6px 0;
       background: var(--dsd-surface);
+    }
+    .${scope} .ds-conference-party {
+      display: flex; align-items: center; gap: 10px; align-self: stretch; min-width: 0;
+    }
+    .${scope} .ds-conference-party-name {
+      min-width: 0; font-size: 17px; font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
 
     .${scope}.ds-softphone-layout {
@@ -421,6 +465,41 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     .${scope} .ds-e911-btn-secondary {
       flex: none; background: var(--dsd-surface); color: var(--dsd-text);
     }
+
+    /* Compact size tier for small hosts (narrower than 300px or shorter than
+       480px; set by useRoomyHost). Everything steps down together so the
+       screens fit instead of clipping; a host smaller still scrolls. */
+    .ds-host-small.${scope}, .ds-host-small > .${scope} { padding: 12px; }
+    .ds-host-small .ds-screen { gap: 8px; }
+    .ds-host-small .ds-screen-dial { padding-top: 18px; }
+    .ds-host-small .ds-display { min-height: 36px; }
+    .ds-host-small .ds-destination, .ds-host-small .ds-peer-name { font-size: 20px; }
+    .ds-host-small .ds-peer-number { font-size: 13px; }
+    .ds-host-small .ds-callstate { margin-top: 2px; }
+    .ds-host-small .ds-callstate-text { font-size: 12px; }
+    .ds-host-small .ds-duration { font-size: 15px; }
+    .ds-host-small .ds-keypad { gap: 6px; max-width: min(${48 * 3 + 6 * 2}px, 100%); }
+    .ds-host-small .ds-key { max-width: 48px; }
+    .ds-host-small .ds-key-digit { font-size: 18px; }
+    .ds-host-small .ds-key-letters { font-size: 8px; min-height: 9px; }
+    .ds-host-small .ds-actions { gap: 32px; padding-top: 4px; }
+    .ds-host-small .ds-action { width: 48px; height: 48px; }
+    .ds-host-small .ds-controls { gap: 4px 8px; max-width: ${56 * 3 + 8 * 2}px; }
+    .ds-host-small .ds-controls > * { flex-basis: 56px; }
+    .ds-host-small .ds-control { gap: 3px; }
+    .ds-host-small .ds-control-glyph { width: 42px; height: 42px; }
+    .ds-host-small .ds-control-label { font-size: 10px; }
+    .ds-host-small .ds-held-call { padding: 8px 10px; }
+    .ds-host-small .ds-held-call .ds-peer-name { font-size: 15px; }
+    .ds-host-small .ds-held-calls { gap: 4px; }
+    .ds-host-small .ds-chip { font-size: 10px; padding: 2px 8px; }
+    .ds-host-small .ds-e911-toggle { padding: 6px 8px; font-size: 11px; gap: 6px; }
+    .ds-host-small .ds-transfer-input { padding: 6px 10px; font-size: 14px; }
+    .ds-host-small .ds-transfer-actions, .ds-host-small .ds-consult-actions { gap: 6px; }
+    .ds-host-small .ds-transfer-send, .ds-host-small .ds-e911-btn { padding: 7px 8px; font-size: 12px; }
+    .ds-host-small .ds-incoming-card-compact { padding: 8px 10px; gap: 8px; }
+    .ds-host-small .ds-incoming-card-compact .ds-peer-name { font-size: 13px; }
+    .ds-host-small .ds-incoming-card-compact .ds-action { width: 36px; height: 36px; }
 
     .${scope} button:focus-visible, .${scope} input:focus-visible {
       outline: none;

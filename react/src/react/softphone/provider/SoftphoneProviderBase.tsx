@@ -28,6 +28,10 @@ import {
   type UseEmergencyBinding,
   type SoftphoneConnectionState,
   type UsePhoneOptions,
+  usePeerResolver,
+  type PeerInfo,
+  type ResolvePeer,
+  type SoftphoneLayoutVariant,
 } from '../hooks';
 import {
   createPaginatedList,
@@ -96,6 +100,14 @@ export interface SoftphoneContextBase {
   displayNumber: (value: string) => string;
   /** Resolved theme palette — computed on both platforms so mobile themes like web. */
   palette: SoftphonePalette;
+  /**
+   * The host's {@link PeerInfo} for a call, from `resolvePeer`, or null while it
+   * resolves, when the host has none, or when no resolver is set. The built-in
+   * views read it; a custom UI can too.
+   */
+  peerInfo: (call: Call | null | undefined) => PeerInfo | null;
+  /** The size tier the host asked for (`'auto'` unless pinned). */
+  layoutVariant: SoftphoneLayoutVariant;
 }
 
 const SoftphoneContext = createContext<SoftphoneContextBase | null>(null);
@@ -163,6 +175,17 @@ export interface SoftphoneCoreProps {
   onCallStarted?: (event: { direction: 'inbound' | 'outbound'; peer: string }) => void;
   onCallEnded?: (event: { reason: CallEndReason }) => void;
   onError?: (event: { code: string; message: string }) => void;
+  /**
+   * Look up the remote party of each call in the host's own records (e.g. the
+   * customer behind a caller id). The softphone shows the result in its own
+   * styles — the name as the call's title, the avatar above it.
+   */
+  resolvePeer?: ResolvePeer;
+  /**
+   * The size tier: `'auto'` (default) follows the host's size, compact below
+   * about 300x480; `'full'` or `'compact'` pins one.
+   */
+  layoutVariant?: SoftphoneLayoutVariant;
 }
 
 export interface SoftphoneProviderBaseProps<Extra extends object> extends SoftphoneCoreProps {
@@ -201,6 +224,8 @@ export function SoftphoneProviderBase<Extra extends object>({
   onCallStarted,
   onCallEnded,
   onError,
+  resolvePeer,
+  layoutVariant = 'auto',
   placeOutbound,
   answerIncoming,
   extra,
@@ -292,6 +317,7 @@ export function SoftphoneProviderBase<Extra extends object>({
   const duration = useCallDuration(activeCall);
 
   const calls = useMemo(() => callEntries.map((e) => e.call), [callEntries]);
+  const peerInfo = usePeerResolver(resolvePeer, calls);
   const incomingRinging = shouldRingIncoming(incomingCalls);
 
   // Clear a stale error banner only on the error→connected edge, not every render.
@@ -339,6 +365,8 @@ export function SoftphoneProviderBase<Extra extends object>({
       t,
       displayNumber,
       palette,
+      peerInfo,
+      layoutVariant,
       ...extra,
     }),
     // t/displayNumber recompute from locale/defaultCountry each render; the
@@ -376,6 +404,8 @@ export function SoftphoneProviderBase<Extra extends object>({
       lastError,
       clearError,
       palette,
+      peerInfo,
+      layoutVariant,
       locale,
       defaultCountry,
       extra,

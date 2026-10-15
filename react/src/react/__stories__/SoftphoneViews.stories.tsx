@@ -92,6 +92,7 @@ const incoming = (over: Partial<React.ComponentProps<typeof IncomingCallCardView
     <div className="ds-screen ds-screen-incoming">
       <IncomingCallCardView
         name="Alice Kowalski"
+        avatar={{ initials: 'AK' }}
         number={displayNumber('+14155550134')}
         onAnswer={noop}
         onDecline={noop}
@@ -102,7 +103,21 @@ const incoming = (over: Partial<React.ComponentProps<typeof IncomingCallCardView
   </div>
 );
 
-const PEER = { id: 'c1', name: 'Alice Kowalski', number: displayNumber('+14155550134') };
+// A generated portrait (inline, so the stories need no network): an image avatar
+// as `resolvePeer` can return one.
+const PHOTO = {
+  uri: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAIAAABMXPacAAAEpUlEQVR42u1dS08TURQ+0/Aor0bUIH9KSYyJWnmJIIKl+APQhMIvIMhSBRKQBIk8CoSFcaGJC5eyc+cGC20JFGjBWBeDSKQ8pszcc+be78ssuhjunfm+ufOdc+/hjpX7+ooAPpRQHiSwCgD+eREABdwjAEOA2QPIAgvwAERBAEYAoiCAZwTAhOEB8AAAHoBMGEAmDA8AEAVhBACIgpAJC8bd7sGzT5ga6fPR7Vjpz2M+IP3pYHF/OPVSuhhWSrAA94rl/STeSlVCqAAuUi9cBiv5SZYA9yODXncxOdwnSoBxMdQPqOxucvi5iDA0TyThUMy+rbeEGw9IoD+snH0b4cgA+73zj4BwzwDjGyDcM8A9AljxgJV9CdcQyJPFdUhg/0gDLhLYPKCxJyYq/G3siRnkAY1RWewfahCNGecBQCCfJ8VHk8jH30ZTNKaYDawJF5gd0DkTbu7tF05/c2+/SkKwJlwIeawJm8K/2iio9Vm/LwRQeZ2ojj5tEFioCzLiNQQPYLYBZMLcScePDxMsHZfSvjQuDqiMUB1tTg7M6QFllBNIfynl9qncjOpoCzkYoiAR/CMKIlRHG5kAc3pAMJAVK0DQymZ/BxWHoXJxp/uF/WN6JMbVgoaliU65++83edyCAaWJDrkrToPiW1DLBkyY2YcRhppXlnIRnPRMpy5adAuK2ZA7Ao7zVVwMc/kWVEzKfF+ZUtxldcme5HdC5lcFpqMNmpTGdjUFPEDzKGj7oFIs++qvDdPRzNPRKEvhX5CBCXNORyMTJhM37dvMVV0p35HGxWauChs2YcsyVUjnqmolDYI0x+OPTJi/VIZhNtTRtKiNmaGJmSFnJZROz+cigdMDUtlqT9u/uAZeX8lZ4251cZp35F8LZhyxeTsadutMG0k+9onIWo1zC1CRKeKJLkjuuScUFmCPVYBv8Xfs9ne9Ytvdt8rF2d/Yq2G2fgkCONLgDCUuzrsQ9n28HuCUawlT/6Iz4fXdGu17lL4ekNitqavcVtYXPuBQkJdQXeWWgl7wCZNT8XMnREQ3qra8a5ywfT0LUwLZF70mvLYTqndvHKyJZF/6mvBaJkRE9dVbl2+E8C9KZMwyL1bECCtiRpf6oC7ITwpgBCATJmP3RTCjOlr4DSIKggcgChKIptnNo98fmy/X1Pt/TY03XEEmfA6aZ9Ne6zrWUCsqCjKC+pMdCZFBhAe0qKL+pAyj3DIwe0DLXFqC9qO32GSwvszMcvXdys3+cbxh0iBAZLEcotj/+zQw8MCQCT+cT8kMyVvnUkT0+uZVnTNhsexzXaHSHbPks3+kgYY7ZrX5hH0bbfMpZR9yU/HBvrYFP7F/qMFCSsmnDL3Ho4WkTyfyFFy55x7gX/aPNMBnrEjjGW1vR0B7PKkB/+3xpKcf8/Qqx+vQgn0bHfGkPpkw1pZVZMKPFzc0E8CjO8KOWcxm7Ekm3Knd42+jc3EDe0frVmvtvgc8WVrXWADX7w4ewOwELntAl9aPv42upXV3PQDgHATYMYt4K67d3DGrezlhCP3dywn9vx9AqI4GFNgA1gOYFXBtTTiykjCK/8hKwjdrwgA8QO5L6A97y24lhCPQRwAAAABJRU5ErkJggg==',
+  initials: 'MR',
+};
+
+// Named peers carry an avatar, as a host's `resolvePeer` gives them, so every
+// state shows it wherever it fits; a bare number is the unresolved fallback.
+const PEER = {
+  id: 'c1',
+  name: 'Alice Kowalski',
+  number: displayNumber('+14155550134'),
+  avatar: { initials: 'AK' },
+};
 
 const SAVED_ADDRESS = {
   id: 'ea_1',
@@ -213,10 +228,17 @@ const AllCells: React.FC = () => (
 
     <Cell label="incoming · named">{incoming()}</Cell>
     <Cell label="incoming · number only">
-      {incoming({ name: displayNumber('+14155550134'), number: null })}
+      {incoming({ name: displayNumber('+14155550134'), number: null, avatar: undefined })}
+    </Cell>
+    <Cell label="incoming · photo avatar">{incoming({ name: 'Maya Rivera', avatar: PHOTO })}</Cell>
+    <Cell label="incoming · photo avatar · broken image">
+      {incoming({
+        name: 'Maya Rivera',
+        avatar: { ...PHOTO, uri: 'https://invalid.example/missing.png' },
+      })}
     </Cell>
     <Cell label="incoming · long name">
-      {incoming({ name: 'Bartholomew Featherstonehaugh-Cholmondeley' })}
+      {incoming({ name: 'Bartholomew Featherstonehaugh-Cholmondeley', avatar: { initials: 'BF' } })}
     </Cell>
     <Cell label="incoming · compact">{incoming({ compact: true })}</Cell>
 
@@ -229,6 +251,9 @@ const AllCells: React.FC = () => (
       })}
     </Cell>
     <Cell label="in call">{ongoing()}</Cell>
+    <Cell label="in call · photo avatar">
+      {ongoing({ peer: { ...PEER, name: 'Maya Rivera', avatar: PHOTO } })}
+    </Cell>
     <Cell label="in call · muted">{ongoing({ isMuted: true })}</Cell>
     <Cell label="in call · held">
       {ongoing({
@@ -248,19 +273,22 @@ const AllCells: React.FC = () => (
       {ongoing({
         isMerged: true,
         canMerge: true,
-        conferenceParties: [PEER, { id: 'c2', name: 'Bob Chen', number: null }],
+        conferenceParties: [
+          PEER,
+          { id: 'c2', name: 'Bob Chen', number: null, avatar: { initials: 'BC' } },
+        ],
       })}
     </Cell>
     <Cell label="attended transfer">
       {ongoing({
-        transferOther: { id: 'c2', name: 'Bob Chen', number: null },
+        transferOther: { id: 'c2', name: 'Bob Chen', number: null, avatar: { initials: 'BC' } },
         canCompleteTransfer: true,
       })}
     </Cell>
     <Cell label="two held calls">
       {ongoing({
         switchableHeld: [
-          { id: 'c2', name: 'Bob Chen', number: null },
+          { id: 'c2', name: 'Bob Chen', number: null, avatar: { initials: 'BC' } },
           { id: 'c3', name: displayNumber('+14155550199'), number: null },
         ],
       })}

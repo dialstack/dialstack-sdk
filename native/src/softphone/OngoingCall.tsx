@@ -10,8 +10,7 @@
 import React, { useEffect, useState } from 'react';
 import type { Call } from '@dialstack/sdk-react/core';
 import {
-  callPeerNumber,
-  callPeerName,
+  peerDisplay,
   callStateLabelKey,
   isCallActive,
   useDialInput,
@@ -38,6 +37,7 @@ export function OngoingCall(): React.JSX.Element | null {
     placeCall,
     calls,
     displayNumber,
+    peerInfo,
     t,
     palette,
     audio,
@@ -58,15 +58,10 @@ export function OngoingCall(): React.JSX.Element | null {
 
   if (!call) return null;
 
-  const summarize = (c: Call): PeerSummary => {
-    const cName = callPeerName(c);
-    const cNumber = callPeerNumber(c);
-    return {
-      id: c.id,
-      name: cName || displayNumber(cNumber) || t('unknownCaller'),
-      number: cName ? displayNumber(cNumber) : null,
-    };
-  };
+  const summarize = (c: Call): PeerSummary => ({
+    id: c.id,
+    ...peerDisplay(c, peerInfo(c), displayNumber, t('unknownCaller')),
+  });
 
   const inTransfer = consultCall !== null && transferOriginal !== null;
   const focusInTransfer = inTransfer && (call === consultCall || call === transferOriginal);

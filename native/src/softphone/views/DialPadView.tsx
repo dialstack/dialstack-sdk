@@ -2,13 +2,13 @@ import React, { useMemo } from 'react';
 import { Keyboard, Pressable, Text, TextInput, View } from 'react-native';
 import {
   dialPadKeys,
-  softphoneDimensions as D,
   softphoneGlyphs,
   type Locale,
   type SoftphonePalette,
 } from '@dialstack/sdk-react/core';
 import type { ConnectionState } from '../../SoftphoneProvider';
 import { Chip, Glyph, KeyboardDoneBar, chunk, makeStyles } from '../primitives';
+import { useRoomyHost } from './useRoomyHost';
 
 const KEYBOARD_ID = 'dialstack-softphone-dial-keyboard';
 
@@ -37,7 +37,8 @@ export function DialPadView({
   autoFocusDestination = false,
   errorChip = null,
 }: DialPadViewProps): React.JSX.Element {
-  const styles = useMemo(() => makeStyles(palette), [palette]);
+  const { roomy, onLayout } = useRoomyHost();
+  const styles = useMemo(() => makeStyles(palette, !roomy), [palette, roomy]);
   const rows = chunk(dialPadKeys, 3);
 
   const chipKey: Partial<Record<ConnectionState, keyof Locale['softphone']>> = {
@@ -51,7 +52,12 @@ export function DialPadView({
 
   return (
     // A tap outside the field closes the keyboard, as in other apps.
-    <Pressable style={styles.dialScreen} onPress={Keyboard.dismiss} accessible={false}>
+    <Pressable
+      style={styles.dialScreen}
+      onPress={Keyboard.dismiss}
+      onLayout={onLayout}
+      accessible={false}
+    >
       {label ? (
         <Chip styles={styles} tone={connection === 'error' ? 'error' : 'info'} label={label} />
       ) : null}
@@ -118,7 +124,7 @@ export function DialPadView({
         >
           <Glyph
             glyph={softphoneGlyphs.phone}
-            size={D.actionButtonSize * 0.46}
+            size={(styles.action.width as number) * 0.46}
             color={palette.onAccent}
           />
         </Pressable>

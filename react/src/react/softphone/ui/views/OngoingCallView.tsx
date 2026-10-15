@@ -5,6 +5,8 @@ import { Glyph } from '../Glyph';
 import { ControlButton } from '../ControlButton';
 import { ControlsSlot } from '../ControlsSlot';
 import { CallErrorChipView, type CallErrorChipViewProps } from './CallErrorChipView';
+import { PeerAvatar, PeerRow } from './PeerAvatar';
+import { useRoomyHost } from './useRoomyHost';
 import {
   DEFAULT_SCOPE,
   type OverlayPanel,
@@ -109,8 +111,10 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
 }) => {
   const inKeypadMode = isActive && overlay === 'keypad' && canSendDtmf;
 
+  const { ref: hostRef, roomy } = useRoomyHost<HTMLDivElement>();
+
   return (
-    <div className={`${scope} ds-softphone`}>
+    <div ref={hostRef} className={`${scope} ds-softphone`}>
       <div
         className={`ds-screen ds-screen-incall ${isActive ? 'ds-screen-active' : 'ds-screen-outgoing'}`}
       >
@@ -123,8 +127,10 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
               aria-label={`${t('switchToCall')}: ${transferOther.name}`}
               onClick={onSwitchToTransferOther}
             >
-              <div className="ds-peer-name">{transferOther.name}</div>
-              <div className="ds-callstate-text">{t('transferOriginalOnHold')}</div>
+              <PeerRow avatar={transferOther.avatar}>
+                <div className="ds-peer-name">{transferOther.name}</div>
+                <div className="ds-callstate-text">{t('transferOriginalOnHold')}</div>
+              </PeerRow>
             </button>
             <div className="ds-consult-actions">
               <button
@@ -157,8 +163,10 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
                 aria-label={`${t('switchToCall')}: ${held.name}`}
                 onClick={() => onSwitchToCall(held.id)}
               >
-                <div className="ds-peer-name">{held.name}</div>
-                <div className="ds-callstate-text">{t('heldCallsLabel')}</div>
+                <PeerRow avatar={held.avatar}>
+                  <div className="ds-peer-name">{held.name}</div>
+                  <div className="ds-callstate-text">{t('heldCallsLabel')}</div>
+                </PeerRow>
               </button>
             ))}
           </div>
@@ -170,8 +178,9 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
             <div className="ds-callstate-text">{conferenceLabel}</div>
             <div className="ds-conference-parties">
               {conferenceParties.map((party) => (
-                <div key={party.id} className="ds-peer-name">
-                  {party.name}
+                <div key={party.id} className="ds-conference-party">
+                  <PeerAvatar avatar={party.avatar} size="sm" />
+                  <div className="ds-conference-party-name">{party.name}</div>
                 </div>
               ))}
             </div>
@@ -181,6 +190,7 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
           </div>
         ) : (
           <div className="ds-peer">
+            {roomy && !inKeypadMode && <PeerAvatar avatar={peer.avatar} />}
             <div className="ds-peer-name">{peer.name}</div>
             {peer.number && <div className="ds-peer-number">{peer.number}</div>}
             <div className="ds-callstate">

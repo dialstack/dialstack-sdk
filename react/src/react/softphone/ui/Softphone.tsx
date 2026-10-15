@@ -27,6 +27,7 @@ import { DialPad } from './DialPad';
 import { EmergencyBanner } from './EmergencyBanner';
 import { IncomingCall, IncomingStack } from './IncomingCall';
 import { OngoingCall } from './OngoingCall';
+import { HostTierContext, useHostTierProbe } from './views/useRoomyHost';
 
 export interface SoftphoneProps {
   /**
@@ -119,5 +120,20 @@ export const Softphone: React.FC<SoftphoneProps> = ({ autoFocusDestination }) =>
         'the connection and the token. See https://docs.dialstack.ai/sdk/react.'
     );
   }
-  return <SoftphoneScreens autoFocusDestination={autoFocusDestination} />;
+  return <SoftphoneRoot autoFocusDestination={autoFocusDestination} />;
+};
+
+/**
+ * Measures the element the softphone is rendered into, once, and shares the
+ * size tier with every screen (see useRoomyHost). The probe is `hidden`, so it
+ * takes no space or flex slot in the host.
+ */
+const SoftphoneRoot: React.FC<{ autoFocusDestination?: boolean }> = ({ autoFocusDestination }) => {
+  const { ref, roomy } = useHostTierProbe<HTMLSpanElement>();
+  return (
+    <HostTierContext.Provider value={roomy}>
+      <span ref={ref} hidden />
+      <SoftphoneScreens autoFocusDestination={autoFocusDestination} />
+    </HostTierContext.Provider>
+  );
 };

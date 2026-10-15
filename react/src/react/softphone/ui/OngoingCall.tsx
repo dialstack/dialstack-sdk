@@ -10,14 +10,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useSoftphone } from '../provider/SoftphoneProvider';
-import {
-  callPeerNumber,
-  callPeerName,
-  callStateLabelKey,
-  isCallActive,
-  useDialInput,
-  MAX_CALLS,
-} from '../hooks';
+import { peerDisplay, callStateLabelKey, isCallActive, useDialInput, MAX_CALLS } from '../hooks';
 import { AudioDevicePicker } from './AudioDevicePicker';
 import { OngoingCallView } from './views/OngoingCallView';
 import type { OverlayPanel, PeerSummary } from './views/types';
@@ -48,6 +41,7 @@ export const OngoingCall: React.FC = () => {
     holdConference,
     t,
     displayNumber,
+    peerInfo,
     scope,
     lastError,
     clearError,
@@ -69,10 +63,7 @@ export const OngoingCall: React.FC = () => {
 
   if (!call) return null;
 
-  const peer = callPeerNumber(call);
-  const peerName = callPeerName(call);
   const isActive = isCallActive(call);
-  const name = peerName || displayNumber(peer) || t('unknownCaller');
   // Hide the DTMF keypad where the platform can't send DTMF — otherwise the taps
   // would each throw. Browsers always expose RTCDTMFSender, so on web the keypad
   // stays; on React Native it depends on which WebRTC build the app installed.
@@ -126,15 +117,10 @@ export const OngoingCall: React.FC = () => {
     overlays.closeAddCall();
   };
 
-  const summarize = (c: Call): PeerSummary => {
-    const cName = callPeerName(c);
-    const cNumber = callPeerNumber(c);
-    return {
-      id: c.id,
-      name: cName || displayNumber(cNumber) || t('unknownCaller'),
-      number: cName ? displayNumber(cNumber) : null,
-    };
-  };
+  const summarize = (c: Call): PeerSummary => ({
+    id: c.id,
+    ...peerDisplay(c, peerInfo(c), displayNumber, t('unknownCaller')),
+  });
 
   const overlay: OverlayPanel = showKeypad
     ? 'keypad'
@@ -155,7 +141,7 @@ export const OngoingCall: React.FC = () => {
 
   return (
     <OngoingCallView
-      peer={{ id: call.id, name, number: peerName ? displayNumber(peer) : null }}
+      peer={summarize(call)}
       stateLabel={t(callStateLabelKey(call.state))}
       duration={duration}
       showDuration={call.state === 'active'}

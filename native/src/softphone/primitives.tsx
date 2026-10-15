@@ -19,10 +19,23 @@ import {
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import {
-  softphoneDimensions as D,
+  softphoneDimensions as BASE_DIMENSIONS,
   type SoftphonePalette,
   type SoftphoneGlyph,
 } from '@dialstack/sdk-react/core';
+
+/**
+ * The compact size tier for small hosts (see views/useRoomyHost): keys, action
+ * and control buttons and spacing step down together so the screens fit.
+ */
+const COMPACT_DIMENSIONS = {
+  ...BASE_DIMENSIONS,
+  actionButtonSize: 48,
+  controlButtonSize: 42,
+  keyGap: 6,
+  keyMaxSize: 44,
+  space: 10,
+};
 
 export function Glyph({
   glyph,
@@ -115,7 +128,7 @@ export function ControlButton({
       <View style={[styles.controlGlyphWrap, on && styles.controlGlyphOn]}>
         <Glyph
           glyph={glyph}
-          size={D.controlButtonSize * 0.42}
+          size={(styles.controlGlyphWrap.width as number) * 0.42}
           color={on ? palette.onAccent : palette.text}
         />
       </View>
@@ -125,8 +138,6 @@ export function ControlButton({
 }
 
 const CONTROL_SLOTS = 6;
-
-const KEY_MAX = Math.round(D.keyMaxSize * 1.1);
 
 export function Chip({
   styles,
@@ -212,7 +223,12 @@ export function KeyboardDoneBar({
   );
 }
 
-export function makeStyles(p: SoftphonePalette) {
+export function makeStyles(p: SoftphonePalette, compact = false) {
+  // Shadows the module-level D: everything below sizes from the active tier.
+  const D = compact ? COMPACT_DIMENSIONS : BASE_DIMENSIONS;
+  const KEY_MAX = Math.round(D.keyMaxSize * 1.1);
+  // Type steps down with the tier.
+  const fs = (base: number, small: number) => (compact ? small : base);
   return StyleSheet.create({
     outer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: D.space },
     outerLandscape: { justifyContent: 'flex-start', paddingTop: D.space },
@@ -237,8 +253,8 @@ export function makeStyles(p: SoftphonePalette) {
     chipPill: {
       backgroundColor: p.surface,
       borderRadius: 999,
-      paddingVertical: 4,
-      paddingHorizontal: 12,
+      paddingVertical: fs(4, 2),
+      paddingHorizontal: fs(12, 8),
     },
     dialScreen: { position: 'relative', flex: 1, minHeight: 0, gap: D.space },
     keyboardDoneBar: {
@@ -251,7 +267,7 @@ export function makeStyles(p: SoftphonePalette) {
       borderTopColor: p.border,
     },
     keyboardDoneText: { color: p.accent, fontSize: 16, fontWeight: '600' },
-    chipText: { color: p.textSecondary, fontSize: 12, fontWeight: '600' },
+    chipText: { color: p.textSecondary, fontSize: fs(12, 10), fontWeight: '600' },
     chipError: { backgroundColor: 'rgba(229,72,77,0.16)' },
     chipErrorText: { color: p.danger },
 
@@ -267,7 +283,7 @@ export function makeStyles(p: SoftphonePalette) {
     destination: {
       flex: 1,
       minWidth: 0,
-      fontSize: 30,
+      fontSize: fs(30, 22),
       fontWeight: '500',
       color: p.text,
       textAlign: 'center',
@@ -302,11 +318,16 @@ export function makeStyles(p: SoftphonePalette) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    keyCompact: { maxWidth: 76, maxHeight: 76 },
+    keyCompact: { maxWidth: Math.min(76, KEY_MAX), maxHeight: Math.min(76, KEY_MAX) },
     keyPressed: { backgroundColor: p.surfaceActive },
-    keyDigit: { fontSize: 26, fontWeight: '500', color: p.text, lineHeight: 30 },
+    keyDigit: {
+      fontSize: fs(26, 18),
+      fontWeight: '500',
+      color: p.text,
+      lineHeight: fs(30, 21),
+    },
     keyLetters: {
-      fontSize: 10,
+      fontSize: fs(10, 8),
       fontWeight: '600',
       letterSpacing: 1.5,
       color: p.textSecondary,
@@ -316,9 +337,9 @@ export function makeStyles(p: SoftphonePalette) {
     actions: {
       flexDirection: 'row',
       justifyContent: 'center',
-      gap: 48,
+      gap: fs(48, 32),
       marginTop: 0,
-      paddingTop: 8,
+      paddingTop: fs(8, 4),
       flexGrow: 0,
       flexShrink: 0,
       flexBasis: 'auto',
@@ -364,13 +385,36 @@ export function makeStyles(p: SoftphonePalette) {
       width: '100%',
     },
     peerName: {
-      fontSize: 26,
+      fontSize: fs(26, 20),
       fontWeight: '600',
       color: p.text,
       textAlign: 'center',
       alignSelf: 'stretch',
     },
-    peerNumber: { fontSize: 15, color: p.textSecondary },
+    peerNumber: { fontSize: fs(15, 13), color: p.textSecondary },
+    // Shrinks first when the screen runs out of height (flexShrink well above
+    // its siblings'), so the avatar gives way before anything else does.
+    peerAvatar: {
+      height: 64,
+      maxHeight: 64,
+      minHeight: 0,
+      flexShrink: 100,
+      aspectRatio: 1,
+      alignSelf: 'center',
+      borderRadius: 32,
+      overflow: 'hidden',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: p.accent,
+      marginBottom: 4,
+    },
+    peerAvatarImage: { width: '100%', height: '100%' },
+    peerAvatarInitials: { fontSize: 22, fontWeight: '600', color: p.onAccent },
+    peerAvatarHidden: { backgroundColor: 'transparent' },
+    peerAvatarSm: { width: 32, height: 32, flexShrink: 0, borderRadius: 16, marginBottom: 0 },
+    peerAvatarInitialsSm: { fontSize: 13 },
+    peerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+    peerRowText: { flexShrink: 1, alignItems: 'flex-start' },
     callState: { alignItems: 'center', marginTop: 6, gap: 2 },
     dtmfReadout: {
       textAlign: 'center',
@@ -379,8 +423,8 @@ export function makeStyles(p: SoftphonePalette) {
       letterSpacing: 0.08 * 22,
       color: p.text,
     },
-    callStateText: { fontSize: 14, color: p.textSecondary },
-    duration: { fontSize: 18, fontWeight: '500', color: p.text },
+    callStateText: { fontSize: fs(14, 12), color: p.textSecondary },
+    duration: { fontSize: fs(18, 15), fontWeight: '500', color: p.text },
 
     incomingLabel: {
       textAlign: 'center',
@@ -396,11 +440,11 @@ export function makeStyles(p: SoftphonePalette) {
       justifyContent: 'center',
       alignSelf: 'center',
       flexShrink: 0,
-      maxWidth: (D.controlButtonSize + 12) * 3 + 40,
-      rowGap: 8,
-      columnGap: 20,
+      maxWidth: (D.controlButtonSize + 12) * 3 + fs(40, 16),
+      rowGap: fs(8, 4),
+      columnGap: fs(20, 8),
     },
-    control: { alignItems: 'center', gap: 6, width: D.controlButtonSize + 12 },
+    control: { alignItems: 'center', gap: fs(6, 3), width: D.controlButtonSize + 12 },
     controlDisabled: { opacity: 0.4 },
     controlGlyphWrap: {
       width: D.controlButtonSize,
@@ -411,7 +455,7 @@ export function makeStyles(p: SoftphonePalette) {
       justifyContent: 'center',
     },
     controlGlyphOn: { backgroundColor: p.accent },
-    controlLabel: { fontSize: 12, color: p.textSecondary },
+    controlLabel: { fontSize: fs(12, 10), color: p.textSecondary },
     controlsSlot: { opacity: 0 },
 
     peerCompact: {
@@ -429,42 +473,42 @@ export function makeStyles(p: SoftphonePalette) {
       flexBasis: 'auto',
       justifyContent: 'center',
       width: '100%',
-      maxWidth: (D.controlButtonSize + 12) * 3 + 40,
+      maxWidth: (D.controlButtonSize + 12) * 3 + fs(40, 16),
       alignSelf: 'center',
     },
     transferInput: {
-      minHeight: 52,
+      minHeight: fs(52, 38),
       borderWidth: 1,
       borderColor: p.border,
       borderRadius: D.radius,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
+      paddingHorizontal: fs(14, 10),
+      paddingVertical: fs(12, 6),
       backgroundColor: p.surface,
       color: p.text,
-      fontSize: 16,
+      fontSize: fs(16, 14),
     },
-    transferActions: { flexDirection: 'row', gap: 8 },
+    transferActions: { flexDirection: 'row', gap: fs(8, 6) },
     transferSend: {
       flex: 1,
       backgroundColor: p.accent,
       borderRadius: D.radius,
-      paddingVertical: 12,
+      paddingVertical: fs(12, 8),
       alignItems: 'center',
       justifyContent: 'center',
     },
-    transferSendText: { color: p.onAccent, fontWeight: '600' },
+    transferSendText: { color: p.onAccent, fontWeight: '600', fontSize: fs(15, 12) },
     transferSendSecondary: { backgroundColor: p.surface },
-    transferSendSecondaryText: { color: p.text, fontWeight: '600' },
+    transferSendSecondaryText: { color: p.text, fontWeight: '600', fontSize: fs(15, 12) },
     transferSendDisabled: { opacity: 0.5 },
 
     consultHeld: { opacity: 0.7 },
 
-    heldCalls: { gap: 8 },
+    heldCalls: { gap: fs(8, 4) },
     heldCall: {
       borderWidth: 1,
       borderColor: p.border,
       borderRadius: D.radius,
-      padding: 14,
+      padding: fs(14, 8),
       alignItems: 'center',
       gap: 4,
       backgroundColor: p.surface,
@@ -508,8 +552,10 @@ export function makeStyles(p: SoftphonePalette) {
       paddingTop: 0,
     },
     actionCompact: { width: D.actionButtonSize * 0.72, height: D.actionButtonSize * 0.72 },
-    peerNameCompact: { fontSize: 15, fontWeight: '600', color: p.text },
-    peerNumberCompact: { fontSize: 12, color: p.textSecondary },
+    peerNameCompact: { fontSize: fs(15, 13), fontWeight: '600', color: p.text },
+    peerNumberCompact: { fontSize: fs(12, 11), color: p.textSecondary },
+    // A held or transfer row's name: the title size normally, row-sized when compact.
+    rowName: { fontSize: fs(26, 15), fontWeight: '600', color: p.text },
 
     e911: {
       flexGrow: 0,
@@ -525,13 +571,13 @@ export function makeStyles(p: SoftphonePalette) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 8,
-      paddingVertical: 12,
-      paddingHorizontal: 12,
+      gap: fs(8, 6),
+      paddingVertical: fs(12, 6),
+      paddingHorizontal: fs(12, 8),
     },
     e911ToggleText: {
       color: p.warning,
-      fontSize: 13,
+      fontSize: fs(13, 11),
       fontWeight: '600',
       textAlign: 'center',
       flexShrink: 1,

@@ -13,7 +13,7 @@
 
 import React from 'react';
 import { useSoftphone } from '../provider/SoftphoneProvider';
-import { callPeerName, callPeerNumber } from '../hooks';
+import { peerDisplay } from '../hooks';
 import { IncomingCallCardView } from './views/IncomingCallCardView';
 import type { Call } from '@dialstack/sdk-webrtc';
 
@@ -21,14 +21,19 @@ export const IncomingCallCard: React.FC<{
   call: Call;
   compact?: boolean;
 }> = ({ call, compact = false }) => {
-  const { answerCall, actions, t, displayNumber } = useSoftphone();
-  const peer = callPeerNumber(call);
-  const resolvedName = callPeerName(call);
+  const { answerCall, actions, t, displayNumber, peerInfo } = useSoftphone();
+  const { name, number, avatar } = peerDisplay(
+    call,
+    peerInfo(call),
+    displayNumber,
+    t('unknownCaller')
+  );
 
   return (
     <IncomingCallCardView
-      name={resolvedName || displayNumber(peer) || t('unknownCaller')}
-      number={resolvedName ? displayNumber(peer) : null}
+      name={name}
+      number={number}
+      avatar={avatar}
       compact={compact}
       onAnswer={() => answerCall(call)}
       onDecline={() => actions.callActionsFor(call).reject()}

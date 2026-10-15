@@ -51,6 +51,9 @@ export type { PlatformStorage, EmergencyAddressInput } from '@dialstack/sdk-reac
 // write `(call: Call) => …` functions over it.
 export type { Call, CallState, CallEndReason, UseCallActions } from '@dialstack/sdk-react/core';
 
+// What `resolvePeer` returns: the host's record of a call's remote party.
+export type { PeerInfo, ResolvePeer, SoftphoneLayoutVariant } from '@dialstack/sdk-react/core';
+
 // Output routing, implemented by a host that owns call audio.
 export type {
   AudioOutput,
