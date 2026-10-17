@@ -311,7 +311,7 @@ describe('HardwareStep', () => {
     });
   });
 
-  it('does not replay the assignment when a later step fails and the user retries', async () => {
+  it('does not touch the device location when saving assignments', async () => {
     const assignUser = jest.fn().mockResolvedValue({
       user: 'user_01abc',
       user_id: 'user_01abc',
@@ -320,12 +320,9 @@ describe('HardwareStep', () => {
       line_number: 1,
       created_at: new Date().toISOString(),
     });
-    // Location backfill fails the first time, succeeds on retry.
-    const update = jest
-      .fn()
-      .mockRejectedValueOnce(new Error('backfill failed'))
-      .mockResolvedValue({});
-    const unassignedDevice = { ...mockDevice, location_id: null, assignments: [] };
+    // The user has no seat location, so the device's own location stands.
+    const update = jest.fn().mockResolvedValue({});
+    const unassignedDevice = { ...mockDevice, assignments: [] };
 
     await renderHardwareStep({
       ...devicesNS({
@@ -344,19 +341,149 @@ describe('HardwareStep', () => {
       expect(screen.getByText('Save & Continue')).toBeInTheDocument();
     });
 
-    // First submit: assignment succeeds, backfill fails → error shown, still on step.
     fireEvent.click(screen.getByText('Save & Continue'));
     await waitFor(() => {
       expect(assignUser).toHaveBeenCalledTimes(1);
-      expect(update).toHaveBeenCalledTimes(1);
+    });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  // A device's location may be a server default; assigning a user seated at
+  // another site would then be refused, so onboarding moves the device first.
+  it("moves a deskphone to its user's site before assigning", async () => {
+    const calls: string[] = [];
+    const update = jest.fn().mockImplementation(async () => {
+      calls.push('update');
+      return {};
+    });
+    const assignUser = jest.fn().mockImplementation(async () => {
+      calls.push('assign');
+      return {};
+    });
+    const unassignedDevice = { ...mockDevice, location: 'loc_main', assignments: [] };
+
+    await renderHardwareStep({
+      ...usersNS({
+        list: jest.fn().mockResolvedValue([{ ...mockUsers[0], location: 'loc_branch' }]),
+      }),
+      ...devicesNS({
+        list: jest.fn().mockResolvedValue([unassignedDevice]),
+        update,
+        users: { create: assignUser },
+      }),
     });
 
-    // Retry: assignment must NOT be replayed; only the backfill re-runs.
-    fireEvent.click(screen.getByText('Save & Continue'));
+    fireEvent.click(document.querySelector('.hw-device-card') as HTMLElement);
     await waitFor(() => {
-      expect(update).toHaveBeenCalledTimes(2);
+      expect(document.querySelector('.hw-drop-zone--selectable')).not.toBeNull();
     });
-    expect(assignUser).toHaveBeenCalledTimes(1);
+    fireEvent.click(document.querySelector('.hw-drop-zone') as HTMLElement);
+    fireEvent.click(await screen.findByText('Save & Continue'));
+
+    await waitFor(() => {
+      expect(assignUser).toHaveBeenCalledWith(unassignedDevice.id, { user: 'user_01abc' });
+    });
+    expect(update).toHaveBeenCalledWith(unassignedDevice.id, { location: 'loc_branch' });
+    expect(calls).toEqual(['update', 'assign']);
+  });
+
+  function dectNS(baseLocation: string, handsets: Array<{ id: string; assignments: unknown[] }>) {
+    return {
+      dectBases: {
+        list: jest.fn().mockResolvedValue([{ id: 'dectb_01abc', location: baseLocation }]),
+        handsets: {
+          list: jest
+            .fn()
+            .mockResolvedValue(
+              handsets.map((h) => ({ id: h.id, base_id: 'dectb_01abc', display_name: h.id }))
+            ),
+        },
+      },
+    };
+  }
+
+  it("moves a DECT base to a handset user's site before assigning", async () => {
+    const update = jest.fn().mockResolvedValue({});
+    const assignUser = jest.fn().mockResolvedValue({});
+
+    await renderHardwareStep({
+      ...usersNS({
+        list: jest.fn().mockResolvedValue([{ ...mockUsers[0], location: 'loc_branch' }]),
+      }),
+      ...dectNS('loc_main', [{ id: 'dect_01abc', assignments: [] }]),
+      ...devicesNS({
+        update,
+        users: { create: assignUser, list: jest.fn().mockResolvedValue([]) },
+      }),
+    });
+
+    fireEvent.click(document.querySelector('.hw-device-card') as HTMLElement);
+    await waitFor(() => {
+      expect(document.querySelector('.hw-drop-zone--selectable')).not.toBeNull();
+    });
+    fireEvent.click(document.querySelector('.hw-drop-zone') as HTMLElement);
+    fireEvent.click(await screen.findByText('Save & Continue'));
+
+    await waitFor(() => {
+      expect(assignUser).toHaveBeenCalledWith('dect_01abc', { user: 'user_01abc' });
+    });
+    expect(update).toHaveBeenCalledWith('dectb_01abc', { location: 'loc_branch' });
+  });
+
+  // Another handset's user is seated at the base's current site: moving the
+  // base would strand them, so onboarding leaves it and shows the API's refusal.
+  it('leaves a base whose other handset user sits elsewhere, and shows the refusal', async () => {
+    const update = jest.fn().mockResolvedValue({});
+    const assignUser = jest
+      .fn()
+      .mockRejectedValue(
+        new Error('device location contradicts the seat location already set on this user')
+      );
+    const bob = {
+      id: 'user_02bob',
+      name: 'Bob',
+      email: 'bob@example.com',
+      location: 'loc_main',
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    };
+    const bobAssignment = {
+      user: bob.id,
+      user_id: bob.id,
+      device: 'dect_02bob',
+      device_id: 'dect_02bob',
+      line_number: 1,
+      created_at: '2026-01-01T00:00:00Z',
+    };
+
+    await renderHardwareStep({
+      ...usersNS({
+        list: jest.fn().mockResolvedValue([{ ...mockUsers[0], location: 'loc_branch' }, bob]),
+      }),
+      ...dectNS('loc_main', [
+        { id: 'dect_01abc', assignments: [] },
+        { id: 'dect_02bob', assignments: [bobAssignment] },
+      ]),
+      ...devicesNS({
+        update,
+        users: {
+          create: assignUser,
+          list: jest
+            .fn()
+            .mockImplementation(async (id: string) => (id === 'dect_02bob' ? [bobAssignment] : [])),
+        },
+      }),
+    });
+
+    fireEvent.click(document.querySelector('.hw-device-card') as HTMLElement);
+    await waitFor(() => {
+      expect(document.querySelector('.hw-drop-zone--selectable')).not.toBeNull();
+    });
+    fireEvent.click(document.querySelector('.hw-drop-zone') as HTMLElement);
+    fireEvent.click(await screen.findByText('Save & Continue'));
+
+    expect(await screen.findByText(/contradicts the seat location/)).toBeInTheDocument();
+    expect(update).not.toHaveBeenCalled();
   });
 
   it('pre-populates assignments from API on review', async () => {

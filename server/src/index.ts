@@ -1492,8 +1492,8 @@ export interface Device {
   model?: string | null;
   name?: string | null;
   /**
-   * Physical E911 location. Set on deskphones and DECT bases; handsets have
-   * none of their own and inherit from the paired base, reporting null here.
+   * Physical E911 location. Deskphones and DECT bases always have one; null
+   * only for DECT handsets, which inherit from the paired base.
    */
   location?: string | null;
   status: DeviceStatus;
@@ -1578,8 +1578,9 @@ export interface DeviceCreateParams {
 }
 
 /**
- * `name`, `location`, `base`, and `button_template` are tri-state: omit for no
- * change, send a value to set, or send explicit `null` to clear.
+ * `name`, `base`, and `button_template` are tri-state: omit for no change, send
+ * a value to set, or send explicit `null` to clear. `location` can be changed
+ * but not cleared.
  */
 export interface DeviceUpdateParams {
   model?: string;
@@ -1589,7 +1590,11 @@ export interface DeviceUpdateParams {
   overrides?: DeviceSettings;
   /** DECT handset only. */
   ipei?: string;
-  /** E911 location, deskphone or DECT base only. */
+  /**
+   * E911 location, deskphone or DECT base only. `null` resets it to the
+   * default: the account's only location, else the location of a user on the
+   * device, else the account's main location.
+   */
   location?: string | null;
   /**
    * Paired DECT base, handset only — re-pair to a different base on the same
@@ -1966,6 +1971,8 @@ export type HardwareOrderExpand =
  *   being priced. Retry. Checkout only.
  * - `hardware_checkout_live_only` — the account is not live. Hardware is only
  *   checked out or requested for live accounts.
+ * - `location_conflict` — the `location` chosen for the order contradicts
+ *   where a user staged on it is seated.
  */
 export interface HardwareOrderCheckoutConflictResponse {
   error: string;
@@ -1984,7 +1991,20 @@ export interface HardwareOrderCheckoutConflictResponse {
     | 'debit_parameters_changed'
     | 'resale_certificate_required'
     | 'hardware_order_changed_while_pricing'
-    | 'hardware_checkout_live_only';
+    | 'hardware_checkout_live_only'
+    | 'location_conflict';
+}
+
+/** Optional body for {@link hardwareOrders.checkout} and {@link hardwareOrders.request}. */
+export interface HardwareOrderPlaceParams {
+  /**
+   * Location every deskphone and DECT base on the order is going to. It
+   * overwrites each unit's location before the order is placed and sets
+   * their 911 dispatch address. Must be one of the account's locations.
+   * May be omitted when the account has exactly one location; an order goes
+   * to one location, so file one order per site.
+   */
+  location?: string;
 }
 
 export interface HardwareOrderParams {
@@ -4573,9 +4593,9 @@ export class DialStack {
     },
 
     /**
-     * Update a device. `name`, `location`, `base`, and `button_template` are
-     * tri-state: omit to leave unchanged, pass a string to set, or pass `null`
-     * to clear. Throws with a {@link DeviceUserConflictResponse} body on 409.
+     * Update a device. `name`, `base`, and `button_template` are tri-state:
+     * omit to leave unchanged, pass a string to set, or pass `null` to clear.
+     * `location` can be changed but not cleared. Throws with a {@link DeviceUserConflictResponse} body on 409.
      */
     update: (
       deviceId: string,
@@ -4823,12 +4843,19 @@ export class DialStack {
      * {@link HardwareOrderCheckoutConflictResponse}, which says which
      * precondition failed and therefore where to send the operator.
      */
-    checkout: (
+    checkout: ((
       hardwareOrderId: string,
-      options: RequestOptions & { dialstackAccount: string }
+      paramsOrOptions: HardwareOrderPlaceParams | (RequestOptions & { dialstackAccount: string }),
+      maybeOptions?: RequestOptions & { dialstackAccount: string }
     ): Promise<HardwareOrder> => {
-      return this._request('POST', `/v1/hardware-orders/${hardwareOrderId}/checkout`, {}, options);
-    },
+      const [params, options] = splitPlaceArgs(paramsOrOptions, maybeOptions);
+      return this._request(
+        'POST',
+        `/v1/hardware-orders/${hardwareOrderId}/checkout`,
+        params,
+        options
+      );
+    }) as HardwareOrderPlaceCall,
 
     /**
      * Ask DialStack to place a draft, for a platform that cannot check out
@@ -4840,12 +4867,19 @@ export class DialStack {
      * resale certificate. Refusals are `409` with the same `code` checkout
      * returns — see {@link HardwareOrderCheckoutConflictResponse}.
      */
-    request: (
+    request: ((
       hardwareOrderId: string,
-      options: RequestOptions & { dialstackAccount: string }
+      paramsOrOptions: HardwareOrderPlaceParams | (RequestOptions & { dialstackAccount: string }),
+      maybeOptions?: RequestOptions & { dialstackAccount: string }
     ): Promise<HardwareOrder> => {
-      return this._request('POST', `/v1/hardware-orders/${hardwareOrderId}/request`, {}, options);
-    },
+      const [params, options] = splitPlaceArgs(paramsOrOptions, maybeOptions);
+      return this._request(
+        'POST',
+        `/v1/hardware-orders/${hardwareOrderId}/request`,
+        params,
+        options
+      );
+    }) as HardwareOrderPlaceCall,
 
     /**
      * Shipping quotes for a draft order. Each create is a live, billable
@@ -5599,4 +5633,32 @@ function dispatchParkSlotFrame(frame: string, handlers: ParkSlotSubscriptionHand
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// checkout/request originally took (id, options); the optional params slot is
+// told apart by the dialstackAccount every options object carries.
+/**
+ * Checkout and request take the account options last, with the optional
+ * placement params before them. Only these two shapes type-check, so a call
+ * that passes params but forgets the account options is a compile error rather
+ * than a request sent without the account.
+ */
+type HardwareOrderPlaceCall = {
+  (
+    hardwareOrderId: string,
+    options: RequestOptions & { dialstackAccount: string }
+  ): Promise<HardwareOrder>;
+  (
+    hardwareOrderId: string,
+    params: HardwareOrderPlaceParams,
+    options: RequestOptions & { dialstackAccount: string }
+  ): Promise<HardwareOrder>;
+};
+
+function splitPlaceArgs(
+  paramsOrOptions: HardwareOrderPlaceParams | (RequestOptions & { dialstackAccount: string }),
+  maybeOptions?: RequestOptions & { dialstackAccount: string }
+): [HardwareOrderPlaceParams, RequestOptions & { dialstackAccount: string }] {
+  if (maybeOptions) return [paramsOrOptions as HardwareOrderPlaceParams, maybeOptions];
+  return [{}, paramsOrOptions as RequestOptions & { dialstackAccount: string }];
 }

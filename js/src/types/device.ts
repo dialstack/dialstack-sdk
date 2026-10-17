@@ -53,8 +53,8 @@ export interface Device {
    */
   name?: string | null;
   /**
-   * Physical E911 location for this device. Set on deskphones and DECT
-   * bases; `null` when unassigned. DECT handsets have no `location_id` of
+   * Physical E911 location for this device. Deskphones and DECT bases
+   * always have one; `null` only for DECT handsets. DECT handsets have no `location_id` of
    * their own — they inherit from the paired base and the handset
    * response carries `null` here.
    */
@@ -247,10 +247,10 @@ export interface ProvisionedDevice {
   model?: string;
   /** Human-friendly label for the deskphone. `null` when unassigned. */
   name?: string | null;
-  /** Physical E911 location. `null` when unassigned. */
-  location?: string | null;
+  /** Physical E911 location. Every deskphone has one. */
+  location?: string;
   /** @deprecated Use `location`. Retained for backwards compatibility. */
-  location_id?: string | null;
+  location_id?: string;
   /** Reusable programmable-key template bound to this deskphone. */
   button_template?: string | null;
   /** @deprecated Use `button_template`. Retained for backwards compatibility. */
@@ -348,7 +348,11 @@ export interface CreateDeviceRequest {
   ipei?: string;
   /**
    * Physical E911 location. Set on `deskphone` or `dect_base`; handsets
-   * inherit from their paired base.
+   * inherit from their paired base. When omitted, the device gets the
+   * account's only location, else its main location. That default is a real
+   * location: before assigning a user seated at another location, set the
+   * device's location to that site, or the assignment is refused with
+   * `location_conflict`.
    */
   location?: string;
   /** @deprecated Use `location`. Retained for backwards compatibility. */
@@ -357,7 +361,7 @@ export interface CreateDeviceRequest {
 
 /**
  * Request payload for `POST /v1/devices/{id}`. Tri-state fields (`name`,
- * `location_id`, `base_id`) accept three values: omit to leave unchanged,
+ * `base_id`) accept three values: omit to leave unchanged,
  * a string to set, or explicit JSON `null` to clear.
  */
 export interface UpdateDeviceRequest {
@@ -377,9 +381,19 @@ export interface UpdateDeviceRequest {
    * an empty string to clear.
    */
   serial_number?: string | null;
-  /** Tri-state dispatch location. `deskphone` and `dect_base` only. */
+  /**
+   * Dispatch location. `deskphone` and `dect_base` only. Omit to leave
+   * unchanged, send a location ID to move the device, or send `null` to reset
+   * it to the default: the account's only location, else the location of a
+   * user on the device, else the account's main location. Move the device to
+   * a user's site before assigning that user, or the assignment is refused
+   * with `location_conflict`.
+   */
   location?: string | null;
-  /** @deprecated Use `location`. Retained for backwards compatibility. */
+  /**
+   * @deprecated Use `location`. Retained for backwards compatibility. `null`
+   * resets to the default, as for `location`.
+   */
   location_id?: string | null;
   /** Tri-state programmable-key template binding. */
   button_template?: string | null;

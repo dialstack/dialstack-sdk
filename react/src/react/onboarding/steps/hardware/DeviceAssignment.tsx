@@ -129,7 +129,8 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
-  const [dectBases, setDectBases] = useState<DECTBase[]>([]);
+  // Base id → its location: a handset sits wherever its base is.
+  const [baseLocations, setBaseLocations] = useState<Map<string, string | null>>(new Map());
   const [dectHandsets, setDectHandsets] = useState<Map<string, DECTHandset[]>>(new Map());
   const [deviceAssignments, setDeviceAssignments] = useState<Map<string, string>>(new Map());
   // Frozen snapshot of the assignments loaded from the server; the submit diffs
@@ -215,8 +216,8 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
         const assignments = buildInitialAssignments(devices, handsetMap, knownUserIds);
 
         setDevices(devices);
-        setDectBases(dectBases);
         setDectHandsets(handsetMap);
+        setBaseLocations(new Map(dectBases.map((b) => [b.id, b.location ?? null])));
         if (!hasSeededRef.current) {
           setDeviceAssignments(assignments);
           setInitialAssignments(assignments);
@@ -278,6 +279,42 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
     [selectedDeviceId, assignDevice]
   );
 
+  const seatOf = useCallback(
+    (userId: string) => contextUsers.find((u) => u.id === userId)?.location ?? null,
+    [contextUsers]
+  );
+
+  /**
+   * A device's location may be a server default, and the API refuses to assign
+   * a user seated at another site. So before assigning, move the device (for a
+   * handset, its base) to the user's site — unless another user on it sits
+   * elsewhere, in which case it is left alone and the API's refusal is shown.
+   */
+  const moveToSeat = useCallback(
+    async (deviceId: string, userId: string, locationOf: Map<string, string | null>) => {
+      const seat = seatOf(userId);
+      const target = allDevices.find((d) => d.id === deviceId);
+      if (!seat || !target) return;
+      const targetId = target.type === 'dect-handset' && target.baseId ? target.baseId : deviceId;
+      if (locationOf.get(targetId) === seat) return;
+      const siblings =
+        target.type === 'dect-handset' && target.baseId
+          ? (dectHandsets.get(target.baseId) ?? [])
+              .filter((h) => h.id !== deviceId)
+              .map((h) => h.id)
+          : [];
+      const strandsAnother = siblings.some((id) => {
+        const other = deviceAssignments.get(id);
+        const otherSeat = other ? seatOf(other) : null;
+        return otherSeat !== null && otherSeat !== seat;
+      });
+      if (strandsAnother) return;
+      await dialstack.devices.update(targetId, { location: seat });
+      locationOf.set(targetId, seat);
+    },
+    [seatOf, allDevices, dectHandsets, deviceAssignments, dialstack]
+  );
+
   const handleSubmitAssignments = useCallback(async () => {
     if (isSubmitting) return;
 
@@ -296,40 +333,17 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
         }
       }
 
+      const locationOf = new Map<string, string | null>([
+        ...devices.map((d): [string, string | null] => [d.id, d.location ?? null]),
+        ...baseLocations,
+      ]);
       for (const [deviceId, userId] of deviceAssignments.entries()) {
         if (initialAssignments.get(deviceId) === userId) continue;
+        await moveToSeat(deviceId, userId, locationOf);
         await dialstack.devices.users.create(deviceId, { user: userId });
       }
 
-      // Baseline the applied assignment state now, before the (idempotent)
-      // location backfill. If backfill fails, a retry re-runs only the backfill
-      // rather than replaying the create/delete calls (which would 409/404).
       setInitialAssignments(new Map(deviceAssignments));
-
-      // Backfill location_id on assigned devices that don't have one yet, so
-      // outbound PSTN works as soon as onboarding completes. Devices that
-      // already carry a location keep it; we never override.
-      const defaultLocationId = contextLocations[0]?.id;
-      if (defaultLocationId) {
-        const basesUpdated = new Set<string>();
-        for (const deviceId of deviceAssignments.keys()) {
-          const device = allDevices.find((d) => d.id === deviceId);
-          if (!device) continue;
-          if (device.type === 'deskphone') {
-            const dev = devices.find((d) => d.id === deviceId);
-            if (dev && !dev.location_id) {
-              await dialstack.devices.update(dev.id, { location_id: defaultLocationId });
-            }
-          } else if (device.type === 'dect-handset' && device.baseId) {
-            if (basesUpdated.has(device.baseId)) continue;
-            const base = dectBases.find((b) => b.id === device.baseId);
-            if (base && !base.location_id) {
-              await dialstack.devices.update(base.id, { location_id: defaultLocationId });
-              basesUpdated.add(base.id);
-            }
-          }
-        }
-      }
 
       setIsSubmitting(false);
       onDone();
@@ -341,12 +355,11 @@ export const DeviceAssignment: React.FC<DeviceAssignmentProps> = ({
     isSubmitting,
     initialAssignments,
     deviceAssignments,
-    devices,
-    dectBases,
-    allDevices,
-    contextLocations,
     dialstack,
     onDone,
+    devices,
+    baseLocations,
+    moveToSeat,
   ]);
 
   const handleNext = useCallback(() => {

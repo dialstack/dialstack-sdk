@@ -60,10 +60,10 @@ export interface DECTBase {
   /** ISO 8601 timestamp of last successful config fetch */
   last_provisioned_at?: string;
   /** Physical E911 location for this base. All handsets paired with this base
-   *  share this location. `null` when unassigned. */
-  location?: string | null;
+   *  share this location. Every base has one. */
+  location?: string;
   /** @deprecated Use `location`. Retained for backwards compatibility. */
-  location_id?: string | null;
+  location_id?: string;
   /** Associated handsets (when eager-loaded) */
   handsets?: DECTHandset[];
   /** ISO 8601 timestamp */
@@ -161,9 +161,8 @@ export interface DECTExtension {
 /**
  * Request payload for creating a new DECT base station.
  *
- * Note: location_id is not on this legacy request type. To set or clear a
- * base's E911 location, use the unified `/v1/devices` endpoint, which
- * supports tri-state `location_id` (omit / `loc_…` / `null`).
+ * Note: location_id is not on this legacy request type. To set or change a
+ * base's E911 location, use the unified `/v1/devices` endpoint.
  */
 export interface CreateDECTBaseRequest {
   /** Hardware MAC address (e.g., "00:04:13:aa:bb:cc") */

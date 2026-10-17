@@ -282,6 +282,8 @@ export interface OnboardingUser {
   name?: string | null;
   email?: string | null;
   extensions?: { data?: Array<{ number?: string }> };
+  /** The location the user is seated at, or `null` when it is resolved from their device. */
+  location?: string | null;
   created_at: string;
   updated_at: string;
 }

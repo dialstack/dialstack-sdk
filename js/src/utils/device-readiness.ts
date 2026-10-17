@@ -55,7 +55,14 @@ export interface DeviceReadinessInput {
 }
 
 /** A configuration prerequisite the device is still missing. */
-export type DeviceReadinessPrerequisite = 'user' | 'location' | 'base';
+export type DeviceReadinessPrerequisite =
+  | 'user'
+  /**
+   * @deprecated Every deskphone and DECT base now always has a location, so
+   * this is no longer reported for devices read from the API.
+   */
+  | 'location'
+  | 'base';
 
 /** Onboarding spine steps, in order. */
 export type DeviceReadinessStep = 'provisioned' | 'online' | 'ready_to_call' | 'first_call';

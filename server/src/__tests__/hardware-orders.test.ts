@@ -195,6 +195,27 @@ describe('Hardware orders', () => {
     expect(order.requested_at).toBe('2026-09-25T12:00:00Z');
   });
 
+  it('sends the location an order is going to on checkout', async () => {
+    mockJSON({ id: 'hwo_123' });
+    await dialstack.hardwareOrders.checkout('hwo_123', { location: 'loc_1' }, acct);
+    expect(requestedUrl()).toBe('https://api.dialstack.ai/v1/hardware-orders/hwo_123/checkout');
+    expect(JSON.parse(requestInit().body as string)).toEqual({ location: 'loc_1' });
+    expect(requestInit().headers['DialStack-Account']).toBe('acct_test123');
+  });
+
+  it('sends the location on request', async () => {
+    mockJSON({ id: 'hwo_123' });
+    await dialstack.hardwareOrders.request('hwo_123', { location: 'loc_1' }, acct);
+    expect(JSON.parse(requestInit().body as string)).toEqual({ location: 'loc_1' });
+  });
+
+  it('sends an empty body when checkout is called without params', async () => {
+    mockJSON({ id: 'hwo_123' });
+    await dialstack.hardwareOrders.checkout('hwo_123', acct);
+    expect(JSON.parse(requestInit().body as string)).toEqual({});
+    expect(requestInit().headers['DialStack-Account']).toBe('acct_test123');
+  });
+
   describe('hardwareOrders.shippingQuotes', () => {
     it('creates a quote for the order', async () => {
       mockJSON({ id: 'hwsq_1', object: 'shipping_quote', options: [] });
@@ -265,3 +286,10 @@ describe('Hardware orders', () => {
     });
   });
 });
+
+// Placement params without the account options do not type-check: the call
+// would otherwise go out without the account.
+export function placementParamsNeedAccountOptions(ds: DialStack): void {
+  // @ts-expect-error -- params need the account options after them
+  void ds.hardwareOrders.checkout('hwo_1', { location: 'loc_1' });
+}
