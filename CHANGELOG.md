@@ -5,6 +5,55 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.0](https://github.com/dialstack/dialstack-sdk/compare/v3.6.0...v3.7.0) (2026-10-19)
+
+### Features
+
+- **react/softphone:** `SoftphoneProvider` takes a `resolvePeer` callback that
+  looks up each call's remote party in your own records (for example, the
+  customer behind a caller ID). The `name` it returns becomes the call's title
+  in place of the caller-ID name or number, and the `avatar` (initials, or an
+  image URL that falls back to the initials if it fails to load) is shown
+  wherever the screen has room. A `null` result, a rejection or a throw leaves
+  the default display. Pass a new function when its answers would change: live
+  calls are resolved again, and removing the callback clears resolved peers.
+- **react/softphone:** the web softphone has a compact size tier for small
+  hosts (below about 300×480). It sizes itself from its host and applies the
+  tier to every screen, including the E911 banner, call waiting, held calls
+  and transfer actions. The new `layoutVariant` prop pins a tier: `'auto'`
+  (default), `'full'` or `'compact'`.
+- **server:** `hardwareOrders.checkout()` and `hardwareOrders.request()` take
+  optional `HardwareOrderPlaceParams` before the account options, whose
+  `location` says where every deskphone and DECT base on the order is going.
+  It may be omitted when the account has a single location. A location that
+  contradicts where a user staged on the order is seated is refused with the
+  new `location_conflict` code.
+- **js:** non-portable numbers from a portability check carry a `reason`
+  (`NonPortabilityReason`: `unsupported_rate_center`, `unsupported_carrier` or
+  `unsupported_number`; more may be added, so keep a default branch) and the
+  current carrier as `losing_carrier_name` when known. The new
+  `describeNonPortable()` helper turns one into a message, and the onboarding
+  portal's porting step uses it to explain each number it can't port.
+- **js, server:** `DECTHandset.ipei` is now typed `string | null`. It is `null`
+  for the handset of a kit that left the factory paired to its base (such as
+  the snom M253) while its IPEI isn't known yet; such a handset sits in slot 1
+  of its base. Code that reads `ipei` as a `string` needs a fallback.
+
+### Bug Fixes
+
+- **js, server:** deskphones and DECT bases always have a location. A device
+  created without one gets the account's only location, else its main
+  location, and `location` / `location_id` on `Device`, `ProvisionedDevice`
+  and `DECTBase` are typed non-null for them. On update, `null` resets the
+  location to that default instead of clearing it. The `'location'`
+  `DeviceReadinessPrerequisite` is deprecated, as it is no longer reported.
+- **react:** before assigning a user to a device, the onboarding portal moves
+  the device (for a DECT handset, its base) to the user's location, so the
+  assignment isn't refused for a location mismatch. `OnboardingUser` gains
+  `location`.
+- **server:** every account now has an outbound porting PIN from creation;
+  `AccountPortOutPin.pin` is no longer `null` for an account without numbers.
+
 ## [3.6.0](https://github.com/dialstack/dialstack-sdk/compare/v3.5.0...v3.6.0) (2026-10-09)
 
 ### Features
