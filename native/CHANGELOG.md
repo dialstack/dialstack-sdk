@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 (`@dialstack/sdk-js`, `-react`, `-webrtc`, `-server`), which release together on
 their own line.
 
+## [0.3.0](https://github.com/dialstack/dialstack-sdk/compare/native-v0.2.1...native-v0.3.0) (2026-10-19)
+
+### Features
+
+- `SoftphoneProvider` takes a `resolvePeer` callback that looks up each call's
+  remote party in your own records (for example, the customer behind a caller
+  ID). The `name` it returns becomes the call's title in place of the
+  caller-ID name or number, and the `avatar` (initials, or an image URL that
+  falls back to the initials if it fails to load) is shown wherever the screen
+  has room. A `null` result, a rejection or a throw leaves the default
+  display. Pass a new function when its answers would change: live calls are
+  resolved again, and removing the callback clears resolved peers. `PeerInfo`
+  and `ResolvePeer` are exported.
+- The softphone has a compact size tier for small hosts (below about
+  300×480). It applies to every screen, including the E911 banner, call
+  waiting, held calls and transfer actions. The new `layoutVariant` prop pins a
+  tier: `'auto'` (default), `'full'` or `'compact'` (`SoftphoneLayoutVariant`).
+
 ## [0.2.1](https://github.com/dialstack/dialstack-sdk/compare/native-v0.2.0...native-v0.2.1) (2026-10-12)
 
 ### Bug Fixes
