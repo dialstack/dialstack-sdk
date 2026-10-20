@@ -9,7 +9,7 @@ A minimal Node/TypeScript example that connects a [DialStack](https://dialstack.
 
 The provider is selected with a CLI flag at start time. Audio runs both directions over a single WebSocket; we transcode μ-law ⇄ PCM and resample as needed so each provider gets the format it expects.
 
-This is the runnable companion to the [BYO VoiceAI guide](https://docs.dialstack.ai/guides/voiceai-byo).
+This is the runnable companion to the [BYO VoiceAI guide](https://docs.dialstack.ai/guides/voiceai/byo).
 
 ## What it does
 
@@ -56,7 +56,7 @@ cloudflared tunnel --url http://localhost:8080
 # copy the https:// forwarding URL into PUBLIC_URL in .env
 ```
 
-Create a Voice App in DialStack pointed at `https://<your-ngrok>/webhook`. (Either via the dashboard or `POST /v1/voice-apps` — see the [Voice Apps guide](https://docs.dialstack.ai/guides/voice-apps).) Assign that Voice App to a DID or dial plan node so inbound calls land on it.
+Create a Voice App in DialStack pointed at `https://<your-ngrok>/webhook`. (Either via the dashboard or `POST /v1/voice-apps` — see the [Voice Apps guide](https://docs.dialstack.ai/guides/voiceai/voice-apps).) Assign that Voice App to a DID or dial plan node so inbound calls land on it.
 
 ## Run
 
@@ -156,7 +156,7 @@ src/
 ## Out of scope (intentionally)
 
 - **Tool / function calling.** Both providers support it; wiring it through is a separate concern.
-- **Transfer for the other providers.** Only the ElevenLabs and Telnyx providers map a tool call to a DialStack `transfer`; see the [Voice Apps guide](https://docs.dialstack.ai/guides/voice-apps) to do the same elsewhere.
+- **Transfer for the other providers.** Only the ElevenLabs and Telnyx providers map a tool call to a DialStack `transfer`; see the [Voice Apps guide](https://docs.dialstack.ai/guides/voiceai/voice-apps) to do the same elsewhere.
 - **Reconnection / retry.** A real production deployment should handle upstream WebSocket disconnects more gracefully.
 
 ## Troubleshooting

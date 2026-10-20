@@ -143,7 +143,7 @@ export interface AudioClipNodeConfig {
  * voice application; behavior depends on `mode`.
  */
 export interface VoiceAppNodeConfig {
-  /** ID of the voice app to invoke (va_ prefix) */
+  /** ID of the voice app to invoke */
   voice_app?: string;
   /** @deprecated Use `voice_app`. Retained for backwards compatibility. */
   voice_app_id: string;

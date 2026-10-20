@@ -143,6 +143,81 @@ describe('AIAgentComponent', () => {
     );
   });
 
+  it('leaves hidden fields out of host save payloads instead of sending them empty', async () => {
+    const { instance, update } = makeInstance();
+    const onSaveRequested = jest.fn(async () => {});
+    const el = document.createElement('dialstack-ai-agent') as HTMLElement & {
+      setInstance: (i: DialStackInstanceImpl) => void;
+      setAgentId: (id: string) => void;
+      setSubmitMode: (mode: 'sdk' | 'host') => void;
+      setInitialValues: (values: Record<string, unknown>) => void;
+      setHideFields: (fields: string[]) => void;
+      setOnSaveRequested: (handler: typeof onSaveRequested) => void;
+    };
+
+    el.setInstance(instance);
+    el.setAgentId('agent_1');
+    el.setSubmitMode('host');
+    el.setInitialValues({
+      name: 'Front Desk Agent',
+      extension_number: '700',
+      persona_name: 'Tony',
+      greeting_name: 'Jones Family Dental',
+      instructions: 'Be helpful.',
+      faq_responses: [{ question: 'Hours?', answer: '9 to 5.' }],
+      scheduling: { webhook_url: 'https://example.com/hooks' },
+    });
+    el.setHideFields([
+      'name',
+      'extension_number',
+      'persona_name',
+      'greeting_name',
+      'instructions',
+      'faq',
+      'scheduling_webhook',
+    ]);
+    el.setOnSaveRequested(onSaveRequested);
+    document.body.appendChild(el);
+    await flush();
+
+    el.shadowRoot?.querySelector<HTMLButtonElement>('[data-action="save"]')?.click();
+    await flush();
+
+    expect(update).not.toHaveBeenCalled();
+    expect(onSaveRequested).toHaveBeenCalledTimes(1);
+    // An empty faq_responses would make the API delete every stored FAQ.
+    expect(onSaveRequested).toHaveBeenCalledWith({});
+  });
+
+  it('sends visible fields in host save payloads alongside a hidden FAQ', async () => {
+    const { instance } = makeInstance();
+    const onSaveRequested = jest.fn(async () => {});
+    const el = document.createElement('dialstack-ai-agent') as HTMLElement & {
+      setInstance: (i: DialStackInstanceImpl) => void;
+      setAgentId: (id: string) => void;
+      setSubmitMode: (mode: 'sdk' | 'host') => void;
+      setInitialValues: (values: Record<string, unknown>) => void;
+      setHideFields: (fields: string[]) => void;
+      setOnSaveRequested: (handler: typeof onSaveRequested) => void;
+    };
+
+    el.setInstance(instance);
+    el.setAgentId('agent_1');
+    el.setSubmitMode('host');
+    el.setInitialValues({ name: 'Front Desk Agent', persona_name: 'Tony' });
+    el.setHideFields(['faq']);
+    el.setOnSaveRequested(onSaveRequested);
+    document.body.appendChild(el);
+    await flush();
+
+    el.shadowRoot?.querySelector<HTMLButtonElement>('[data-action="save"]')?.click();
+    await flush();
+
+    const payload = (onSaveRequested.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(payload).not.toHaveProperty('faq_responses');
+    expect(payload).toMatchObject({ name: 'Front Desk Agent', persona_name: 'Tony' });
+  });
+
   it('does not reset edited form values when only submit mode changes', async () => {
     const { instance } = makeInstance();
     const el = document.createElement('dialstack-ai-agent') as HTMLElement & {

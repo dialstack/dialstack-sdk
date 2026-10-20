@@ -13,6 +13,8 @@ import {
   type ComponentIcons,
   type LayoutVariant,
   type NumberOrder,
+  type PhoneNumberOrderErrorEvent,
+  type PhoneNumberOrderPendingEvent,
   type PhoneNumberOrderingClasses,
   type SearchType,
   type Locale,
@@ -75,9 +77,18 @@ export interface PhoneNumberOrderingProps {
   onOrderComplete?: (event: { orderId: string; order: NumberOrder }) => void;
 
   /**
-   * Callback when an order fails
+   * Callback when the API refuses an order or the carrier fails it. `error` is
+   * the translated message the component shows; branch on `code` rather than
+   * on the text.
    */
-  onOrderError?: (event: { error: string }) => void;
+  onOrderError?: (event: PhoneNumberOrderErrorEvent) => void;
+
+  /**
+   * Callback when the component stops checking an order the carrier has not
+   * finished yet. The order completes on its own; retrieve it by `orderId`
+   * later to see how it ended.
+   */
+  onOrderPending?: (event: PhoneNumberOrderPendingEvent) => void;
 }
 
 /**
@@ -110,6 +121,7 @@ export const PhoneNumberOrdering: React.FC<PhoneNumberOrderingProps> = ({
   onLoadError,
   onOrderComplete,
   onOrderError,
+  onOrderPending,
 }) => {
   const { dialstack } = useDialstackComponents();
   const { containerRef, componentInstance } = useCreateComponent(
@@ -130,6 +142,7 @@ export const PhoneNumberOrdering: React.FC<PhoneNumberOrderingProps> = ({
   useUpdateWithSetter(componentInstance, onLoadError, (c, v) => c.setOnLoadError(v));
   useUpdateWithSetter(componentInstance, onOrderComplete, (c, v) => c.setOnOrderComplete(v));
   useUpdateWithSetter(componentInstance, onOrderError, (c, v) => c.setOnOrderError(v));
+  useUpdateWithSetter(componentInstance, onOrderPending, (c, v) => c.setOnOrderPending(v));
 
   return <div ref={containerRef} className={className} style={style} />;
 };

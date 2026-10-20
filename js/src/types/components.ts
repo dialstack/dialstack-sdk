@@ -524,9 +524,9 @@ export interface CallHistoryElement extends Omit<BaseComponentElement, 'setClass
 
 /**
  * Fields the AIAgent editor knows how to render. Hosts can hide individual
- * fields with `setHideFields` / `hideFields` prop — Spineline hides `name`
- * because there's exactly one managed agent per practice and the back-office
- * label is invisible to callers.
+ * fields with `setHideFields` / `hideFields` prop — for example, an app that
+ * manages exactly one agent per account can hide `name`, since that label is
+ * never heard by callers.
  */
 export type AIAgentField =
   | 'name'

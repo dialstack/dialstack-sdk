@@ -5,12 +5,15 @@
 import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenumber-js';
 import { BaseComponent } from './base-component';
 import { segmentedControlStyles, tableStyles } from './shared-styles';
+import { isApiError } from '../core/instance';
 import {
   ROUTING_TARGET_TYPE_ORDER,
   type EffectivePricing,
   type AvailablePhoneNumber,
   type DIDItem,
   type NumberOrder,
+  type PhoneNumberOrderErrorEvent,
+  type PhoneNumberOrderPendingEvent,
   type PhoneNumberOrderingClasses,
   type RoutingTarget,
   type SearchAvailableNumbersOptions,
@@ -18,6 +21,13 @@ import {
 } from '../types';
 
 type Step = 'search' | 'results' | 'confirm' | 'route' | 'ordering' | 'complete' | 'error';
+
+// The API's `error` text is written for a developer's log, so the screen keys
+// off the stable `code` instead. Codes not listed get the generic message.
+const ORDER_ERROR_KEY: Record<string, string> = {
+  phone_number_limit_exceeded: 'phoneNumberOrdering.error.limitExceeded',
+  phone_numbers_already_claimed: 'phoneNumberOrdering.error.numbersUnavailable',
+};
 
 const CHECK_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
 const SUCCESS_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
@@ -718,15 +728,22 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
   // Order state
   private order: NumberOrder | null = null;
   private errorMessage: string = '';
+  // The error screen serves both a failed search and a failed order; only the
+  // latter is an "Order Failed".
+  private errorKind: 'search' | 'order' = 'order';
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private pollCount: number = 0;
+  // Set once polling gives up on a still-pending order, so the complete step
+  // can say so instead of looking like it is still checking.
+  private pollGaveUp = false;
 
   // Override classes type
   protected override classes: PhoneNumberOrderingClasses = {};
 
   // Callbacks
   private _onOrderComplete?: (event: { orderId: string; order: NumberOrder }) => void;
-  private _onOrderError?: (event: { error: string }) => void;
+  private _onOrderError?: (event: PhoneNumberOrderErrorEvent) => void;
+  private _onOrderPending?: (event: PhoneNumberOrderPendingEvent) => void;
 
   protected initialize(): void {
     if (this.isInitialized) return;
@@ -750,8 +767,12 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     this._onOrderComplete = cb;
   }
 
-  setOnOrderError(cb: (event: { error: string }) => void): void {
+  setOnOrderError(cb: (event: PhoneNumberOrderErrorEvent) => void): void {
     this._onOrderError = cb;
+  }
+
+  setOnOrderPending(cb: (event: PhoneNumberOrderPendingEvent) => void): void {
+    this._onOrderPending = cb;
   }
 
   setSearchTypes(types: SearchType[]): void {
@@ -807,17 +828,36 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
       this.selectedNumbers = new Set();
       this.step = 'results';
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Search failed';
+      // The host's load-error hook gets the API's own text for its logs; the
+      // screen gets a translated one.
       this._onLoadError?.({
-        error: msg,
+        error: err instanceof Error ? err.message : 'Search failed',
         elementTagName: 'dialstack-phone-number-ordering',
       });
-      this.errorMessage = msg;
+      this.errorMessage = this.searchErrorMessage(err);
+      this.errorKind = 'search';
       this.step = 'error';
     } finally {
       this.isSearching = false;
       this.render();
     }
+  }
+
+  /**
+   * Keyed off the API's `code`, never its `error` text, which is English and
+   * written for a log. A 400 without a known code is still a query the user
+   * can change; anything else means search itself is unavailable.
+   */
+  private searchErrorMessage(err: unknown): string {
+    if (!isApiError(err)) return this.t('phoneNumberOrdering.searchError.description');
+    if (err.code === 'zip_not_available') {
+      const zip = typeof err.details?.zip === 'string' ? err.details.zip : this.searchValue;
+      return this.t('phoneNumberOrdering.searchError.zipNotAvailable', { zip });
+    }
+    if (err.code === 'search_unavailable' || err.status !== 400) {
+      return this.t('phoneNumberOrdering.searchError.description');
+    }
+    return this.t('phoneNumberOrdering.searchError.invalid');
   }
 
   private async placeOrder(): Promise<void> {
@@ -826,17 +866,36 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     this.step = 'ordering';
     this.render();
 
+    let order: NumberOrder;
     try {
-      const order = await this.instance.phoneNumberOrders.create([...this.selectedNumbers]);
+      order = await this.instance.phoneNumberOrders.create([...this.selectedNumbers]);
+    } catch (err) {
+      const apiErr = isApiError(err) ? err : undefined;
+      const key =
+        (apiErr?.code && ORDER_ERROR_KEY[apiErr.code]) || 'phoneNumberOrdering.error.generic';
+      this.errorMessage = this.t(key);
+      this.errorKind = 'order';
+      this.step = 'error';
+      this.render();
+      this._onOrderError?.({
+        error: this.errorMessage,
+        message: err instanceof Error ? err.message : String(err),
+        code: apiErr?.code,
+        status: apiErr?.status,
+        details: apiErr?.details,
+      });
+      return;
+    }
+
+    // The order exists from here on, so nothing below may report it as
+    // failed: a throw can only come from a host callback.
+    try {
       this.order = order;
       this.step = 'complete';
       this.render();
 
       if (order.status === 'failed') {
-        this.errorMessage = this.t('phoneNumberOrdering.error.description');
-        this.step = 'error';
-        this._onOrderError?.({ error: this.errorMessage });
-        this.render();
+        this.showOrderFailed(order);
         return;
       }
 
@@ -852,12 +911,36 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
         this._onOrderComplete?.({ orderId: order.id, order });
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Order failed';
-      this.errorMessage = msg;
-      this.step = 'error';
-      this._onOrderError?.({ error: msg });
-      this.render();
+      console.error('DialStack: phone number ordering callback threw:', err);
     }
+  }
+
+  /** A placed order the carrier could not fulfill. */
+  private showOrderFailed(order: NumberOrder): void {
+    this.errorMessage = this.t('phoneNumberOrdering.error.description');
+    this.errorKind = 'order';
+    this.step = 'error';
+    // Render first, so a host callback that throws cannot leave the screen
+    // behind the state.
+    this.render();
+    this._onOrderError?.({
+      error: this.errorMessage,
+      message: order.error_message ?? undefined,
+      order,
+    });
+  }
+
+  /**
+   * Polling has stopped short of a terminal status. The order is still with
+   * the carrier and will finish on its own, so this is neither a completion
+   * nor an error; the host hears about it so it can follow up by retrieving
+   * the order later.
+   */
+  private stopPollingPending(order: NumberOrder): void {
+    this.stopPolling();
+    this.pollGaveUp = true;
+    this.render();
+    this._onOrderPending?.({ orderId: order.id, order });
   }
 
   /**
@@ -919,6 +1002,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
   private startPolling(): void {
     this.stopPolling();
     this.pollCount = 0;
+    this.pollGaveUp = false;
     this.pollNext();
   }
 
@@ -939,33 +1023,40 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
 
     this.pollTimer = setTimeout(async () => {
       this.pollCount++;
+      let order: NumberOrder;
       try {
-        const order = await this.instance!.phoneNumberOrders.retrieve(orderId);
+        order = await this.instance!.phoneNumberOrders.retrieve(orderId);
+      } catch {
+        // A failed check says nothing about the order itself, so it is
+        // reported as still pending, not as an error.
+        if (this.order?.id === orderId) this.stopPollingPending(this.order);
+        return;
+      }
+      // Stopping the timer cannot cancel a request already in flight. If the
+      // user started over meanwhile, this answer is for an order they left.
+      if (this.order?.id !== orderId) return;
+
+      try {
         this.order = order;
         this.render();
 
         if (order.status === 'failed') {
           this.stopPolling();
-          this.errorMessage = this.t('phoneNumberOrdering.error.description');
-          this.step = 'error';
-          this._onOrderError?.({ error: this.errorMessage });
-          this.render();
-        } else if (
-          order.status === 'pending' &&
-          this.pollCount < PhoneNumberOrderingComponent.POLL_MAX
-        ) {
+          this.showOrderFailed(order);
+        } else if (order.status !== 'pending') {
+          this.stopPolling();
+          // Routing already fired when the order was placed (placeOrder) —
+          // polling only advances the UI status to its terminal state.
+          this._onOrderComplete?.({ orderId: order.id, order });
+        } else if (this.pollCount < PhoneNumberOrderingComponent.POLL_MAX) {
           this.pollNext();
         } else {
-          this.stopPolling();
-          if (order.status !== 'pending') {
-            // Routing already fired when the order was placed (placeOrder) —
-            // polling only advances the UI status to its terminal state.
-            this._onOrderComplete?.({ orderId: order.id, order });
-          }
+          this.stopPollingPending(order);
         }
-      } catch {
-        // Polling failed — stop silently, keep showing current state
-        this.stopPolling();
+      } catch (err) {
+        // Only a host callback can throw here. It says nothing about the
+        // order, and the screen already shows the order's state.
+        console.error('DialStack: phone number ordering callback threw:', err);
       }
     }, PhoneNumberOrderingComponent.POLL_INTERVAL_MS);
   }
@@ -1046,6 +1137,8 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     this.selectedRoutingTarget = null;
     this.order = null;
     this.errorMessage = '';
+    this.errorKind = 'order';
+    this.pollGaveUp = false;
     this.render();
   }
 
@@ -1114,7 +1207,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
       route: 3,
       ordering: 4,
       complete: 4,
-      error: 4,
+      error: this.errorKind === 'search' ? 0 : 4,
     };
     const progressIndex = stepProgressMap[this.step] ?? 0;
     const totalSteps = stepLabels.length;
@@ -1498,7 +1591,6 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
 
   private renderCompleteStep(): string {
     const status = this.order?.status || 'pending';
-    const isPolling = this.pollTimer !== null;
 
     const statusSuffixMap: Record<string, string> = {
       complete: 'Complete',
@@ -1509,10 +1601,12 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     const titleKey = `phoneNumberOrdering.complete.title${statusSuffix}${plural}`;
     const descKey = `phoneNumberOrdering.complete.description${statusSuffix}${plural}`;
 
-    const pollingIndicator =
-      status === 'pending' && isPolling
-        ? `<div class="center-detail" style="opacity:0.7;font-size:var(--ds-font-size-small)">${this.t('phoneNumberOrdering.complete.checking')}</div>`
-        : '';
+    let pollingIndicator = '';
+    if (status === 'pending' && this.pollGaveUp) {
+      pollingIndicator = `<div class="center-hint">${this.t('phoneNumberOrdering.complete.stillProcessing')}</div>`;
+    } else if (status === 'pending' && this.pollTimer !== null) {
+      pollingIndicator = `<div class="center-detail" style="opacity:0.7;font-size:var(--ds-font-size-small)">${this.t('phoneNumberOrdering.complete.checking')}</div>`;
+    }
 
     return `
       <div class="card ${this.classes.orderComplete || ''}" part="complete">
@@ -1538,7 +1632,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
       <div class="card" part="error-state">
         <div class="center-state">
           <div class="center-icon error">${ERROR_SVG}</div>
-          <div class="center-title">${this.t('phoneNumberOrdering.error.title')}</div>
+          <div class="center-title">${this.t(this.errorKind === 'search' ? 'phoneNumberOrdering.searchError.title' : 'phoneNumberOrdering.error.title')}</div>
           <div class="center-detail">${this.escapeHtml(this.errorMessage || '')}</div>
           <div class="center-btn">
             <button class="btn btn-primary" data-action="try-again">

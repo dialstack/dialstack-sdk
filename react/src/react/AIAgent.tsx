@@ -24,7 +24,7 @@ import {
 } from '@dialstack/sdk-js';
 
 export interface AIAgentProps {
-  /** AI agent ID (`aia_…`) the host has resolved for the current account. */
+  /** ID of the AI agent to edit, which your app has resolved for the current account. */
   agentId?: string;
   /** Render an existing agent editor or a host-controlled create form. */
   mode?: 'edit' | 'create';
@@ -33,9 +33,9 @@ export interface AIAgentProps {
   /** Host-provided webhook secret to display in full admin-style surfaces. */
   secret?: string | null;
   /**
-   * Fields the editor should not render. Spineline mounts with
-   * `hideFields={['name']}` because there is exactly one managed agent per
-   * practice and the back-office name is invisible to operators.
+   * Fields the editor should not render. An app that manages exactly one agent
+   * per account might pass `hideFields={['name']}`, since that label is never
+   * heard by callers.
    */
   hideFields?: AIAgentField[];
   /** Optional callback invoked after a successful save. */

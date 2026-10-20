@@ -117,7 +117,7 @@ export const Softphone: React.FC<SoftphoneProps> = ({ autoFocusDestination }) =>
   if (useContext(SoftphoneContext) === null) {
     throw new Error(
       '<Softphone> must be rendered inside a <SoftphoneProvider>. The provider owns ' +
-        'the connection and the token. See https://docs.dialstack.ai/sdk/react.'
+        'the connection and the token. See https://docs.dialstack.ai/sdks/components/softphone.'
     );
   }
   return <SoftphoneRoot autoFocusDestination={autoFocusDestination} />;

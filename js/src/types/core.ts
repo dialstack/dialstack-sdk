@@ -110,7 +110,7 @@ export const ROUTING_TARGET_TYPE_ORDER: readonly RoutingTargetType[] = [
  * A selectable inbound-routing destination. Not a first-class API resource —
  * it's a synthetic union assembled from the underlying resources (users, dial
  * plans, voice apps, ring groups, queues, shared voicemail boxes), each keyed
- * by its own TypeID. `id` is that underlying resource's id, which is exactly
+ * by its own ID. `id` is that underlying resource's id, which is exactly
  * what `phoneNumbers.updateRoute` accepts.
  */
 export interface RoutingTarget {
@@ -133,7 +133,7 @@ export type ClientSecretResponse =
        */
       expiresAt?: string;
       /**
-       * Account TypeID (e.g. acct_...) for account-scoped SDK methods
+       * Account ID for account-scoped SDK methods
        */
       accountId?: string;
     }
@@ -144,7 +144,7 @@ export type ClientSecretResponse =
        */
       expires_at?: string;
       /**
-       * Account TypeID (e.g. acct_...) for account-scoped SDK methods
+       * Account ID for account-scoped SDK methods
        */
       account_id?: string;
     };
@@ -243,7 +243,14 @@ export interface AvailablePhoneNumbersResource {
 }
 
 export interface PhoneNumberOrdersResource {
-  /** Create a phone number order */
+  /**
+   * Create a phone number order.
+   *
+   * Rejects with an `ApiError` (check with `isApiError`). A 409 carries a
+   * stable `code`: `phone_number_limit_exceeded` when the account cannot hold
+   * more numbers, or `phone_numbers_already_claimed` when some of them are
+   * no longer available.
+   */
   create(phoneNumbers: string[]): Promise<NumberOrder>;
   /** Retrieve a phone number order by ID */
   retrieve(orderId: string): Promise<NumberOrder>;
@@ -649,7 +656,7 @@ export interface DialStackInstance {
   /** Unsubscribe from real-time call events */
   off<K extends keyof CallEventMap>(event: K, handler?: CallEventHandler<CallEventMap[K]>): void;
   /**
-   * Resolve a routing target TypeID to its type, display name, and how long it
+   * Resolve a routing target ID to its type, display name, and how long it
    * rings a caller on its own.
    *
    * `timeout_seconds` is a ring group's or queue's stored timeout, or the sum
@@ -725,7 +732,7 @@ export interface SessionData {
   expiresAt: Date;
 
   /**
-   * Account TypeID for account-scoped methods
+   * Account ID for account-scoped methods
    */
   accountId: string | null;
 }

@@ -61,13 +61,23 @@ export interface AIAgentFormValues {
   scheduling?: SchedulingConfig | null;
 }
 
+/**
+ * What the AIAgent form hands a host-controlled create or save.
+ *
+ * A field hidden with `hideFields` is left out rather than sent empty, so a
+ * host that forwards the payload as a partial update keeps the stored value.
+ * `faq_responses` matters most: the API replaces the whole list whenever it is
+ * present, so an empty array would delete every FAQ.
+ */
 export interface AIAgentHostSubmitPayload {
-  name: string;
+  /** Absent when `name` is hidden. */
+  name?: string;
   extension_number?: string;
   persona_name?: string;
   greeting_name?: string;
   instructions?: string;
-  faq_responses: FAQItem[];
+  /** Absent when `faq` is hidden. */
+  faq_responses?: FAQItem[];
   scheduling?: SchedulingConfig;
 }
 

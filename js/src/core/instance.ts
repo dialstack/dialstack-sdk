@@ -690,19 +690,13 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
 
       const response = await this.fetchApi(`/v1/available-phone-numbers?${params}`);
       if (!response.ok) {
-        const errorText = await response.text();
-        // The API returns {"error": "<user-facing message>"} — surface that
-        // message directly rather than the raw status and body.
-        let message = `Failed to search available numbers: ${response.status} ${errorText}`;
-        try {
-          const parsed = JSON.parse(errorText);
-          if (typeof parsed?.error === 'string' && parsed.error) {
-            message = parsed.error;
-          }
-        } catch {
-          // Not JSON — keep the fallback message.
-        }
-        throw new Error(message);
+        // An ApiError so a caller can tell a rejected query (400, fixable by
+        // the user) from the search being unavailable without parsing text.
+        const { message, code, details } = await extractApiError(
+          response,
+          `Failed to search available numbers: ${response.status}`
+        );
+        throw new ApiError(message, response.status, code, details);
       }
 
       const body = await response.json();
@@ -717,16 +711,25 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         body: JSON.stringify({ phone_numbers: phoneNumbers }),
       });
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to create phone number order: ${response.status} ${errorText}`);
+        // Same conflicts as portOrders.create — the account's phone-number cap
+        // and numbers already claimed — so callers need the `code` to say
+        // which, not a message with the raw response body appended.
+        const { message, code, details } = await extractApiError(
+          response,
+          `Failed to create phone number order: ${response.status}`
+        );
+        throw new ApiError(message, response.status, code, details);
       }
       return response.json();
     },
     retrieve: async (orderId: string): Promise<NumberOrder> => {
       const response = await this.fetchApi(`/v1/phone-number-orders/${orderId}`);
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to get phone number order: ${response.status} ${errorText}`);
+        const { message, code, details } = await extractApiError(
+          response,
+          `Failed to get phone number order: ${response.status}`
+        );
+        throw new ApiError(message, response.status, code, details);
       }
       return response.json();
     },

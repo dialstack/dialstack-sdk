@@ -81,6 +81,8 @@ export type {
   SearchAvailableNumbersOptions,
   AvailablePhoneNumber,
   NumberOrder,
+  PhoneNumberOrderErrorEvent,
+  PhoneNumberOrderPendingEvent,
   PhoneNumberOrderingClasses,
   PhoneNumberOrderingElement,
 } from './phone-number-ordering';

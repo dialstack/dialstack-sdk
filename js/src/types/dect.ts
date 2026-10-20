@@ -30,7 +30,7 @@ export type MulticellRole = 'single' | 'data_master' | 'secondary';
  * A DECT base station.
  */
 export interface DECTBase {
-  /** TypeID with `dectb_` prefix */
+  /** Unique identifier for the DECT base */
   id: string;
   /** Hardware MAC address (e.g., "00:04:13:aa:bb:cc") */
   mac_address: string;
@@ -90,7 +90,7 @@ export type HandsetStatus = 'unpaired' | 'pending-sync' | 'registered' | 'provis
  * A DECT handset paired with a base station.
  */
 export interface DECTHandset {
-  /** TypeID with `decth_` prefix */
+  /** Unique identifier for the handset */
   id: string;
   /** Parent base station. `null` when the handset is stocked but not yet
    *  paired with a base — set this field to a base ID to pair it. */
@@ -133,13 +133,13 @@ export interface DECTHandset {
  * A SIP line assignment on a DECT handset.
  */
 export interface DECTExtension {
-  /** TypeID with `decte_` prefix */
+  /** Unique identifier for the DECT extension */
   id: string;
-  /** TypeID of the parent handset */
+  /** ID of the parent handset */
   handset?: string;
   /** @deprecated Use `handset`. Retained for backwards compatibility. */
   handset_id: string;
-  /** TypeID of the SIP endpoint */
+  /** ID of the SIP endpoint */
   endpoint_id: string;
   /** Optional display name override */
   display_name?: string;
@@ -217,7 +217,7 @@ export interface UpdateDECTHandsetRequest {
  * Request payload for creating a DECT extension.
  */
 export interface CreateDECTExtensionRequest {
-  /** TypeID of the SIP endpoint to assign */
+  /** ID of the SIP endpoint to assign */
   endpoint?: string;
   /** @deprecated Use `endpoint`. Retained for backwards compatibility. */
   endpoint_id: string;

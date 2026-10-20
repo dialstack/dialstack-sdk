@@ -43,7 +43,7 @@ export interface DeviceZeroTouchEscalation {
  * Use the `isDeskphone()` and `isDECTBase()` type guards for safe narrowing.
  */
 export interface Device {
-  /** TypeID with `dev_` or `dectb_` prefix */
+  /** Unique identifier for the device (a deskphone or a DECT base) */
   id: string;
   /** Device type discriminator */
   type: DeviceType;
@@ -127,7 +127,7 @@ export interface Device {
   assignments?: DeviceUserAssignment[];
 
   // Deskphone-specific fields (present when type === 'deskphone')
-  /** TypeID of the primary line */
+  /** ID of the primary line */
   primary_line?: string;
   /** @deprecated Use `primary_line`. Retained for backwards compatibility. */
   primary_line_id?: string;
@@ -181,7 +181,7 @@ export interface DeviceUserAssignment {
       };
   /** @deprecated Use `user`. Retained for backwards compatibility. */
   user_id: string;
-  /** TypeID of the device */
+  /** ID of the device */
   device?: string;
   /** @deprecated Use `device`. Retained for backwards compatibility. */
   device_id: string;
@@ -196,7 +196,7 @@ export interface DeviceUserAssignment {
  * the endpoint (SIP credentials) and the device line/extension server-side.
  */
 export interface AssignDeviceUserRequest {
-  /** TypeID of the user to assign (`user_...`) */
+  /** ID of the user to assign */
   user: string;
 }
 
@@ -228,15 +228,15 @@ export type RegistrationStatus = 'registered' | 'not_registered';
  * A SIP line configured on a provisioned device.
  */
 export interface DeviceLine {
-  /** TypeID with `dln_` prefix */
+  /** Unique identifier for the line */
   id: string;
-  /** TypeID of the parent device */
+  /** ID of the parent device */
   device?: string;
   /** @deprecated Use `device`. Retained for backwards compatibility. */
   device_id: string;
   /** Line number on the device (1-based) */
   line_number: number;
-  /** TypeID of the associated endpoint, if any */
+  /** ID of the associated endpoint, if any */
   endpoint?: string;
   /** @deprecated Use `endpoint`. Retained for backwards compatibility. */
   endpoint_id?: string;
@@ -256,7 +256,7 @@ export interface DeviceLine {
  * Still used for create/update return types that hit `/v1/deskphones`.
  */
 export interface ProvisionedDevice {
-  /** TypeID with `dev_` prefix */
+  /** Unique identifier for the device */
   id: string;
   /** Hardware MAC address (e.g., "00:04:13:aa:bb:cc") */
   mac_address: string;
@@ -281,7 +281,7 @@ export interface ProvisionedDevice {
   button_template_id?: string | null;
   /** Current provisioning status */
   status: DeviceStatus;
-  /** TypeID of the provisioning profile, if using profile-based config */
+  /** ID of the provisioning profile, if using profile-based config */
   profile_id?: string;
   /** Device-specific settings overrides */
   overrides?: DeviceSettings;
@@ -289,7 +289,7 @@ export interface ProvisionedDevice {
   current_ip_address?: string;
   /** ISO 8601 timestamp of last successful config fetch */
   last_provisioned_at?: string;
-  /** TypeID of the primary line */
+  /** ID of the primary line */
   primary_line?: string;
   /** @deprecated Use `primary_line`. Retained for backwards compatibility. */
   primary_line_id?: string;
@@ -335,7 +335,7 @@ export interface UpdateDeskphoneRequest {
  * `dialstack.devices.retrieve(id)` to fetch the full device.
  */
 export interface CreateDeviceResponse {
-  /** TypeID with `dev_`, `dectb_`, or `decth_` prefix */
+  /** Unique identifier for the created device */
   id: string;
   /** The kind of device that was created. */
   type: DeviceType;
@@ -456,9 +456,9 @@ export interface DeviceListOptions {
  * A provisioning event logged when a device fetches its configuration.
  */
 export interface ProvisioningEvent {
-  /** TypeID with `preve_` prefix */
+  /** Unique identifier for the event */
   id: string;
-  /** TypeID of the device */
+  /** ID of the device */
   device?: string;
   /** @deprecated Use `device`. Retained for backwards compatibility. */
   device_id: string;
@@ -478,7 +478,7 @@ export interface ProvisioningEvent {
  * Request payload for creating a deskphone line.
  */
 export interface CreateDeskphoneLineRequest {
-  /** TypeID of the endpoint to assign */
+  /** ID of the endpoint to assign */
   endpoint?: string;
   /** @deprecated Use `endpoint`. Retained for backwards compatibility. */
   endpoint_id: string;
@@ -488,7 +488,7 @@ export interface CreateDeskphoneLineRequest {
  * Request payload for updating a deskphone line (reassigning endpoint).
  */
 export interface UpdateDeskphoneLineRequest {
-  /** TypeID of the new endpoint to assign */
+  /** ID of the new endpoint to assign */
   endpoint?: string;
   /** @deprecated Use `endpoint`. Retained for backwards compatibility. */
   endpoint_id: string;

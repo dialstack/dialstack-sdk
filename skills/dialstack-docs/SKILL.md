@@ -78,49 +78,49 @@ you will get a truncated read that looks complete.
 
 ### Sections
 
-| Section                        | What lives there                                                                    |
-| ------------------------------ | ----------------------------------------------------------------------------------- |
-| `/admin-guide/account-admin/`  | Configuring one account: users, devices, numbers, routing, voicemail, E911          |
-| `/admin-guide/platform-admin/` | Platform-wide: branding, creating accounts, admins, provisioning, troubleshooting   |
-| `/guides/`                     | Integration guides: auth, webhooks, events, pagination, porting, dial plans, errors |
-| `/sdks/`                       | The SDK packages — installation, React components, theming, i18n                    |
-| `/webrtc/`                     | Browser and mobile softphone: calling, presence, emergency, network                 |
-| `/integration-tiers/`          | White Label vs Embedded vs Direct API — pick before writing code                    |
-| `/sdk-reference/`              | Generated TypeScript API reference. Not in `llms.txt`; browse the HTML              |
-| `/solutions/`                  | Vertical overviews: healthcare, automotive, field services                          |
+| Section                        | What lives there                                                                                                                                                             |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/admin-guide/account-admin/`  | Configuring one account: users, devices, numbers, routing, voicemail, E911                                                                                                   |
+| `/admin-guide/platform-admin/` | Platform-wide: branding, creating accounts, admins, provisioning, troubleshooting                                                                                            |
+| `/get-started/`                | Quickstart, choosing an integration (White Label vs Embedded vs Direct API — pick before writing code), white-label portal, architecture, authentication, testing, AI agents |
+| `/guides/`                     | Feature guides: calling, routing, call events and webhooks, numbers, devices, AI; industry recipes under `/guides/recipes/`                                                  |
+| `/api-concepts/`               | API mechanics: making requests (account header, IDs, idempotency, rate limits), pagination, error codes, security                                                            |
+| `/sdks/`                       | The SDK packages — installation, setup, components (React and Web Components), server SDK, theming, i18n                                                                     |
+| `/webrtc/`                     | Browser and mobile softphone: calling, presence, emergency, network                                                                                                          |
+| `/sdk-reference/`              | Generated TypeScript API reference. Not in `llms.txt`; browse the HTML                                                                                                       |
 
 ### When their word is not the page's title
 
-| They say                                     | The page is                                              |
-| -------------------------------------------- | -------------------------------------------------------- |
-| business hours, opening hours, after-hours   | **Schedules** (`/admin-guide/account-admin/schedules`)   |
-| auto attendant, IVR, phone tree, call flow   | **Dial Plans** (`/admin-guide/account-admin/dial-plans`) |
-| hunt group, ring multiple phones             | **Ring Groups**                                          |
-| port a number, transfer from another carrier | **Port Orders** (portal) / **Number Porting** (API)      |
-| 911, emergency address, dispatch address     | **E911 Dispatch Addresses** — also read **Locations**    |
-| park a call, shared hold                     | **Call Parking**                                         |
-| department or team mailbox                   | **Shared Voicemail Boxes**                               |
-| logo, colours, white-label appearance        | **Branding** (platform-admin)                            |
-| moving existing phones from another provider | **Migrating Existing Phones**                            |
-| AI agent, AI receptionist, AI answering      | **Voice Apps**                                           |
+| They say                                     | The page is                                                           |
+| -------------------------------------------- | --------------------------------------------------------------------- |
+| business hours, opening hours, after-hours   | **Schedules** (`/admin-guide/account-admin/call-routing/schedules`)   |
+| auto attendant, IVR, phone tree, call flow   | **Dial Plans** (`/admin-guide/account-admin/call-routing/dial-plans`) |
+| hunt group, ring multiple phones             | **Ring Groups**                                                       |
+| port a number, transfer from another carrier | **Port Orders** (portal) / **Number Porting** (API)                   |
+| 911, emergency address, dispatch address     | **E911 Dispatch Addresses** — also read **Locations**                 |
+| park a call, shared hold                     | **Call Parking**                                                      |
+| department or team mailbox                   | **Shared Voicemail Boxes**                                            |
+| logo, colours, white-label appearance        | **Branding** (platform-admin)                                         |
+| moving existing phones from another provider | **Migrating Existing Phones**                                         |
+| AI agent, AI receptionist, AI answering      | **Voice Apps**                                                        |
 
 ## Citing
 
 Fetch the `.md`, cite the HTML page.
 
-Every page is available as markdown by prefixing `/docs` and appending `.md`.
+Every page is available as markdown by appending `.md` to its URL.
 Fetch that — it is clean content without page furniture. Then cite the HTML URL,
 because that is what a person can actually read:
 
 ```
-fetch: https://docs.dialstack.ai/docs/guides/pagination.md
-cite:  https://docs.dialstack.ai/guides/pagination
+fetch: https://docs.dialstack.ai/api-concepts/pagination.md
+cite:  https://docs.dialstack.ai/api-concepts/pagination
 ```
 
-The rule is: strip `/docs`, strip `.md`. Do not cite the `.md` URL to a person —
+The rule is: strip `.md`. Do not cite the `.md` URL to a person —
 browsers download it instead of displaying it.
 
-It applies only to pages fetched from under the `/docs` prefix.
+It applies only to pages, the links `llms.txt` lists.
 `/api/endpoints.md` is a generated file, not a page: dropping its `.md` gives a
 URL that **404s**, so never cite it. Use it to confirm an endpoint exists, then
 cite the guide that documents the behavior, or `https://docs.dialstack.ai/api`
@@ -166,7 +166,7 @@ that file has no page of its own. Nothing else may be cited unfetched.
   There is no `page`, `offset`, `cursor`, or `starting_after` parameter.
 - IDs are opaque strings up to 255 chars. Do not parse prefixes.
 - Pick an integration tier before writing code: White Label, Embedded,
-  or Direct API — see /integration-tiers/.
+  or Direct API — see /get-started/integration-paths.
 - /llms-full.txt is the whole corpus in one file (~800 KB). Prefer the
   single relevant page from the index above; fetching this whole is
   usually a truncated read, not a complete one.

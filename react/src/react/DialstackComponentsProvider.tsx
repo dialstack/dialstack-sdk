@@ -76,7 +76,7 @@ export const useDialstackComponents = (): DialstackComponentsContextValue => {
   if (!context) {
     throw new Error(
       'Could not find DialStack context; You need to wrap your app in a <DialstackComponentsProvider> provider. ' +
-        'See https://docs.dialstack.ai/sdk/react for setup instructions.'
+        'See https://docs.dialstack.ai/sdks/setup for setup instructions.'
     );
   }
   return context;

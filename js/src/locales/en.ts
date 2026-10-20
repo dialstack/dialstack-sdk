@@ -333,6 +333,8 @@ export const en = {
       descriptionPartialOne: 'Some numbers could not be fulfilled by the carrier.',
       descriptionPartialOther: 'Some numbers could not be fulfilled by the carrier.',
       checking: 'Checking order status...',
+      stillProcessing:
+        'This is taking longer than usual. The carrier is still working on your order, and the numbers will appear in your inventory once it completes.',
       assignmentHint:
         'Numbers added to your inventory still need to be assigned to an extension or dial plan before they can receive calls.',
       orderMore: 'Order More Numbers',
@@ -340,7 +342,19 @@ export const en = {
     error: {
       title: 'Order Failed',
       description: 'The carrier was unable to fulfill your order.',
+      generic: "We couldn't place your order. Please try again.",
+      limitExceeded:
+        "You've reached the number of phone numbers this account can hold. Contact support to raise the limit, then try again.",
+      numbersUnavailable:
+        'Some of the numbers you selected are no longer available. Search again and choose different numbers.',
       tryAgain: 'Try Again',
+    },
+    searchError: {
+      title: 'Search Failed',
+      description: "Number search isn't available right now. Please try again in a moment.",
+      invalid: "We couldn't search with that area code or ZIP code. Check it and try again.",
+      zipNotAvailable:
+        'No numbers are available for ZIP code {zip}. Try a nearby ZIP code, or search by area code.',
     },
     statuses: {
       pending: 'Pending',

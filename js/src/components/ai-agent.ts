@@ -103,15 +103,19 @@ function buildPayload(form: FormState, hidden: Set<AIAgentField>): UpdateAIAgent
   return payload;
 }
 
+// Omits hidden fields for the same reason buildPayload does: the host may
+// forward this as a partial update, and an empty value there clears what is
+// stored.
 function buildHostPayload(form: FormState, hidden: Set<AIAgentField>): AIAgentHostSubmitPayload {
-  const payload: AIAgentHostSubmitPayload = {
-    name: form.name.trim(),
-    faq_responses: hidden.has('faq')
-      ? []
-      : form.faq
-          .map((f) => ({ question: f.question.trim(), answer: f.answer.trim() }))
-          .filter((f) => f.question.length > 0 || f.answer.length > 0),
-  };
+  const payload: AIAgentHostSubmitPayload = {};
+  if (!hidden.has('name')) {
+    payload.name = form.name.trim();
+  }
+  if (!hidden.has('faq')) {
+    payload.faq_responses = form.faq
+      .map((f) => ({ question: f.question.trim(), answer: f.answer.trim() }))
+      .filter((f) => f.question.length > 0 || f.answer.length > 0);
+  }
   if (!hidden.has('extension_number')) {
     payload.extension_number = form.extensionNumber.trim();
   }
@@ -379,7 +383,7 @@ function escape(s: string): string {
  *   - Imperative setters (`setAgentId`, `setHideFields`) — used by the React
  *     wrapper and any caller holding an element reference.
  *   - HTML attributes (`agent-id`, `hide-fields`) — `<dialstack-ai-agent
- *     agent-id="aia_..." hide-fields="name,faq">`. Attribute changes are
+ *     agent-id="…" hide-fields="name,faq">`. Attribute changes are
  *     observed via `attributeChangedCallback` and routed through the same
  *     setters, so the two paths cannot drift.
  *
