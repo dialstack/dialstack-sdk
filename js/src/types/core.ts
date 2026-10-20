@@ -12,6 +12,7 @@ import type {
 } from './components';
 import type { CallEventMap, CallEventHandler } from './callbacks';
 import type { DialPlan as DialPlanData, Extension } from './dial-plan';
+import type { HardwareOrder, HardwareOrderList } from './hardware-orders';
 import type {
   AvailablePhoneNumber,
   NumberOrder,
@@ -252,6 +253,22 @@ export interface PhoneNumberOrdersResource {
     status?: string;
     order_type?: string;
   }): Promise<PaginatedResponse<NumberOrder>>;
+}
+
+export interface HardwareOrdersResource {
+  /** List the account's hardware orders */
+  list(): Promise<HardwareOrderList>;
+  /** Retrieve a hardware order by ID */
+  retrieve(orderId: string): Promise<HardwareOrder>;
+  /**
+   * Submit a draft for approval. A customer's submission is its approval; when
+   * no other approval is needed the order is placed.
+   */
+  submitForApproval(orderId: string): Promise<HardwareOrder>;
+  /** Approve a pending order; the last required approval places it. */
+  approve(orderId: string): Promise<HardwareOrder>;
+  /** Decline a pending order, returning it to a draft with the reason. */
+  decline(orderId: string, reason: string): Promise<HardwareOrder>;
 }
 
 export interface PortOrdersResource {
@@ -671,6 +688,7 @@ export interface DialStackInstance {
   phoneNumbers: PhoneNumbersResource;
   availablePhoneNumbers: AvailablePhoneNumbersResource;
   phoneNumberOrders: PhoneNumberOrdersResource;
+  hardwareOrders: HardwareOrdersResource;
   portOrders: PortOrdersResource;
   audioClips: AudioClipsResource;
   dialPlans: DialPlansResource;

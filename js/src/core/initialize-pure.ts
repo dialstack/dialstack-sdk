@@ -113,6 +113,7 @@ export async function loadDialstackAndInitialize(
     phoneNumbers: instance.phoneNumbers,
     availablePhoneNumbers: instance.availablePhoneNumbers,
     phoneNumberOrders: instance.phoneNumberOrders,
+    hardwareOrders: instance.hardwareOrders,
     portOrders: instance.portOrders,
     audioClips: instance.audioClips,
     dialPlans: instance.dialPlans,

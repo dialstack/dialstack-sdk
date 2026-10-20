@@ -301,3 +301,10 @@ export type {
 } from './dect';
 
 export type { QueueStrategy } from './queue';
+
+export type {
+  HardwareOrder,
+  HardwareOrderApproval,
+  HardwareOrderLine,
+  HardwareOrderList,
+} from './hardware-orders';

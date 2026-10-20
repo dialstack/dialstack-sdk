@@ -88,6 +88,7 @@ export type { RoutingTargetType } from '../types';
 export { ROUTING_TARGET_TYPE_ORDER } from '../types';
 import type { DialPlan as DialPlanData } from '../types/dial-plan';
 import type { AIAgent, UpdateAIAgentRequest } from '../types/ai-agent';
+import type { HardwareOrder, HardwareOrderList } from '../types/hardware-orders';
 
 /**
  * Error thrown by SDK API calls, carrying the HTTP status code.
@@ -752,6 +753,48 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       return response.json();
     },
   };
+
+  hardwareOrders = {
+    list: async (): Promise<HardwareOrderList> =>
+      this.hardwareOrderRequest('/v1/hardware-orders', undefined, 'Failed to list hardware orders'),
+    retrieve: async (orderId: string): Promise<HardwareOrder> =>
+      this.hardwareOrderRequest(
+        `/v1/hardware-orders/${encodeURIComponent(orderId)}`,
+        undefined,
+        'Failed to get hardware order'
+      ),
+    submitForApproval: async (orderId: string): Promise<HardwareOrder> =>
+      this.hardwareOrderRequest(
+        `/v1/hardware-orders/${encodeURIComponent(orderId)}/submit-for-approval`,
+        { method: 'POST' },
+        'Failed to submit hardware order'
+      ),
+    approve: async (orderId: string): Promise<HardwareOrder> =>
+      this.hardwareOrderRequest(
+        `/v1/hardware-orders/${encodeURIComponent(orderId)}/approve`,
+        { method: 'POST' },
+        'Failed to approve hardware order'
+      ),
+    decline: async (orderId: string, reason: string): Promise<HardwareOrder> =>
+      this.hardwareOrderRequest(
+        `/v1/hardware-orders/${encodeURIComponent(orderId)}/decline`,
+        { method: 'POST', body: JSON.stringify({ reason }) },
+        'Failed to decline hardware order'
+      ),
+  };
+
+  private async hardwareOrderRequest<T>(
+    path: string,
+    init: RequestInit | undefined,
+    fallback: string
+  ): Promise<T> {
+    const response = await this.fetchApi(path, init);
+    if (!response.ok) {
+      const { message, code, details } = await extractApiError(response, fallback);
+      throw new ApiError(message, response.status, code, details);
+    }
+    return response.json();
+  }
 
   portOrders = {
     create: async (request: CreatePortOrderRequest): Promise<PortOrder> => {
