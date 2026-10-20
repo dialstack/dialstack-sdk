@@ -1,7 +1,7 @@
 import React from 'react';
 import type { DIDItem, PhoneNumberItem } from '@dialstack/sdk-js';
 import type { NumState, Dispatcher, TFn, CardMode } from '../types';
-import { formatPhone, getStatusBadgeClass } from '../helpers';
+import { formatPhone, getStatusBadgeClass, takesCallerIdAndListing } from '../helpers';
 import { PHONE_SVG, SUCCESS_SVG } from '../../../icons';
 
 const NOWRAP_STYLE: React.CSSProperties = { whiteSpace: 'nowrap' };
@@ -20,15 +20,15 @@ export const PhoneCardStrip = ({
   dispatch: Dispatcher;
 }) => {
   // Use activeDIDs for caller-id mode and phoneNumbers for overview.
-  // Directory-listing uses pre-computed dlEligibleDIDs (excludes temporary numbers).
-  // Caller-id also excludes temporary numbers.
+  // Directory-listing uses pre-computed dlEligibleDIDs; caller-id filters the
+  // same way (no temporary or toll-free numbers).
   const items =
     mode === 'overview'
       ? state.phoneNumbers
       : mode === 'directory-listing'
         ? state.dlEligibleDIDs
         : mode === 'caller-id'
-          ? state.activeDIDs.filter((d) => d.number_class !== 'temporary')
+          ? state.activeDIDs.filter(takesCallerIdAndListing)
           : state.activeDIDs;
   if (items.length === 0) return null;
 

@@ -693,16 +693,22 @@ const COMPONENT_STYLES = `
   }
 `;
 
+/** The toll-free codes a toll-free search can narrow to. */
+const TOLL_FREE_AREA_CODES = ['800', '833', '844', '855', '866', '877', '888'];
+
 export class PhoneNumberOrderingComponent extends BaseComponent {
   // State machine
   private step: Step = 'search';
 
   // Search config
-  private searchTypes: SearchType[] = ['area_code', 'zip'];
+  private searchTypes: SearchType[] = ['area_code', 'zip', 'toll_free'];
 
   // Search state
   private searchType: SearchType = 'area_code';
   private searchValue: string = '';
+  // The toll-free code to narrow to, '' for any. Kept apart from searchValue:
+  // a local area code is never a valid toll-free one.
+  private tollFreeCode: string = '';
   private quantity: number = 10;
   private isSearching: boolean = false;
 
@@ -802,12 +808,19 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     return phone;
   }
 
+  /** The results' State column: a toll-free number has no state. */
+  private numberRegion(num: AvailablePhoneNumber): string {
+    if (num.number_type === 'toll_free') return this.t('phoneNumberOrdering.results.tollFree');
+    return num.state ?? '';
+  }
+
   // ============================================================================
   // Data Operations
   // ============================================================================
 
   private canSearch(): boolean {
-    return this.searchValue.trim() !== '';
+    // A toll-free search needs no filter: "any code" is a valid search.
+    return this.searchType === 'toll_free' || this.searchValue.trim() !== '';
   }
 
   private async searchNumbers(): Promise<void> {
@@ -818,7 +831,10 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
 
     try {
       const options: SearchAvailableNumbersOptions = { quantity: this.quantity };
-      if (this.searchType === 'zip') {
+      if (this.searchType === 'toll_free') {
+        options.numberType = 'toll_free';
+        if (this.tollFreeCode) options.areaCode = this.tollFreeCode;
+      } else if (this.searchType === 'zip') {
         options.zip = this.searchValue;
       } else {
         options.areaCode = this.searchValue;
@@ -1130,6 +1146,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     this.stopPolling();
     this.step = 'search';
     this.searchValue = '';
+    this.tollFreeCode = '';
     this.quantity = 10;
     this.availableNumbers = [];
     this.selectedNumbers = new Set();
@@ -1240,6 +1257,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
         <div class="segmented-control" role="radiogroup" aria-label="${this.t('phoneNumberOrdering.search.searchType')}">
           ${segmentBtn('area_code', this.t('phoneNumberOrdering.search.areaCode'))}
           ${segmentBtn('zip', this.t('phoneNumberOrdering.search.zip'))}
+          ${segmentBtn('toll_free', this.t('phoneNumberOrdering.search.tollFree'))}
         </div>
 
         <div class="search-fields-stack">
@@ -1265,6 +1283,20 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
                     placeholder="${this.t('phoneNumberOrdering.search.zipPlaceholder')}"
                     value="${this.searchType === 'zip' ? this.escapeHtml(this.searchValue) : ''}"
                     data-field="value" />
+                </div>
+              </div>`;
+              if (type === 'toll_free')
+                return `
+              <div class="${hidden('toll_free')}">
+                <div class="form-group">
+                  <label class="form-label" for="search-toll-free">${this.t('phoneNumberOrdering.search.tollFreeLabel')}</label>
+                  <select class="form-input" id="search-toll-free">
+                    <option value="" ${this.tollFreeCode === '' ? 'selected' : ''}>${this.t('phoneNumberOrdering.search.tollFreeAny')}</option>
+                    ${TOLL_FREE_AREA_CODES.map(
+                      (code) =>
+                        `<option value="${code}" ${this.tollFreeCode === code ? 'selected' : ''}>${code}</option>`
+                    ).join('')}
+                  </select>
                 </div>
               </div>`;
               return '';
@@ -1322,7 +1354,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
               <span class="checkbox-visual ${isSelected ? 'checked' : ''}" aria-hidden="true">${CHECK_SVG}</span>
             </td>
             <td class="phone-number-cell">${this.formatPhone(num.phone_number)}</td>
-            <td>${this.escapeHtml(num.state)}</td>
+            <td>${this.escapeHtml(this.numberRegion(num))}</td>
           </tr>
         `;
       })
@@ -1376,7 +1408,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
         (num) => `
         <div class="confirm-item">
           <span class="confirm-phone">${this.formatPhone(num.phone_number)}</span>
-          <span class="confirm-state">${this.escapeHtml(num.state)}</span>
+          <span class="confirm-state">${this.escapeHtml(this.numberRegion(num))}</span>
         </div>
       `
       )
@@ -1389,7 +1421,10 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
 
         <div class="confirm-list">${items}</div>
 
-        ${this.renderBillingImpact(selected.length)}
+        ${this.renderBillingImpact(
+          selected.length,
+          selected.some((n) => n.number_type === 'toll_free')
+        )}
 
         <p class="section-subtitle">${this.t('phoneNumberOrdering.confirm.description')}</p>
 
@@ -1424,7 +1459,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
    * the exception, since the higher rate still in force can prorate above the
    * lower one quoted here, so the copy does not promise otherwise.
    */
-  private renderBillingImpact(count: number): string {
+  private renderBillingImpact(count: number, hasTollFree: boolean): string {
     if (count === 0) return '';
 
     const key = (name: string) => `phoneNumberOrdering.confirm.billing.${name}`;
@@ -1451,20 +1486,31 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
       return `<div class="billing-impact billing-impact-loading" part="billing-impact" aria-hidden="true"></div>`;
     }
 
+    // A toll-free number also bills its inbound minutes. The rate is not in
+    // the pricing this component can read, so the disclosure names the charge
+    // without quoting it; it stands even when the monthly price is unknown.
+    const tollFree = hasTollFree ? this.t(key('tollFreeMinutes')) : '';
+
     // The effective rate, not the agreed schedule: after a mid-month change the
     // agreed rate is next month's rather than what is billed.
     const rate = this.pricing?.per_did_rate ?? 0;
     if (rate <= 0) {
-      return this.pricing ? line(null, this.t(key('noPrice'), { count })) : '';
+      if (this.pricing) {
+        return line(null, [this.t(key('noPrice'), { count }), tollFree].filter(Boolean).join(' '));
+      }
+      return tollFree ? line(null, tollFree) : '';
     }
 
     return line(
       this.t(key('headline'), { amount: this.formatRate(rate * count) }),
       [
         this.t(key('detail'), { count, rate: this.formatRate(rate) }),
+        tollFree,
         this.t(key('timing')),
         this.t(key('taxesAndFees')),
-      ].join(' ')
+      ]
+        .filter(Boolean)
+        .join(' ')
     );
   }
 
@@ -1791,6 +1837,9 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     });
     bindInput('search-zip', (v) => {
       this.searchValue = v;
+    });
+    bindInput('search-toll-free', (v) => {
+      this.tollFreeCode = v;
     });
     bindInput('search-quantity', (v) => {
       const val = parseInt(v, 10);

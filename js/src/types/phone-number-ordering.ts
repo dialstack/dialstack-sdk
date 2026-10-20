@@ -5,9 +5,15 @@
 import type { BaseComponentClasses } from './appearance';
 import type { BaseComponentElement } from './components';
 
-export type SearchType = 'area_code' | 'zip';
+export type SearchType = 'area_code' | 'zip' | 'toll_free';
+
+/** `local` for a geographic number, `toll_free` for an 8YY number. */
+export type PhoneNumberType = 'local' | 'toll_free';
 
 export interface SearchAvailableNumbersOptions {
+  /** Which numbers to search. Defaults to `local`. */
+  numberType?: PhoneNumberType;
+  /** A local area code, or with `numberType: 'toll_free'`, one toll-free code. */
   areaCode?: string;
   zip?: string;
   quantity?: number;
@@ -15,10 +21,13 @@ export interface SearchAvailableNumbersOptions {
 
 export interface AvailablePhoneNumber {
   phone_number: string;
-  city: string;
-  state: string;
-  rate_center: string;
-  lata: string;
+  /** Always set by the API. Optional so code building these by hand still compiles. */
+  number_type?: PhoneNumberType;
+  /** Omitted for toll-free numbers, which have no geography. */
+  city?: string;
+  state?: string;
+  rate_center?: string;
+  lata?: string;
 }
 
 export interface NumberOrder {

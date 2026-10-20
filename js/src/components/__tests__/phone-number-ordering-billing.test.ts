@@ -12,6 +12,7 @@ const settle = async () => {
 
 const AVAILABLE: AvailablePhoneNumber[] = ['+15145551234', '+15145555678'].map((pn) => ({
   phone_number: pn,
+  number_type: 'local',
   city: 'Montreal',
   state: 'QC',
   rate_center: 'MONTREAL',
@@ -45,14 +46,16 @@ interface BillingContext {
   pricing?: EffectivePricing | null;
   /** Defaults to live; false exercises the sandbox/demo wording. */
   livemode?: boolean;
+  /** The search results, all selected on the confirm step. Defaults to AVAILABLE. */
+  available?: AvailablePhoneNumber[];
 }
 
-function makeInstance({ pricing, livemode = true }: BillingContext) {
+function makeInstance({ pricing, livemode = true, available = AVAILABLE }: BillingContext) {
   const reject = () => Promise.reject(new Error('not available'));
   return {
     livemode,
     getAppearance: () => undefined,
-    availablePhoneNumbers: { search: jest.fn(async () => AVAILABLE) },
+    availablePhoneNumbers: { search: jest.fn(async () => available) },
     routingTargets: jest.fn(async () => []),
     account: {
       effectivePricing: {
@@ -132,6 +135,35 @@ describe('PhoneNumberOrdering billing disclosure', () => {
   it('says nothing at all when the billing context cannot be read', async () => {
     const el = await confirmStep({});
     expect(disclosure(el)).toBeNull();
+  });
+
+  it('names the per-minute charge when a toll-free number is selected', async () => {
+    const tollFree: AvailablePhoneNumber = {
+      phone_number: '+18335409250',
+      number_type: 'toll_free',
+    };
+    const el = await confirmStep({
+      pricing: effectivePricing(500),
+      available: [AVAILABLE[0]!, tollFree],
+    });
+
+    const text = disclosure(el);
+    expect(text).toContain('2 phone numbers at $5.00 each per month');
+    expect(text).toContain('every inbound minute to a toll-free number is billed');
+  });
+
+  it('names the per-minute charge even when the monthly price cannot be read', async () => {
+    const tollFree: AvailablePhoneNumber = {
+      phone_number: '+18335409250',
+      number_type: 'toll_free',
+    };
+    const el = await confirmStep({ available: [tollFree] });
+    expect(disclosure(el)).toContain('every inbound minute to a toll-free number is billed');
+  });
+
+  it('leaves the per-minute charge out for local numbers', async () => {
+    const el = await confirmStep({ pricing: effectivePricing(500) });
+    expect(disclosure(el)).not.toContain('toll-free');
   });
 
   it('does not block the order flow when the reads fail', async () => {

@@ -248,7 +248,8 @@ export const en = {
     },
     search: {
       title: 'Search Available Numbers',
-      subtitle: 'Find available phone numbers by entering an area code or ZIP code.',
+      subtitle:
+        'Find available phone numbers by area code or ZIP code, or search toll-free numbers.',
       searchType: 'Search by',
       areaCode: 'Area Code',
       zip: 'ZIP Code',
@@ -256,6 +257,9 @@ export const en = {
       areaCodePlaceholder: 'e.g. 212',
       zipLabel: 'ZIP Code',
       zipPlaceholder: 'e.g. 10001',
+      tollFree: 'Toll-Free',
+      tollFreeLabel: 'Toll-free code',
+      tollFreeAny: 'Any toll-free code',
       numberOfResults: 'Quantity to display',
       search: 'Search',
     },
@@ -263,6 +267,7 @@ export const en = {
       title: 'Available Numbers',
       phoneNumber: 'Phone Number',
       state: 'State',
+      tollFree: 'Toll-free',
       selectAll: 'Select all',
       selected: '{count} selected',
       noResults: 'No numbers available for this search',
@@ -284,6 +289,8 @@ export const en = {
         detail: '{count} phone numbers at {rate} each per month.',
         detail_one: '{count} phone number at {rate} per month.',
         detail_other: '{count} phone numbers at {rate} each per month.',
+        tollFreeMinutes:
+          'Unlike calls to local numbers, every inbound minute to a toll-free number is billed.',
         timing: 'Billing starts when each number activates.',
         taxesAndFees: 'Taxes and fees are additional.',
         noPrice: 'These numbers are billable on this account.',

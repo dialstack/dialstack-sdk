@@ -4,6 +4,7 @@
 
 import type { BaseComponentClasses } from './appearance';
 import type { BaseComponentElement } from './components';
+import type { PhoneNumberType } from './phone-number-ordering';
 
 /**
  * Paginated list response from the API
@@ -31,6 +32,11 @@ export interface DIDItem {
   phone_number: string;
   status: 'active' | 'inactive' | 'released';
   number_class?: 'account_owned' | 'temporary';
+  /**
+   * `toll_free` for an 8YY number. Toll-free numbers support no caller ID
+   * name, directory listing or outbound porting PIN.
+   */
+  number_type?: PhoneNumberType;
   expires_at?: string | null;
   disconnected_at?: string | null;
   outbound_enabled: boolean;
@@ -170,6 +176,8 @@ export interface PhoneNumberItem {
   phone_number: string;
   status: PhoneNumberStatus;
   number_class?: 'account_owned' | 'temporary';
+  /** See `DIDItem`. Read from the DID record, so unset on in-flight rows. */
+  number_type?: PhoneNumberType;
   expires_at?: string | null;
   disconnected_at?: string | null;
   outbound_enabled: boolean | null;

@@ -625,11 +625,12 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         body: JSON.stringify(data),
       });
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new ApiError(
-          `Failed to update phone number: ${response.status} ${errorText}`,
-          response.status
+        // The code is what callers branch on (e.g. `toll_free_not_supported`).
+        const { message, code, details } = await extractApiError(
+          response,
+          `Failed to update phone number: ${response.status}`
         );
+        throw new ApiError(message, response.status, code, details);
       }
       return response.json();
     },
@@ -684,6 +685,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   availablePhoneNumbers = {
     search: async (options: SearchAvailableNumbersOptions): Promise<AvailablePhoneNumber[]> => {
       const params = new URLSearchParams();
+      if (options.numberType) params.set('number_type', options.numberType);
       if (options.areaCode) params.set('area_code', options.areaCode);
       if (options.zip) params.set('zip', options.zip);
       if (options.quantity) params.set('quantity', String(options.quantity));

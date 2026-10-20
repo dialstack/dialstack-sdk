@@ -43,6 +43,7 @@ function makeInstance(
   ];
   const available: AvailablePhoneNumber[] = ORDERED.map((pn) => ({
     phone_number: pn,
+    number_type: 'local',
     city: 'Montreal',
     state: 'QC',
     rate_center: 'MONTREAL',
@@ -215,6 +216,58 @@ describe('PhoneNumberOrdering routing application', () => {
     const routedIds = updateRoute.mock.calls.map((c) => c[0]);
     expect(routedIds).toContain('did_live');
     expect(routedIds).not.toContain('did_released');
+  });
+});
+
+describe('PhoneNumberOrdering toll-free search', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+    jest.restoreAllMocks();
+  });
+
+  it('searches toll-free inventory and labels the results toll-free', async () => {
+    const instance = makeInstance(jest.fn());
+    const search = jest.fn(async (): Promise<AvailablePhoneNumber[]> => [
+      { phone_number: '+18335409250', number_type: 'toll_free' },
+    ]);
+    (
+      instance as unknown as { availablePhoneNumbers: { search: jest.Mock } }
+    ).availablePhoneNumbers.search = search;
+    const el = await mount(instance);
+
+    el.shadowRoot
+      .querySelector<HTMLElement>('[data-action="set-search-type"][data-type="toll_free"]')!
+      .click();
+    await settle();
+    const select = el.shadowRoot.querySelector<HTMLSelectElement>('#search-toll-free')!;
+    select.value = '833';
+    select.dispatchEvent(new Event('input', { bubbles: true }));
+    click(el, 'search');
+    await settle();
+
+    expect(search).toHaveBeenCalledWith({ numberType: 'toll_free', areaCode: '833', quantity: 10 });
+    const row = el.shadowRoot.querySelector('tr[data-phone="+18335409250"]');
+    expect(row?.textContent).toContain('Toll-free');
+  });
+
+  it('searches every toll-free code when none is picked', async () => {
+    const instance = makeInstance(jest.fn());
+    const search = jest.fn(async (): Promise<AvailablePhoneNumber[]> => []);
+    (
+      instance as unknown as { availablePhoneNumbers: { search: jest.Mock } }
+    ).availablePhoneNumbers.search = search;
+    const el = await mount(instance);
+
+    el.shadowRoot
+      .querySelector<HTMLElement>('[data-action="set-search-type"][data-type="toll_free"]')!
+      .click();
+    await settle();
+    const button = el.shadowRoot.querySelector<HTMLButtonElement>('[data-action="search"]')!;
+    expect(button.disabled).toBe(false);
+    button.click();
+    await settle();
+
+    expect(search).toHaveBeenCalledWith({ numberType: 'toll_free', quantity: 10 });
   });
 });
 

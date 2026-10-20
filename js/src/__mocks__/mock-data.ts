@@ -194,6 +194,7 @@ export const MOCK_PHONE_NUMBERS: PaginatedResponse<DIDItem> = {
 export const MOCK_AVAILABLE_NUMBERS: AvailablePhoneNumber[] = [
   {
     phone_number: '+12125551001',
+    number_type: 'local',
     city: 'New York',
     state: 'NY',
     rate_center: 'NWYRCYZN01',
@@ -201,6 +202,7 @@ export const MOCK_AVAILABLE_NUMBERS: AvailablePhoneNumber[] = [
   },
   {
     phone_number: '+12125551002',
+    number_type: 'local',
     city: 'New York',
     state: 'NY',
     rate_center: 'NWYRCYZN01',
@@ -208,6 +210,7 @@ export const MOCK_AVAILABLE_NUMBERS: AvailablePhoneNumber[] = [
   },
   {
     phone_number: '+12125551003',
+    number_type: 'local',
     city: 'Brooklyn',
     state: 'NY',
     rate_center: 'BRKLYN',
@@ -215,6 +218,7 @@ export const MOCK_AVAILABLE_NUMBERS: AvailablePhoneNumber[] = [
   },
   {
     phone_number: '+14155550101',
+    number_type: 'local',
     city: 'San Francisco',
     state: 'CA',
     rate_center: 'SNFCCA01',
@@ -222,6 +226,7 @@ export const MOCK_AVAILABLE_NUMBERS: AvailablePhoneNumber[] = [
   },
   {
     phone_number: '+13105550201',
+    number_type: 'local',
     city: 'Los Angeles',
     state: 'CA',
     rate_center: 'LSAN DA01',
@@ -229,10 +234,15 @@ export const MOCK_AVAILABLE_NUMBERS: AvailablePhoneNumber[] = [
   },
   {
     phone_number: '+17735550301',
+    number_type: 'local',
     city: 'Chicago',
     state: 'IL',
     rate_center: 'CHCGIL01',
     lata: '358',
+  },
+  {
+    phone_number: '+18335409250',
+    number_type: 'toll_free',
   },
 ];
 

@@ -78,6 +78,7 @@ export type {
 // Phone number ordering types
 export type {
   SearchType,
+  PhoneNumberType,
   SearchAvailableNumbersOptions,
   AvailablePhoneNumber,
   NumberOrder,

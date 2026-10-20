@@ -1,9 +1,18 @@
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
-import type { PhoneNumberStatus } from '@dialstack/sdk-js';
+import type { DIDItem, PhoneNumberStatus } from '@dialstack/sdk-js';
 import type { NumSubStep } from '../../constants';
 
 export function formatPhone(phone: string): string {
   return parsePhoneNumberFromString(phone, 'US')?.formatNational() ?? phone;
+}
+
+/**
+ * Whether a number can carry a caller ID name and a directory listing.
+ * Temporary numbers are released at the end of the trial, and the carrier
+ * supports neither on toll-free numbers.
+ */
+export function takesCallerIdAndListing(did: DIDItem): boolean {
+  return did.number_class !== 'temporary' && did.number_type !== 'toll_free';
 }
 
 export function getStatusBadgeClass(status: PhoneNumberStatus): string {

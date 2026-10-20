@@ -49,6 +49,7 @@ export function mergePhoneNumbers(
       phone_number: did.phone_number,
       status: did.status as PhoneNumberStatus,
       number_class: did.number_class,
+      number_type: did.number_type,
       expires_at: did.expires_at,
       disconnected_at: did.disconnected_at,
       outbound_enabled: did.outbound_enabled,
