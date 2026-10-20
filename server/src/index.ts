@@ -217,7 +217,7 @@ export interface AccountConfig {
   region?: string;
   /** Number of digits for extension numbers, 3-6 (default: 4) */
   extension_length?: number;
-  /** Whether calls are transcribed (default: true) */
+  /** Whether calls are transcribed (default: false). Voicemail is transcribed regardless. */
   transcription_enabled?: boolean;
   /**
    * Whether inbound calls are transcribed. Narrows transcription_enabled, which
@@ -233,7 +233,7 @@ export interface AccountConfig {
   transcription_outbound_enabled?: boolean;
   /** Whether extension-to-extension calls are transcribed (default: true) */
   transcription_internal_enabled?: boolean;
-  /** Whether call audio recordings are retained (default: true) */
+  /** Whether call audio recordings are retained (default: false) */
   recording_enabled?: boolean;
   /**
    * Whether inbound call audio is retained. Narrows recording_enabled, which

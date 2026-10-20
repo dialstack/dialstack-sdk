@@ -50,7 +50,7 @@ export interface AccountConfig {
   intercom?: IntercomConfig | null;
   region?: string;
   extension_length?: number;
-  /** Whether calls are transcribed. Defaults to true. */
+  /** Whether calls are transcribed. Defaults to false. Voicemail is transcribed regardless. */
   transcription_enabled?: boolean;
   /**
    * Whether inbound calls are transcribed. Narrows transcription_enabled, which
@@ -66,7 +66,7 @@ export interface AccountConfig {
   transcription_outbound_enabled?: boolean;
   /** Whether extension-to-extension calls are transcribed (default: true) */
   transcription_internal_enabled?: boolean;
-  /** Whether call audio recordings are retained. Defaults to true. */
+  /** Whether call audio recordings are retained. Defaults to false. */
   recording_enabled?: boolean;
   /**
    * Whether inbound call audio is retained. Narrows recording_enabled, which
