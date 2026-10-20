@@ -75,6 +75,7 @@ import type {
   UpdateTemplateButtonRequest,
   CreateDeviceResponse,
   DeviceStatus,
+  DeviceZeroTouchEscalation,
   DeviceType,
   DeviceSettings,
 } from '@dialstack/sdk-js';
@@ -1409,7 +1410,13 @@ export interface TemplateButtonListParams {
 // which carries deprecated `*_id` aliases for older clients. `display_name` is
 // likewise omitted throughout: the spec marks it `deprecated: true` as an alias
 // of `name`, and `name` is canonical for every device type.
-export type { CreateDeviceResponse, DeviceSettings, DeviceStatus, DeviceType };
+export type {
+  CreateDeviceResponse,
+  DeviceSettings,
+  DeviceStatus,
+  DeviceType,
+  DeviceZeroTouchEscalation,
+};
 
 export type DeviceRegistrationStatus = 'registered' | 'not_registered';
 
@@ -1515,6 +1522,16 @@ export interface Device {
    * still in use.
    */
   last_call_at: string | null;
+  /**
+   * Whether the device was shipped in one of the platform's hardware orders,
+   * rather than brought by the customer. Deskphones and DECT bases only.
+   */
+  from_hardware_order?: boolean;
+  /**
+   * The device's open zero-touch provisioning escalation; null when none is
+   * open. Deskphones and DECT bases only.
+   */
+  zero_touch_escalation?: DeviceZeroTouchEscalation | null;
   created_at: string;
   updated_at: string;
 

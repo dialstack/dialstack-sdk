@@ -22,6 +22,20 @@ export type DeviceType = 'deskphone' | 'dect_base' | 'dect_handset';
 // ============================================================================
 
 /**
+ * Why a zero-touch provisioning escalation is open: the vendor has the device
+ * registered to another provider (`registered_elsewhere`), rejected its MAC
+ * address and serial number pair (`invalid_serial`), or could not take the
+ * registration (`vendor_unavailable`). More values may be added.
+ */
+export type DeviceZeroTouchEscalationReason =
+  'registered_elsewhere' | 'invalid_serial' | 'vendor_unavailable' | 'other';
+
+/** An open zero-touch provisioning escalation on a deskphone or DECT base. */
+export interface DeviceZeroTouchEscalation {
+  reason: DeviceZeroTouchEscalationReason;
+}
+
+/**
  * A device returned by `GET /v1/devices` or `GET /v1/devices/:id`.
  * The `type` field discriminates between deskphones and DECT bases.
  * Type-specific fields are present only for the corresponding type.
@@ -90,6 +104,16 @@ export interface Device {
    * carried a call; recency indicates whether it is still in use.
    */
   last_call_at: string | null;
+  /**
+   * Whether the device was shipped in one of the platform's hardware orders,
+   * rather than brought by the customer. Deskphones and DECT bases only.
+   */
+  from_hardware_order?: boolean;
+  /**
+   * The device's open zero-touch provisioning escalation; `null` when none is
+   * open. Deskphones and DECT bases only.
+   */
+  zero_touch_escalation?: DeviceZeroTouchEscalation | null;
   /** ISO 8601 timestamp */
   created_at: string;
   /** ISO 8601 timestamp */
