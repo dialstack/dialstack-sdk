@@ -12,6 +12,45 @@ function device(overrides: Partial<DeviceReadinessInput> = {}): DeviceReadinessI
 }
 
 describe('deviceReadiness', () => {
+  describe('DECT handsets', () => {
+    // Handsets take their settings from the base and never fetch on their
+    // own, so the provisioning step can never complete for them.
+    const handset = (overrides: Partial<DeviceReadinessInput> = {}) =>
+      device({ type: 'dect_handset', status: 'unpaired', base_id: 'dectb_x', ...overrides });
+
+    it('leaves provisioning out of the applicable steps', () => {
+      expect(deviceReadiness(handset()).steps).toEqual(['online', 'ready_to_call', 'first_call']);
+    });
+
+    it('starts onboarding at the online step', () => {
+      const r = deviceReadiness(handset());
+      expect(r.currentStep).toBe('online');
+      expect(r.completedCount).toBe(0);
+    });
+
+    it('counts completed steps out of three', () => {
+      const r = deviceReadiness(
+        handset({
+          registration_status: 'registered',
+          assignments: [{ user_id: 'user_x' }],
+          last_call_at: '2026-06-01T12:00:00Z',
+        })
+      );
+      expect(r.currentStep).toBeNull();
+      expect(r.completedCount).toBe(3);
+    });
+
+    it('ignores a handset status that happens to read provisioned', () => {
+      expect(deviceReadiness(handset({ status: 'provisioned' })).completedCount).toBe(0);
+    });
+  });
+
+  it('keeps all four steps for deskphones and DECT bases', () => {
+    const all = ['provisioned', 'online', 'ready_to_call', 'first_call'];
+    expect(deviceReadiness(device()).steps).toEqual(all);
+    expect(deviceReadiness(device({ type: 'dect_base' })).steps).toEqual(all);
+  });
+
   it('reports a freshly added device as fully pending', () => {
     const r = deviceReadiness(device({ status: 'pending-sync' }));
     expect(r).toEqual({
@@ -23,6 +62,7 @@ describe('deviceReadiness', () => {
       graduated: false,
       currentStep: 'provisioned',
       completedCount: 0,
+      steps: ['provisioned', 'online', 'ready_to_call', 'first_call'],
       missing: ['user', 'location'],
     });
   });

@@ -6,7 +6,9 @@
  * partner integrations) computes the same answer. Nothing here is stored —
  * each condition reflects a live signal:
  *
- * - **provisioned** — the device has fetched its settings (`status`).
+ * - **provisioned** — the device has fetched its settings (`status`). Not a
+ *   step for DECT handsets: they take their settings from their base and
+ *   never fetch on their own (see `steps`).
  * - **online** — the device is reachable right now (`registration_status`).
  *   Online does NOT mean the device can place a call.
  * - **assigned** — the device belongs to a user. A floating gate: it can flip
@@ -34,7 +36,11 @@ import type { DeviceType, RegistrationStatus } from '../types/device';
  * row shapes reuse the derivation as long as they carry the raw fields.
  */
 export interface DeviceReadinessInput {
-  /** Device type discriminator; assignment derivation differs for DECT bases. */
+  /**
+   * Device type discriminator. Required for correct DECT readiness: bases
+   * skip the assignment gate and handsets skip the provisioned step, so a
+   * handset passed without `type` is read as a deskphone.
+   */
   type?: DeviceType;
   /** Persisted provisioning status (`pending-sync` | `provisioned`). */
   status: string;
@@ -68,7 +74,10 @@ export type DeviceReadinessPrerequisite =
 export type DeviceReadinessStep = 'provisioned' | 'online' | 'ready_to_call' | 'first_call';
 
 export interface DeviceReadiness {
-  /** The device has fetched its settings. */
+  /**
+   * The device has fetched its settings. Only meaningful when `steps`
+   * includes `'provisioned'`.
+   */
   provisioned: boolean;
   /** The device is reachable right now (not the same as call-capable). */
   online: boolean;
@@ -80,10 +89,15 @@ export interface DeviceReadiness {
   firstCall: boolean;
   /** Whether the device has left onboarding (=== `firstCall`). */
   graduated: boolean;
-  /** First incomplete step on the spine, or `null` when all are satisfied. */
+  /** First incomplete step in `steps`, or `null` when all are satisfied. */
   currentStep: DeviceReadinessStep | null;
-  /** How many of the four spine steps are satisfied (0–4). */
+  /** How many of `steps` are satisfied. */
   completedCount: number;
+  /**
+   * The spine steps that apply to this device, in order. DECT handsets skip
+   * `'provisioned'` — their base fetches the settings for them.
+   */
+  steps: DeviceReadinessStep[];
   /**
    * Configuration prerequisites the device is still missing, per device
    * type: a user for the line (deskphones/handsets), an E911 location
@@ -97,8 +111,8 @@ export interface DeviceReadiness {
 /**
  * Derive the readiness conditions for a device.
  *
- * The spine is provisioned → online → ready to call → first call, but it is
- * not a strict sequence: `assigned` floats and gates `readyToCall`, so e.g. a
+ * The spine is provisioned → online → ready to call → first call (DECT
+ * handsets start at online), but it is not a strict sequence: `assigned` floats and gates `readyToCall`, so e.g. a
  * userless device can be online while blocked on assignment.
  */
 export function deviceReadiness(device: DeviceReadinessInput): DeviceReadiness {
@@ -120,12 +134,14 @@ export function deviceReadiness(device: DeviceReadinessInput): DeviceReadiness {
   if (device.type !== 'dect_handset' && !device.location_id) missing.push('location');
   if (device.type === 'dect_handset' && !device.base_id) missing.push('base');
 
-  const spine: Array<[DeviceReadinessStep, boolean]> = [
-    ['provisioned', provisioned],
-    ['online', online],
-    ['ready_to_call', readyToCall],
-    ['first_call', firstCall],
-  ];
+  const spine = (
+    [
+      ['provisioned', provisioned],
+      ['online', online],
+      ['ready_to_call', readyToCall],
+      ['first_call', firstCall],
+    ] satisfies Array<[DeviceReadinessStep, boolean]>
+  ).filter(([step]) => step !== 'provisioned' || device.type !== 'dect_handset');
   const firstIncomplete = spine.find(([, done]) => !done);
 
   return {
@@ -137,6 +153,7 @@ export function deviceReadiness(device: DeviceReadinessInput): DeviceReadiness {
     graduated: firstCall,
     currentStep: firstIncomplete ? firstIncomplete[0] : null,
     completedCount: spine.filter(([, done]) => done).length,
+    steps: spine.map(([step]) => step),
     missing,
   };
 }
