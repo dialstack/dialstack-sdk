@@ -107,6 +107,15 @@ export async function loadDialstackAndInitialize(
     getAppearance: () => {
       return instance.getAppearance();
     },
+    registerClientPackage: (name, version) => {
+      instance.registerClientPackage(name, version);
+    },
+    registerClientComponent: (packageName, component) => {
+      instance.registerClientComponent(packageName, component);
+    },
+    clientHeader: () => {
+      return instance.clientHeader();
+    },
     // Resource namespaces — delegate directly to the instance properties
     calls: instance.calls,
     voicemails: instance.voicemails,

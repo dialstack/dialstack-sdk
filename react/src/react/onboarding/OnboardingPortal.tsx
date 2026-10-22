@@ -52,6 +52,7 @@ import {
 import PORTAL_STYLES from './styles/portal-styles.css';
 import SPLASH_STYLES from './styles/splash-styles.css';
 import OVERVIEW_STYLES from './styles/overview-styles.css';
+import { useReportComponent } from '../DialstackComponentsProvider';
 
 const PORTAL_RESET = '* { box-sizing: border-box; font-family: var(--ds-font-family); }\n';
 const PORTAL_STYLESHEETS = [PORTAL_RESET + PORTAL_STYLES, SPLASH_STYLES, OVERVIEW_STYLES];
@@ -103,6 +104,7 @@ function tosNeedsAcceptance(tos: Tos | null): tos is Tos {
 }
 
 export const OnboardingPortal: React.FC<OnboardingPortalProps> = (props) => {
+  useReportComponent('onboarding');
   const locale = props.locale ?? defaultLocale;
   const { progressStore, sharedData, reloadSharedData, storeHydrated } =
     useOnboardingBootstrap(portalErrorHandler);

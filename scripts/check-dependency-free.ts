@@ -314,45 +314,53 @@ if (!releaseConfig && !FIX) {
   );
   failed = true;
 }
-// Anchored at `var SDK = Package{`: SDKNative is the same struct type, so an
-// unanchored match binds to whichever package appears first.
-const sdkVar = releaseConfig.indexOf('var SDK = Package{');
-const versionSourcesBlock =
-  sdkVar === -1
-    ? null
-    : releaseConfig.slice(sdkVar).match(/VersionSources:\s*\[\]VersionSource\{([\s\S]*?)\n\t\},/);
-if (releaseConfig && sdkVar === -1) {
-  console.error(
-    '\u2717 could not find `var SDK = Package{` in scripts/sdk-release/config.go \u2014 ' +
-      'its shape changed and the version literals are not being checked'
-  );
-  failed = true;
-}
-const versionSourceLines = (versionSourcesBlock?.[1] ?? '')
-  .split('\n')
-  .map((l) => l.trim())
-  .filter((l) => l !== '' && !l.startsWith('//'));
-const versionSources: Array<{ path: string; constName: string }> = [];
-for (const entry of versionSourceLines) {
-  const m = entry.match(/^\{Path:\s*"([^"]+)",\s*Const:\s*"([^"]+)"\},?$/);
-  if (m && m[1] && m[2]) versionSources.push({ path: m[1], constName: m[2] });
+// Each package's block is found from its own `var <name> = Package{`, since SDK and
+// SDKNative are the same struct type and an unanchored match binds to whichever
+// comes first. Both release lines carry version literals, so both are checked.
+function parseVersionSources(varName: string): Array<{ path: string; constName: string }> {
+  // No release tool: already reported above, or skipped under --fix.
+  if (!releaseConfig) return [];
+  const at = releaseConfig.indexOf(`var ${varName} = Package{`);
+  if (at === -1) {
+    console.error(
+      `\u2717 could not find \`var ${varName} = Package{\` in scripts/sdk-release/config.go \u2014 ` +
+        'its shape changed and the version literals are not being checked'
+    );
+    failed = true;
+    return [];
+  }
+  const block = releaseConfig
+    .slice(at)
+    .match(/VersionSources:\s*\[\]VersionSource\{([\s\S]*?)\n\t\},/);
+  const lines = (block?.[1] ?? '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l !== '' && !l.startsWith('//'));
+  const parsed: Array<{ path: string; constName: string }> = [];
+  for (const entry of lines) {
+    const m = entry.match(/^\{Path:\s*"([^"]+)",\s*Const:\s*"([^"]+)"\},?$/);
+    if (m && m[1] && m[2]) parsed.push({ path: m[1], constName: m[2] });
+  }
+
+  // Every non-comment line must parse: checking a subset would retire part of the
+  // guard while still reporting success.
+  if (parsed.length === 0) {
+    console.error(
+      `\u2717 parsed no ${varName} VersionSources from scripts/sdk-release/config.go \u2014 ` +
+        'its shape changed and nothing is being kept in sync'
+    );
+    failed = true;
+  } else if (parsed.length !== lines.length) {
+    console.error(
+      `\u2717 parsed ${parsed.length} of ${lines.length} ${varName} VersionSources ` +
+        `entries in scripts/sdk-release/config.go \u2014 the unparsed ones would go unchecked`
+    );
+    failed = true;
+  }
+  return parsed;
 }
 
-// Every non-comment line must parse: checking a subset would retire part of the
-// guard while still reporting success.
-if (releaseConfig && versionSources.length === 0) {
-  console.error(
-    '\u2717 parsed no VersionSources from scripts/sdk-release/config.go \u2014 ' +
-      'its shape changed and nothing is being kept in sync'
-  );
-  failed = true;
-} else if (versionSources.length !== versionSourceLines.length) {
-  console.error(
-    `\u2717 parsed ${versionSources.length} of ${versionSourceLines.length} VersionSources ` +
-      `entries in scripts/sdk-release/config.go \u2014 the unparsed ones would go unchecked`
-  );
-  failed = true;
-}
+const versionSources = [...parseVersionSources('SDK'), ...parseVersionSources('SDKNative')];
 
 for (const { path: relPath, constName } of versionSources) {
   const [root, pkg] = relPath.split('/');

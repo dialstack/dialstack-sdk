@@ -6,6 +6,7 @@ import React from 'react';
 import { renderHook, waitFor, render, screen } from '@testing-library/react';
 import { useCreateComponent } from '../useCreateComponent';
 import { DialstackComponentsProvider } from '../DialstackComponentsProvider';
+import { PACKAGE_VERSION } from '../version';
 import type { DialStackInstance, ComponentElement } from '@dialstack/sdk-js';
 
 // Create a proper mock element that behaves like a DOM element
@@ -77,28 +78,29 @@ describe('useCreateComponent', () => {
     expect(mockDialstack.create).toHaveBeenCalledWith('call-logs');
   });
 
-  it('sets SDK version attribute on created component', async () => {
-    const mockElement = createMockElement();
-    const setAttributeSpy = jest.spyOn(mockElement, 'setAttribute');
-    const mockDialstack = createMockDialstack(mockElement);
-
-    const TestComponent = () => {
-      const { containerRef } = useCreateComponent(mockDialstack, 'call-logs');
-      return <div ref={containerRef} />;
-    };
+  it('reports the sdk-react version through the instance', () => {
+    const mockDialstack = {
+      ...createMockDialstack(),
+      registerClientPackage: jest.fn(),
+    } as DialStackInstance;
 
     render(
       <DialstackComponentsProvider dialstack={mockDialstack}>
-        <TestComponent />
+        <div />
       </DialstackComponentsProvider>
     );
 
-    await waitFor(() => {
-      expect(setAttributeSpy).toHaveBeenCalledWith(
-        'data-dialstack-sdk-version',
-        expect.any(String)
-      );
-    });
+    expect(mockDialstack.registerClientPackage).toHaveBeenCalledWith('sdk-react', PACKAGE_VERSION);
+  });
+
+  it('renders without an instance yet, as plain-JS callers may pass one', () => {
+    expect(() =>
+      render(
+        <DialstackComponentsProvider dialstack={null as unknown as DialStackInstance}>
+          <div />
+        </DialstackComponentsProvider>
+      )
+    ).not.toThrow();
   });
 
   it('appends component to container', async () => {

@@ -1,11 +1,16 @@
 import { DialStackPhone, type PhoneOptions } from '@dialstack/sdk-webrtc';
 
+import type { ClientAppInfo } from '@dialstack/sdk-js/pure';
+import { nativeClient } from '../clientInfo';
 import { nativeSignalingSocket } from '../nativeSignalingSocket';
 
 export type CreatePhoneOptions = Omit<
   PhoneOptions,
-  'createSignalingSocket' | 'deferInboundCapture'
->;
+  'createSignalingSocket' | 'deferInboundCapture' | 'client'
+> & {
+  /** Your application's name and version, reported to DialStack with the SDK's version. */
+  appInfo?: ClientAppInfo;
+};
 
 let phone: DialStackPhone | null = null;
 
@@ -27,9 +32,11 @@ export function createPhone(options: CreatePhoneOptions): DialStackPhone {
         'process — one OS call surface, one SIP AOR. Use getPhone() to adopt it.'
     );
   }
+  const { appInfo, ...phoneOptions } = options;
   phone = new DialStackPhone({
-    ...options,
+    ...phoneOptions,
     createSignalingSocket: nativeSignalingSocket,
+    client: nativeClient(appInfo),
     // CallKit and Telecom activate the call's audio session only on answer, and
     // capturing before that costs the call its microphone for good — so the mic is
     // always taken on answer here. Not an option: there is no RN case that wants

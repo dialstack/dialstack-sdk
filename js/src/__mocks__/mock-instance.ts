@@ -274,6 +274,9 @@ export function createMockInstance(
     livemode: true,
     getAppearance: () => appearance,
     getClientSecret: async () => 'mock_secret',
+    registerClientPackage: () => {},
+    registerClientComponent: () => {},
+    clientHeader: () => '',
 
     // fetchComponentData calls this internally for call-logs, call-history, voicemails
     fetchApi: async (path: string) => {

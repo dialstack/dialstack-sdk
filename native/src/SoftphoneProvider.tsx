@@ -10,6 +10,8 @@ import {
   type UseAudioOutput,
 } from './audioOutput';
 import { resolveCallAudio, silentRingback, type CallAudioOwner } from './callAudio';
+import type { ClientAppInfo } from '@dialstack/sdk-js/pure';
+import { nativeClient } from './clientInfo';
 import { nativeSignalingSocket } from './nativeSignalingSocket';
 import type { NativeCallBridge } from './bridge/NativeCallBridge';
 import { type CountryCode } from 'libphonenumber-js';
@@ -169,6 +171,11 @@ export interface SoftphoneProviderProps {
    * route. Ignored unless call audio is `'host'`.
    */
   audioOutput?: AudioOutputController;
+  /**
+   * Your application's name and version, reported to DialStack with the SDK's
+   * version. Ignored with `existingPhone`: pass it to `createPhone()` instead.
+   */
+  appInfo?: ClientAppInfo;
   children: React.ReactNode;
 }
 
@@ -202,6 +209,7 @@ export function SoftphoneProvider({
   bridge,
   callAudio: requestedCallAudio,
   audioOutput,
+  appInfo,
   children,
 }: SoftphoneProviderProps): React.JSX.Element {
   const callAudio = resolveCallAudio(bridge !== undefined, requestedCallAudio);
@@ -245,6 +253,7 @@ export function SoftphoneProvider({
       storage={storage}
       ringback={callAudio === 'host' ? silentRingback : nativeRingback}
       createSignalingSocket={nativeSignalingSocket}
+      client={() => nativeClient(appInfo)}
       onAppResume={nativeAppResume}
       apiBaseUrl={apiBaseUrl}
       onTokenExpiring={onTokenExpiring}

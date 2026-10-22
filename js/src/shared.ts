@@ -22,6 +22,13 @@ export type { Locale } from './locales';
 // is unreliable.
 export { ApiError, isApiError, DialStackInstanceImplClass } from './core/instance';
 
+/**
+ * Builds the `DialStack-Client` value for DialStack packages that report
+ * without an instance (a standalone softphone, the React Native phone).
+ * @internal
+ */
+export { ClientInfo } from './core/client-info';
+
 // Device onboarding-readiness, a pure derivation over the shared device types.
 // Exported so every consumer agrees on what "ready" means rather than each
 // re-deriving it.

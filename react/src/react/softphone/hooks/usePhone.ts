@@ -33,7 +33,13 @@ export function __setPhoneFactory(factory: PhoneFactory | null): void {
 export type SoftphoneConnectionState =
   'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error';
 
-export interface UsePhoneOptions extends PhoneOptions {
+export interface UsePhoneOptions extends Omit<PhoneOptions, 'client'> {
+  /**
+   * Returns the phone's `client` string. Called when the phone is constructed,
+   * so it reflects everything registered by then.
+   */
+  client?: () => string;
+
   /**
    * Adopt an EXISTING phone instead of constructing one from credentials — for
    * hosts where the phone outlives the UI (a push wake may already have answered
@@ -103,6 +109,7 @@ export function usePhone(options: UsePhoneOptions): UsePhoneResult {
   const ringbackRef = useLatestRef(options.ringback);
   const createSignalingSocketRef = useLatestRef(options.createSignalingSocket);
   const onAppResumeRef = useLatestRef(options.onAppResume);
+  const clientRef = useLatestRef(options.client);
   const onTokenExpiringRef = useLatestRef(options.onTokenExpiring);
 
   // Construct + connect the phone for the current credentials; reconnect on
@@ -176,6 +183,7 @@ export function usePhone(options: UsePhoneOptions): UsePhoneResult {
       ringback: ringbackRef.current,
       createSignalingSocket: createSignalingSocketRef.current,
       onAppResume: onAppResumeRef.current,
+      client: clientRef.current?.(),
       autoReconnect,
       onTokenExpiring: onTokenExpiringRef.current
         ? () => {

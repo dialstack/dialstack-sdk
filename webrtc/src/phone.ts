@@ -14,6 +14,7 @@ import {
   type RTCSessionDescriptionInit,
 } from './platform.js';
 import type { Ringback } from './ringback.js';
+import { PACKAGE_VERSION } from './version.js';
 import { Transport, type AppResumeSubscribe, type SignalingSocketFactory } from './transport.js';
 import type {
   AudioDevice,
@@ -167,6 +168,7 @@ export class DialStackPhone {
 
   private token: string;
   private apiBaseUrl: string;
+  private readonly client: string;
   private signalingUrl: string;
   private autoReconnect: boolean;
   private iceServersOverride: RTCIceServer[] | null;
@@ -218,6 +220,11 @@ export class DialStackPhone {
   constructor(options: PhoneOptions) {
     this.token = options.token;
     this.apiBaseUrl = options.apiBaseUrl ?? DEFAULT_API_BASE_URL;
+    // sdk-native inlines this package's source on its own release line, so this
+    // constant there is whatever the last web release wrote; its own version
+    // already identifies the build.
+    const own = options.client?.startsWith('sdk-native/') ? '' : `sdk-webrtc/${PACKAGE_VERSION}`;
+    this.client = [own, options.client].filter(Boolean).join(' ');
     this.signalingUrl = resolveSignalingUrl(options.signalingBaseUrl, this.apiBaseUrl);
     this.autoReconnect = options.autoReconnect ?? true;
     this.iceServersOverride = options.iceServers ?? null;
@@ -617,6 +624,7 @@ export class DialStackPhone {
       type: 'authenticate',
       req_id: reqId,
       token: this.token,
+      client: this.client,
       ...(this.emergencyAddressId ? { emergency_address_id: this.emergencyAddressId } : {}),
     });
   }
@@ -1182,6 +1190,7 @@ export class DialStackPhone {
         method,
         headers: {
           Authorization: `Bearer ${this.token}`,
+          'DialStack-Client': this.client,
           ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         },
         body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -1214,7 +1223,7 @@ export class DialStackPhone {
       // Bound the fetch: it runs before the socket opens, so connect()'s
       // authenticate timeout doesn't cover it — a stalled fetch would hang forever.
       const resp = await fetch(`${this.apiBaseUrl}/v1/webrtc/ice-servers`, {
-        headers: { Authorization: `Bearer ${this.token}` },
+        headers: { Authorization: `Bearer ${this.token}`, 'DialStack-Client': this.client },
         signal: timeoutSignal(ICE_FETCH_TIMEOUT_MS),
       });
       if (!resp.ok) throw new Error(`status ${resp.status}`);

@@ -31,6 +31,9 @@ export {
   // this package's own name, so this export is what they land on — dropping it
   // breaks every subpath at bundle time.
   DialstackComponentsContext,
+  // Component subpaths import this from here too (same rewrite), so it has to be
+  // exported even though integrators have no use for it.
+  useReportComponent,
 } from './react/DialstackComponentsProvider';
 export { useCreateComponent } from './react/useCreateComponent';
 export { useUpdateWithSetter } from './react/useUpdateWithSetter';

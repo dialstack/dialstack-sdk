@@ -140,6 +140,12 @@ export abstract class BaseComponent extends getHTMLElementBase() {
   setInstance(instance: DialStackInstanceImpl): void {
     this.instance = instance;
     this.appearance = instance.getAppearance();
+    // Optional call: integrators' test doubles of the instance predate this
+    // method, and usage reporting must never be what breaks a component.
+    instance.registerClientComponent?.(
+      'sdk-js',
+      this.tagName.toLowerCase().replace(/^dialstack-/, '')
+    );
 
     // Initialize if already connected to DOM
     if (this.isConnected && !this.isInitialized) {

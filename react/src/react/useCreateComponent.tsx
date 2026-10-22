@@ -5,8 +5,6 @@
 import { useCallback, useRef, useState } from 'react';
 import type { ComponentTagName, ComponentElement, DialStackInstance } from '@dialstack/sdk-js';
 
-import { PACKAGE_VERSION } from './version';
-
 /**
  * Return type for useCreateComponent hook - properly typed based on tag name
  */
@@ -97,13 +95,6 @@ export function useCreateComponent<T extends ComponentTagName>(
         // instance. Withdraw it before the error propagates.
         dialstack.removeAppearanceTarget(component as HTMLElement);
         throw err;
-      }
-
-      // Set SDK version for analytics
-      try {
-        component.setAttribute('data-dialstack-sdk-version', PACKAGE_VERSION);
-      } catch (e) {
-        console.log('Error setting SDK version attribute:', e);
       }
 
       // Append to container

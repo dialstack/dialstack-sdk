@@ -1,9 +1,10 @@
 import type { SignalingSocketFactory } from '@dialstack/sdk-react/core';
+import { PACKAGE_VERSION } from './version';
 
 // The signaling ingress 403s a handshake with no `User-Agent`. iOS's WebSocket
 // (SocketRocket) sends none by default, so we set one explicitly. RN's WebSocket
 // takes a third `options` arg the DOM type doesn't declare; hence the cast.
-const NATIVE_USER_AGENT = 'dialstack-sdk (react-native)';
+const NATIVE_USER_AGENT = `dialstack-sdk-native/${PACKAGE_VERSION} (react-native)`;
 
 /**
  * Its own module so `createPhone()` can use it without importing the provider

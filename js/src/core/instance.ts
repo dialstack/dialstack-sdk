@@ -87,6 +87,8 @@ import type {
 export type { RoutingTargetType } from '../types';
 export { ROUTING_TARGET_TYPE_ORDER } from '../types';
 import type { DialPlan as DialPlanData } from '../types/dial-plan';
+import { CLIENT_HEADER, ClientInfo } from './client-info';
+import { PACKAGE_VERSION } from '../version';
 import type { AIAgent, UpdateAIAgentRequest } from '../types/ai-agent';
 import type { HardwareOrder, HardwareOrderList } from '../types/hardware-orders';
 
@@ -260,6 +262,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   private cachedAccountId: string | null = null;
   private refreshTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private components: Set<HTMLElement> = new Set();
+  private clientInfo: ClientInfo;
 
   // Event handling
   private eventListeners: Map<keyof CallEventMap, Set<CallEventHandler<unknown>>> = new Map();
@@ -282,6 +285,8 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     this.apiUrl = params.apiUrl || DEFAULT_API_URL;
     this.fetchClientSecretFn = params.fetchClientSecret;
     this.appearance = params.appearance;
+    this.clientInfo = new ClientInfo(params.appInfo);
+    this.clientInfo.registerPackage('sdk-js', PACKAGE_VERSION);
 
     // Validate publishable key
     if (!this.publishableKey) {
@@ -451,6 +456,18 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     return this.appearance;
   }
 
+  registerClientPackage(name: string, version: string): void {
+    this.clientInfo.registerPackage(name, version);
+  }
+
+  registerClientComponent(packageName: string, component: string): void {
+    this.clientInfo.registerComponent(packageName, component);
+  }
+
+  clientHeader(): string {
+    return this.clientInfo.header();
+  }
+
   /**
    * Get the account ID for account-scoped endpoints
    */
@@ -506,6 +523,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
 
     const headers = new Headers(options.headers);
     headers.set('Authorization', `Bearer ${clientSecret}`);
+    headers.set(CLIENT_HEADER, this.clientInfo.header());
     if (!(options.body instanceof FormData)) {
       headers.set('Content-Type', 'application/json');
     }
@@ -2311,6 +2329,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         headers: {
           Authorization: `Bearer ${clientSecret}`,
           Accept: 'text/event-stream',
+          [CLIENT_HEADER]: this.clientInfo.header(),
         },
         signal: this.eventStreamController.signal,
       });
@@ -2521,6 +2540,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   private async fetchBffApi(path: string, options: RequestInit = {}): Promise<Response> {
     const headers = new Headers(options.headers);
     headers.set('Authorization', `Bearer ${this.publishableKey}`);
+    headers.set(CLIENT_HEADER, this.clientInfo.header());
     headers.set('Content-Type', 'application/json');
 
     return fetch(`${this.apiUrl}${path}`, {

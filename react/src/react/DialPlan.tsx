@@ -31,7 +31,7 @@ import {
 } from '@xyflow/react';
 import xyflowStyles from '@xyflow/react/dist/style.css';
 
-import { useDialstackComponents } from './DialstackComponentsProvider';
+import { useDialstackComponents, useReportComponent } from './DialstackComponentsProvider';
 import { useAppearance } from './useAppearance';
 import {
   type DialStackInstance,
@@ -1239,6 +1239,7 @@ const dialPlanStylesheets = [xyflowStyles, dialPlanStyles];
 
 export const DialPlan = React.forwardRef<DialPlanHandle, DialPlanProps>((props, ref) => {
   const { dialstack } = useDialstackComponents();
+  useReportComponent('dial-plan');
   const appearance = useAppearance(dialstack);
   const instanceTheme = appearance?.theme === 'dark' ? 'dark' : 'light';
   const theme = props.theme ?? instanceTheme;

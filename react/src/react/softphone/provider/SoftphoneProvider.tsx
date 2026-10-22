@@ -24,9 +24,12 @@ import { resolveSoftphonePalette } from '../core/theme';
 import { buildSoftphoneStyles } from '../core/styles';
 import { IncomingRingtone } from '../ui/ringtone';
 import { DialstackComponentsContext } from '../../DialstackComponentsProvider';
+import { PACKAGE_VERSION } from '../../version';
 import { useAppearance } from '../../useAppearance';
 import {
+  ClientInfo,
   defaultLocale,
+  type ClientAppInfo,
   type Locale,
   type AppearanceOptions,
   type DialStackInstance,
@@ -125,6 +128,12 @@ export interface SoftphoneProviderProps {
    * one, whatever the host.
    */
   layoutVariant?: SoftphoneLayoutVariant;
+  /**
+   * Your application's name and version, reported to DialStack with the SDK's
+   * own package versions. Ignored inside a `<DialstackComponentsProvider>`:
+   * set `appInfo` on `loadDialstackAndInitialize` there instead.
+   */
+  appInfo?: ClientAppInfo;
 
   /** The softphone UI (or anything that consumes the context). */
   children: React.ReactNode;
@@ -176,6 +185,7 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
   onError,
   resolvePeer,
   layoutVariant,
+  appInfo,
   children,
 }) => {
   const scope = `ds-softphone-${useId().replace(/[:]/g, '')}`;
@@ -192,6 +202,16 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
     componentsCtx?.dialstack.getAppearance()
   );
   const effectiveAppearance = appearance ?? instanceAppearance;
+  // Inside a components provider, report through the instance so the
+  // signaling connection carries the same packages and app info as the rest of
+  // the integration; standalone, report sdk-react and the appInfo prop.
+  const dialstack = componentsCtx?.dialstack;
+  dialstack?.registerClientComponent?.('sdk-react', 'softphone');
+  // A getter, read when the phone is constructed (after the whole tree has
+  // rendered), so components mounted alongside the softphone are included.
+  const client = () =>
+    dialstack?.clientHeader?.() ||
+    ClientInfo.forComponent('sdk-react', PACKAGE_VERSION, 'softphone', appInfo);
   // Content key so an inline `appearance={{ theme }}` literal (new object each
   // render) doesn't re-serialize the stylesheet every render.
   const appearanceKey = `${effectiveAppearance?.theme ?? ''}|${JSON.stringify(
@@ -216,6 +236,7 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
       iceServers={iceServers}
       emergencyAddressId={emergencyAddressId}
       autoConnect={autoConnect}
+      client={client}
       appearance={effectiveAppearance}
       locale={locale}
       defaultCountry={defaultCountry}

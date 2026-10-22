@@ -156,6 +156,8 @@ export interface SoftphoneCoreProps {
   storage?: PlatformStorage;
   ringback?: UsePhoneOptions['ringback'];
   createSignalingSocket?: UsePhoneOptions['createSignalingSocket'];
+  /** The embedding package's `DialStack-Client` tokens, passed to the phone. */
+  client?: UsePhoneOptions['client'];
   onAppResume?: UsePhoneOptions['onAppResume'];
   emergencyAddressId?: string;
   autoConnect?: boolean;
@@ -213,6 +215,7 @@ export function SoftphoneProviderBase<Extra extends object>({
   storage,
   ringback,
   createSignalingSocket,
+  client,
   onAppResume,
   emergencyAddressId,
   autoConnect = true,
@@ -250,6 +253,7 @@ export function SoftphoneProviderBase<Extra extends object>({
     storage,
     ringback,
     createSignalingSocket,
+    client,
     onAppResume,
     emergencyAddressId,
     autoConnect,

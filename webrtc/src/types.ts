@@ -14,6 +14,14 @@ export interface PhoneOptions {
   token: string;
   apiBaseUrl?: string;
   /**
+   * Packages and components embedding this phone, in the `DialStack-Client`
+   * format (e.g. `sdk-react/3.7.0;c=softphone`). The phone adds its own
+   * `sdk-webrtc` token and reports the result to DialStack on its API
+   * requests and signaling handshake. Set by DialStack's own packages; an
+   * app embedding the phone directly can leave it unset.
+   */
+  client?: string;
+  /**
    * Base URL of the signaling server the phone opens its WebSocket to, e.g.
    * `wss://webrtc.dialstack.ai`. The signaling host is separate from
    * `apiBaseUrl` (the REST API) and is served by region-aware infrastructure,
@@ -233,7 +241,13 @@ export interface IceServersResponse {
 }
 
 export type ClientMessage =
-  | { type: 'authenticate'; req_id?: string; token: string; emergency_address_id?: string }
+  | {
+      type: 'authenticate';
+      req_id?: string;
+      token: string;
+      emergency_address_id?: string;
+      client?: string;
+    }
   | { type: 'auth.refresh'; req_id?: string; token: string }
   // Application-layer liveness probe. Sent by the client to confirm the socket
   // is still alive after the environment resumes from a background throttle —

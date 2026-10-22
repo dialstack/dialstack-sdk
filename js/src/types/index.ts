@@ -168,6 +168,7 @@ export type {
 // Core SDK types
 export type {
   ClientSecretResponse,
+  ClientAppInfo,
   DialStackInitParams,
   DialStackInstance,
   SessionData,

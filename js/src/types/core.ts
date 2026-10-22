@@ -149,6 +149,12 @@ export type ClientSecretResponse =
       account_id?: string;
     };
 
+/** Application that embeds the SDK, reported alongside the SDK's own packages. */
+export interface ClientAppInfo {
+  name: string;
+  version?: string;
+}
+
 /**
  * Initialization parameters for loadDialstackAndInitialize()
  */
@@ -197,6 +203,14 @@ export interface DialStackInitParams {
    * Optional API endpoint URL (defaults to https://api.dialstack.ai)
    */
   apiUrl?: string;
+
+  /**
+   * Optional name and version of your application. Sent with the SDK's own
+   * package versions in the `DialStack-Client` request header, so DialStack
+   * can tell your integration apart when diagnosing issues or planning a
+   * deprecation.
+   */
+  appInfo?: ClientAppInfo;
 }
 
 // =============================================================================
@@ -685,6 +699,25 @@ export interface DialStackInstance {
   routingTargets(): Promise<RoutingTarget[]>;
   /** Get current appearance options */
   getAppearance(): AppearanceOptions | undefined;
+  /**
+   * Report a DialStack package and its version in the `DialStack-Client`
+   * header. Called by DialStack's own packages (e.g. `@dialstack/sdk-react`).
+   *
+   * Optional so integrators' typed test doubles of the instance still compile.
+   * @internal
+   */
+  registerClientPackage?(name: string, version: string): void;
+  /**
+   * Report that a package's component was mounted.
+   * @internal
+   */
+  registerClientComponent?(packageName: string, component: string): void;
+  /**
+   * The current `DialStack-Client` header value, for DialStack packages that
+   * make their own requests (the softphone's signaling connection).
+   * @internal
+   */
+  clientHeader?(): string;
 
   // ---------------------------------------------------------------------------
   // Resource namespaces

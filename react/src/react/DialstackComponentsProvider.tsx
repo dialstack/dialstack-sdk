@@ -4,6 +4,7 @@
 
 import React, { createContext, useContext, type ReactNode } from 'react';
 import type { DialStackInstance } from '@dialstack/sdk-js';
+import { PACKAGE_VERSION } from './version';
 
 interface DialstackComponentsContextValue {
   dialstack: DialStackInstance;
@@ -55,6 +56,13 @@ export const DialstackComponentsProvider: React.FC<DialstackComponentsProviderPr
   dialstack,
   children,
 }) => {
+  // During render, not in an effect: children's effects run before their
+  // parent's, so an effect here would let a child's first request go out
+  // without the sdk-react token. Idempotent, so re-renders cost nothing. The
+  // optional chaining tolerates integrators' test doubles of the instance and a
+  // plain-JS integrator rendering this before the instance has loaded.
+  dialstack?.registerClientPackage?.('sdk-react', PACKAGE_VERSION);
+
   const value: DialstackComponentsContextValue = {
     dialstack,
   };
@@ -91,3 +99,14 @@ export const useDialstack = (): DialStackInstance => {
   const { dialstack } = useDialstackComponents();
   return dialstack;
 };
+
+/**
+ * Report a React-only component (one that is not a web component, which
+ * reports itself) in the `DialStack-Client` header. No-op outside a provider.
+ * Runs during render, like the provider's own registration, so requests from
+ * the component's children's mount effects already carry it.
+ * @internal
+ */
+export function useReportComponent(name: string): void {
+  useContext(DialstackComponentsContext)?.dialstack?.registerClientComponent?.('sdk-react', name);
+}
