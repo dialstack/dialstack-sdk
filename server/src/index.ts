@@ -916,7 +916,21 @@ export interface QualityMetricLeg {
   rtt_stddev_ms?: number | null;
   rx_count?: number | null;
   tx_count?: number | null;
+  /** MOS-CQE estimated from the ITU-T G.107 E-model (1.0–4.5). */
   mos?: number | null;
+  /** How `mos` was derived; `estimated` means jitter-buffer discards are estimated, not measured. */
+  mos_method?: 'estimated';
+  /** The far end's RTCP receiver-report view of the audio this leg sent it; absent when it sent none. */
+  far_end?: QualityMetricFarEnd;
+}
+
+/** What the far end reported about a leg's outbound audio. */
+export interface QualityMetricFarEnd {
+  jitter_ms?: number;
+  jitter_min_ms?: number;
+  jitter_max_ms?: number;
+  jitter_stddev_ms?: number;
+  packet_loss_pct?: number;
 }
 
 /**

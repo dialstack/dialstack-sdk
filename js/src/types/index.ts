@@ -58,6 +58,7 @@ export type {
   CallLog,
   CallLogDID,
   QualityMetricLeg,
+  QualityMetricFarEnd,
   TranscriptStatus,
   Transcript,
   VoicemailTranscript,
