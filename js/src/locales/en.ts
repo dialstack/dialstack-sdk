@@ -218,6 +218,22 @@ export const en = {
       unavailable: 'N/A',
       unavailableTooltip: 'No quality data available',
     },
+    filters: {
+      searchPlaceholder: 'Search name or number',
+      allDirections: 'All directions',
+      allStatuses: 'All statuses',
+      dateRange: 'Date range',
+      dates: {
+        '7d': 'Last 7 days',
+        '30d': 'Last 30 days',
+        '90d': 'Last 90 days',
+        all: 'All time',
+        custom: 'Custom range',
+      },
+      noMatches: 'No calls match these filters',
+      noCallsInRange: 'No calls in this date range',
+      clear: 'Clear filters',
+    },
   },
   callHistory: {
     title: 'Call History',

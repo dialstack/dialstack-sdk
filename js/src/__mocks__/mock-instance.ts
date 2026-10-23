@@ -319,6 +319,11 @@ export function createMockInstance(
 
     calls: {
       create: async (_params: { userId: string; dialString: string }) => {},
+      // Same canned page as the raw fetchApi path, so stories see one data set.
+      list: async () => {
+        const response = await instance.fetchApi('/v1/calls');
+        return response.json();
+      },
       retrieve: async (callId: string) => {
         await delay();
         return {

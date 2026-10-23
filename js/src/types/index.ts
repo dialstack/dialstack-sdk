@@ -45,6 +45,10 @@ export type {
   VoicemailDisplayOptions,
   CallLogDisplayOptions,
   CallHistoryDisplayOptions,
+  // Filters and list params
+  CallLogFilters,
+  CallLogDatePreset,
+  CallListParams,
   // Behavior options
   VoicemailBehaviorOptions,
   // Row renderers
@@ -110,6 +114,7 @@ export type {
 // Phone numbers types
 export type {
   PaginatedResponse,
+  CursorListOptions,
   DIDItem,
   InboundRouting,
   DIDConfig,

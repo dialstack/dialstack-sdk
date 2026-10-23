@@ -112,6 +112,63 @@ export interface CallLogDisplayOptions {
    * @default true
    */
   showQuality?: boolean;
+
+  /**
+   * Show the search and filter toolbar above the table. When hidden, the list
+   * covers all history unless a date range is set.
+   * @default true
+   */
+  showFilters?: boolean;
+}
+
+/**
+ * Preset date windows offered by the CallLogs toolbar. `custom` is the range a
+ * host set with `setDateRange`.
+ */
+export type CallLogDatePreset = '7d' | '30d' | '90d' | 'all' | 'custom';
+
+/**
+ * Filters applied by the CallLogs toolbar, also settable by the host.
+ */
+export interface CallLogFilters {
+  /** Free-text match on either party's name or number */
+  search?: string;
+  direction?: 'inbound' | 'outbound' | 'internal';
+  status?: 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
+  /**
+   * Date window.
+   * @default '30d' while the toolbar is shown, otherwise 'all'
+   */
+  datePreset?: Exclude<CallLogDatePreset, 'custom'>;
+}
+
+/**
+ * Query parameters for `calls.list`. Mirrors `GET /v1/calls`.
+ */
+export interface CallListParams {
+  limit?: number;
+  /**
+   * Opaque cursor for another page, taken from the `page` parameter of a
+   * response's `next_page_url` or `previous_page_url`. The endpoint pages only
+   * by this token.
+   */
+  page?: string;
+  user_id?: string;
+  /** The phone number (DID) associated with the call, by its id */
+  did?: string;
+  direction?: 'inbound' | 'outbound' | 'internal';
+  status?: 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
+  /** Exact match on the caller's number */
+  from_number?: string;
+  /** Exact match on the dialed number or the routed destination */
+  to_number?: string;
+  /** Free-text match on either party's name or number */
+  search?: string;
+  /** ISO 8601; calls started on or after */
+  from_date?: string;
+  /** ISO 8601; calls started on or before */
+  to_date?: string;
+  expand?: Array<'did'>;
 }
 
 /**
@@ -506,6 +563,8 @@ export interface VoicemailsElement extends Omit<BaseComponentElement, 'setClasse
 export interface CallLogsElement extends Omit<BaseComponentElement, 'setClasses'> {
   setClasses: (classes: CallLogsClasses) => void;
   setDateRange: (dateRange: { start?: string; end?: string }) => void;
+  setFilters: (filters: CallLogFilters) => void;
+  setOnFiltersChange: (callback: ((filters: CallLogFilters) => void) | undefined) => void;
   setLimit: (limit: number) => void;
   setDisplayOptions: (options: CallLogDisplayOptions) => void;
   setCustomRowRenderer: (renderer: CallLogRowRenderer | undefined) => void;

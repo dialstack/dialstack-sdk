@@ -4,6 +4,7 @@
 
 import type { AppearanceOptions, UpdateOptions } from './appearance';
 import type {
+  CallListParams,
   CallLog,
   ComponentTagName,
   ComponentElement,
@@ -53,7 +54,12 @@ import type {
   ApprovePortOrderRequest,
   PortEligibilityResult,
 } from './number-porting';
-import type { PaginatedResponse, DIDItem, UpdatePhoneNumberRequest } from './phone-numbers';
+import type {
+  CursorListOptions,
+  PaginatedResponse,
+  DIDItem,
+  UpdatePhoneNumberRequest,
+} from './phone-numbers';
 import type { AIAgent, UpdateAIAgentRequest } from './ai-agent';
 import type {
   DECTBase,
@@ -227,6 +233,8 @@ export interface CallsResource {
   create(params: { userId: string; dialString: string }): Promise<void>;
   /** Retrieve a call log by ID (opaque `call_` identifier; may aggregate multiple CDR legs) */
   retrieve(callId: string): Promise<CallLog>;
+  /** List call logs, newest first */
+  list(params?: CallListParams): Promise<PaginatedResponse<CallLog>>;
   /** Call transcript sub-resource */
   transcripts: CallsTranscriptsResource;
 }
@@ -432,12 +440,12 @@ export interface DevicesResource {
   /** List button templates that render at least one supported button on this device */
   listCompatibleButtonTemplates(
     id: string,
-    options?: { limit?: number; starting_after?: string; ending_before?: string }
+    options?: CursorListOptions
   ): Promise<PaginatedResponse<ButtonTemplate>>;
   /** List per-device button overrides */
   listButtonOverrides(
     id: string,
-    options?: { limit?: number; starting_after?: string; ending_before?: string }
+    options?: CursorListOptions
   ): Promise<PaginatedResponse<DeviceButtonOverride>>;
   /** Create a per-device button override */
   createButtonOverride(
@@ -461,10 +469,7 @@ export interface DeviceUsersResource {
 
 export interface ButtonTemplateButtonsResource {
   /** List buttons on a template */
-  list(
-    templateId: string,
-    options?: { limit?: number; starting_after?: string; ending_before?: string }
-  ): Promise<PaginatedResponse<TemplateButton>>;
+  list(templateId: string, options?: CursorListOptions): Promise<PaginatedResponse<TemplateButton>>;
   /** Add a button to a template */
   create(templateId: string, request: CreateTemplateButtonRequest): Promise<TemplateButton>;
   /** Update a template button (position move) */
@@ -489,11 +494,7 @@ export interface ButtonTemplatesResource {
     options?: { for_device?: string; expand?: Array<'buttons'> }
   ): Promise<ButtonTemplateWithDetails>;
   /** List button templates */
-  list(options?: {
-    limit?: number;
-    starting_after?: string;
-    ending_before?: string;
-  }): Promise<PaginatedResponse<ButtonTemplate>>;
+  list(options?: CursorListOptions): Promise<PaginatedResponse<ButtonTemplate>>;
   /** Update a button template */
   update(templateId: string, request: UpdateButtonTemplateRequest): Promise<ButtonTemplate>;
   /** Delete a button template */

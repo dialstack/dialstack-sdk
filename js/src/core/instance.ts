@@ -14,6 +14,7 @@ import type {
   CallEventMap,
   CallEventHandler,
   IncomingCallEvent,
+  CallListParams,
   CallLog,
   Transcript,
   VoicemailTranscript,
@@ -23,6 +24,7 @@ import type {
   AvailablePhoneNumber,
   NumberOrder,
   PaginatedResponse,
+  CursorListOptions,
   DIDItem,
   UpdatePhoneNumberRequest,
   SmsPortOutWindow,
@@ -557,6 +559,32 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
           `Failed to get call log: ${response.status} ${errorText}`,
           response.status
         );
+      }
+      return response.json();
+    },
+    list: async (params?: CallListParams): Promise<PaginatedResponse<CallLog>> => {
+      const query = new URLSearchParams();
+      if (params?.limit) query.set('limit', String(params.limit));
+      if (params?.page) query.set('page', params.page);
+      if (params?.user_id) query.set('user_id', params.user_id);
+      if (params?.did) query.set('did', params.did);
+      if (params?.direction) query.set('direction', params.direction);
+      if (params?.status) query.set('status', params.status);
+      if (params?.from_number) query.set('from_number', params.from_number);
+      if (params?.to_number) query.set('to_number', params.to_number);
+      if (params?.search) query.set('search', params.search);
+      if (params?.from_date) query.set('from_date', params.from_date);
+      if (params?.to_date) query.set('to_date', params.to_date);
+      for (const field of params?.expand ?? []) query.append('expand[]', field);
+
+      const queryString = query.toString();
+      const response = await this.fetchApi(queryString ? `/v1/calls?${queryString}` : '/v1/calls');
+      if (!response.ok) {
+        const { message, code, details } = await extractApiError(
+          response,
+          `Failed to list call logs: ${response.status}`
+        );
+        throw new ApiError(message, response.status, code, details);
       }
       return response.json();
     },
@@ -1398,12 +1426,11 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     },
     listCompatibleButtonTemplates: async (
       id: string,
-      options?: { limit?: number; starting_after?: string; ending_before?: string }
+      options?: CursorListOptions
     ): Promise<PaginatedResponse<ButtonTemplate>> => {
       const params = new URLSearchParams();
       if (options?.limit) params.set('limit', options.limit.toString());
-      if (options?.starting_after) params.set('starting_after', options.starting_after);
-      if (options?.ending_before) params.set('ending_before', options.ending_before);
+      if (options?.page) params.set('page', options.page);
       const queryString = params.toString();
       const path = queryString
         ? `/v1/devices/${id}/compatible_button_templates?${queryString}`
@@ -1419,12 +1446,11 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     },
     listButtonOverrides: async (
       id: string,
-      options?: { limit?: number; starting_after?: string; ending_before?: string }
+      options?: CursorListOptions
     ): Promise<PaginatedResponse<DeviceButtonOverride>> => {
       const params = new URLSearchParams();
       if (options?.limit) params.set('limit', options.limit.toString());
-      if (options?.starting_after) params.set('starting_after', options.starting_after);
-      if (options?.ending_before) params.set('ending_before', options.ending_before);
+      if (options?.page) params.set('page', options.page);
       const queryString = params.toString();
       const path = queryString
         ? `/v1/devices/${id}/button_overrides?${queryString}`
@@ -1532,15 +1558,10 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       }
       return response.json();
     },
-    list: async (options?: {
-      limit?: number;
-      starting_after?: string;
-      ending_before?: string;
-    }): Promise<PaginatedResponse<ButtonTemplate>> => {
+    list: async (options?: CursorListOptions): Promise<PaginatedResponse<ButtonTemplate>> => {
       const params = new URLSearchParams();
       if (options?.limit) params.set('limit', options.limit.toString());
-      if (options?.starting_after) params.set('starting_after', options.starting_after);
-      if (options?.ending_before) params.set('ending_before', options.ending_before);
+      if (options?.page) params.set('page', options.page);
       const queryString = params.toString();
       const path = queryString ? `/v1/button_templates?${queryString}` : '/v1/button_templates';
       const response = await this.fetchApi(path);
@@ -1576,12 +1597,11 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     buttons: {
       list: async (
         templateId: string,
-        options?: { limit?: number; starting_after?: string; ending_before?: string }
+        options?: CursorListOptions
       ): Promise<PaginatedResponse<TemplateButton>> => {
         const params = new URLSearchParams();
         if (options?.limit) params.set('limit', options.limit.toString());
-        if (options?.starting_after) params.set('starting_after', options.starting_after);
-        if (options?.ending_before) params.set('ending_before', options.ending_before);
+        if (options?.page) params.set('page', options.page);
         const queryString = params.toString();
         const path = queryString
           ? `/v1/button_templates/${templateId}/buttons?${queryString}`

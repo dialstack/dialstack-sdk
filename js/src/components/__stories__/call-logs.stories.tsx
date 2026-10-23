@@ -34,3 +34,15 @@ export const DefensiveRendering: Story = {
     expect(html).toContain('Voicemail');
   },
 };
+
+// The search and filter toolbar renders above the table, defaulting to the
+// last 30 days.
+export const Filters: Story = {
+  play: async ({ canvasElement }) => {
+    const shadow = () => canvasElement.querySelector('dialstack-call-logs')?.shadowRoot ?? null;
+    await waitFor(() => expect(shadow()?.querySelector('table')).toBeTruthy());
+    expect(shadow()?.querySelector('[part="search-input"]')).toBeTruthy();
+    const date = shadow()?.getElementById('filter-date') as HTMLSelectElement | null;
+    expect(date?.value).toBe('30d');
+  },
+};

@@ -7,6 +7,26 @@ import type { BaseComponentElement } from './components';
 import type { PhoneNumberType } from './phone-number-ordering';
 
 /**
+ * Paging options for a list method. Pass `page` to resume from a cursor: the
+ * token in the `page` parameter of a response's `next_page_url` or
+ * `previous_page_url`.
+ */
+export interface CursorListOptions {
+  limit?: number;
+  page?: string;
+  /**
+   * @deprecated Ignored by the API, which pages only by the `page` token, and
+   * no longer sent. Use `page`.
+   */
+  starting_after?: string;
+  /**
+   * @deprecated Ignored by the API, which pages only by the `page` token, and
+   * no longer sent. Use `page`.
+   */
+  ending_before?: string;
+}
+
+/**
  * Paginated list response from the API
  */
 export interface PaginatedResponse<T> {

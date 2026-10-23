@@ -5,18 +5,26 @@
 import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenumber-js';
 import { BaseComponent } from './base-component';
 import { tableStyles, paginationStyles } from './shared-styles';
-import type { CallLog, CallLogDisplayOptions, CallLogRowRenderer, CallLogsClasses } from '../types';
+import type {
+  CallListParams,
+  CallLog,
+  CallLogDatePreset,
+  CallLogDisplayOptions,
+  CallLogFilters,
+  CallLogRowRenderer,
+  CallLogsClasses,
+} from '../types';
 
-/**
- * API response structure (URL-based pagination)
- */
-interface CallLogsResponse {
-  object: 'list';
-  url: string;
-  next_page_url: string | null;
-  previous_page_url: string | null;
-  data: CallLog[];
-}
+const SEARCH_INPUT_ID = 'ds-call-logs-search';
+
+// Each settled search is a server round-trip, and a selective one can be the
+// most expensive read the list endpoint serves, so wait for typing to pause.
+const SEARCH_DEBOUNCE_MS = 300;
+
+const DATE_PRESET_DAYS: Record<'7d' | '30d' | '90d', number> = { '7d': 7, '30d': 30, '90d': 90 };
+
+const DIRECTIONS = ['inbound', 'outbound', 'internal'] as const;
+const STATUSES = ['completed', 'no-answer', 'busy', 'failed', 'voicemail'] as const;
 
 /**
  * Where an entry sits in its conversation. `none` is a conversation of one
@@ -39,8 +47,19 @@ export interface DateRange {
  * CallLogs component displays call history in a table format
  */
 export class CallLogsComponent extends BaseComponent {
+  // The range in force, and the last one the host set. They differ once the
+  // user picks a preset; Clear filters returns to the host's.
   private dateRange?: DateRange;
+  private hostDateRange?: DateRange;
   private limit: number = 10;
+
+  private filters: CallLogFilters = {};
+  // What the search field shows, ahead of the debounced filters.search.
+  private searchText: string = '';
+  private searchDebounce: ReturnType<typeof setTimeout> | null = null;
+  // Responses can land out of order while filters change under them; only the
+  // latest request may update the table.
+  private requestSeq: number = 0;
 
   private isLoading: boolean = false;
   private isPaginating: boolean = false;
@@ -63,6 +82,7 @@ export class CallLogsComponent extends BaseComponent {
     showDuration: true,
     showStatus: true,
     showQuality: true,
+    showFilters: true,
   };
 
   // Custom row renderer
@@ -73,6 +93,7 @@ export class CallLogsComponent extends BaseComponent {
 
   // Callbacks
   private _onRowClick?: (event: { callId: string; call: CallLog }) => void;
+  private _onFiltersChange?: (filters: CallLogFilters) => void;
 
   protected initialize(): void {
     if (this.isInitialized) return;
@@ -93,11 +114,25 @@ export class CallLogsComponent extends BaseComponent {
   }
 
   /**
+   * Set callback fired when the user changes a toolbar filter
+   */
+  setOnFiltersChange(callback: ((filters: CallLogFilters) => void) | undefined): void {
+    this._onFiltersChange = callback;
+  }
+
+  /**
    * Set display options (partial override)
    */
   setDisplayOptions(options: CallLogDisplayOptions): void {
+    const defaultPreset = this.defaultDatePreset();
     this.displayOptions = { ...this.displayOptions, ...options };
-    if (this.isInitialized) {
+    if (!this.isInitialized) return;
+    // Hiding the toolbar moves the default window to all time, which changes
+    // the query when the window in force is that default.
+    const followsDefault = !this.filters.datePreset && !this.dateRange;
+    if (followsDefault && this.defaultDatePreset() !== defaultPreset) {
+      this.loadData();
+    } else {
       this.render();
     }
   }
@@ -141,9 +176,18 @@ export class CallLogsComponent extends BaseComponent {
     this.previousPageUrl = null;
     this.currentOffset = 0;
 
-    this.isLoading = true;
-    this.error = null;
-    this.render();
+    const seq = ++this.requestSeq;
+    // A table already on screen stays there, dimmed, while a filter change
+    // reloads it, as it does between pages. Swapping it for the spinner and
+    // back on every settled keystroke made the whole list flicker.
+    if (this.callLogs.length > 0 && !this.error) {
+      this.isPaginating = true;
+      this.updatePaginationState();
+    } else {
+      this.isLoading = true;
+      this.error = null;
+      this.render();
+    }
 
     try {
       // One request per page, deliberately. This used to issue a second
@@ -153,18 +197,15 @@ export class CallLogsComponent extends BaseComponent {
       // call history on every page load. There is no count endpoint to use
       // instead: any exact total has to aggregate the whole history, which is
       // the cost we are avoiding. The label shows the range without a total.
-      const params = new URLSearchParams({ limit: this.limit.toString() });
-      params.set('expand[]', 'did');
-      if (this.dateRange?.start) params.set('from', this.dateRange.start);
-      if (this.dateRange?.end) params.set('to', this.dateRange.end);
-
-      const pageData = await this.fetchComponentData<CallLogsResponse>(`/v1/calls?${params}`);
+      const pageData = await this.instance.calls.list(this.listParams());
+      if (seq !== this.requestSeq) return;
       this.callLogs = pageData.data || [];
       this.nextPageUrl = pageData.next_page_url;
       this.previousPageUrl = pageData.previous_page_url;
 
       this.error = null;
     } catch (err) {
+      if (seq !== this.requestSeq) return;
       const errorMessage = err instanceof Error ? err.message : this.t('callLogs.loading');
       this.error = errorMessage;
       this._onLoadError?.({ error: errorMessage, elementTagName: 'dialstack-call-logs' });
@@ -172,8 +213,11 @@ export class CallLogsComponent extends BaseComponent {
       this.nextPageUrl = null;
       this.previousPageUrl = null;
     } finally {
-      this.isLoading = false;
-      this.render();
+      if (seq === this.requestSeq) {
+        this.isLoading = false;
+        this.isPaginating = false;
+        this.render();
+      }
     }
   }
 
@@ -189,12 +233,18 @@ export class CallLogsComponent extends BaseComponent {
 
     this._onLoaderStart?.({ elementTagName: 'dialstack-call-logs' });
 
+    const seq = ++this.requestSeq;
+
     // Show pagination loading state
     this.isPaginating = true;
     this.updatePaginationState();
 
     try {
-      const data = await this.fetchComponentData<CallLogsResponse>(pageUrl);
+      // Only the page token is taken from the URL. The filters it also carries
+      // are the ones in force, since any change to them restarts at page one.
+      const page = new URL(pageUrl, 'https://api.invalid').searchParams.get('page') ?? undefined;
+      const data = await this.instance.calls.list({ ...this.listParams(), page });
+      if (seq !== this.requestSeq) return;
 
       this.callLogs = data.data || [];
       this.nextPageUrl = data.next_page_url;
@@ -202,6 +252,7 @@ export class CallLogsComponent extends BaseComponent {
 
       this.error = null;
     } catch (err) {
+      if (seq !== this.requestSeq) return;
       const errorMessage = err instanceof Error ? err.message : this.t('callLogs.loading');
       this.error = errorMessage;
       this._onLoadError?.({ error: errorMessage, elementTagName: 'dialstack-call-logs' });
@@ -209,9 +260,24 @@ export class CallLogsComponent extends BaseComponent {
       this.nextPageUrl = null;
       this.previousPageUrl = null;
     } finally {
-      this.isPaginating = false;
-      this.render();
+      if (seq === this.requestSeq) {
+        this.isPaginating = false;
+        this.render();
+      }
     }
+  }
+
+  private listParams(): CallListParams {
+    const { fromDate, toDate } = this.dateBounds();
+    return {
+      limit: this.limit,
+      expand: ['did'],
+      search: this.filters.search,
+      direction: this.filters.direction,
+      status: this.filters.status,
+      from_date: fromDate,
+      to_date: toDate,
+    };
   }
 
   /**
@@ -231,6 +297,85 @@ export class CallLogsComponent extends BaseComponent {
 
     if (prevBtn) prevBtn.disabled = true;
     if (nextBtn) nextBtn.disabled = true;
+  }
+
+  // ============================================================================
+  // Filters
+  // ============================================================================
+
+  /**
+   * The date window in force. A host-set range wins; otherwise the toolbar's
+   * preset, which defaults to 30 days because a search that matches few calls
+   * over an account's whole history is the slowest read the list serves. With
+   * the toolbar hidden nothing could widen it, so the default stays all time.
+   */
+  private effectiveDatePreset(): CallLogDatePreset {
+    if (this.dateRange?.start || this.dateRange?.end) return 'custom';
+    return this.filters.datePreset ?? this.defaultDatePreset();
+  }
+
+  private dateBounds(): { fromDate?: string; toDate?: string } {
+    const preset = this.effectiveDatePreset();
+    if (preset === 'custom')
+      return { fromDate: this.dateRange?.start, toDate: this.dateRange?.end };
+    if (preset === 'all') return {};
+    const from = new Date(Date.now() - DATE_PRESET_DAYS[preset] * 24 * 60 * 60 * 1000);
+    return { fromDate: from.toISOString() };
+  }
+
+  private defaultDatePreset(): CallLogDatePreset {
+    return this.displayOptions.showFilters ? '30d' : 'all';
+  }
+
+  /**
+   * Anything Clear filters would undo. A host-set range is the baseline it
+   * returns to, not a filter. Without one, an all-time pick is not either:
+   * clearing it would only narrow an empty list.
+   */
+  private hasActiveFilters(): boolean {
+    const { search, direction, status, datePreset } = this.filters;
+    const dateActive =
+      datePreset !== undefined &&
+      (this.hostDateRange !== undefined ||
+        (datePreset !== this.defaultDatePreset() && datePreset !== 'all'));
+    return Boolean(search || direction || status || dateActive);
+  }
+
+  /**
+   * Apply a toolbar change: reload from the first page and tell the host.
+   */
+  private applyFilters(patch: CallLogFilters): void {
+    this.filters = { ...this.filters, ...patch };
+    // Choosing a preset replaces a host-set custom range.
+    if ('datePreset' in patch) this.dateRange = undefined;
+    this._onFiltersChange?.({ ...this.filters });
+    this.loadData();
+  }
+
+  private clearFilters(): void {
+    this.cancelSearchDebounce();
+    this.filters = {};
+    this.searchText = '';
+    this.dateRange = this.hostDateRange;
+    this._onFiltersChange?.({});
+    this.loadData();
+  }
+
+  private cancelSearchDebounce(): void {
+    if (this.searchDebounce) clearTimeout(this.searchDebounce);
+    this.searchDebounce = null;
+  }
+
+  protected override cleanup(): void {
+    // A debounce firing after removal would report a filter change for a list
+    // that is gone; a host syncing filters to the URL would navigate back to it.
+    this.cancelSearchDebounce();
+    // Drops any response still in flight, so its loading flags would never
+    // clear; start over instead, and a reattach reloads from scratch.
+    this.requestSeq++;
+    this.isLoading = false;
+    this.isPaginating = false;
+    this.isInitialized = false;
   }
 
   // ============================================================================
@@ -550,6 +695,12 @@ export class CallLogsComponent extends BaseComponent {
   protected render(): void {
     if (!this.shadowRoot) return;
 
+    // Replacing the shadow DOM drops focus from the search field mid-type, so
+    // capture focus and caret first and restore them after.
+    const focused = this.shadowRoot.activeElement;
+    const searchWasFocused = focused instanceof HTMLInputElement && focused.id === SEARCH_INPUT_ID;
+    const caret = searchWasFocused ? focused.selectionStart : null;
+
     const styles = this.applyAppearanceStyles();
 
     this.shadowRoot.innerHTML = `
@@ -576,6 +727,64 @@ export class CallLogsComponent extends BaseComponent {
         .error {
           background: color-mix(in srgb, var(--ds-color-danger) 10%, transparent);
           color: var(--ds-color-danger);
+        }
+
+        .toolbar {
+          display: flex;
+          flex-wrap: wrap;
+          gap: var(--ds-spacing-sm);
+          margin-bottom: var(--ds-layout-spacing-lg);
+        }
+
+        .search-input,
+        .filter-select {
+          box-sizing: border-box;
+          height: var(--ds-control-height);
+          padding: var(--ds-spacing-sm) var(--ds-spacing-md);
+          font-family: var(--ds-font-family);
+          font-size: var(--ds-font-size-base);
+          line-height: var(--ds-line-height);
+          color: var(--ds-color-text);
+          background: var(--ds-color-input-background);
+          border: 1px solid var(--ds-color-border);
+          border-radius: var(--ds-border-radius);
+          outline: none;
+        }
+
+        .search-input {
+          flex: 1 1 240px;
+          max-width: 384px;
+        }
+
+        .search-input::placeholder {
+          color: var(--ds-color-placeholder);
+        }
+
+        .filter-select {
+          flex: 0 1 auto;
+          cursor: pointer;
+        }
+
+        .search-input:focus-visible,
+        .filter-select:focus-visible,
+        .clear-filters-btn:focus-visible {
+          box-shadow:
+            0 0 0 var(--ds-focus-ring-offset) var(--ds-color-input-background),
+            0 0 0 calc(var(--ds-focus-ring-offset) + var(--ds-focus-ring-width))
+              var(--ds-focus-ring-color);
+        }
+
+        .clear-filters-btn {
+          margin-top: var(--ds-spacing-sm);
+          padding: var(--ds-spacing-sm) var(--ds-spacing-md);
+          font-family: var(--ds-font-family);
+          font-size: var(--ds-font-size-base);
+          color: var(--ds-color-primary);
+          background: transparent;
+          border: 1px solid var(--ds-color-border);
+          border-radius: var(--ds-border-radius);
+          cursor: pointer;
+          outline: none;
         }
 
         .spinner {
@@ -733,12 +942,64 @@ export class CallLogsComponent extends BaseComponent {
       </style>
 
       <div class="container ${this.getClassNames()}" part="container" role="region" aria-label="${this.t('callLogs.title')}">
+        ${this.displayOptions.showFilters ? this.renderToolbar() : ''}
         ${this.renderContent()}
       </div>
     `;
 
     // Attach event listeners after DOM is updated
     this.attachEventListeners();
+
+    if (searchWasFocused) {
+      const input = this.shadowRoot.getElementById(SEARCH_INPUT_ID);
+      if (input instanceof HTMLInputElement) {
+        input.focus();
+        const pos = caret ?? input.value.length;
+        input.setSelectionRange(pos, pos);
+      }
+    }
+  }
+
+  private renderToolbar(): string {
+    const option = (value: string, label: string, selected: boolean) =>
+      `<option value="${value}"${selected ? ' selected' : ''}>${this.escapeHtml(label)}</option>`;
+    const placeholder = this.escapeHtml(this.t('callLogs.filters.searchPlaceholder'));
+    const preset = this.effectiveDatePreset();
+
+    const directions = [
+      option('', this.t('callLogs.filters.allDirections'), !this.filters.direction),
+      ...DIRECTIONS.map((d) =>
+        option(d, this.t(`callLogs.directions.${d}`), this.filters.direction === d)
+      ),
+    ].join('');
+    const statuses = [
+      option('', this.t('callLogs.filters.allStatuses'), !this.filters.status),
+      ...STATUSES.map((st) => option(st, this.formatStatus(st), this.filters.status === st)),
+    ].join('');
+    const presets: CallLogDatePreset[] = ['7d', '30d', '90d', 'all'];
+    if (preset === 'custom') presets.push('custom');
+    const dates = presets
+      .map((p) => option(p, this.t(`callLogs.filters.dates.${p}`), preset === p))
+      .join('');
+
+    return `
+      <div class="toolbar" part="toolbar" role="search">
+        <input
+          id="${SEARCH_INPUT_ID}"
+          type="search"
+          class="search-input"
+          part="search-input"
+          placeholder="${placeholder}"
+          aria-label="${placeholder}"
+          autocomplete="off"
+          maxlength="100"
+          value="${this.escapeHtml(this.searchText)}"
+        />
+        <select id="filter-direction" class="filter-select" part="filter-select filter-direction" aria-label="${this.t('callLogs.columns.direction')}">${directions}</select>
+        <select id="filter-status" class="filter-select" part="filter-select filter-status" aria-label="${this.t('callLogs.columns.status')}">${statuses}</select>
+        <select id="filter-date" class="filter-select" part="filter-select filter-date" aria-label="${this.t('callLogs.filters.dateRange')}">${dates}</select>
+      </div>
+    `;
   }
 
   /**
@@ -762,6 +1023,25 @@ export class CallLogsComponent extends BaseComponent {
           <slot name="error">
             <p><strong>${this.t('common.error')}:</strong> ${this.error}</p>
           </slot>
+        </div>
+      `;
+    }
+
+    if (this.callLogs.length === 0 && this.hasActiveFilters()) {
+      return `
+        <div class="empty ${this.classes.empty || ''}" part="empty empty-filtered" role="status">
+          <p>${this.t('callLogs.filters.noMatches')}</p>
+          <button type="button" class="clear-filters-btn" part="clear-filters-button" id="clear-filters-btn">${this.t('callLogs.filters.clear')}</button>
+        </div>
+      `;
+    }
+
+    // The default window alone is not something Clear filters can undo, but an
+    // account whose calls are all older must not read "no call logs found".
+    if (this.callLogs.length === 0 && this.effectiveDatePreset() !== 'all') {
+      return `
+        <div class="empty ${this.classes.empty || ''}" part="empty empty-filtered" role="status">
+          <p>${this.t('callLogs.filters.noCallsInRange')}</p>
         </div>
       `;
     }
@@ -972,6 +1252,34 @@ export class CallLogsComponent extends BaseComponent {
     prevBtn?.addEventListener('click', () => this.goToPreviousPage());
     nextBtn?.addEventListener('click', () => this.goToNextPage());
 
+    const searchInput = this.shadowRoot.getElementById(SEARCH_INPUT_ID);
+    searchInput?.addEventListener('input', (e) => {
+      this.searchText = (e.target as HTMLInputElement).value;
+      if (this.searchDebounce) clearTimeout(this.searchDebounce);
+      this.searchDebounce = setTimeout(() => {
+        this.searchDebounce = null;
+        const search = this.searchText.trim() || undefined;
+        if (search !== this.filters.search) this.applyFilters({ search });
+      }, SEARCH_DEBOUNCE_MS);
+    });
+
+    this.shadowRoot.getElementById('filter-direction')?.addEventListener('change', (e) => {
+      const value = (e.target as HTMLSelectElement).value as CallLogFilters['direction'] | '';
+      this.applyFilters({ direction: value || undefined });
+    });
+    this.shadowRoot.getElementById('filter-status')?.addEventListener('change', (e) => {
+      const value = (e.target as HTMLSelectElement).value as CallLogFilters['status'] | '';
+      this.applyFilters({ status: value || undefined });
+    });
+    this.shadowRoot.getElementById('filter-date')?.addEventListener('change', (e) => {
+      const value = (e.target as HTMLSelectElement).value as CallLogDatePreset;
+      if (value === 'custom') return;
+      this.applyFilters({ datePreset: value });
+    });
+    this.shadowRoot
+      .getElementById('clear-filters-btn')
+      ?.addEventListener('click', () => this.clearFilters());
+
     // Row click handlers
     const rows = this.shadowRoot.querySelectorAll('tbody tr[data-call-id]');
     rows.forEach((row) => {
@@ -1023,16 +1331,47 @@ export class CallLogsComponent extends BaseComponent {
    * Set date range filter and reload data (for React integration)
    */
   setDateRange(dateRange: DateRange): void {
-    this.dateRange = dateRange;
-    this.loadData();
+    // React re-runs setters every render. Re-applying the same range would
+    // reload each time and undo a preset the user picked since.
+    if (
+      this.hostDateRange &&
+      this.hostDateRange.start === dateRange.start &&
+      this.hostDateRange.end === dateRange.end
+    )
+      return;
+    const range = dateRange.start || dateRange.end ? dateRange : undefined;
+    this.hostDateRange = range;
+    this.dateRange = range;
+    this.filters = { ...this.filters, datePreset: undefined };
+    if (this.isInitialized) this.loadData();
+  }
+
+  /**
+   * Set toolbar filters and reload data (for React integration, or restoring
+   * filters a host persisted from onFiltersChange). Does not fire
+   * onFiltersChange.
+   */
+  setFilters(filters: CallLogFilters): void {
+    // A no-op for the filters already applied, so a host that feeds
+    // onFiltersChange back in (React re-runs the setter every render) does not
+    // reload the list.
+    const keys: Array<keyof CallLogFilters> = ['search', 'direction', 'status', 'datePreset'];
+    if (keys.every((k) => (filters[k] || undefined) === (this.filters[k] || undefined))) return;
+
+    this.cancelSearchDebounce();
+    this.filters = { ...filters };
+    this.searchText = filters.search ?? '';
+    if (filters.datePreset) this.dateRange = undefined;
+    if (this.isInitialized) this.loadData();
   }
 
   /**
    * Set page size limit (for React integration)
    */
   setLimit(limit: number): void {
+    if (limit === this.limit) return;
     this.limit = limit;
-    this.loadData();
+    if (this.isInitialized) this.loadData();
   }
 }
 

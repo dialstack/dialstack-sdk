@@ -15,6 +15,7 @@ import {
   type ComponentIcons,
   type LayoutVariant,
   type CallLogDisplayOptions,
+  type CallLogFilters,
   type CallLogRowRenderer,
   type CallLogsClasses,
   type Locale,
@@ -35,6 +36,13 @@ export interface CallLogsProps {
    * Date range filter for call logs
    */
   dateRange?: DateRange;
+
+  /**
+   * Search and filter values for the toolbar. Pair with `onFiltersChange` to
+   * keep them in the host, e.g. in the URL so a filtered view survives
+   * navigating away and back.
+   */
+  filters?: CallLogFilters;
 
   /**
    * Maximum number of call logs per page (default: 20)
@@ -102,6 +110,11 @@ export interface CallLogsProps {
    * Callback when a row is clicked
    */
   onRowClick?: (event: { callId: string; call: CallLog }) => void;
+
+  /**
+   * Callback when the user changes a toolbar filter
+   */
+  onFiltersChange?: (filters: CallLogFilters) => void;
 }
 
 /**
@@ -128,6 +141,7 @@ export const CallLogs: React.FC<CallLogsProps> = ({
   className,
   style,
   dateRange,
+  filters,
   limit,
   locale,
   formatting,
@@ -139,12 +153,21 @@ export const CallLogs: React.FC<CallLogsProps> = ({
   onLoaderStart,
   onLoadError,
   onRowClick,
+  onFiltersChange,
 }) => {
   const { dialstack } = useDialstackComponents();
-  const { containerRef, componentInstance } = useCreateComponent(dialstack, 'call-logs');
+  // Everything that shapes the first list request, so a deep link with
+  // filters, a range or a hidden toolbar loads once rather than twice.
+  const { containerRef, componentInstance } = useCreateComponent(dialstack, 'call-logs', (comp) => {
+    if (displayOptions) comp.setDisplayOptions(displayOptions);
+    if (limit !== undefined) comp.setLimit(limit);
+    if (dateRange) comp.setDateRange(dateRange);
+    if (filters) comp.setFilters(filters);
+  });
 
   // Sync data props to Web Component (type-safe callbacks)
   useUpdateWithSetter(componentInstance, dateRange, (comp, val) => comp.setDateRange(val));
+  useUpdateWithSetter(componentInstance, filters, (comp, val) => comp.setFilters(val));
   useUpdateWithSetter(componentInstance, limit, (comp, val) => comp.setLimit(val));
 
   // Sync configuration props
@@ -164,6 +187,9 @@ export const CallLogs: React.FC<CallLogsProps> = ({
   useUpdateWithSetter(componentInstance, onLoaderStart, (comp, val) => comp.setOnLoaderStart(val));
   useUpdateWithSetter(componentInstance, onLoadError, (comp, val) => comp.setOnLoadError(val));
   useUpdateWithSetter(componentInstance, onRowClick, (comp, val) => comp.setOnRowClick(val));
+  useUpdateWithSetter(componentInstance, onFiltersChange, (comp, val) =>
+    comp.setOnFiltersChange(val)
+  );
 
   return <div ref={containerRef} className={className} style={style} />;
 };

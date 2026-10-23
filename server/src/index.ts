@@ -1028,6 +1028,15 @@ export interface CallListParams {
   /** The call's destination (exact match) — as dialed or as routed. */
   to_number?: string;
   status?: CallStatus;
+  /**
+   * Free-text search over both parties: the caller's name, the user, dial
+   * plan, voice app or ring group name on either side, and either party's
+   * number, as typed or with punctuation ignored (three digits minimum for
+   * the latter). Combine with
+   * `from_date` on large accounts: a search matching few calls over all
+   * history is slow.
+   */
+  search?: string;
   /** Return calls started on or after this date (ISO 8601). */
   from_date?: string;
   /** Return calls started before this date (ISO 8601). */
@@ -4081,6 +4090,7 @@ export class DialStack {
       if (params?.from_number) queryParams.set('from_number', params.from_number);
       if (params?.to_number) queryParams.set('to_number', params.to_number);
       if (params?.status) queryParams.set('status', params.status);
+      if (params?.search) queryParams.set('search', params.search);
       if (params?.from_date) queryParams.set('from_date', params.from_date);
       if (params?.to_date) queryParams.set('to_date', params.to_date);
       appendExpand(queryParams, params?.expand);

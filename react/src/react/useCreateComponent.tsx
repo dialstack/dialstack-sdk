@@ -2,7 +2,7 @@
  * React hook for creating and managing Web Components
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import type { ComponentTagName, ComponentElement, DialStackInstance } from '@dialstack/sdk-js';
 
 /**
@@ -66,9 +66,23 @@ function assertUpgraded(element: unknown, tagName: string): void {
  */
 export function useCreateComponent<T extends ComponentTagName>(
   dialstack: DialStackInstance,
-  tagName: T
+  tagName: T,
+  /**
+   * Applies props to the element before it is attached. Attaching is what
+   * starts its first load, and the prop effects only run after that, so a
+   * setting that shapes the first request belongs here or it costs a second
+   * one. Read at creation time; it does not re-run.
+   */
+  beforeAttach?: (component: ComponentElement[T]) => void
 ): UseCreateComponentResult<T> {
   const componentRef = useRef<ComponentElement[T] | null>(null);
+  // A ref, so the latest props apply without recreating the element whenever
+  // the caller passes a new closure. Seeded with the first render's, which is
+  // what the first attach needs.
+  const beforeAttachRef = useRef(beforeAttach);
+  useLayoutEffect(() => {
+    beforeAttachRef.current = beforeAttach;
+  });
   // Use state to trigger re-render when component is created
   const [componentInstance, setComponentInstance] = useState<ComponentElement[T] | null>(null);
 
@@ -96,6 +110,8 @@ export function useCreateComponent<T extends ComponentTagName>(
         dialstack.removeAppearanceTarget(component as HTMLElement);
         throw err;
       }
+
+      beforeAttachRef.current?.(component);
 
       // Append to container
       container.appendChild(component as Node);
