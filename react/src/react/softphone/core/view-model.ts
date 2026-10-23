@@ -343,3 +343,86 @@ export function errorMessageKey(code: string): keyof Locale['softphone'] {
   if (CONNECTION_ERROR_CODES.has(code)) return 'connectionError';
   return 'callError';
 }
+
+/**
+ * One entry of the host's directory, offered when transferring or adding a
+ * call in place of typing the destination from memory.
+ */
+export interface DirectoryContact {
+  /**
+   * Unique within the directory and stable across renders: the picked entry
+   * is matched on it, so a host may rebuild or refetch the array freely.
+   */
+  id: string;
+  /** The entry's name in the list. */
+  label: string;
+  /**
+   * What to dial: anything the number field accepts (a phone number, an
+   * extension or a feature code). Picking the entry uses it, cleaned the
+   * same way as a paste.
+   */
+  destination: string;
+  /** A second, smaller line under the label. Defaults to the destination. */
+  description?: string;
+  /**
+   * The heading the entry is listed under. Entries sharing a group are shown
+   * together, groups in order of first appearance; entries without one come
+   * first, under no heading.
+   */
+  group?: string;
+  /**
+   * Short labels shown as chips beside the name (a role, a language, "On
+   * call"), and matched by the search like the other fields.
+   */
+  tags?: readonly string[];
+}
+
+/** An entry's tags as chips: trimmed, blanks dropped. */
+export function directoryContactTags(entry: DirectoryContact): string[] {
+  return (entry.tags ?? []).map((tag) => tag.trim()).filter(Boolean);
+}
+
+/** A run of picker entries under one heading (`undefined`: no heading). */
+export interface DirectoryContactGroup {
+  group: string | undefined;
+  destinations: DirectoryContact[];
+}
+
+/**
+ * The picker's entries matching `query`, grouped for display. Matches a
+ * case-insensitive substring of the label, description, group, destination or
+ * a tag, and a number-like query against the destination's digits; a blank
+ * query matches everything.
+ */
+export function filterDirectory(
+  destinations: readonly DirectoryContact[],
+  query: string
+): DirectoryContactGroup[] {
+  const needle = query.trim().toLowerCase();
+  // A query typed the way a number is read ("415-555", "(415) 555") is also
+  // compared digit for digit, so the punctuation doesn't have to match.
+  const digits = /^[\d\s()+.-]+$/.test(needle) ? needle.replace(/\D/g, '') : '';
+  const matches = (d: DirectoryContact) =>
+    !needle ||
+    [d.label, d.description, d.group, d.destination, ...(d.tags ?? [])].some(
+      (field) => typeof field === 'string' && field.toLowerCase().includes(needle)
+    ) ||
+    (digits.length >= 2 && d.destination.replace(/\D/g, '').includes(digits));
+  const ungrouped: DirectoryContact[] = [];
+  const grouped = new Map<string, DirectoryContact[]>();
+  for (const d of destinations) {
+    if (!matches(d)) continue;
+    const group = d.group?.trim();
+    if (!group) {
+      ungrouped.push(d);
+      continue;
+    }
+    let bucket = grouped.get(group);
+    if (!bucket) grouped.set(group, (bucket = []));
+    bucket.push(d);
+  }
+  const out: DirectoryContactGroup[] = [];
+  if (ungrouped.length) out.push({ group: undefined, destinations: ungrouped });
+  for (const [group, list] of grouped) out.push({ group, destinations: list });
+  return out;
+}

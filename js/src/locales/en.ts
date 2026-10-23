@@ -51,6 +51,14 @@ export const en = {
     addCall: 'Add call',
     addCallPlaceholder: 'Number to dial',
     addCallSend: 'Call',
+    // The transfer / add-call screen, and the host's optional `directory`.
+    directoryLabel: 'Directory',
+    directorySearchPlaceholder: 'Search directory',
+    directoryNoMatches: 'No matches',
+    enterNumber: 'Enter a number',
+    chooseFromDirectory: 'Choose from directory',
+    // Prefixes the destination the panel's buttons will act on.
+    dialTarget: 'To',
     merge: 'Merge calls',
     split: 'Split',
     conferenceLabel: 'Conference',

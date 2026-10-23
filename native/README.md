@@ -231,6 +231,49 @@ when `resolvePeer` changes. So list the data it reads in the `useCallback`
 dependencies, and a call that arrived before that data loaded still gets its
 name. A custom UI reads the same result from `useSoftphone().peerInfo(call)`.
 
+## Transfer and add call
+
+**Transfer** and **Add call** each open a screen in place of the call controls;
+only hang up stays. It shows the caller's name, a field for the number or
+extension, and the screen's own buttons (**Transfer now** and **Consult
+first**, or **Call**). The close button returns to the call and clears what was
+entered.
+
+To let the user pick who to transfer to or call instead of typing a number,
+pass a `directory`. Both screens use the same list:
+
+```tsx
+const directory: DirectoryContact[] = [
+  { id: 'reception', label: 'Reception', destination: '100' },
+  {
+    id: 'support',
+    label: 'Support',
+    destination: '200',
+    description: 'Ext. 200',
+    group: 'Departments',
+  },
+  {
+    id: 'after-hours-line',
+    label: 'After-hours line',
+    destination: '+14155550100',
+    group: 'External',
+  },
+];
+
+<SoftphoneProvider token={token} storage={storage} directory={directory}>
+  <Softphone />
+</SoftphoneProvider>;
+```
+
+Each entry has an `id` (unique and stable, such as your own record id), a
+`label` and a `destination` (a phone number, an extension or a feature code),
+and optionally a `description` (a second line, defaulting to the
+destination), a `group` heading, and `tags`: short labels shown as chips
+beside the name and matched by the search. With a directory the screens open on a
+search box and the list; **Enter a number** switches to the field for anything
+not listed. While the list is showing, a **To:** line above the buttons names the
+destination they will use. Pass a new array when the list changes.
+
 ## Sizing
 
 The softphone fits the box you give it. With the default `layoutVariant="auto"`

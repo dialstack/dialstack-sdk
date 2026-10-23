@@ -17,6 +17,9 @@ import {
   INVALID_DESTINATION_ERROR,
   callStateLabelKey,
   errorMessageKey,
+  filterDirectory,
+  directoryContactTags,
+  type DirectoryContact,
 } from '../view-model';
 import type { Call, CallDirection, CallState } from '@dialstack/sdk-webrtc';
 
@@ -371,5 +374,80 @@ describe('isRoomyLayout', () => {
   it('pins the tier whatever the host', () => {
     expect(isRoomyLayout('full', false)).toBe(true);
     expect(isRoomyLayout('compact', true)).toBe(false);
+  });
+});
+
+describe('filterDirectory', () => {
+  const entries: DirectoryContact[] = [
+    { id: 'front-desk', label: 'Front desk', destination: '100' },
+    {
+      id: 'alex-rivera',
+      label: 'Alex Rivera',
+      destination: '+15555550101',
+      description: 'Billing',
+      group: 'Team',
+    },
+    { id: 'sam-lee', label: 'Sam Lee', destination: '102', group: 'Team' },
+    { id: 'night-line', label: 'Night line', destination: '+15555550199', group: 'External' },
+  ];
+
+  it('returns every entry for a blank query, ungrouped first, groups in first-seen order', () => {
+    expect(filterDirectory(entries, '  ')).toEqual([
+      { group: undefined, destinations: [entries[0]] },
+      { group: 'Team', destinations: [entries[1], entries[2]] },
+      { group: 'External', destinations: [entries[3]] },
+    ]);
+  });
+
+  it('matches label, description, group and destination, ignoring case', () => {
+    const labels = (q: string) =>
+      filterDirectory(entries, q).flatMap((g) => g.destinations.map((d) => d.label));
+    expect(labels('ALEX')).toEqual(['Alex Rivera']);
+    expect(labels('billing')).toEqual(['Alex Rivera']);
+    expect(labels('external')).toEqual(['Night line']);
+    expect(labels('0199')).toEqual(['Night line']);
+  });
+
+  it('drops groups with no match', () => {
+    expect(filterDirectory(entries, 'sam')).toEqual([
+      { group: 'Team', destinations: [entries[2]] },
+    ]);
+    expect(filterDirectory(entries, 'nobody')).toEqual([]);
+  });
+
+  it('matches a number however it is formatted', () => {
+    const labels = (q: string) =>
+      filterDirectory(entries, q).flatMap((g) => g.destinations.map((d) => d.label));
+    expect(labels('555-0101')).toEqual(['Alex Rivera']);
+    expect(labels('(555) 5550101')).toEqual(['Alex Rivera']);
+    expect(labels('1 555 555 0199')).toEqual(['Night line']);
+  });
+
+  it('does not match on a single digit pulled out of words', () => {
+    expect(filterDirectory(entries, 'line 1')).toEqual([]);
+  });
+
+  it('matches a tag', () => {
+    const tagged = {
+      id: 'kim-lo',
+      label: 'Kim Lo',
+      destination: '300',
+      tags: ['Spanish', 'On call'],
+    };
+    expect(filterDirectory([...entries, tagged], 'on CALL')).toEqual([
+      { group: undefined, destinations: [tagged] },
+    ]);
+  });
+
+  it('trims tags and drops blank ones', () => {
+    expect(
+      directoryContactTags({ id: 'a', label: 'A', destination: '1', tags: [' Spanish ', '', '  '] })
+    ).toEqual(['Spanish']);
+    expect(directoryContactTags({ id: 'a', label: 'A', destination: '1' })).toEqual([]);
+  });
+
+  it('treats a blank group as no group', () => {
+    const blank = { id: 'lobby', label: 'Lobby', destination: '200', group: ' ' };
+    expect(filterDirectory([blank], '')).toEqual([{ group: undefined, destinations: [blank] }]);
   });
 });

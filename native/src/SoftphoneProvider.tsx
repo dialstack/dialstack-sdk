@@ -35,6 +35,7 @@ import {
   type AppResumeSubscribe,
   type ResolvePeer,
   type SoftphoneLayoutVariant,
+  type DirectoryContact,
 } from '@dialstack/sdk-react/core';
 
 // Derived from the resolver, not imported from the SDK root, which would pull
@@ -149,6 +150,13 @@ export interface SoftphoneProviderProps {
    */
   layoutVariant?: SoftphoneLayoutVariant;
   /**
+   * People and places the user can pick from instead of typing a number (a
+   * directory of colleagues or departments, say). Offered as a searchable
+   * list when transferring and when adding a call; typing a destination
+   * still works. Pass a new array when the list changes.
+   */
+  directory?: readonly DirectoryContact[];
+  /**
    * The call bridge, when this app reports calls to the OS. Outbound placement
    * then goes through it, so the OS learns about the call BEFORE it is dialled —
    * on Android that report is what starts the foreground service, without which
@@ -206,6 +214,7 @@ export function SoftphoneProvider({
   onError,
   resolvePeer,
   layoutVariant,
+  directory,
   bridge,
   callAudio: requestedCallAudio,
   audioOutput,
@@ -269,6 +278,7 @@ export function SoftphoneProvider({
       onError={onError}
       resolvePeer={resolvePeer}
       layoutVariant={layoutVariant}
+      directory={directory}
       placeOutbound={placeOutbound}
       answerIncoming={answerIncoming}
       extra={extra}

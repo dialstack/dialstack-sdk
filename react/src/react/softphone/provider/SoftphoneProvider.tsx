@@ -18,6 +18,7 @@ import {
   type ResolvePeer,
   type SoftphoneLayoutVariant,
   type SoftphoneConnectionState,
+  type DirectoryContact,
   type UseCallActions,
 } from '../hooks';
 import { resolveSoftphonePalette } from '../core/theme';
@@ -128,6 +129,15 @@ export interface SoftphoneProviderProps {
    * one, whatever the host.
    */
   layoutVariant?: SoftphoneLayoutVariant;
+
+  /**
+   * People and places the user can pick from instead of typing a number (a
+   * directory of colleagues or departments, say). Offered as a searchable
+   * list when transferring and when adding a call; typing a destination
+   * still works. Pass a new array when the list changes.
+   */
+  directory?: readonly DirectoryContact[];
+
   /**
    * Your application's name and version, reported to DialStack with the SDK's
    * own package versions. Ignored inside a `<DialstackComponentsProvider>`:
@@ -185,6 +195,7 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
   onError,
   resolvePeer,
   layoutVariant,
+  directory,
   appInfo,
   children,
 }) => {
@@ -247,6 +258,7 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
       onError={onError}
       resolvePeer={resolvePeer}
       layoutVariant={layoutVariant}
+      directory={directory}
       extra={extra}
     >
       {/* Subscribe to live instance appearance only when a components provider is

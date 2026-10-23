@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
-import { Keyboard, Pressable, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, Text, View } from 'react-native';
 import {
   dialPadKeys,
   softphoneGlyphs,
+  type DirectoryContact,
   type Locale,
   type SoftphonePalette,
 } from '@dialstack/sdk-react/core';
@@ -14,6 +15,7 @@ import {
   makeStyles,
   ControlsSlot,
 } from '../primitives';
+import { DialPanelView } from './DialPanelView';
 import { PeerAvatar, PeerRow } from './PeerAvatar';
 import { useRoomyHost } from './useRoomyHost';
 
@@ -61,6 +63,13 @@ export interface OngoingCallViewProps {
   addCallTo: string;
   onAddCallToChange: (value: string) => void;
   onSubmitAddCall: () => void;
+  /** The host's directory, offered by the transfer and add-call panels. */
+  directory?: readonly DirectoryContact[];
+  onPickTransferContact?: (entry: DirectoryContact) => void;
+  /** The contact `transferTo` came from, or null when it was typed. */
+  pickedTransferContact?: DirectoryContact | null;
+  onPickAddCallContact?: (entry: DirectoryContact) => void;
+  pickedAddCallContact?: DirectoryContact | null;
 
   canStartTransfer: boolean;
   canAddCall: boolean;
@@ -74,6 +83,8 @@ export interface OngoingCallViewProps {
 
   errorChip?: React.ReactNode;
 }
+
+const NO_DIRECTORY: readonly DirectoryContact[] = [];
 
 export function OngoingCallView({
   palette,
@@ -103,6 +114,11 @@ export function OngoingCallView({
   addCallTo,
   onAddCallToChange,
   onSubmitAddCall,
+  directory = NO_DIRECTORY,
+  onPickTransferContact = () => {},
+  pickedTransferContact = null,
+  onPickAddCallContact = () => {},
+  pickedAddCallContact = null,
   canStartTransfer,
   canAddCall,
   onToggleMute,
@@ -117,6 +133,10 @@ export function OngoingCallView({
   const { roomy, onLayout } = useRoomyHost();
   const styles = useMemo(() => makeStyles(palette, !roomy), [palette, roomy]);
   const inKeypadMode = isActive && overlay === 'keypad' && canSendDtmf;
+  const transferOpen = isActive && overlay === 'transfer' && canStartTransfer;
+  const addCallOpen = isActive && overlay === 'addcall' && canAddCall;
+  // Both panels take over the screen above hang up (see DialPanelView).
+  const panelOpen = transferOpen || addCallOpen;
 
   return (
     // A tap outside the field closes the keyboard, as in other apps.
@@ -127,7 +147,7 @@ export function OngoingCallView({
       accessible={false}
     >
       {}
-      {transferOther && (
+      {transferOther && !panelOpen && (
         <>
           {(() => {
             const otherName = transferOther.name;
@@ -163,7 +183,7 @@ export function OngoingCallView({
       )}
 
       {}
-      {switchableHeld.length > 0 && (
+      {switchableHeld.length > 0 && !panelOpen && (
         <View style={styles.heldCalls}>
           {switchableHeld.map((held) => {
             const hn = held.name;
@@ -188,20 +208,22 @@ export function OngoingCallView({
         </View>
       )}
 
-      <View style={[styles.peer, inKeypadMode && styles.peerCompact]}>
-        {roomy && !inKeypadMode && <PeerAvatar palette={palette} avatar={peer.avatar} />}
-        <Text style={styles.peerName}>{peer.name}</Text>
-        {!!peer.number && <Text style={styles.peerNumber}>{peer.number}</Text>}
-        <View style={styles.callState}>
-          {inKeypadMode ? (
-            <Text style={styles.dtmfReadout}>{dtmfEntered || ' '}</Text>
-          ) : (
-            <Text style={styles.callStateText}>{stateLabel}</Text>
-          )}
-          {}
-          {!inKeypadMode && <Text style={styles.duration}>{showDuration ? duration : ' '}</Text>}
+      {!panelOpen && (
+        <View style={[styles.peer, inKeypadMode && styles.peerCompact]}>
+          {roomy && !inKeypadMode && <PeerAvatar palette={palette} avatar={peer.avatar} />}
+          <Text style={styles.peerName}>{peer.name}</Text>
+          {!!peer.number && <Text style={styles.peerNumber}>{peer.number}</Text>}
+          <View style={styles.callState}>
+            {inKeypadMode ? (
+              <Text style={styles.dtmfReadout}>{dtmfEntered || ' '}</Text>
+            ) : (
+              <Text style={styles.callStateText}>{stateLabel}</Text>
+            )}
+            {}
+            {!inKeypadMode && <Text style={styles.duration}>{showDuration ? duration : ' '}</Text>}
+          </View>
         </View>
-      </View>
+      )}
 
       {errorChip}
 
@@ -227,57 +249,61 @@ export function OngoingCallView({
         </View>
       )}
 
-      {isActive && overlay === 'transfer' && canStartTransfer && (
-        <View style={styles.transfer}>
-          <TextInput
-            style={styles.transferInput}
-            value={transferTo}
-            onChangeText={onTransferToChange}
-            placeholder={t('transferPlaceholder')}
-            placeholderTextColor={palette.textSecondary}
-            keyboardType="phone-pad"
-            inputAccessoryViewID={KEYBOARD_ID}
-            autoCorrect={false}
-          />
-          <View style={styles.transferActions}>
-            {}
-            <Pressable
-              disabled={!transferTo.trim()}
-              onPress={onBlindTransfer}
-              style={[
-                styles.transferSend,
-                styles.transferSendSecondary,
-                !transferTo.trim() && styles.transferSendDisabled,
-              ]}
-            >
-              <Text style={styles.transferSendSecondaryText}>{t('transferNow')}</Text>
-            </Pressable>
-            {}
-            <Pressable
-              disabled={!transferTo.trim()}
-              onPress={onConsultTransfer}
-              style={[styles.transferSend, !transferTo.trim() && styles.transferSendDisabled]}
-            >
-              <Text style={styles.transferSendText}>{t('transferConsult')}</Text>
-            </Pressable>
-          </View>
-        </View>
+      {transferOpen && (
+        <DialPanelView
+          palette={palette}
+          styles={styles}
+          t={t}
+          title={t('transfer')}
+          peerName={peer.name}
+          directory={directory}
+          picked={pickedTransferContact}
+          onPick={onPickTransferContact}
+          value={transferTo}
+          placeholder={t('transferPlaceholder')}
+          onChange={onTransferToChange}
+          keyboardId={KEYBOARD_ID}
+          actions={
+            <>
+              <Pressable
+                disabled={!transferTo.trim()}
+                onPress={onBlindTransfer}
+                style={[
+                  styles.transferSend,
+                  styles.transferSendSecondary,
+                  !transferTo.trim() && styles.transferSendDisabled,
+                ]}
+              >
+                <Text style={styles.transferSendSecondaryText}>{t('transferNow')}</Text>
+              </Pressable>
+              <Pressable
+                disabled={!transferTo.trim()}
+                onPress={onConsultTransfer}
+                style={[styles.transferSend, !transferTo.trim() && styles.transferSendDisabled]}
+              >
+                <Text style={styles.transferSendText}>{t('transferConsult')}</Text>
+              </Pressable>
+            </>
+          }
+          onClose={() => onToggleOverlay('transfer')}
+        />
       )}
 
-      {isActive && overlay === 'addcall' && canAddCall && (
-        <View style={styles.transfer}>
-          <TextInput
-            style={styles.transferInput}
-            value={addCallTo}
-            onChangeText={onAddCallToChange}
-            placeholder={t('addCallPlaceholder')}
-            placeholderTextColor={palette.textSecondary}
-            keyboardType="phone-pad"
-            inputAccessoryViewID={KEYBOARD_ID}
-            autoCorrect={false}
-          />
-          <View style={styles.transferActions}>
-            {}
+      {addCallOpen && (
+        <DialPanelView
+          palette={palette}
+          styles={styles}
+          t={t}
+          title={t('addCall')}
+          peerName={peer.name}
+          directory={directory}
+          picked={pickedAddCallContact}
+          onPick={onPickAddCallContact}
+          value={addCallTo}
+          placeholder={t('addCallPlaceholder')}
+          onChange={onAddCallToChange}
+          keyboardId={KEYBOARD_ID}
+          actions={
             <Pressable
               disabled={!addCallTo.trim()}
               onPress={onSubmitAddCall}
@@ -285,13 +311,14 @@ export function OngoingCallView({
             >
               <Text style={styles.transferSendText}>{t('addCallSend')}</Text>
             </Pressable>
-          </View>
-        </View>
+          }
+          onClose={() => onToggleOverlay('addcall')}
+        />
       )}
 
       {!isActive && <ControlsSlot styles={styles} />}
 
-      {isActive && !inKeypadMode && (
+      {isActive && !inKeypadMode && !panelOpen && (
         <View style={styles.controls}>
           <ControlButton
             label={isMuted ? t('unmute') : t('mute')}

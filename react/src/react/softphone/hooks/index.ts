@@ -41,6 +41,9 @@ export type { PeerInfo, ResolvePeer } from './usePeerResolver';
 export { useDialInput } from './useDialInput';
 export type { UseDialInput } from './useDialInput';
 
+export { useDialTarget } from './useDialTarget';
+export type { UseDialTarget } from './useDialTarget';
+
 export {
   isIncomingRinging,
   shouldRingIncoming,
@@ -61,10 +64,14 @@ export {
   DIAL_COUNTRY,
   callStateLabelKey,
   errorMessageKey,
+  filterDirectory,
+  directoryContactTags,
 } from '../core/view-model';
 export type {
   SoftphoneScreen,
   SoftphoneLayout,
   PeerDisplay,
   SoftphoneLayoutVariant,
+  DirectoryContact,
+  DirectoryContactGroup,
 } from '../core/view-model';

@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { SoftphoneProvider } from '@dialstack/sdk-react/softphone';
 import { BatteriesFlow } from './batteries/BatteriesFlow';
 import { ModularFlow } from './modular/ModularFlow';
+import { sampleDirectory } from './sampleDirectory';
 import styles from './page.module.css';
 
 type Session = { token: string; apiBaseUrl: string };
@@ -20,6 +21,8 @@ const Page: React.FC = () => {
   const [status, setStatus] = useState<Status>('idle');
   const [message, setMessage] = useState<string>('');
   const [flow, setFlow] = useState<Flow>('batteries');
+  // Off by default, so the example starts with the plain transfer field.
+  const [offerDirectory, setOfferDirectory] = useState(false);
 
   // Mint a short-lived WebRTC token from our own backend (/api/session), which
   // holds the sk_live_ key server-side. The browser only ever sees the minted
@@ -76,10 +79,19 @@ const Page: React.FC = () => {
               apiBaseUrl={session.apiBaseUrl}
               appearance={{ theme: 'light' }}
               onError={(e) => setMessage(`${e.code} — ${e.message}`)}
+              directory={offerDirectory ? sampleDirectory : undefined}
             >
               <FlowToggle flow={flow} onChange={setFlow} />
               {flow === 'batteries' ? <BatteriesFlow /> : <ModularFlow />}
             </SoftphoneProvider>
+            <label className={styles.option}>
+              <input
+                type="checkbox"
+                checked={offerDirectory}
+                onChange={(e) => setOfferDirectory(e.target.checked)}
+              />
+              Offer a sample directory
+            </label>
             <button onClick={disconnect} className={styles.linkButton}>
               Disconnect
             </button>

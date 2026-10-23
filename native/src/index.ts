@@ -54,6 +54,9 @@ export type { Call, CallState, CallEndReason, UseCallActions } from '@dialstack/
 // What `resolvePeer` returns: the host's record of a call's remote party.
 export type { PeerInfo, ResolvePeer, SoftphoneLayoutVariant } from '@dialstack/sdk-react/core';
 
+// One entry of the `directory` offered when transferring or adding a call.
+export type { DirectoryContact } from '@dialstack/sdk-react/core';
+
 // Output routing, implemented by a host that owns call audio.
 export type {
   AudioOutput,

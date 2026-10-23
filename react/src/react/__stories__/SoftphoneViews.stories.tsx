@@ -199,6 +199,32 @@ const ongoing = (over: Partial<React.ComponentProps<typeof OngoingCallView>> = {
   />
 );
 
+const sampleDirectory = [
+  { id: 'reception', label: 'Reception', destination: '100' },
+  {
+    id: 'dana-ortiz',
+    label: 'Dana Ortiz',
+    destination: '201',
+    description: 'Ext. 201',
+    group: 'Team',
+    tags: ['On call'],
+  },
+  {
+    id: 'lee-park',
+    label: 'Lee Park',
+    destination: '202',
+    description: 'Ext. 202',
+    group: 'Team',
+    tags: ['Spanish', 'Billing'],
+  },
+  {
+    id: 'after-hours-line',
+    label: 'After-hours line',
+    destination: '+14155550100',
+    group: 'External',
+  },
+];
+
 const overlayCell = (panel: Exclude<OverlayPanel, null>) =>
   ongoing({
     overlay: panel,
@@ -266,7 +292,18 @@ const AllCells: React.FC = () => (
 
     <Cell label="overlay · keypad">{overlayCell('keypad')}</Cell>
     <Cell label="overlay · transfer">{overlayCell('transfer')}</Cell>
+    <Cell label="overlay · transfer · directory">
+      {ongoing({
+        overlay: 'transfer',
+        transferTo: '201',
+        directory: sampleDirectory,
+        pickedTransferContact: sampleDirectory[1],
+      })}
+    </Cell>
     <Cell label="overlay · add call">{overlayCell('addcall')}</Cell>
+    <Cell label="overlay · add call · directory">
+      {ongoing({ overlay: 'addcall', directory: sampleDirectory })}
+    </Cell>
     <Cell label="overlay · devices">{overlayCell('devices')}</Cell>
 
     <Cell label="conference">

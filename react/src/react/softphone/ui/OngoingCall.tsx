@@ -10,7 +10,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useSoftphone } from '../provider/SoftphoneProvider';
-import { peerDisplay, callStateLabelKey, isCallActive, useDialInput, MAX_CALLS } from '../hooks';
+import { peerDisplay, callStateLabelKey, isCallActive, useDialTarget, MAX_CALLS } from '../hooks';
 import { AudioDevicePicker } from './AudioDevicePicker';
 import { OngoingCallView } from './views/OngoingCallView';
 import type { OverlayPanel, PeerSummary } from './views/types';
@@ -45,21 +45,24 @@ export const OngoingCall: React.FC = () => {
     scope,
     lastError,
     clearError,
+    directory,
   } = useSoftphone();
   const { showKeypad, showTransfer, showDevices, showAddCall } = overlays;
   const [dtmfEntered, setDtmfEntered] = useState('');
-  const [transferTo, setTransferTo] = useState('');
-  const [addCallTo, setAddCallTo] = useState('');
-  const { onType: onTransferType, onPasteText: onTransferPaste } = useDialInput(setTransferTo);
-  const { onType: onAddCallType, onPasteText: onAddCallPaste } = useDialInput(setAddCallTo);
+  const transferTarget = useDialTarget();
+  const addCallTarget = useDialTarget();
+  const transferTo = transferTarget.value;
+  const addCallTo = addCallTarget.value;
+  const { clear: clearTransfer } = transferTarget;
+  const { clear: clearAddCall } = addCallTarget;
 
   const callId = call?.id ?? null;
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset transient text on foreground-call change
     setDtmfEntered('');
-    setTransferTo('');
-    setAddCallTo('');
-  }, [callId]);
+    clearTransfer();
+    clearAddCall();
+  }, [callId, clearTransfer, clearAddCall]);
 
   if (!call) return null;
 
@@ -113,7 +116,7 @@ export const OngoingCall: React.FC = () => {
     const target = addCallValue.trim();
     if (!target) return;
     void placeCall(target);
-    setAddCallTo('');
+    clearAddCall();
     overlays.closeAddCall();
   };
 
@@ -133,6 +136,10 @@ export const OngoingCall: React.FC = () => {
           : null;
 
   const toggleOverlay = (panel: Exclude<OverlayPanel, null>): void => {
+    // Closing a panel cancels it, so reopening never finds an old destination
+    // armed behind the directory list.
+    if (panel === overlay && panel === 'transfer') clearTransfer();
+    if (panel === overlay && panel === 'addcall') clearAddCall();
     if (panel === 'keypad') overlays.toggleKeypad();
     else if (panel === 'transfer') overlays.toggleTransfer();
     else if (panel === 'devices') overlays.toggleDevices();
@@ -168,18 +175,23 @@ export const OngoingCall: React.FC = () => {
       dtmfEntered={dtmfEntered}
       onSendDtmf={sendDtmf}
       transferTo={transferTo}
-      onTransferToChange={onTransferType}
-      onTransferToPaste={onTransferPaste}
+      onTransferToChange={transferTarget.onType}
+      onTransferToPaste={transferTarget.onPasteText}
+      directory={directory}
+      onPickTransferContact={transferTarget.pick}
+      pickedTransferContact={transferTarget.picked}
+      onPickAddCallContact={addCallTarget.pick}
+      pickedAddCallContact={canAddCall ? addCallTarget.picked : null}
       onBlindTransfer={() => {
         if (actions.transfer(transferTo)) {
-          setTransferTo('');
+          clearTransfer();
           overlays.closeTransfer();
         }
       }}
       onConsultTransfer={() => void startAttendedTransfer(transferTo)}
       addCallTo={addCallValue}
-      onAddCallToChange={onAddCallType}
-      onAddCallToPaste={onAddCallPaste}
+      onAddCallToChange={addCallTarget.onType}
+      onAddCallToPaste={addCallTarget.onPasteText}
       onSubmitAddCall={submitAddCall}
       devicesPanel={<AudioDevicePicker />}
       canStartTransfer={canStartTransfer}

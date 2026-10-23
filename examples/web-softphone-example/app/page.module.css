@@ -151,3 +151,12 @@
   cursor: pointer;
   text-decoration: underline;
 }
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  cursor: pointer;
+}

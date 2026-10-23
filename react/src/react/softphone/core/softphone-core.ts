@@ -18,6 +18,7 @@ export {
   useEmergencyBinding,
   useLastError,
   useDialInput,
+  useDialTarget,
   isIncomingRinging,
   shouldRingIncoming,
   isCallActive,
@@ -37,6 +38,8 @@ export {
   DIAL_COUNTRY,
   callStateLabelKey,
   errorMessageKey,
+  filterDirectory,
+  directoryContactTags,
 } from '../hooks';
 export type {
   UsePhoneOptions,
@@ -51,6 +54,7 @@ export type {
   UseEmergencyBindingOptions,
   UseLastError,
   UseDialInput,
+  UseDialTarget,
   SoftphoneError,
   SoftphoneScreen,
   SoftphoneLayout,
@@ -58,6 +62,8 @@ export type {
   ResolvePeer,
   PeerDisplay,
   SoftphoneLayoutVariant,
+  DirectoryContact,
+  DirectoryContactGroup,
 } from '../hooks';
 
 // The shared provider core (DOM/RN-free). Platform providers build on this.

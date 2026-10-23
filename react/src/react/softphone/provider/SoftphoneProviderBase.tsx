@@ -32,6 +32,7 @@ import {
   type PeerInfo,
   type ResolvePeer,
   type SoftphoneLayoutVariant,
+  type DirectoryContact,
 } from '../hooks';
 import {
   createPaginatedList,
@@ -108,9 +109,15 @@ export interface SoftphoneContextBase {
   peerInfo: (call: Call | null | undefined) => PeerInfo | null;
   /** The size tier the host asked for (`'auto'` unless pinned). */
   layoutVariant: SoftphoneLayoutVariant;
+  /** The host's `directory`; empty when none were supplied. */
+  directory: readonly DirectoryContact[];
 }
 
 const SoftphoneContext = createContext<SoftphoneContextBase | null>(null);
+
+// One shared empty list, so a host that passes nothing never changes the
+// context value's identity on its account.
+const NO_DIRECTORY: readonly DirectoryContact[] = [];
 
 // Stands in for the phone while `usePhone` has none — before the first construct
 // and after teardown.
@@ -188,6 +195,11 @@ export interface SoftphoneCoreProps {
    * about 300x480; `'full'` or `'compact'` pins one.
    */
   layoutVariant?: SoftphoneLayoutVariant;
+  /**
+   * Entries offered as a searchable list when transferring and when adding a
+   * call, so the user can pick a destination instead of typing it.
+   */
+  directory?: readonly DirectoryContact[];
 }
 
 export interface SoftphoneProviderBaseProps<Extra extends object> extends SoftphoneCoreProps {
@@ -229,6 +241,7 @@ export function SoftphoneProviderBase<Extra extends object>({
   onError,
   resolvePeer,
   layoutVariant = 'auto',
+  directory = NO_DIRECTORY,
   placeOutbound,
   answerIncoming,
   extra,
@@ -371,6 +384,7 @@ export function SoftphoneProviderBase<Extra extends object>({
       palette,
       peerInfo,
       layoutVariant,
+      directory,
       ...extra,
     }),
     // t/displayNumber recompute from locale/defaultCountry each render; the
@@ -410,6 +424,7 @@ export function SoftphoneProviderBase<Extra extends object>({
       palette,
       peerInfo,
       layoutVariant,
+      directory,
       locale,
       defaultCountry,
       extra,

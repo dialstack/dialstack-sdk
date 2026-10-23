@@ -469,6 +469,31 @@ describe('Softphone multi-call', () => {
     expect(screen.queryByLabelText('Number to dial')).not.toBeInTheDocument();
   });
 
+  it('hides the held call while the add-call panel is open', async () => {
+    const { container } = renderSoftphone();
+    act(() => phone().emit('connected'));
+    connectWithActiveCall('Alice', '+14155550001');
+    const bob = new FakeCall('outbound', '', null, '+14155550002');
+    phone().nextCall = bob;
+    fireEvent.click(screen.getByLabelText('Add call'));
+    fireEvent.change(screen.getByLabelText('Number to dial'), {
+      target: { value: '+14155550002' },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText('Call'));
+    });
+    act(() => {
+      bob.state = 'active';
+      bob.emit('answered');
+    });
+    expect(container.querySelector('.ds-held-calls')).not.toBeNull();
+
+    fireEvent.click(screen.getByLabelText('Add call'));
+    expect(container.querySelector('.ds-held-calls')).toBeNull();
+    fireEvent.click(screen.getByLabelText('Cancel'));
+    expect(container.querySelector('.ds-held-calls')).not.toBeNull();
+  });
+
   it('discards a stale add-call panel when the cap is reached', async () => {
     renderSoftphone();
     act(() => phone().emit('connected'));
@@ -1428,5 +1453,245 @@ describe('Softphone control row width', () => {
 
     fireEvent.click(screen.getByLabelText('Merge calls'));
     expect(controlCount()).toBe(6);
+  });
+});
+
+describe('Softphone dial panel', () => {
+  const directory = [
+    { id: 'front-desk', label: 'Front desk', destination: '100' },
+    {
+      id: 'alex-rivera',
+      label: 'Alex Rivera',
+      destination: '+1 (415) 555-0101',
+      description: 'Billing',
+      group: 'Team',
+    },
+    { id: 'sam-lee', label: 'Sam Lee', destination: '102', group: 'Team', tags: ['On call', ' '] },
+    { id: 'night-line', label: 'Night line', destination: '4155550199', group: 'External' },
+  ];
+
+  function openPanel(
+    control: 'Transfer' | 'Add call',
+    providerProps: Partial<SoftphoneProviderProps> = {}
+  ): { call: FakeCall; container: HTMLElement; rerender: (ui: React.ReactElement) => void } {
+    const { container, rerender } = renderSoftphone(providerProps);
+    act(() => phone().emit('connected'));
+    const call = new FakeCall('inbound', '+14155552671', 'Alice', 'me');
+    act(() => phone().emit('incoming', call));
+    act(() => {
+      call.state = 'active';
+      call.emit('answered');
+    });
+    fireEvent.click(screen.getByLabelText(control));
+    return { call, container, rerender };
+  }
+
+  describe.each([
+    ['Transfer', 'Transfer to…'],
+    ['Add call', 'Number to dial'],
+  ] as const)('%s', (control, fieldLabel) => {
+    it('takes over the in-call screen, keeping only hang up', () => {
+      const { container } = openPanel(control);
+      expect(container.querySelector('.ds-dial-panel-title')).toHaveTextContent(control);
+      // The caller's name stays as context under the title.
+      expect(container.querySelector('.ds-dial-panel-peer')).toHaveTextContent('Alice');
+      expect(container.querySelector('.ds-peer')).toBeNull();
+      expect(container.querySelector('.ds-controls')).toBeNull();
+      expect(screen.getByLabelText('Hang up')).toBeInTheDocument();
+    });
+
+    it('opens on the number field when there is no directory', () => {
+      const { container } = openPanel(control);
+      expect(screen.getByLabelText(fieldLabel)).toHaveFocus();
+      expect(container.querySelector('.ds-directory')).toBeNull();
+      expect(screen.queryByText('Choose from directory')).not.toBeInTheDocument();
+      expect(screen.queryByText('Enter a number')).not.toBeInTheDocument();
+    });
+
+    it('treats an empty directory as none', () => {
+      const { container } = openPanel(control, { directory: [] });
+      expect(screen.getByLabelText(fieldLabel)).toBeInTheDocument();
+      expect(container.querySelector('.ds-directory')).toBeNull();
+    });
+
+    it('opens on the directory when one is supplied, listing groups in order', () => {
+      const { container } = openPanel(control, { directory });
+      expect(screen.queryByLabelText(fieldLabel)).not.toBeInTheDocument();
+      const rows = Array.from(
+        container.querySelectorAll('.ds-directory-group, .ds-directory-option-label')
+      ).map((el) => el.textContent);
+      expect(rows).toEqual([
+        'Front desk',
+        'Team',
+        'Alex Rivera',
+        'Sam Lee',
+        'External',
+        'Night line',
+      ]);
+      // The description replaces the destination as the second line.
+      expect(screen.getByText('Billing')).toBeInTheDocument();
+      expect(screen.getByText('102')).toBeInTheDocument();
+    });
+
+    it('shows tags as chips and finds an entry by its tag', () => {
+      const { container } = openPanel(control, { directory });
+      const sam = screen.getByText('Sam Lee').closest('button')!;
+      expect(
+        Array.from(sam.querySelectorAll('.ds-directory-tag')).map((el) => el.textContent)
+      ).toEqual(['On call']);
+      // Untagged entries render no chips.
+      expect(
+        screen.getByText('Front desk').closest('button')!.querySelector('.ds-directory-tag')
+      ).toBeNull();
+      fireEvent.change(screen.getByLabelText('Search directory'), { target: { value: 'on call' } });
+      expect(
+        Array.from(container.querySelectorAll('.ds-directory-option-label')).map(
+          (el) => el.textContent
+        )
+      ).toEqual(['Sam Lee']);
+    });
+
+    it('filters the directory as the user searches', () => {
+      openPanel(control, { directory });
+      fireEvent.change(screen.getByLabelText('Search directory'), { target: { value: 'sam' } });
+      expect(screen.getByText('Sam Lee')).toBeInTheDocument();
+      expect(screen.queryByText('Front desk')).not.toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText('Search directory'), {
+        target: { value: 'nobody' },
+      });
+      expect(screen.getByText('No matches')).toBeInTheDocument();
+    });
+
+    it('switches to typing a number and back, keeping what was typed', () => {
+      openPanel(control, { directory });
+      fireEvent.click(screen.getByText('Enter a number'));
+      const field = screen.getByLabelText(fieldLabel);
+      expect(field).toHaveFocus();
+      expect(screen.queryByLabelText('Search directory')).not.toBeInTheDocument();
+      fireEvent.change(field, { target: { value: '5559999' } });
+      fireEvent.click(screen.getByText('Choose from directory'));
+      expect(screen.queryByLabelText(fieldLabel)).not.toBeInTheDocument();
+      fireEvent.click(screen.getByText('Enter a number'));
+      expect(screen.getByLabelText(fieldLabel)).toHaveValue('5559999');
+    });
+
+    it('reopens on the directory, not the field', () => {
+      openPanel(control, { directory });
+      fireEvent.click(screen.getByText('Enter a number'));
+      fireEvent.click(screen.getByLabelText('Cancel'));
+      fireEvent.click(screen.getByLabelText(control));
+      expect(screen.getByLabelText('Search directory')).toBeInTheDocument();
+    });
+
+    it('closes on cancel, restoring the in-call screen', () => {
+      const { container } = openPanel(control, { directory });
+      fireEvent.click(screen.getByLabelText('Cancel'));
+      expect(container.querySelector('.ds-dial-panel')).toBeNull();
+      expect(screen.getByLabelText('Mute')).toBeInTheDocument();
+      expect(container.querySelector('.ds-peer')).not.toBeNull();
+    });
+  });
+
+  describe.each([
+    ['Transfer', 'Transfer now'],
+    ['Add call', 'Call'],
+  ] as const)('%s: the armed destination', (control, action) => {
+    it('stays on screen when a typed number is left behind by switching to the list', () => {
+      const { container } = openPanel(control, { directory });
+      fireEvent.click(screen.getByText('Enter a number'));
+      fireEvent.change(
+        screen.getByLabelText(control === 'Transfer' ? 'Transfer to…' : 'Number to dial'),
+        {
+          target: { value: '5559999' },
+        }
+      );
+      fireEvent.click(screen.getByText('Choose from directory'));
+      expect(container.querySelector('.ds-dial-panel-target')).toHaveTextContent('5559999');
+    });
+
+    it('stays on screen when the search hides the picked contact', () => {
+      const { container } = openPanel(control, { directory });
+      fireEvent.click(screen.getByText('Sam Lee'));
+      fireEvent.change(screen.getByLabelText('Search directory'), { target: { value: 'front' } });
+      expect(screen.queryByText('Sam Lee', { selector: '.ds-directory-option-label' })).toBeNull();
+      expect(container.querySelector('.ds-dial-panel-target')).toHaveTextContent('Sam Lee');
+    });
+
+    it('is cleared by cancel, so reopening arms nothing', () => {
+      const { container } = openPanel(control, { directory });
+      fireEvent.click(screen.getByText('Sam Lee'));
+      fireEvent.click(screen.getByLabelText('Cancel'));
+      fireEvent.click(screen.getByLabelText(control));
+      expect(screen.getByText(action)).toBeDisabled();
+      expect(container.querySelector('[aria-pressed="true"]')).toBeNull();
+      expect(container.querySelector('.ds-dial-panel-target')).toBeNull();
+    });
+  });
+
+  it('marks only the tapped contact when two share a destination', () => {
+    const shared = [
+      { id: 'support', label: 'Support', destination: '200' },
+      { id: 'help-desk', label: 'Help desk', destination: '200' },
+    ];
+    openPanel('Transfer', { directory: shared });
+    fireEvent.click(screen.getByText('Help desk'));
+    expect(screen.getByText('Help desk').closest('button')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Support').closest('button')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('keeps the pick marked when the host passes a fresh copy of the directory', () => {
+    const { rerender } = openPanel('Transfer', { directory });
+    fireEvent.click(screen.getByText('Sam Lee'));
+    rerender(
+      <SoftphoneProvider token="tok" directory={directory.map((entry) => ({ ...entry }))}>
+        <Softphone />
+      </SoftphoneProvider>
+    );
+    expect(screen.getByText('Sam Lee').closest('button')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('blind-transfers to the picked entry, cleaned like a paste', () => {
+    const { call } = openPanel('Transfer', { directory });
+    expect(screen.getByText('Transfer now')).toBeDisabled();
+    expect(screen.getByText('Consult first')).toBeDisabled();
+    const pick = screen.getByText('Alex Rivera').closest('button')!;
+    fireEvent.click(pick);
+    expect(pick).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByText('Transfer now'));
+    expect(call.transfer).toHaveBeenCalledWith('+14155550101');
+  });
+
+  it('consult-transfers to the picked entry', async () => {
+    const { call } = openPanel('Transfer', { directory });
+    fireEvent.click(screen.getByText('Sam Lee'));
+    await act(async () => {
+      fireEvent.click(screen.getByText('Consult first'));
+    });
+    expect(call.attendedTransfer).toHaveBeenCalledWith('102');
+  });
+
+  it('places a call to the picked entry', async () => {
+    openPanel('Add call', { directory });
+    expect(screen.getByText('Call')).toBeDisabled();
+    fireEvent.click(screen.getByText('Night line'));
+    await act(async () => {
+      fireEvent.click(screen.getByText('Call'));
+    });
+    expect(phone().callArgs).toEqual(['+14155550199']);
+  });
+
+  it('cancels a transfer without transferring', () => {
+    const { call } = openPanel('Transfer', { directory });
+    fireEvent.click(screen.getByText('Sam Lee'));
+    fireEvent.click(screen.getByLabelText('Cancel'));
+    expect(call.transfer).not.toHaveBeenCalled();
+  });
+
+  it('leaves the transfer gating as it was: no panel while another call is ringing', () => {
+    const { container } = openPanel('Transfer', { directory });
+    const second = new FakeCall('inbound', '+14155550000', 'Bob', 'me');
+    act(() => phone().emit('incoming', second));
+    expect(screen.getByLabelText('Transfer')).toBeDisabled();
+    expect(container.querySelector('.ds-dial-panel')).toBeNull();
   });
 });

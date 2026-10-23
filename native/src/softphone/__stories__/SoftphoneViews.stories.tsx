@@ -8,7 +8,7 @@ import { OngoingCallView } from '../views/OngoingCallView';
 import { HOST_SIZES, SoftphoneFrame, type HostSize } from './SoftphoneFrame';
 import { Chip, makeStyles } from '../primitives';
 import { useRoomyHost } from '../views/useRoomyHost';
-import { darkPalette, lightPalette, noop, t } from './fixtures';
+import { darkPalette, lightPalette, noop, sampleDirectory, t } from './fixtures';
 
 const ErrorChip: React.FC<{ palette: Palette }> = ({ palette }) => {
   const { roomy } = useRoomyHost();
@@ -231,8 +231,19 @@ const Grid: React.FC<{ palette: Palette; size?: HostSize }> = ({ palette, size }
     <SoftphoneFrame label="overlay · transfer" palette={palette} size={size}>
       {call(palette, { overlay: 'transfer', transferTo: '1002' })}
     </SoftphoneFrame>
+    <SoftphoneFrame label="overlay · transfer · directory" palette={palette} size={size}>
+      {call(palette, {
+        overlay: 'transfer',
+        transferTo: '201',
+        directory: sampleDirectory,
+        pickedTransferContact: sampleDirectory[1],
+      })}
+    </SoftphoneFrame>
     <SoftphoneFrame label="overlay · add call" palette={palette} size={size}>
       {call(palette, { overlay: 'addcall', addCallTo: '1002' })}
+    </SoftphoneFrame>
+    <SoftphoneFrame label="overlay · add call · directory" palette={palette} size={size}>
+      {call(palette, { overlay: 'addcall', directory: sampleDirectory })}
     </SoftphoneFrame>
 
     <SoftphoneFrame label="attended transfer" palette={palette} size={size}>

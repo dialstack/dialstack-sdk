@@ -13,7 +13,7 @@ import {
   peerDisplay,
   callStateLabelKey,
   isCallActive,
-  useDialInput,
+  useDialTarget,
   MAX_CALLS,
 } from '@dialstack/sdk-react/core';
 import { useSoftphone } from '../SoftphoneProvider';
@@ -41,20 +41,23 @@ export function OngoingCall(): React.JSX.Element | null {
     t,
     palette,
     audio,
+    directory,
   } = useSoftphone();
   const { showKeypad, showTransfer, showAddCall } = overlays;
   const [dtmfEntered, setDtmfEntered] = useState('');
-  const [transferTo, setTransferTo] = useState('');
-  const { onType: onTransferType } = useDialInput(setTransferTo);
-  const [addCallTo, setAddCallTo] = useState('');
-  const { onType: onAddCallType } = useDialInput(setAddCallTo);
+  const transferTarget = useDialTarget();
+  const addCallTarget = useDialTarget();
+  const transferTo = transferTarget.value;
+  const addCallTo = addCallTarget.value;
+  const { clear: clearTransfer } = transferTarget;
+  const { clear: clearAddCall } = addCallTarget;
 
   const callId = call?.id ?? null;
   useEffect(() => {
     setDtmfEntered('');
-    setTransferTo('');
-    setAddCallTo('');
-  }, [callId]);
+    clearTransfer();
+    clearAddCall();
+  }, [callId, clearTransfer, clearAddCall]);
 
   if (!call) return null;
 
@@ -111,23 +114,28 @@ export function OngoingCall(): React.JSX.Element | null {
       }}
       dtmfEntered={dtmfEntered}
       transferTo={transferTo}
-      onTransferToChange={onTransferType}
+      onTransferToChange={transferTarget.onType}
       onBlindTransfer={() => {
         if (actions.transfer(transferTo)) {
-          setTransferTo('');
+          clearTransfer();
           overlays.closeTransfer();
         }
       }}
       onConsultTransfer={() => void startAttendedTransfer(transferTo)}
       addCallTo={addCallValue}
-      onAddCallToChange={onAddCallType}
+      onAddCallToChange={addCallTarget.onType}
       onSubmitAddCall={() => {
         const target = addCallValue.trim();
         if (!target) return;
         void placeCall(target);
-        setAddCallTo('');
+        clearAddCall();
         overlays.closeAddCall();
       }}
+      directory={directory}
+      onPickTransferContact={transferTarget.pick}
+      pickedTransferContact={transferTarget.picked}
+      onPickAddCallContact={addCallTarget.pick}
+      pickedAddCallContact={canAddCall ? addCallTarget.picked : null}
       canStartTransfer={!inTransfer && heldCalls.length + incomingCalls.length === 0}
       canAddCall={canAddCall}
       onToggleMute={actions.toggleMute}
@@ -136,6 +144,10 @@ export function OngoingCall(): React.JSX.Element | null {
       canToggleSpeaker={audio.supported}
       onToggleSpeaker={audio.toggleSpeaker}
       onToggleOverlay={(panel) => {
+        // Closing a panel cancels it, so reopening never finds an old
+        // destination armed behind the directory list.
+        if (panel === overlay && panel === 'transfer') clearTransfer();
+        if (panel === overlay && panel === 'addcall') clearAddCall();
         if (panel === 'keypad') overlays.toggleKeypad();
         else if (panel === 'transfer') overlays.toggleTransfer();
         else overlays.toggleAddCall();

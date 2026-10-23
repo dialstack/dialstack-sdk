@@ -23,6 +23,7 @@ import {
   Platform,
   Pressable,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -30,12 +31,28 @@ import {
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { mediaDevices } from 'react-native-webrtc';
-import { Softphone, SoftphoneProvider } from '@dialstack/sdk-native';
+import { Softphone, SoftphoneProvider, type DirectoryContact } from '@dialstack/sdk-native';
 import { mmkvStorage } from './mmkvStorage';
 import { getCurrentEmergencyAddress } from './locationProvider';
 
 const DEFAULT_API_BASE_URL = 'https://api.dialstack.ai';
 const THEME_BG = '#1a1a1a';
+
+// A stand-in for your own directory, offered when transferring or adding a
+// call. Swap the destinations for extensions that exist on your account.
+const SAMPLE_DIRECTORY: DirectoryContact[] = [
+  { id: 'reception', label: 'Reception', destination: '100' },
+  {
+    id: 'support',
+    label: 'Support',
+    destination: '200',
+    description: 'Ext. 200',
+    group: 'Departments',
+    tags: ['24/7'],
+  },
+  { id: 'sales', label: 'Sales', destination: '300', description: 'Ext. 300', group: 'Departments' },
+  { id: 'after-hours-line', label: 'After-hours line', destination: '+14155550100', group: 'External' },
+];
 
 // Optional gitignored local prefill so you can skip the setup screen during
 // development (see README). Absent in normal use.
@@ -54,14 +71,11 @@ async function ensureMicPermission(): Promise<boolean> {
       // request can fire a tick too early ("not attached to an Activity"). Wait
       // a frame so the Activity is ready before requesting.
       await new Promise<void>((r) => setTimeout(() => r(), 0));
-      const result = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-        {
-          title: 'Microphone permission',
-          message: 'DialStack needs the microphone to place and receive calls.',
-          buttonPositive: 'OK',
-        }
-      );
+      const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO, {
+        title: 'Microphone permission',
+        message: 'DialStack needs the microphone to place and receive calls.',
+        buttonPositive: 'OK',
+      });
       if (result !== PermissionsAndroid.RESULTS.GRANTED) return false;
     }
     // On iOS the system prompt is raised by the first getUserMedia; trigger it
@@ -82,6 +96,8 @@ export default function App(): React.JSX.Element {
   const [apiBaseUrl, setApiBaseUrl] = useState(devSession.apiBaseUrl ?? DEFAULT_API_BASE_URL);
   const [connected, setConnected] = useState(!!devSession.autoConnect && !!devSession.token);
   const [error, setError] = useState<string | null>(null);
+  // Off by default, so the example starts with the plain number field.
+  const [offerDirectory, setOfferDirectory] = useState(false);
   // Set while the SDK is awaiting a fresh token (onTokenExpiring). We prompt for
   // a new paste with an overlay ON TOP of the still-mounted provider — the phone
   // never disconnects, so submitting the token lets the SDK swap it in-band.
@@ -158,6 +174,7 @@ export default function App(): React.JSX.Element {
               apiBaseUrl={apiBaseUrl}
               appearance={{ theme: 'dark' }}
               onTokenExpiring={onTokenExpiring}
+              directory={offerDirectory ? SAMPLE_DIRECTORY : undefined}
               onError={(e: { code: string; message: string }) =>
                 setError(`${e.code} — ${e.message}`)
               }
@@ -222,6 +239,10 @@ export default function App(): React.JSX.Element {
                 autoCapitalize="none"
                 autoCorrect={false}
               />
+              <View style={styles.option}>
+                <Text style={styles.optionText}>Offer a sample directory</Text>
+                <Switch value={offerDirectory} onValueChange={setOfferDirectory} />
+              </View>
               <Pressable
                 style={[styles.connect, !token && styles.connectDisabled]}
                 disabled={!token}
@@ -261,6 +282,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   connectDisabled: { opacity: 0.4 },
+  option: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  optionText: { color: 'rgba(255,255,255,0.8)', fontSize: 15 },
   connectText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   error: { color: '#ff6369', textAlign: 'center', fontSize: 13 },
   refreshBackdrop: {

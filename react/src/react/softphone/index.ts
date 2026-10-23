@@ -86,4 +86,5 @@ export type {
   PeerInfo,
   ResolvePeer,
   SoftphoneLayoutVariant,
+  DirectoryContact,
 } from './hooks';

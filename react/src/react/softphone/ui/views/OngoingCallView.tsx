@@ -6,6 +6,8 @@ import { ControlButton } from '../ControlButton';
 import { ControlsSlot } from '../ControlsSlot';
 import { CallErrorChipView, type CallErrorChipViewProps } from './CallErrorChipView';
 import { PeerAvatar, PeerRow } from './PeerAvatar';
+import { DialPanelView } from './DialPanelView';
+import type { DirectoryContact } from '../../core/view-model';
 import { useRoomyHost } from './useRoomyHost';
 import {
   DEFAULT_SCOPE,
@@ -46,6 +48,13 @@ export interface OngoingCallViewProps extends Omit<SoftphoneViewChrome, 'display
   transferTo: string;
   onTransferToChange: (value: string) => void;
   onTransferToPaste: (text: string) => void;
+  /** The host's directory, offered by the transfer and add-call panels. */
+  directory?: readonly DirectoryContact[];
+  onPickTransferContact?: (entry: DirectoryContact) => void;
+  /** The contact `transferTo` came from, or null when it was typed. */
+  pickedTransferContact?: DirectoryContact | null;
+  onPickAddCallContact?: (entry: DirectoryContact) => void;
+  pickedAddCallContact?: DirectoryContact | null;
   onBlindTransfer: () => void;
   onConsultTransfer: () => void;
   addCallTo: string;
@@ -63,6 +72,8 @@ export interface OngoingCallViewProps extends Omit<SoftphoneViewChrome, 'display
   onMergeOrSplit: () => void;
   onHangup: () => void;
 }
+
+const NO_DIRECTORY: readonly DirectoryContact[] = [];
 
 export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
   peer,
@@ -91,6 +102,11 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
   transferTo,
   onTransferToChange,
   onTransferToPaste,
+  directory = NO_DIRECTORY,
+  onPickTransferContact = () => {},
+  pickedTransferContact = null,
+  onPickAddCallContact = () => {},
+  pickedAddCallContact = null,
   onBlindTransfer,
   onConsultTransfer,
   addCallTo,
@@ -110,6 +126,10 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
   t,
 }) => {
   const inKeypadMode = isActive && overlay === 'keypad' && canSendDtmf;
+  const transferOpen = isActive && overlay === 'transfer' && canStartTransfer;
+  const addCallOpen = isActive && overlay === 'addcall' && canAddCall;
+  // Both panels take over the screen above hang up (see DialPanelView).
+  const panelOpen = transferOpen || addCallOpen;
 
   const { ref: hostRef, roomy } = useRoomyHost<HTMLDivElement>();
 
@@ -119,7 +139,7 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
         className={`ds-screen ds-screen-incall ${isActive ? 'ds-screen-active' : 'ds-screen-outgoing'}`}
       >
         {}
-        {transferOther && (
+        {transferOther && !panelOpen && (
           <div className="ds-transfer-banner">
             <button
               type="button"
@@ -153,7 +173,7 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
         )}
 
         {}
-        {switchableHeld.length > 0 && (
+        {switchableHeld.length > 0 && !panelOpen && (
           <div className="ds-held-calls" role="group" aria-label={t('heldCallsLabel')}>
             {switchableHeld.map((held) => (
               <button
@@ -173,7 +193,7 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
         )}
 
         {}
-        {isMerged ? (
+        {panelOpen ? null : isMerged ? (
           <div className="ds-peer ds-peer-conference">
             <div className="ds-callstate-text">{conferenceLabel}</div>
             <div className="ds-conference-parties">
@@ -229,63 +249,54 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
           </div>
         )}
 
-        {isActive && overlay === 'transfer' && canStartTransfer && (
-          <div className="ds-transfer">
-            <input
-              className="ds-transfer-input"
-              type="tel"
-              inputMode="tel"
-              value={transferTo}
-              placeholder={t('transferPlaceholder')}
-              aria-label={t('transferPlaceholder')}
-              autoComplete="off"
-              onChange={(e) => onTransferToChange(e.target.value)}
-              onPaste={(e) => {
-                e.preventDefault();
-                onTransferToPaste(e.clipboardData.getData('text'));
-              }}
-            />
-            <div className="ds-transfer-actions">
-              {}
-              <button
-                type="button"
-                className="ds-transfer-send ds-transfer-send-secondary"
-                disabled={!transferTo.trim()}
-                onClick={onBlindTransfer}
-              >
-                {t('transferNow')}
-              </button>
-              {}
-              <button
-                type="button"
-                className="ds-transfer-send"
-                disabled={!transferTo.trim()}
-                onClick={onConsultTransfer}
-              >
-                {t('transferConsult')}
-              </button>
-            </div>
-          </div>
+        {transferOpen && (
+          <DialPanelView
+            title={t('transfer')}
+            peerName={peer.name}
+            directory={directory}
+            picked={pickedTransferContact}
+            onPick={onPickTransferContact}
+            value={transferTo}
+            placeholder={t('transferPlaceholder')}
+            onChange={onTransferToChange}
+            onPaste={onTransferToPaste}
+            actions={
+              <>
+                <button
+                  type="button"
+                  className="ds-transfer-send ds-transfer-send-secondary"
+                  disabled={!transferTo.trim()}
+                  onClick={onBlindTransfer}
+                >
+                  {t('transferNow')}
+                </button>
+                <button
+                  type="button"
+                  className="ds-transfer-send"
+                  disabled={!transferTo.trim()}
+                  onClick={onConsultTransfer}
+                >
+                  {t('transferConsult')}
+                </button>
+              </>
+            }
+            onClose={() => onToggleOverlay('transfer')}
+            t={t}
+          />
         )}
 
-        {isActive && overlay === 'addcall' && canAddCall && (
-          <div className="ds-transfer ds-addcall">
-            <input
-              className="ds-transfer-input"
-              type="tel"
-              inputMode="tel"
-              value={addCallTo}
-              placeholder={t('addCallPlaceholder')}
-              aria-label={t('addCallPlaceholder')}
-              autoComplete="off"
-              onChange={(e) => onAddCallToChange(e.target.value)}
-              onPaste={(e) => {
-                e.preventDefault();
-                onAddCallToPaste(e.clipboardData.getData('text'));
-              }}
-            />
-            <div className="ds-transfer-actions">
-              {}
+        {addCallOpen && (
+          <DialPanelView
+            title={t('addCall')}
+            peerName={peer.name}
+            directory={directory}
+            picked={pickedAddCallContact}
+            onPick={onPickAddCallContact}
+            value={addCallTo}
+            placeholder={t('addCallPlaceholder')}
+            onChange={onAddCallToChange}
+            onPaste={onAddCallToPaste}
+            actions={
               <button
                 type="button"
                 className="ds-transfer-send"
@@ -294,15 +305,17 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
               >
                 {t('addCallSend')}
               </button>
-            </div>
-          </div>
+            }
+            onClose={() => onToggleOverlay('addcall')}
+            t={t}
+          />
         )}
 
         {isActive && overlay === 'devices' && devicesPanel}
 
         {!isActive && <ControlsSlot />}
 
-        {isActive && !inKeypadMode && (
+        {isActive && !inKeypadMode && !panelOpen && (
           <div className="ds-controls" role="group">
             <ControlButton
               label={isMuted ? t('unmute') : t('mute')}

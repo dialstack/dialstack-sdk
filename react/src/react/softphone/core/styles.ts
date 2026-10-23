@@ -267,7 +267,6 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
        the in-call screen) gives up its height before the caller does. */
     .${scope} .ds-incoming-card > .ds-controls-slot { flex-shrink: 1000; }
     .${scope} .ds-screen-incall:has(.ds-dtmf) > .ds-peer { flex: 0 0 auto; }
-    .${scope} .ds-screen-incall:has(.ds-transfer) > .ds-peer { flex: 1 1 auto; }
     .${scope} .ds-keypad-dtmf {
       flex: 1; min-height: 0;
       grid-auto-rows: minmax(0, ${d.keyMaxSize}px);
@@ -282,11 +281,6 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     .${scope} .ds-dtmf-readout {
       text-align: center; font-size: 22px; min-height: 28px;
       font-variant-numeric: tabular-nums; letter-spacing: 0.08em;
-    }
-    .${scope} .ds-transfer {
-      display: flex; flex-direction: column; gap: 8px;
-      flex: 0 0 auto; min-height: min-content; justify-content: center;
-      width: 100%; max-width: ${(d.controlButtonSize + 12) * 3 + 24}px; margin: 0 auto;
     }
     .${scope} .ds-transfer-input {
       flex: 0 0 auto; min-width: 0; padding: 12px 14px;
@@ -303,6 +297,95 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     .${scope} .ds-transfer-send:disabled { opacity: 0.5; cursor: not-allowed; }
     .${scope} .ds-transfer-send-secondary {
       background: var(--dsd-surface); color: var(--dsd-text);
+    }
+    /* The transfer / add-call screen: it fills the in-call screen above hang
+       up, and only the directory list flexes (and scrolls). */
+    .${scope} .ds-dial-panel {
+      display: flex; flex-direction: column; gap: 10px;
+      flex: 1 1 auto; min-height: 0;
+      width: 100%; max-width: ${(d.controlButtonSize + 12) * 3 + 24}px; margin: 0 auto;
+    }
+    .${scope} .ds-screen > .ds-dial-panel { flex-shrink: 1; }
+    .${scope} .ds-dial-panel > * { flex: none; }
+    /* Same spot in both modes, just above hang up. */
+    .${scope} .ds-dial-panel > .ds-transfer-actions { margin-top: auto; }
+    /* Sits with the buttons, so it moves down with them. */
+    .${scope} .ds-dial-panel > .ds-dial-panel-target { margin-top: auto; }
+    .${scope} .ds-dial-panel > .ds-dial-panel-target + .ds-transfer-actions { margin-top: 0; }
+    /* With just the field, the auto margins split the spare height a third
+       above, two thirds below: within reach in a tall host instead of pinned
+       to the top. The list stays anchored to the top (so the header doesn't
+       move as a search shortens it) and grows to its content, scrolling only
+       once it reaches the buttons. */
+    .${scope} .ds-dial-panel-main {
+      display: flex; flex-direction: column; gap: 10px; margin-block: auto;
+    }
+    .${scope} .ds-dial-panel-main > * { flex: none; }
+    .${scope} .ds-dial-panel > .ds-dial-panel-main-list {
+      flex: 0 1 auto; min-height: 0; margin-block: 0;
+    }
+    .${scope} .ds-dial-panel-header { display: flex; align-items: flex-start; gap: 8px; }
+    .${scope} .ds-dial-panel-heading { flex: 1; min-width: 0; }
+    .${scope} .ds-dial-panel-title { font-size: 18px; font-weight: 600; }
+    .${scope} .ds-dial-panel-peer {
+      font-size: 13px; color: var(--dsd-text-secondary);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .${scope} .ds-dial-panel-close {
+      flex: none; width: 36px; height: 36px; padding: 8px;
+      border: none; border-radius: 50%; cursor: pointer;
+      background: var(--dsd-surface); color: var(--dsd-text);
+    }
+    .${scope} .ds-dial-panel-close:hover { background: var(--dsd-surface-active); }
+    .${scope} .ds-dial-panel-close svg { width: 100%; height: 100%; display: block; }
+    .${scope} .ds-dial-panel-mode {
+      align-self: center; border: none; background: none; padding: 4px 8px;
+      color: var(--dsd-accent); font-family: inherit; font-size: 14px; font-weight: 500;
+      cursor: pointer;
+    }
+    .${scope} .ds-dial-panel-mode:hover { text-decoration: underline; }
+    .${scope} .ds-dial-panel-target {
+      font-size: 13px; color: var(--dsd-text-secondary); text-align: center;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .${scope} .ds-dial-panel-main > .ds-directory {
+      display: flex; flex-direction: column; gap: 8px; flex: 0 1 auto; min-height: 0;
+    }
+    .${scope} .ds-directory-search { flex: none; }
+    .${scope} .ds-directory-options {
+      display: flex; flex-direction: column; gap: 4px;
+      flex: 0 1 auto; min-height: 0; overflow-y: auto;
+      border: 1px solid var(--dsd-border); border-radius: ${d.radius}px;
+      background: var(--dsd-surface); padding: 4px;
+    }
+    .${scope} .ds-directory-group {
+      padding: 6px 10px 2px; font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.04em; color: var(--dsd-text-secondary);
+    }
+    .${scope} .ds-directory-option {
+      display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+      width: 100%; padding: 8px 10px; text-align: left; cursor: pointer;
+      border: 1px solid transparent; border-radius: ${Math.max(d.radius - 4, 4)}px;
+      background: none; color: var(--dsd-text); font-family: inherit;
+    }
+    .${scope} .ds-directory-option:hover { background: var(--dsd-surface-active); }
+    .${scope} .ds-directory-option[aria-pressed='true'] {
+      border-color: var(--dsd-accent);
+      background: color-mix(in srgb, var(--dsd-accent) 12%, transparent);
+    }
+    .${scope} .ds-directory-option-title {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px;
+    }
+    .${scope} .ds-directory-option-label { font-size: 14px; font-weight: 500; }
+    .${scope} .ds-directory-tag {
+      padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 500;
+      /* Not surface-active: that is the row's hover fill, which would swallow
+         the chip under the pointer. */
+      background: var(--dsd-bg); color: var(--dsd-text-secondary);
+    }
+    .${scope} .ds-directory-option-detail { font-size: 12px; color: var(--dsd-text-secondary); }
+    .${scope} .ds-directory-empty {
+      padding: 10px; font-size: 13px; text-align: center; color: var(--dsd-text-secondary);
     }
 
     .${scope} .ds-devices {
@@ -495,6 +578,13 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     .ds-host-small .ds-chip { font-size: 10px; padding: 2px 8px; }
     .ds-host-small .ds-e911-toggle { padding: 6px 8px; font-size: 11px; gap: 6px; }
     .ds-host-small .ds-transfer-input { padding: 6px 10px; font-size: 14px; }
+    .ds-host-small .ds-dial-panel, .ds-host-small .ds-dial-panel-main { gap: 6px; }
+    .ds-host-small .ds-dial-panel-title { font-size: 15px; }
+    .ds-host-small .ds-dial-panel-close { width: 30px; height: 30px; padding: 7px; }
+    .ds-host-small .ds-dial-panel-mode { font-size: 12px; padding: 2px 6px; }
+    .ds-host-small .ds-directory-option { padding: 5px 8px; }
+    .ds-host-small .ds-directory-option-label { font-size: 13px; }
+    .ds-host-small .ds-directory-tag { font-size: 10px; padding: 0 6px; }
     .ds-host-small .ds-transfer-actions, .ds-host-small .ds-consult-actions { gap: 6px; }
     .ds-host-small .ds-transfer-send, .ds-host-small .ds-e911-btn { padding: 7px 8px; font-size: 12px; }
     .ds-host-small .ds-incoming-card-compact { padding: 8px 10px; gap: 8px; }

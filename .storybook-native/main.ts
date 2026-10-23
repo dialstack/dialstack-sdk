@@ -8,6 +8,28 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // Separate from ../.storybook because `framework` is single-valued and that one
 // is @storybook/react-vite for the web components. The globs stay disjoint so
 // web components are never pulled through this instance's Flow transform.
+// Web first, so react-native-svg resolves to its `.web` files. Vite 8
+// pre-bundles with Rolldown and ignores `esbuildOptions`, so this has to reach
+// the optimizer through `rolldownOptions` as well.
+const WEB_FIRST_EXTENSIONS = ['.web.tsx', '.web.ts', '.web.jsx', '.web.js', '.tsx', '.ts', '.jsx', '.js'];
+
+// See shims/svg-native-modules.ts. A plugin, not an alias: one of the imports is
+// relative and inside a pre-bundled dependency, which only the optimizer's own
+// resolver sees, so it has to run there as well as in the dev server.
+const svgNativeModules = {
+  name: 'dialstack-svg-native-modules',
+  resolveId(source: string, importer?: string) {
+    const fromSvg = importer?.includes('react-native-svg') ?? false;
+    if (
+      (fromSvg && source.endsWith('/fabric/NativeSvgSoundModule')) ||
+      source === '@react-native/assets-registry/registry'
+    ) {
+      return resolve(__dirname, './shims/svg-native-modules.ts');
+    }
+    return null;
+  },
+};
+
 const config: StorybookConfig = {
   stories: ['../native/src/**/__stories__/*.stories.@(ts|tsx)'],
   addons: [],
@@ -58,9 +80,18 @@ const config: StorybookConfig = {
       ],
       esbuildOptions: {
         ...(config.optimizeDeps?.esbuildOptions ?? {}),
-        resolveExtensions: ['.web.tsx', '.web.ts', '.web.jsx', '.web.js', '.tsx', '.ts', '.jsx', '.js'],
+        resolveExtensions: WEB_FIRST_EXTENSIONS,
+      },
+      rolldownOptions: {
+        ...(config.optimizeDeps?.rolldownOptions ?? {}),
+        resolve: {
+          ...(config.optimizeDeps?.rolldownOptions?.resolve ?? {}),
+          extensions: WEB_FIRST_EXTENSIONS,
+        },
+        plugins: [...[config.optimizeDeps?.rolldownOptions?.plugins ?? []].flat(), svgNativeModules],
       },
     };
+    config.plugins = [...(config.plugins ?? []), svgNativeModules];
     config.define = { ...config.define, __DEV__: 'true' };
     return config;
   },
