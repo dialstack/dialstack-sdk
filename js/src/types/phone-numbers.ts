@@ -132,6 +132,14 @@ export type DirectoryListingType = 'listed' | 'non_listed' | 'non_published' | '
  */
 export interface UpdatePhoneNumberRequest {
   outbound_enabled?: boolean;
+  /**
+   * `'active'` on a released number recovers it. Sending the number's current
+   * status changes nothing; any other change is rejected by the API. Disconnect
+   * a number to take it out of service.
+   *
+   * `'inactive'` is deprecated: it is accepted only as that no-op and will be
+   * removed, so omit `status` instead.
+   */
   status?: 'active' | 'inactive';
   /** Pass `null` to convert a temporary number to permanent. Extending the expiry is not supported. */
   expires_at?: null;
