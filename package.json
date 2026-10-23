@@ -64,8 +64,8 @@
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-terser": "^1.0.0",
     "@rollup/plugin-typescript": "^12.3.0",
-    "@storybook/react": "^10.6.2",
-    "@storybook/react-native-web-vite": "^10.6.2",
+    "@storybook/react": "^10.6.3",
+    "@storybook/react-native-web-vite": "^10.6.3",
     "@storybook/react-vite": "^10.6.1",
     "@storybook/test-runner": "^0.26.0",
     "@testing-library/dom": "^10.4.2",
@@ -76,7 +76,7 @@
     "@types/jest": "^30.0.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@typescript-eslint/eslint-plugin": "^8.71.2",
+    "@typescript-eslint/eslint-plugin": "^8.72.0",
     "@typescript-eslint/parser": "^8.68.0",
     "@xyflow/react": "^12.12.0",
     "canvas-confetti": "^1.9.4",
@@ -97,14 +97,14 @@
     "react-native": "^0.88.0",
     "react-native-svg": "^15.16.0",
     "react-native-web": "^0.21.4",
-    "rollup": "^4.64.8",
+    "rollup": "^4.64.12",
     "rollup-plugin-dts": "^6.5.1",
     "semver": "^7.8.5",
     "storybook": "^10.2.13",
     "ts-jest": "^29.4.15",
     "tslib": "^2.8.1",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.71.2"
+    "typescript-eslint": "^8.72.0"
   },
   "engines": {
     "node": ">=22.18.0"
