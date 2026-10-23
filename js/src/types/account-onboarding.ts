@@ -385,6 +385,11 @@ export interface OnboardingLocation {
   /** @deprecated The operational-status field was retired; always "active". */
   status: string;
   config?: LocationConfig;
+  /**
+   * IANA time zone resolved from the address; read-only. The location's devices
+   * set their clock to it. `null` when none could be resolved.
+   */
+  timezone?: string | null;
   created_at: string;
   updated_at: string;
 }
