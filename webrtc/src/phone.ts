@@ -1014,8 +1014,8 @@ export class DialStackPhone {
   }
 
   /**
-   * List the account directory — the colleagues this user may see, by name
-   * (`GET /v1/me/directory`). Resolved from the session token alone (no account
+   * List the account directory — the colleagues this user may see, by name and
+   * extension number (`GET /v1/me/directory`). Resolved from the session token alone (no account
    * context needed), so a softphone can discover who to watch for presence, or
    * populate a contact / transfer picker, without its backend supplying the set.
    *
@@ -1031,7 +1031,12 @@ export class DialStackPhone {
       fetchPage('/v1/me/directory'),
       fetchPage
     ).autoPagingToArray();
-    return rows.map((r) => ({ user: r.user, displayName: r.display_name }));
+    return rows.map((r) => ({
+      user: r.user,
+      displayName: r.display_name,
+      // An API that predates the field omits it; keep the non-optional type true.
+      extensionNumbers: r.extension_numbers ?? [],
+    }));
   }
 
   /** Delete a saved emergency address. Clears the local selection if it matched. */

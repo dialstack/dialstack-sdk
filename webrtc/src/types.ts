@@ -218,14 +218,20 @@ export interface PresenceUpdate {
 }
 
 // One entry of the account directory (GET /v1/me/directory): a colleague the
-// signed-in user may see, by display name. Deliberately narrow (id + name) — the
-// endpoint never returns full user objects to a user-session credential. Used to
-// resolve who to watch for presence, or to populate a contact / transfer picker.
+// signed-in user may see, by display name and extension. Deliberately narrow
+// (id, name, extension numbers) — the endpoint never returns full user objects to
+// a user-session credential. Used to resolve who to watch for presence, or to
+// populate a contact / transfer picker.
 export interface DirectoryEntry {
   /** The colleague's user id (`user_…`). */
   user: string;
   /** Display name to show. */
   displayName: string;
+  /**
+   * The colleague's active extension numbers, dialable from this account,
+   * sorted as text (so `1000` comes before `999`). Empty when they have none.
+   */
+  extensionNumbers: string[];
 }
 
 // Wire shape of a DirectoryEntry (snake_case, as returned by the API). Mapped to
@@ -233,6 +239,7 @@ export interface DirectoryEntry {
 export interface DirectoryEntryWire {
   user: string;
   display_name: string;
+  extension_numbers?: string[];
 }
 
 export interface IceServersResponse {
