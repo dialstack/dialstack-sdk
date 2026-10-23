@@ -155,6 +155,10 @@ function formatRate(cents: number | null | undefined, locale: string): string | 
   // Undefined too: `/effective-pricing` omits a leg the account cannot incur.
   // The acceptance screen still lists every Schedule 1 line, showing a dash.
   if (cents == null || cents <= 0) return null;
+  return formatUsd(cents, locale);
+}
+
+function formatUsd(cents: number, locale: string): string {
   return new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD' }).format(cents / 100);
 }
 
@@ -163,19 +167,28 @@ function formatRate(cents: number | null | undefined, locale: string): string | 
 // month's — pricing the agreement at a figure the first invoice will not use.
 const PricingSummary: React.FC<{
   pricing: EffectivePricing;
+  /** From the agreement resource: the agreement points to it for the amount. */
+  setupFee: number;
   locale: Locale;
   formatting?: FormattingOptions;
-}> = ({ pricing, locale, formatting }) => {
+}> = ({ pricing, setupFee, locale, formatting }) => {
   const ssa = locale.accountOnboarding.ssa;
   const numberLocale = formatting?.dateLocale ?? 'en-US';
-  const rows: Array<{ label: string; value: string | null }> = [
-    { label: ssa.perUser, value: formatRate(pricing.per_user_rate, numberLocale) },
-    { label: ssa.perNumber, value: formatRate(pricing.per_did_rate, numberLocale) },
-    {
-      label: ssa.perAiLocation,
-      value: formatRate(pricing.per_voiceai_location_rate, numberLocale),
-    },
+  const monthly = (cents: number | undefined) => {
+    const rate = formatRate(cents, numberLocale);
+    return rate ? `${rate}${ssa.perMonthSuffix}` : '—';
+  };
+  const rows: Array<{ label: string; value: string }> = [
+    { label: ssa.perUser, value: monthly(pricing.per_user_rate) },
+    { label: ssa.perNumber, value: monthly(pricing.per_did_rate) },
+    { label: ssa.perAiLocation, value: monthly(pricing.per_voiceai_location_rate) },
   ];
+  // Unlike a monthly rate, the set-up fee is always a real price, so a 0 shows
+  // as $0.00 rather than a dash.
+  rows.push({
+    label: ssa.setupFee,
+    value: `${formatUsd(setupFee, numberLocale)}${ssa.oneTimeSuffix}`,
+  });
   return (
     <div className="card">
       <div className="ssa-pricing-label" style={{ marginBottom: 12, fontWeight: 600 }}>
@@ -185,9 +198,7 @@ const PricingSummary: React.FC<{
         {rows.map((r) => (
           <div className="ssa-pricing-item" key={r.label}>
             <span className="ssa-pricing-label">{r.label}</span>
-            <span className="ssa-pricing-value">
-              {r.value ? `${r.value}${ssa.perMonthSuffix}` : '—'}
-            </span>
+            <span className="ssa-pricing-value">{r.value}</span>
           </div>
         ))}
       </div>
@@ -321,7 +332,12 @@ export const SsaAcceptanceGate: React.FC<SsaAcceptanceGateProps> = ({
           <p className="ssa-gate-intro">{ssa.intro}</p>
 
           {effectivePricing && !pricingMissing && (
-            <PricingSummary pricing={effectivePricing} locale={locale} formatting={formatting} />
+            <PricingSummary
+              pricing={effectivePricing}
+              setupFee={tos.service_setup_fee}
+              locale={locale}
+              formatting={formatting}
+            />
           )}
 
           {/* Agreement body served by the tos API (the single source of truth,

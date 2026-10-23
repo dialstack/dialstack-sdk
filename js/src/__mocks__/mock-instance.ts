@@ -222,6 +222,8 @@ export function createMockInstance(
       '<h2>1. The Service</h2><p>Mock agreement body for stories and tests.</p>' +
       '<h2 id="s7">7. Emergency Calls (911): Please Read This</h2>' +
       '<p>911 on internet phone service has real limitations.</p>',
+    // Distinct from every rate, so a story can tell the figures apart.
+    service_setup_fee: 1200,
     acceptance: {
       accepted_at: '2025-01-01T00:00:00Z',
       pricing: mockTosPricing,

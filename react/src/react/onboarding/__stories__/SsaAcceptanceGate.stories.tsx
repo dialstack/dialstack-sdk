@@ -37,6 +37,7 @@ const SSA_TOS: Tos = {
     '<h2 id="s7">7. Emergency Calls (911): Please Read This</h2>' +
     '<p>911 on internet phone service has real limitations.</p>',
   acceptance: null,
+  service_setup_fee: 1200,
   pricing: SSA_PRICING,
 };
 
@@ -122,6 +123,8 @@ export const BlocksPortalUntilAccepted: StoryObj<PortalProps> = {
         timeout: 5000,
       });
       expect(canvas.queryByText(/\$99\.00/)).not.toBeInTheDocument();
+      // The set-up fee comes from the same read, as a one-time charge.
+      expect(canvas.getByText('$12.00 one-time')).toBeInTheDocument();
     });
 
     await step('Accept is disabled until the affirmation is checked', async () => {

@@ -56,6 +56,9 @@ describe('SsaAcceptanceGate', () => {
     // says $99.00 in this fixture, so quoting the agreed schedule fails here.
     expect(screen.getByText(/\$15\.00/)).toBeInTheDocument();
     expect(screen.queryByText(/\$99\.00/)).not.toBeInTheDocument();
+    // The one-time set-up fee is shown with the rates, never as a monthly one.
+    expect(screen.getByText(ssa.setupFee)).toBeInTheDocument();
+    expect(screen.getByText('$12.00 one-time')).toBeInTheDocument();
     // The full agreement is rendered inline (not embedded from a URL).
     const region = screen.getByRole('region', { name: ssa.agreementLabel });
     expect(region.textContent).toContain('Emergency Calls (911)');

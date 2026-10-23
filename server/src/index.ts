@@ -445,6 +445,12 @@ export interface Tos {
   /** The current acceptance, or null if the account has not accepted. */
   acceptance: TosAcceptance | null;
   /**
+   * The one-time service set-up fee, in cents: the fee the account was shown when
+   * it accepted, otherwise the fee for an account accepting now. The agreement
+   * points to this amount rather than stating one, so show it with the agreement.
+   */
+  service_setup_fee: number;
+  /**
    * The account's agreed pricing. Present only when `expand: ['pricing']` is
    * requested; null when pricing has not been set.
    */

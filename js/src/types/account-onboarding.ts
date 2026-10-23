@@ -273,6 +273,12 @@ export interface Tos {
   body?: string;
   /** The latest acceptance for this account, or `null` if never accepted. */
   acceptance: TosAcceptance | null;
+  /**
+   * The one-time service set-up fee, in cents: the fee the account was shown when
+   * it accepted, otherwise the fee for an account accepting now. The agreement
+   * points to this amount rather than stating one, so show it with the agreement.
+   */
+  service_setup_fee: number;
   /** Present only when expanded; `null` when the account's pricing is incomplete. */
   pricing?: AccountPricing | null;
 }

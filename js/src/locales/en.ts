@@ -979,6 +979,8 @@ export const en = {
       perNumber: 'Per phone number',
       perAiLocation: 'Managed VoiceAI, per location',
       perMonthSuffix: '/mo',
+      setupFee: 'Service set-up fee',
+      oneTimeSuffix: ' one-time',
       agreementLabel: 'Service Subscription Agreement',
       openInNewTab: 'Open the full agreement in a new tab',
       accept: 'Accept & Continue',
