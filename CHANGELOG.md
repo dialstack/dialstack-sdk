@@ -5,6 +5,102 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.0](https://github.com/dialstack/dialstack-sdk/compare/v3.7.0...v3.8.0) (2026-10-25)
+
+### Features
+
+- **react/softphone:** `SoftphoneProvider` takes a `directory` of
+  `DirectoryContact` entries (colleagues, departments or any other
+  destination) that the user can pick from instead of typing a number when
+  transferring or adding a call. Each entry has a stable `id`, a `label` and a
+  `destination` (anything the number field accepts), plus an optional
+  `description`, `group` heading and `tags`, shown as chips. The list is
+  searchable by any of those fields, and a number-like search matches however
+  it is punctuated. Typing a destination still works. Transfer and add call
+  now open in a full-screen dial panel that shows the picked or typed
+  destination. Pass a new array when the directory changes.
+- **webrtc:** `listDirectory()` entries carry `extensionNumbers`, the
+  colleague's active extensions dialable from this account (empty when they
+  have none).
+- **js, react:** `CallLogs` has a search box and Direction, Status and
+  date-range filters, defaulting to the last 30 days. Set them with
+  `setFilters()` (React: the `filters` prop), hear about changes through
+  `onFiltersChange`, and hide the toolbar with `displayOptions.showFilters`. The new
+  typed `calls.list()` takes the same filters and the `page` token from a
+  response's `next_page_url` / `previous_page_url`.
+- **server:** `CallListParams` takes `search`.
+- **js:** the `hardwareOrders` resource lists and retrieves hardware orders and
+  drives their approval: `submitForApproval()`, `approve()` and
+  `decline(orderId, reason)`.
+- **js, server:** `Device.next_action` is the setup step a deskphone or DECT
+  base still needs before it first fetches its configuration
+  (`DeviceNextAction`): `provide_serial_number`, `wait_for_release`, or
+  `factory_reset` with an `after_reset` of `plug_in` or
+  `set_provisioning_url`. It is `null` when nothing is needed, and always for
+  DECT handsets.
+- **js:** `deviceReadiness()` returns `steps`, the readiness steps that apply
+  to the device. DECT handsets skip `provisioned`, since their base fetches
+  their settings, so `currentStep` and `completedCount` now count only the
+  applicable steps.
+- **js:** `OnboardingLocation.timezone` is the read-only IANA time zone
+  resolved from the location's address (`null` when none could be resolved).
+  The location's devices set their clock to it; `RegionalSettings.timezone`
+  still overrides it for a device.
+- **js, server:** `EffectivePricing.fair_use` (`FairUse`) reports the account's
+  Fair Use Policy: the monthly minutes included per user, individually and
+  pooled, and the price of each minute past them.
+- **js, server:** `Tos.service_setup_fee` is the account's one-time service
+  set-up fee, in cents. The onboarding agreement screen shows it next to the
+  monthly rates.
+- **js:** the phone number ordering component searches and orders toll-free
+  numbers. `SearchType` gains `toll_free`, `availablePhoneNumbers.search()`
+  takes `numberType` (`PhoneNumberType`: `local` or `toll_free`), and
+  `AvailablePhoneNumber` carries `number_type`. Ordering a toll-free number
+  discloses that its inbound minutes are billed. Because toll-free numbers
+  have no geography, `city`, `state`, `rate_center` and `lata` on
+  `AvailablePhoneNumber` are now optional: code that reads them as `string`
+  needs a fallback.
+- **js:** `DIDItem.number_type` identifies toll-free numbers. The onboarding
+  portal leaves them out of caller ID name and directory listing, which
+  toll-free numbers don't support, and `phoneNumbers.update()` rejects such a
+  change with an `ApiError` whose `code` is `toll_free_not_supported`.
+- **js, react:** the phone number ordering component explains failures in
+  plain, translated language, keyed off the API's error code rather than its
+  text. `onOrderError` receives a `PhoneNumberOrderErrorEvent`: `error` is now
+  always the translated message the component shows, and `message`, `code`,
+  `status`, `details` and `order` carry the underlying detail for logs. The new
+  `onOrderPending` callback (`PhoneNumberOrderPendingEvent`) fires when the
+  component stops checking an order the carrier hasn't finished; the order
+  still completes on its own. `phoneNumberOrders.create()` rejects with an
+  `ApiError` whose `code` is `phone_number_limit_exceeded` or
+  `phone_numbers_already_claimed`.
+- **js, react, webrtc:** the SDK identifies itself to DialStack with a
+  `DialStack-Client` header on API requests and the softphone's signaling
+  connection, naming its packages, their versions and the components in use.
+  Set `appInfo` (`ClientAppInfo`: a `name` and optional `version`) on
+  `loadDialstackAndInitialize()`, or on a standalone `SoftphoneProvider`, to
+  report your application too; `PhoneOptions.client` does the same for a
+  `DialStackPhone`. `ClientInfo` is exported for packages that report without an
+  instance. Components no longer set a `data-dialstack-sdk-version` attribute.
+
+### Bug Fixes
+
+- **js:** `devices.listCompatibleButtonTemplates()`,
+  `devices.listButtonOverrides()`, `buttonTemplates.list()` and
+  `buttonTemplates.buttons.list()` page by the `page` token from a response's
+  `next_page_url` / `previous_page_url` (`CursorListOptions`). They sent bare
+  `starting_after` / `ending_before`, which the API ignores, so asking for the
+  next page returned the first one again. The bare fields stay in the type,
+  deprecated and no longer sent.
+- **js:** removing `CallLogs` while it was loading and attaching it again left
+  a spinner showing forever; it now reloads.
+- **js:** in host mode, the AI agent component leaves hidden fields out of its
+  submit payload. A hidden FAQ was submitted as `faq_responses: []`, which
+  erased the agent's FAQ when passed to the API.
+  `AIAgentHostSubmitPayload.name` and `faq_responses` are now optional.
+- **react:** the errors thrown by `DialstackComponentsProvider` and the
+  softphone link to docs pages that exist.
+
 ## [3.7.0](https://github.com/dialstack/dialstack-sdk/compare/v3.6.0...v3.7.0) (2026-10-19)
 
 ### Features
