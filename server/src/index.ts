@@ -3007,7 +3007,7 @@ export interface ParkSlotSubscriptionOptions {
 // Call Control types
 export interface AttachAction {
   type: 'attach';
-  /** Secure WebSocket URL to stream to. Must use `wss://`. */
+  /** Secure WebSocket URL to stream to. Must use `wss://`. Used as given, query string included. */
   url: string;
 }
 
@@ -3022,7 +3022,12 @@ export interface TransferAction {
   mode?: 'blind';
 }
 
-export type CallAction = AttachAction | TransferAction;
+/** Ends the call immediately; no later actions run. */
+export interface HangupAction {
+  type: 'hangup';
+}
+
+export type CallAction = AttachAction | TransferAction | HangupAction;
 
 export interface CallUpdateParams {
   actions: CallAction[];
@@ -3030,6 +3035,8 @@ export interface CallUpdateParams {
 
 // Webhook types
 export interface WebhookEvent {
+  /** Unique per delivery and repeated on retries, so a duplicate can be recognised. */
+  id: string;
   call_id: string;
   account_id: string;
   from_number: string;

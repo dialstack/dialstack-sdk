@@ -65,6 +65,11 @@ export function makeWebhookHandler(cfg: WebhookConfig) {
       toNumber: event.to_number,
     });
 
+    // Acknowledge before attaching: DialStack ends the call if the reply is
+    // slow, and retries a failed delivery, so replying only after the update
+    // could attach the same call twice.
+    res.status(200).end();
+
     try {
       await ds.calls.update(
         event.call_id,
@@ -73,10 +78,6 @@ export function makeWebhookHandler(cfg: WebhookConfig) {
       );
     } catch (err) {
       log.error({ err }, 'POST /v1/calls/{id} failed');
-      res.status(502).send('failed to attach');
-      return;
     }
-
-    res.status(200).end();
   };
 }
