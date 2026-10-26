@@ -723,13 +723,16 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
   private isLoadingRoutingTargets: boolean = false;
   private selectedRoutingTarget: string | null = null;
 
-  // Billing-disclosure state, loaded on entry to the confirm step. Best-effort:
+  // Billing-disclosure state, loaded when the component starts. Best-effort:
   // a failure leaves it null and the disclosure renders without a price rather
-  // than blocking the order.
+  // than blocking the order. It also decides whether toll-free search is
+  // offered: the toll-free minute rate is present only when the account may
+  // order toll-free numbers, so without it the tab stays hidden.
   private pricing: EffectivePricing | null = null;
   // False until the read settles, so the confirm step can hold space for the
   // disclosure instead of reflowing when it arrives.
   private billingContextLoaded = false;
+  private pricingLoad: Promise<void> | null = null;
 
   // Order state
   private order: NumberOrder | null = null;
@@ -756,6 +759,23 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     this.attachDelegatedClickHandler();
     this.render();
     this.isInitialized = true;
+    void this.loadBillingContext();
+  }
+
+  /** The configured search types this account can use right now. */
+  private visibleSearchTypes(): SearchType[] {
+    const tollFree = this.pricing?.toll_free_minute_rate_decimal !== undefined;
+    return this.searchTypes.filter((type) => type !== 'toll_free' || tollFree);
+  }
+
+  /**
+   * The search type in effect. `searchType` keeps the configured preference
+   * even while it is hidden, so a host's toll-free default comes back once
+   * pricing shows the account can use it.
+   */
+  private activeSearchType(): SearchType | null {
+    const visible = this.visibleSearchTypes();
+    return visible.includes(this.searchType) ? this.searchType : (visible[0] ?? null);
   }
 
   // ============================================================================
@@ -819,8 +839,10 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
   // ============================================================================
 
   private canSearch(): boolean {
+    const type = this.activeSearchType();
+    if (!type) return false;
     // A toll-free search needs no filter: "any code" is a valid search.
-    return this.searchType === 'toll_free' || this.searchValue.trim() !== '';
+    return type === 'toll_free' || this.searchValue.trim() !== '';
   }
 
   private async searchNumbers(): Promise<void> {
@@ -831,10 +853,11 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
 
     try {
       const options: SearchAvailableNumbersOptions = { quantity: this.quantity };
-      if (this.searchType === 'toll_free') {
+      const type = this.activeSearchType();
+      if (type === 'toll_free') {
         options.numberType = 'toll_free';
         if (this.tollFreeCode) options.areaCode = this.tollFreeCode;
-      } else if (this.searchType === 'zip') {
+      } else if (type === 'zip') {
         options.zip = this.searchValue;
       } else {
         options.areaCode = this.searchValue;
@@ -869,6 +892,11 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     if (err.code === 'zip_not_available') {
       const zip = typeof err.details?.zip === 'string' ? err.details.zip : this.searchValue;
       return this.t('phoneNumberOrdering.searchError.zipNotAvailable', { zip });
+    }
+    // Reachable when the pricing leg that shows the tab is present only because
+    // the account still holds a toll-free number.
+    if (err.code === 'toll_free_not_enabled') {
+      return this.t('phoneNumberOrdering.searchError.tollFreeNotEnabled');
     }
     if (err.code === 'search_unavailable' || err.status !== 400) {
       return this.t('phoneNumberOrdering.searchError.description');
@@ -1107,16 +1135,30 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
    * prefix, and the instance already holds the publishable key it was built
    * with, so `livemode` answers it locally.
    */
-  private async loadBillingContext(): Promise<void> {
+  private loadBillingContext(): Promise<void> {
+    // One read per mount, shared by the mount and the confirm step, which can
+    // be reached before it settles.
+    this.pricingLoad ??= this.fetchBillingContext();
+    return this.pricingLoad;
+  }
+
+  private async fetchBillingContext(): Promise<void> {
     const instance = this.instance;
-    if (!instance || this.pricing) return;
+    if (!instance) return;
+    const typesBefore = this.visibleSearchTypes().join();
     try {
       this.pricing = await instance.account.effectivePricing.retrieve();
     } catch {
       // Leaves pricing null; renderBillingImpact drops to its no-price wording.
     }
     this.billingContextLoaded = true;
-    if (this.step === 'confirm') this.render();
+    if (this.step === 'confirm') {
+      this.render();
+    } else if (this.step === 'search' && this.visibleSearchTypes().join() !== typesBefore) {
+      // Only when a tab appeared: a full render takes focus from a half-typed
+      // search, which is why switching tabs patches the DOM instead.
+      this.render();
+    }
   }
 
   private goToRoute(): void {
@@ -1242,12 +1284,23 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
   }
 
   private renderSearchStep(): string {
+    const searchTypes = this.visibleSearchTypes();
+    const active = this.activeSearchType();
+    // A host that offers only toll-free search, on an account that cannot use
+    // it, would otherwise get a form with no fields and a dead button.
+    if (!active) {
+      return `
+      <div class="card ${this.classes.searchForm || ''}" part="search-form">
+        <h2 class="section-title">${this.t('phoneNumberOrdering.search.title')}</h2>
+        <p class="section-subtitle">${this.t('phoneNumberOrdering.search.noSearchTypes')}</p>
+      </div>`;
+    }
     const segmentBtn = (type: SearchType, label: string) =>
-      this.searchTypes.includes(type)
-        ? `<button class="segment-btn ${this.searchType === type ? 'active' : ''}" data-action="set-search-type" data-type="${type}">${label}</button>`
+      searchTypes.includes(type)
+        ? `<button class="segment-btn ${active === type ? 'active' : ''}" data-action="set-search-type" data-type="${type}">${label}</button>`
         : '';
 
-    const hidden = (type: SearchType) => (this.searchType === type ? '' : 'search-fields-hidden');
+    const hidden = (type: SearchType) => (active === type ? '' : 'search-fields-hidden');
 
     return `
       <div class="card ${this.classes.searchForm || ''}" part="search-form">
@@ -1261,7 +1314,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
         </div>
 
         <div class="search-fields-stack">
-          ${this.searchTypes
+          ${searchTypes
             .map((type) => {
               if (type === 'area_code')
                 return `
@@ -1270,7 +1323,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
                   <label class="form-label">${this.t('phoneNumberOrdering.search.areaCodeLabel')}</label>
                   <input class="form-input" type="text" id="search-area-code"
                     placeholder="${this.t('phoneNumberOrdering.search.areaCodePlaceholder')}"
-                    value="${this.searchType === 'area_code' ? this.escapeHtml(this.searchValue) : ''}"
+                    value="${active === 'area_code' ? this.escapeHtml(this.searchValue) : ''}"
                     data-field="value" />
                 </div>
               </div>`;
@@ -1281,7 +1334,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
                   <label class="form-label">${this.t('phoneNumberOrdering.search.zipLabel')}</label>
                   <input class="form-input" type="text" id="search-zip"
                     placeholder="${this.t('phoneNumberOrdering.search.zipPlaceholder')}"
-                    value="${this.searchType === 'zip' ? this.escapeHtml(this.searchValue) : ''}"
+                    value="${active === 'zip' ? this.escapeHtml(this.searchValue) : ''}"
                     data-field="value" />
                 </div>
               </div>`;
@@ -1713,7 +1766,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     // Toggle visibility based on rendered search types
     const stack = this.shadowRoot.querySelector('.search-fields-stack');
     if (stack) {
-      const typeIndex = this.searchTypes.indexOf(newType);
+      const typeIndex = this.visibleSearchTypes().indexOf(newType);
       for (let i = 0; i < stack.children.length; i++) {
         const child = stack.children[i];
         if (child) child.classList.toggle('search-fields-hidden', i !== typeIndex);
@@ -1750,7 +1803,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     switch (action) {
       case 'set-search-type': {
         const type = actionEl.dataset.type as SearchType;
-        if (type && type !== this.searchType) {
+        if (type && type !== this.activeSearchType()) {
           this.searchType = type;
           this.updateSearchTypeUI(type);
           this.updateSearchButton();

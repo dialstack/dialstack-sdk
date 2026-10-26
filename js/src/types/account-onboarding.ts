@@ -223,6 +223,13 @@ export interface EffectivePricing {
    * that does not apply. Render only the legs present.
    */
   per_voiceai_location_rate?: number;
+  /**
+   * The per-minute charge for inbound calls to the account's toll-free
+   * numbers, in cents as a decimal string (`"1.9"`), since it is not a whole
+   * number of cents. Absent when the account can neither order toll-free
+   * numbers nor already holds one.
+   */
+  toll_free_minute_rate_decimal?: string;
   /** The month start the rates above took effect, `YYYY-MM-DD`. */
   effective_from: string;
   /** An agreed change that has not taken effect yet; null in the steady state. */

@@ -284,6 +284,7 @@ export const en = {
       tollFree: 'Toll-Free',
       tollFreeLabel: 'Toll-free code',
       tollFreeAny: 'Any toll-free code',
+      noSearchTypes: "Number search isn't available for your account.",
       numberOfResults: 'Quantity to display',
       search: 'Search',
     },
@@ -386,6 +387,7 @@ export const en = {
       invalid: "We couldn't search with that area code or ZIP code. Check it and try again.",
       zipNotAvailable:
         'No numbers are available for ZIP code {zip}. Try a nearby ZIP code, or search by area code.',
+      tollFreeNotEnabled: "Toll-free numbers aren't available for your account.",
     },
     statuses: {
       pending: 'Pending',

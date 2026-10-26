@@ -1,5 +1,6 @@
 import '../phone-number-ordering';
 import type { DialStackInstanceImpl, RoutingTarget } from '../../types/core';
+import type { EffectivePricing } from '../../types/account-onboarding';
 import type { DIDItem } from '../../types/phone-numbers';
 import type { AvailablePhoneNumber, NumberOrder } from '../../types/phone-number-ordering';
 
@@ -219,14 +220,80 @@ describe('PhoneNumberOrdering routing application', () => {
   });
 });
 
+/** Effective pricing as the API reports it; the toll-free rate is present only
+ * when the account may order toll-free numbers. */
+function withPricing(instance: DialStackInstanceImpl, tollFree: boolean): DialStackInstanceImpl {
+  const pricing: EffectivePricing = {
+    object: 'effective_pricing',
+    per_user_rate: 3000,
+    per_did_rate: 500,
+    effective_from: '2026-10-01',
+    next: null,
+    ...(tollFree ? { toll_free_minute_rate_decimal: '1.9' } : {}),
+  };
+  (instance as unknown as { account: unknown }).account = {
+    effectivePricing: { retrieve: jest.fn(async () => pricing) },
+  };
+  return instance;
+}
+
+const tollFreeTab = (el: OrderingEl) =>
+  el.shadowRoot.querySelector<HTMLElement>(
+    '[data-action="set-search-type"][data-type="toll_free"]'
+  );
+
 describe('PhoneNumberOrdering toll-free search', () => {
   afterEach(() => {
     document.body.innerHTML = '';
     jest.restoreAllMocks();
   });
 
-  it('searches toll-free inventory and labels the results toll-free', async () => {
+  it('offers toll-free search only when the account may order toll-free numbers', async () => {
+    expect(tollFreeTab(await mount(withPricing(makeInstance(jest.fn()), false)))).toBeNull();
+    expect(tollFreeTab(await mount(makeInstance(jest.fn())))).toBeNull();
+    expect(tollFreeTab(await mount(withPricing(makeInstance(jest.fn()), true)))).not.toBeNull();
+  });
+
+  it("keeps a host's toll-free default through the pricing load", async () => {
+    const instance = withPricing(makeInstance(jest.fn()), true);
+    const el = document.createElement('dialstack-phone-number-ordering') as OrderingEl & {
+      setSearchTypes: (types: string[]) => void;
+    };
+    // Without area_code, the first configured type becomes the default.
+    el.setSearchTypes(['toll_free', 'zip']);
+    el.setInstance(instance);
+    document.body.appendChild(el);
+    await settle();
+
+    expect(tollFreeTab(el)?.classList.contains('active')).toBe(true);
+  });
+
+  it('explains an empty search form instead of leaving a dead button', async () => {
+    const el = document.createElement('dialstack-phone-number-ordering') as OrderingEl & {
+      setSearchTypes: (types: string[]) => void;
+    };
+    el.setSearchTypes(['toll_free']);
+    el.setInstance(withPricing(makeInstance(jest.fn()), false));
+    document.body.appendChild(el);
+    await settle();
+
+    expect(text(el)).toContain("Number search isn't available for your account.");
+    expect(el.shadowRoot.querySelector('[data-action="search"]')).toBeNull();
+  });
+
+  it('reads pricing once even when confirm is reached before the first read settles', async () => {
     const instance = makeInstance(jest.fn());
+    // Never settles, so the confirm step arrives while the mount's read is in flight.
+    const retrieve = jest.fn(() => new Promise<EffectivePricing>(() => {}));
+    (instance as unknown as { account: unknown }).account = { effectivePricing: { retrieve } };
+    const el = await mount(instance);
+    await advanceToRouteStep(el);
+
+    expect(retrieve).toHaveBeenCalledTimes(1);
+  });
+
+  it('searches toll-free inventory and labels the results toll-free', async () => {
+    const instance = withPricing(makeInstance(jest.fn()), true);
     const search = jest.fn(async (): Promise<AvailablePhoneNumber[]> => [
       { phone_number: '+18335409250', number_type: 'toll_free' },
     ]);
@@ -251,7 +318,7 @@ describe('PhoneNumberOrdering toll-free search', () => {
   });
 
   it('searches every toll-free code when none is picked', async () => {
-    const instance = makeInstance(jest.fn());
+    const instance = withPricing(makeInstance(jest.fn()), true);
     const search = jest.fn(async (): Promise<AvailablePhoneNumber[]> => []);
     (
       instance as unknown as { availablePhoneNumbers: { search: jest.Mock } }
@@ -427,6 +494,14 @@ describe('PhoneNumberOrdering search error codes', () => {
 
     expect(text(el)).toContain('Check it and try again.');
     expect(text(el)).not.toContain('not accepted');
+  });
+
+  it('says toll-free is unavailable when the platform has not turned it on', async () => {
+    const el = await searchFailingWith(
+      apiError(403, 'Toll-free numbers are not enabled for this platform', 'toll_free_not_enabled')
+    );
+
+    expect(text(el)).toContain("Toll-free numbers aren't available for your account.");
   });
 });
 
