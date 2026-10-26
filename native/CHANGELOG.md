@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 (`@dialstack/sdk-js`, `-react`, `-webrtc`, `-server`), which release together on
 their own line.
 
+## [0.4.0](https://github.com/dialstack/dialstack-sdk/compare/native-v0.3.0...native-v0.4.0) (2026-10-26)
+
+### Features
+
+- `SoftphoneProvider` takes a `directory` of `DirectoryContact` entries
+  (colleagues, departments or any other destination) that the user can pick
+  from instead of typing a number when transferring or adding a call. Each
+  entry has a stable `id`, a `label` and a `destination` (anything the number
+  field accepts), plus an optional `description`, `group` heading and `tags`,
+  shown as chips. The list is searchable by any of those fields, and a
+  number-like search matches however it is punctuated. Typing a destination
+  still works. Transfer and add call now open in a dial panel that shows the
+  picked or typed destination. Pass a new array when the directory changes.
+- `listDirectory()` entries carry `extensionNumbers`, the colleague's active
+  extensions dialable from this account (empty when they have none).
+- The SDK identifies itself to DialStack with a `DialStack-Client` header on
+  API requests and the signaling connection, and its User-Agent now carries
+  the `sdk-native` version. Pass `appInfo` (a `name` and optional `version`) to
+  `createPhone()` or `SoftphoneProvider` to report your application too.
+
 ## [0.3.0](https://github.com/dialstack/dialstack-sdk/compare/native-v0.2.1...native-v0.3.0) (2026-10-19)
 
 ### Features
