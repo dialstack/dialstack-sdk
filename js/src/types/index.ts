@@ -34,6 +34,7 @@ export type {
   CallLogsCallbacks,
   // Real-time call events
   IncomingCallEvent,
+  RingingCallEvent,
   CallEventType,
   CallEventMap,
   CallEventHandler,

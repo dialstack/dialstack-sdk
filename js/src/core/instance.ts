@@ -14,6 +14,7 @@ import type {
   CallEventMap,
   CallEventHandler,
   IncomingCallEvent,
+  RingingCallEvent,
   CallListParams,
   CallLog,
   Transcript,
@@ -2442,6 +2443,25 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         this.emit('call.incoming', event);
       } catch (error) {
         console.error('DialStack: Failed to parse call.incoming event:', error);
+      }
+    } else if (eventType === 'call.ringing' && data) {
+      try {
+        const rawData = JSON.parse(data);
+        const event: RingingCallEvent = {
+          call_id: rawData.call_id,
+          user: rawData.user,
+          from_number: rawData.from_number,
+          from_name: rawData.from_name ?? null,
+          to_number: rawData.to_number,
+          ringing_at: new Date(rawData.ringing_at),
+          timestamp: new Date(rawData.timestamp),
+        };
+        if (rawData.direction) {
+          event.direction = rawData.direction;
+        }
+        this.emit('call.ringing', event);
+      } catch (error) {
+        console.error('DialStack: Failed to parse call.ringing event:', error);
       }
     }
     // Ignore 'connected' and other events

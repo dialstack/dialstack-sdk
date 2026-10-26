@@ -80,15 +80,39 @@ export interface IncomingCallEvent {
 }
 
 /**
+ * Event fired once for each user whose phones are about to ring for a call,
+ * including calls that reach the user through a ring group or dial plan
+ */
+export interface RingingCallEvent {
+  /** Call identifier */
+  call_id: string;
+  /** User whose phones are ringing */
+  user: string;
+  /** The call's direction: `inbound`, `outbound` or `internal` (when known) */
+  direction?: 'inbound' | 'outbound' | 'internal';
+  /** Caller phone number */
+  from_number: string;
+  /** Caller ID name (if available) */
+  from_name: string | null;
+  /** Called phone number */
+  to_number: string;
+  /** When the user started being rung */
+  ringing_at: Date;
+  /** When the event was sent */
+  timestamp: Date;
+}
+
+/**
  * Call event type names for on()/off() methods
  */
-export type CallEventType = 'call.incoming';
+export type CallEventType = 'call.incoming' | 'call.ringing';
 
 /**
  * Map of call event types to their event data
  */
 export interface CallEventMap {
   'call.incoming': IncomingCallEvent;
+  'call.ringing': RingingCallEvent;
 }
 
 /**
