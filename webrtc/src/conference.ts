@@ -65,7 +65,7 @@ function renderSilently(stream: MediaStream): HTMLAudioElement | null {
 
 /**
  * A destination node defaults to 2 channels, which would upmix the mono mic and
- * then downmix again at the encoder — the negotiated envelope is mono Opus.
+ * then downmix again at the encoder — the negotiated envelope is mono.
  */
 function monoDestination(ctx: AudioContext): MediaStreamAudioDestinationNode {
   const dest = ctx.createMediaStreamDestination();
