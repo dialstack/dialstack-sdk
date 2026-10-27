@@ -286,7 +286,7 @@ export interface BillingAddress {
   country: string;
 }
 
-interface AccountCreateParamsBase {
+export interface AccountCreateParamsBase {
   /** Account owner email. Required — identifies the account owner. */
   email: string;
   /** Account owner's name. Required. */
@@ -311,7 +311,7 @@ interface AccountCreateParamsBase {
  * compatibility. Modeled as a union so omitting both (or sending both) is a
  * compile error rather than a 400.
  */
-type AccountCreateAddress =
+export type AccountCreateAddress =
   | { address: BillingAddress; billing_address?: never }
   | {
       /** @deprecated Use `address`. Accepted for backwards compatibility; no longer authoritative. */

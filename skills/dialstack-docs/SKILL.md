@@ -62,18 +62,18 @@ If genuinely ambiguous, ask which they want. Do not answer both.
 ## How to find the page
 
 1. **`https://docs.dialstack.ai/llms.txt`** — the index of every page with a
-   one-line description, ~120 lines. Start here. It is small enough to read
-   whole, and it is the authority on what exists.
+   one-line description. Start here. It is small enough to read whole, and it
+   is the authority on what exists.
 2. Fetch the **one** page you need, as `.md` (see Citing below).
 3. For anything endpoint-level, fetch
    **`https://docs.dialstack.ai/api/endpoints.md`** — every operation with its
-   verb, path, and query parameters in one ~20 KB file. Check the endpoint
+   verb, path, and query parameters in one file. Check the endpoint
    exists here before naming it. It has no HTML page — see Citing.
 4. Only for a request or response **schema**, search
    `https://docs.dialstack.ai/api/openapi.yaml` for the specific `operationId`
-   from step 3. It is ~578 KB — never fetch it whole.
+   from step 3. It is too large to read — never fetch it whole.
 
-Do not fetch `/llms-full.txt`. It is the entire corpus in one ~800 KB file and
+Do not fetch `/llms-full.txt`. It is the entire corpus in one file and
 you will get a truncated read that looks complete.
 
 ### Sections
@@ -145,11 +145,11 @@ that file has no page of its own. Nothing else may be cited unfetched.
 - DialStack is multi-tenant: every REST call requires the
   `DialStack-Account: acct_...` header.
 - Endpoint index: /api/endpoints.md — every operation with its verb, path,
-  and query parameters, in one ~20 KB file. Read this before naming any
+  and query parameters, in one file. Read this before naming any
   endpoint. The full OpenAPI spec at
   https://docs.dialstack.ai/api/openapi.yaml (also `.json`) is
-  authoritative for schemas, but it is ~578 KB: search it for a specific
-  `operationId` rather than fetching it whole. Never state a path you have
+  authoritative for schemas, but it is too large to read whole: search it
+  for a specific `operationId` rather than fetching it whole. Never state a path you have
   not seen in one of those two files. An `operationId` is not a path —
   `listCallLogs` is `GET /v1/calls`, not `/v1/call-logs`. If neither file
   can be fetched, say so instead of naming an endpoint.
@@ -167,7 +167,7 @@ that file has no page of its own. Nothing else may be cited unfetched.
 - IDs are opaque strings up to 255 chars. Do not parse prefixes.
 - Pick an integration tier before writing code: White Label, Embedded,
   or Direct API — see /get-started/integration-paths.
-- /llms-full.txt is the whole corpus in one file (~800 KB). Prefer the
+- /llms-full.txt is the whole corpus in one file. Prefer the
   single relevant page from the index above; fetching this whole is
   usually a truncated read, not a complete one.
 
