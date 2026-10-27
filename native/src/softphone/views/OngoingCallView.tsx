@@ -1,21 +1,14 @@
 import React, { useMemo } from 'react';
 import { Keyboard, Pressable, Text, View } from 'react-native';
 import {
-  dialPadKeys,
   softphoneGlyphs,
   type DirectoryContact,
   type Locale,
   type SoftphonePalette,
 } from '@dialstack/sdk-react/core';
-import {
-  Glyph,
-  ControlButton,
-  KeyboardDoneBar,
-  chunk,
-  makeStyles,
-  ControlsSlot,
-} from '../primitives';
+import { Glyph, ControlButton, KeyboardDoneBar, makeStyles, ControlsSlot } from '../primitives';
 import { DialPanelView } from './DialPanelView';
+import { KeypadView } from './KeypadView';
 import { PeerAvatar, PeerRow } from './PeerAvatar';
 import { useRoomyHost } from './useRoomyHost';
 
@@ -68,8 +61,10 @@ export interface OngoingCallViewProps {
   onPickTransferContact?: (entry: DirectoryContact) => void;
   /** The contact `transferTo` came from, or null when it was typed. */
   pickedTransferContact?: DirectoryContact | null;
+  onClearTransferContact?: () => void;
   onPickAddCallContact?: (entry: DirectoryContact) => void;
   pickedAddCallContact?: DirectoryContact | null;
+  onClearAddCallContact?: () => void;
 
   canStartTransfer: boolean;
   canAddCall: boolean;
@@ -117,8 +112,10 @@ export function OngoingCallView({
   directory = NO_DIRECTORY,
   onPickTransferContact = () => {},
   pickedTransferContact = null,
+  onClearTransferContact = () => {},
   onPickAddCallContact = () => {},
   pickedAddCallContact = null,
+  onClearAddCallContact = () => {},
   canStartTransfer,
   canAddCall,
   onToggleMute,
@@ -228,25 +225,7 @@ export function OngoingCallView({
       {errorChip}
 
       {isActive && overlay === 'keypad' && canSendDtmf && (
-        <View style={styles.keypad}>
-          {chunk(dialPadKeys, 3).map((row, i) => (
-            <View key={i} style={styles.keyRow}>
-              {row.map(({ digit }) => (
-                <Pressable
-                  key={digit}
-                  onPress={() => onSendDtmf(digit)}
-                  accessibilityLabel={digit}
-                  style={({ pressed }: { pressed: boolean }) => [
-                    styles.key,
-                    pressed && styles.keyPressed,
-                  ]}
-                >
-                  <Text style={styles.keyDigit}>{digit}</Text>
-                </Pressable>
-              ))}
-            </View>
-          ))}
-        </View>
+        <KeypadView styles={styles} onKey={onSendDtmf} keyLabel={({ digit }) => digit} />
       )}
 
       {transferOpen && (
@@ -255,10 +234,12 @@ export function OngoingCallView({
           styles={styles}
           t={t}
           title={t('transfer')}
+          targetLabel={t('transferToLabel')}
           peerName={peer.name}
           directory={directory}
           picked={pickedTransferContact}
           onPick={onPickTransferContact}
+          onClearPick={onClearTransferContact}
           value={transferTo}
           placeholder={t('transferPlaceholder')}
           onChange={onTransferToChange}
@@ -295,10 +276,12 @@ export function OngoingCallView({
           styles={styles}
           t={t}
           title={t('addCall')}
+          targetLabel={t('addCallToLabel')}
           peerName={peer.name}
           directory={directory}
           picked={pickedAddCallContact}
           onPick={onPickAddCallContact}
+          onClearPick={onClearAddCallContact}
           value={addCallTo}
           placeholder={t('addCallPlaceholder')}
           onChange={onAddCallToChange}

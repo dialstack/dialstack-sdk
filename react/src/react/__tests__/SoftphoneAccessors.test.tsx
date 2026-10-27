@@ -76,6 +76,8 @@ class FakePhone extends Emitter {
     return Promise.resolve();
   }
   disconnect(): void {}
+  listDirectory = jest.fn(() => Promise.resolve([]));
+  subscribePresence = jest.fn();
   call(to: string): Promise<unknown> {
     const c = this.nextCall ?? new FakeCall('outbound', '', null, to);
     return Promise.resolve(c);

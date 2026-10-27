@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { softphoneGlyphs } from '../../core/icons';
 import type { DirectoryContact } from '../../core/view-model';
+import { useDialPanel } from '../../hooks';
 import { Glyph } from '../Glyph';
+import { DialMatchesView } from './DialMatchesView';
 import { DirectoryPickerView } from './DirectoryPickerView';
+import { PickedTargetView } from './PickedTargetView';
 import type { SoftphoneViewChrome } from './types';
 
 export interface DialPanelViewProps extends Pick<SoftphoneViewChrome, 't'> {
@@ -14,7 +17,11 @@ export interface DialPanelViewProps extends Pick<SoftphoneViewChrome, 't'> {
   /** The contact `value` came from, or null when it was typed. */
   picked: DirectoryContact | null;
   onPick: (entry: DirectoryContact) => void;
+  /** Drops `picked`, and the value it set. */
+  onClearPick?: () => void;
   value: string;
+  /** Says what the field or the picked contact is for ("Transfer to"). */
+  targetLabel: string;
   /** The field's placeholder, also its accessible name. */
   placeholder: string;
   onChange: (value: string) => void;
@@ -37,7 +44,9 @@ export const DialPanelView: React.FC<DialPanelViewProps> = ({
   directory,
   picked,
   onPick,
+  onClearPick = () => {},
   value,
+  targetLabel,
   placeholder,
   onChange,
   onPaste,
@@ -45,18 +54,31 @@ export const DialPanelView: React.FC<DialPanelViewProps> = ({
   onClose,
   t,
 }) => {
-  const [dialing, setDialing] = useState(false);
-  const hasDirectory = directory.length > 0;
-  const showField = dialing || !hasDirectory;
+  const { hasDirectory, pickedNow, showField, showList, showTarget, toggleDialing } = useDialPanel(
+    directory,
+    picked,
+    value
+  );
 
   return (
     <div className="ds-dial-panel">
-      <div className={`ds-dial-panel-main${showField ? '' : ' ds-dial-panel-main-list'}`}>
+      {/* Only the list expands to the top; the field and a pick sit lower. */}
+      <div className={`ds-dial-panel-main${showList ? ' ds-dial-panel-main-list' : ''}`}>
         <div className="ds-dial-panel-header">
           <div className="ds-dial-panel-heading">
             <div className="ds-dial-panel-title">{title}</div>
             <div className="ds-dial-panel-peer">{peerName}</div>
           </div>
+          {hasDirectory && !picked && (
+            <button
+              type="button"
+              className="ds-dial-panel-close"
+              aria-label={showField ? t('chooseFromDirectory') : t('enterNumber')}
+              onClick={toggleDialing}
+            >
+              <Glyph glyph={showField ? softphoneGlyphs.contacts : softphoneGlyphs.keypad} />
+            </button>
+          )}
           <button
             type="button"
             className="ds-dial-panel-close"
@@ -67,43 +89,53 @@ export const DialPanelView: React.FC<DialPanelViewProps> = ({
           </button>
         </div>
 
-        {showField ? (
-          <input
-            className="ds-transfer-input"
-            type="tel"
-            inputMode="tel"
-            value={value}
-            placeholder={placeholder}
-            aria-label={placeholder}
-            autoComplete="off"
-            autoFocus
-            onChange={(e) => onChange(e.target.value)}
-            onPaste={(e) => {
-              e.preventDefault();
-              onPaste(e.clipboardData.getData('text'));
-            }}
-          />
+        {!showList && <div className="ds-dial-panel-label">{targetLabel}</div>}
+        {pickedNow ? (
+          <PickedTargetView entry={pickedNow} onClear={onClearPick} t={t} />
         ) : (
-          <DirectoryPickerView
-            destinations={directory}
-            isSelected={(entry) => entry.id === picked?.id}
-            onPick={onPick}
-            t={t}
-          />
-        )}
-
-        {hasDirectory && (
-          <button type="button" className="ds-dial-panel-mode" onClick={() => setDialing(!dialing)}>
-            {dialing ? t('chooseFromDirectory') : t('enterNumber')}
-          </button>
+          <>
+            {showField && hasDirectory && (
+              <DialMatchesView
+                directory={directory}
+                value={value}
+                picked={null}
+                onPick={onPick}
+                t={t}
+              />
+            )}
+            {showField ? (
+              <input
+                className="ds-transfer-input"
+                type="tel"
+                inputMode="tel"
+                value={value}
+                placeholder={placeholder}
+                aria-label={placeholder}
+                autoComplete="off"
+                autoFocus
+                onChange={(e) => onChange(e.target.value)}
+                onPaste={(e) => {
+                  e.preventDefault();
+                  onPaste(e.clipboardData.getData('text'));
+                }}
+              />
+            ) : (
+              <DirectoryPickerView
+                destinations={directory}
+                isSelected={() => false}
+                onPick={onPick}
+                t={t}
+              />
+            )}
+          </>
         )}
       </div>
 
-      {/* The list doesn't show the destination the buttons will act on (a typed
-          number, or a pick the search has hidden), so it is spelled out. */}
-      {!showField && value.trim() && (
+      {/* A number typed before switching to the list is still what the buttons
+          act on, and the list doesn't show it, so it is spelled out. */}
+      {showTarget && (
         <div className="ds-dial-panel-target">
-          {t('dialTarget')}: {picked ? `${picked.label} · ${value}` : value}
+          {t('dialTarget')}: {value}
         </div>
       )}
 

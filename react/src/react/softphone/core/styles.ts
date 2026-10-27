@@ -114,15 +114,6 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     }
     .${scope} .ds-backspace:hover { background: var(--dsd-surface); color: var(--dsd-text); }
 
-    .${scope} .ds-keypad {
-      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: ${d.keyGap}px;
-      justify-items: center;
-      max-width: min(${d.keyMaxSize * 3 + d.keyGap * 2}px, 100%);
-      width: 100%; margin: 0 auto;
-      flex: 1 1 auto; min-height: 0;
-      align-content: center;
-    }
     .${scope} .ds-key {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       aspect-ratio: 1 / 1; width: 100%; max-width: ${d.keyMaxSize}px;
@@ -141,7 +132,44 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       font-size: 10px; font-weight: 600; letter-spacing: 0.12em;
       color: var(--dsd-text-secondary); min-height: 12px;
     }
-    .${scope} .ds-keypad-dtmf .ds-key { aspect-ratio: auto; padding: 10px 0; max-width: 72px; }
+    /* The dial pad's keys fit its height as well as its width: whatever sits
+       above them (the E911 banner, the directory matches) can take room
+       without pushing the last row under Call or the first over the number.
+       The keypad is a size container; the keys are one centred 3x4 block whose
+       key size is the largest that fits it, and whose gaps scale with the keys,
+       so a smaller keypad keeps the same proportions instead of spreading out.
+       The dial pad and the in-call keypad share it, so they look the same.
+       The same rule holds in every size tier: a narrow host gets keys as large
+       as its width allows rather than a fixed compact size. Its basis is the
+       full-size keypad, which is what it takes in a host sized by its content;
+       a fixed host shrinks it. */
+    .${scope} .ds-keypad {
+      --ds-key-max: ${d.keyMaxSize}px; --ds-key-ratio: ${d.keyGap / d.keyMaxSize};
+      container-type: size;
+      display: flex; align-items: center; justify-content: center;
+      width: 100%; margin: 0 auto; min-height: 0;
+      flex: 1 1 calc(var(--ds-key-max) * (4 + 3 * var(--ds-key-ratio)));
+      max-width: min(calc(var(--ds-key-max) * (3 + 2 * var(--ds-key-ratio))), 100%);
+    }
+    .${scope} .ds-keypad-keys {
+      --ds-key: min(
+        var(--ds-key-max),
+        100cqw / (3 + 2 * var(--ds-key-ratio)),
+        100cqh / (4 + 3 * var(--ds-key-ratio))
+      );
+      display: grid; grid-template-columns: repeat(3, var(--ds-key));
+      gap: calc(var(--ds-key) * var(--ds-key-ratio));
+    }
+    .${scope} .ds-keypad-keys .ds-key {
+      width: var(--ds-key); height: var(--ds-key); max-width: none; aspect-ratio: auto;
+    }
+    .${scope} .ds-keypad-keys .ds-key-digit {
+      font-size: min(28px, calc(var(--ds-key) * 0.34));
+    }
+    .${scope} .ds-keypad-keys .ds-key-letters {
+      font-size: min(10px, calc(var(--ds-key) * 0.13));
+      min-height: min(12px, calc(var(--ds-key) * 0.15));
+    }
 
     .${scope} .ds-actions {
       display: flex; justify-content: center; gap: clamp(24px, 12vw, 72px);
@@ -149,8 +177,83 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       flex: 0 0 auto;
     }
     .${scope} .ds-actions-incoming { justify-content: space-evenly; }
+    /* With a side button, the row takes the keypad's three columns, so it
+       can't overflow a narrow host and the buttons line up under the keys. */
+    .${scope} .ds-actions:has(.ds-action-side) {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+      justify-items: center; gap: ${d.keyGap}px;
+      width: 100%; max-width: min(${d.keyMaxSize * 3 + d.keyGap * 2}px, 100%); margin-inline: auto;
+    }
+    /* A small round button beside Call; the empty one on the other side
+       keeps Call centred. */
+    .${scope} .ds-action-side {
+      flex: none; align-self: center; width: 44px; height: 44px; padding: 11px;
+      border: none; border-radius: 999px; cursor: pointer;
+      background: var(--dsd-surface); color: var(--dsd-text);
+    }
+    .${scope} span.ds-action-side { visibility: hidden; }
+    .${scope} .ds-action-side:hover { background: var(--dsd-surface-active); }
+    .${scope} .ds-action-side svg { width: 100%; height: 100%; display: block; }
+    /* One row, fixed height whether or not anything matches, scrolling
+       sideways when the matches don't fit. */
+    /* The row's height includes the scrollbar's, so it doesn't grow (or
+       squeeze the chips) when there are enough matches to scroll. */
+    .${scope} .ds-dial-matches {
+      display: flex; align-items: flex-start; gap: 6px; height: 42px; flex: none;
+      overflow-x: auto; overflow-y: hidden;
+    }
+    /* Styled, so WebKit shows it all the time rather than only mid-scroll:
+       a mouse user otherwise has no sign the row scrolls. Chrome drops these
+       styles when the standard scrollbar-* properties are set, so those are
+       only for browsers without them. */
+    @supports not selector(::-webkit-scrollbar) {
+      .${scope} .ds-dial-matches {
+        scrollbar-width: thin; scrollbar-color: var(--dsd-border) transparent;
+      }
+    }
+    .${scope} .ds-dial-matches::-webkit-scrollbar { height: 6px; }
+    .${scope} .ds-dial-matches::-webkit-scrollbar-track { background: transparent; }
+    .${scope} .ds-dial-matches::-webkit-scrollbar-thumb {
+      background: var(--dsd-border); border-radius: 999px;
+    }
+    /* Centred when they fit. Auto margins, not justify-content: centring that
+       way would push overflowing chips past the scrollable start. */
+    .${scope} .ds-dial-match:first-child { margin-left: auto; }
+    .${scope} .ds-dial-match:last-child { margin-right: auto; }
+    .${scope} .ds-dial-match {
+      flex: none; display: inline-flex; align-items: center; gap: 6px;
+      height: 32px; padding: 0 10px; border-radius: ${Math.max(d.radius - 4, 4)}px; cursor: pointer;
+      border: 1px solid var(--dsd-border); background: var(--dsd-surface);
+      color: var(--dsd-text); font-family: inherit; font-size: 13px; white-space: nowrap;
+    }
+    .${scope} .ds-dial-match:hover { background: var(--dsd-surface-active); }
+    .${scope} .ds-dial-match[aria-pressed='true'] {
+      border-color: var(--dsd-accent);
+      background: color-mix(in srgb, var(--dsd-accent) 12%, transparent);
+    }
+    .${scope} .ds-dial-match .ds-directory-option-label { font-size: 13px; }
+    /* The contact a transfer / add-call panel will act on, in place of the
+       field or list it was picked from. */
+    .${scope} .ds-dial-pick {
+      align-self: flex-start; display: flex; align-items: center; gap: 10px;
+      max-width: 100%; padding: 8px 8px 8px 10px;
+      border-radius: ${Math.max(d.radius - 4, 4)}px;
+      border: 1px solid var(--dsd-accent);
+      background: color-mix(in srgb, var(--dsd-accent) 12%, transparent);
+      color: var(--dsd-text);
+    }
+    .${scope} .ds-dial-pick-contact {
+      display: flex; flex-direction: column; gap: 2px; min-width: 0;
+    }
+    .${scope} .ds-dial-pick-clear {
+      flex: none; width: 24px; height: 24px; padding: 5px; margin-left: 2px;
+      border: none; border-radius: 50%; cursor: pointer;
+      background: var(--dsd-surface); color: var(--dsd-text-secondary);
+    }
+    .${scope} .ds-dial-pick-clear:hover { background: var(--dsd-surface-active); color: var(--dsd-text); }
+    .${scope} .ds-dial-pick-clear svg { width: 100%; height: 100%; display: block; }
     .${scope} .ds-action {
-      width: ${d.actionButtonSize}px; height: ${d.actionButtonSize}px;
+      flex: none; width: ${d.actionButtonSize}px; height: ${d.actionButtonSize}px;
       border: none; border-radius: 999px; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       color: var(--dsd-on-accent);
@@ -171,7 +274,9 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       justify-content: center;
     }
     .${scope} .ds-display {
-      flex: 0 1 auto; min-height: 0;
+      /* As tall as the backspace, so the first digit (which brings it in)
+         doesn't push the keypad down. */
+      flex: 0 1 auto; min-height: 40px;
       justify-content: center;
     }
     .${scope} .ds-controls { flex: 0 1 auto; min-height: 0; }
@@ -267,15 +372,6 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
        the in-call screen) gives up its height before the caller does. */
     .${scope} .ds-incoming-card > .ds-controls-slot { flex-shrink: 1000; }
     .${scope} .ds-screen-incall:has(.ds-dtmf) > .ds-peer { flex: 0 0 auto; }
-    .${scope} .ds-keypad-dtmf {
-      flex: 1; min-height: 0;
-      grid-auto-rows: minmax(0, ${d.keyMaxSize}px);
-      align-content: center;
-    }
-    .${scope} .ds-keypad-dtmf .ds-key {
-      aspect-ratio: 1 / 1; width: auto; height: 100%;
-      max-height: ${d.keyMaxSize}px; max-width: 100%; padding: 0;
-    }
     .${scope} .ds-keypad-close { background: var(--dsd-surface); color: var(--dsd-text); }
     .${scope} .ds-keypad-close:hover { filter: brightness(0.96); }
     .${scope} .ds-dtmf-readout {
@@ -325,6 +421,10 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       flex: 0 1 auto; min-height: 0; margin-block: 0;
     }
     .${scope} .ds-dial-panel-header { display: flex; align-items: flex-start; gap: 8px; }
+    .${scope} .ds-dial-panel-label {
+      font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+      color: var(--dsd-text-secondary); margin-bottom: -4px;
+    }
     .${scope} .ds-dial-panel-heading { flex: 1; min-width: 0; }
     .${scope} .ds-dial-panel-title { font-size: 18px; font-weight: 600; }
     .${scope} .ds-dial-panel-peer {
@@ -338,20 +438,43 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     }
     .${scope} .ds-dial-panel-close:hover { background: var(--dsd-surface-active); }
     .${scope} .ds-dial-panel-close svg { width: 100%; height: 100%; display: block; }
-    .${scope} .ds-dial-panel-mode {
-      align-self: center; border: none; background: none; padding: 4px 8px;
-      color: var(--dsd-accent); font-family: inherit; font-size: 14px; font-weight: 500;
-      cursor: pointer;
-    }
-    .${scope} .ds-dial-panel-mode:hover { text-decoration: underline; }
     .${scope} .ds-dial-panel-target {
       font-size: 13px; color: var(--dsd-text-secondary); text-align: center;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
+    /* The dial pad's number, keypad and their matches, or the list in their
+       place: one box, so the list can hold the height they had. */
+    .${scope} .ds-screen > .ds-dial-body {
+      display: flex; flex-direction: column; gap: inherit;
+      flex: 1 1 auto; min-height: 0;
+    }
+    /* The dial pad's list takes the keypad's place and height. */
+    .${scope} .ds-dial-body > .ds-dial-directory {
+      display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0;
+      width: 100%; max-width: ${(d.controlButtonSize + 12) * 3 + 24}px; margin: 0 auto;
+    }
+    .${scope} .ds-dial-directory > .ds-directory {
+      display: flex; flex-direction: column; gap: 8px; flex: 1 1 auto; min-height: 0;
+    }
     .${scope} .ds-dial-panel-main > .ds-directory {
       display: flex; flex-direction: column; gap: 8px; flex: 0 1 auto; min-height: 0;
     }
-    .${scope} .ds-directory-search { flex: none; }
+    .${scope} .ds-directory-search { flex: none; position: relative; display: flex; }
+    .${scope} .ds-directory-search-input { flex: 1 1 auto; padding-left: 38px; padding-right: 38px; }
+    /* Ours is drawn the same in every browser and on native. */
+    .${scope} .ds-directory-search-input::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
+    .${scope} .ds-directory-search-icon {
+      position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      width: 18px; height: 18px; color: var(--dsd-text-secondary); pointer-events: none;
+    }
+    .${scope} .ds-directory-search-icon svg,
+    .${scope} .ds-directory-search-clear svg { width: 100%; height: 100%; display: block; }
+    .${scope} .ds-directory-search-clear {
+      position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+      width: 24px; height: 24px; padding: 5px; border: none; border-radius: 50%; cursor: pointer;
+      background: var(--dsd-surface); color: var(--dsd-text-secondary);
+    }
+    .${scope} .ds-directory-search-clear:hover { background: var(--dsd-surface-active); color: var(--dsd-text); }
     .${scope} .ds-directory-options {
       display: flex; flex-direction: column; gap: 4px;
       flex: 0 1 auto; min-height: 0; overflow-y: auto;
@@ -384,6 +507,18 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       background: var(--dsd-bg); color: var(--dsd-text-secondary);
     }
     .${scope} .ds-directory-option-detail { font-size: 12px; color: var(--dsd-text-secondary); }
+    .${scope} .ds-directory-presence {
+      flex: none; display: inline-flex; width: 12px; height: 12px; border-radius: 50%;
+      color: var(--dsd-bg); background: var(--dsd-text-secondary);
+    }
+    .${scope} .ds-directory-presence svg { width: 100%; height: 100%; display: block; }
+    .${scope} .ds-directory-presence[data-tone='success'] { background: var(--dsd-success); }
+    .${scope} .ds-directory-presence[data-tone='warning'] { background: var(--dsd-warning); }
+    .${scope} .ds-directory-presence[data-tone='danger'] { background: var(--dsd-danger); }
+    .${scope} .ds-directory-presence[data-presence='offline'] {
+      background: none; color: var(--dsd-text-secondary);
+      box-shadow: inset 0 0 0 1.5px var(--dsd-text-secondary);
+    }
     .${scope} .ds-directory-empty {
       padding: 10px; font-size: 13px; text-align: center; color: var(--dsd-text-secondary);
     }
@@ -552,21 +687,30 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     /* Compact size tier for small hosts (narrower than 300px or shorter than
        480px; set by useRoomyHost). Everything steps down together so the
        screens fit instead of clipping; a host smaller still scrolls. */
-    .ds-host-small.${scope}, .ds-host-small > .${scope} { padding: 12px; }
+    /* The host's own padding, once: a host that is itself a softphone section
+       (a stand-alone view) mustn't pad its sections again. */
+    .ds-host-small.${scope}, .ds-host-small:not(.${scope}) > .${scope} { padding: 12px; }
     .ds-host-small .ds-screen { gap: 8px; }
     .ds-host-small .ds-screen-dial { padding-top: 18px; }
-    .ds-host-small .ds-display { min-height: 36px; }
+    .ds-host-small .ds-display { min-height: 32px; }
+    .ds-host-small .ds-display-spacer { width: 32px; }
+    .ds-host-small .ds-backspace { width: 32px; height: 32px; font-size: 18px; }
     .ds-host-small .ds-destination, .ds-host-small .ds-peer-name { font-size: 20px; }
     .ds-host-small .ds-peer-number { font-size: 13px; }
     .ds-host-small .ds-callstate { margin-top: 2px; }
     .ds-host-small .ds-callstate-text { font-size: 12px; }
     .ds-host-small .ds-duration { font-size: 15px; }
-    .ds-host-small .ds-keypad { gap: 6px; max-width: min(${48 * 3 + 6 * 2}px, 100%); }
+    .ds-host-small .ds-actions:has(.ds-action-side) { gap: 6px; max-width: min(${48 * 3 + 6 * 2}px, 100%); }
     .ds-host-small .ds-key { max-width: 48px; }
     .ds-host-small .ds-key-digit { font-size: 18px; }
     .ds-host-small .ds-key-letters { font-size: 8px; min-height: 9px; }
     .ds-host-small .ds-actions { gap: 32px; padding-top: 4px; }
     .ds-host-small .ds-action { width: 48px; height: 48px; }
+    .ds-host-small .ds-action-side { width: 36px; height: 36px; padding: 9px; }
+    .ds-host-small .ds-dial-matches { height: 30px; gap: 4px; }
+    .ds-host-small .ds-dial-match { height: 22px; font-size: 11px; padding: 0 7px; gap: 4px; }
+    .ds-host-small .ds-dial-match .ds-directory-option-label { font-size: 11px; }
+    .ds-host-small .ds-dial-match .ds-directory-option-detail { font-size: 11px; }
     .ds-host-small .ds-controls { gap: 4px 8px; max-width: ${56 * 3 + 8 * 2}px; }
     .ds-host-small .ds-controls > * { flex-basis: 56px; }
     .ds-host-small .ds-control { gap: 3px; }
@@ -577,11 +721,17 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     .ds-host-small .ds-held-calls { gap: 4px; }
     .ds-host-small .ds-chip { font-size: 10px; padding: 2px 8px; }
     .ds-host-small .ds-e911-toggle { padding: 6px 8px; font-size: 11px; gap: 6px; }
+    /* One line in a small host: the keypad needs the height more. */
+    .ds-host-small .ds-e911-label {
+      min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
     .ds-host-small .ds-transfer-input { padding: 6px 10px; font-size: 14px; }
+    .ds-host-small .ds-directory-search-input { padding-left: 30px; padding-right: 30px; }
+    .ds-host-small .ds-directory-search-icon { left: 9px; width: 15px; height: 15px; }
+    .ds-host-small .ds-directory-search-clear { right: 5px; width: 20px; height: 20px; padding: 4px; }
     .ds-host-small .ds-dial-panel, .ds-host-small .ds-dial-panel-main { gap: 6px; }
     .ds-host-small .ds-dial-panel-title { font-size: 15px; }
     .ds-host-small .ds-dial-panel-close { width: 30px; height: 30px; padding: 7px; }
-    .ds-host-small .ds-dial-panel-mode { font-size: 12px; padding: 2px 6px; }
     .ds-host-small .ds-directory-option { padding: 5px 8px; }
     .ds-host-small .ds-directory-option-label { font-size: 13px; }
     .ds-host-small .ds-directory-tag { font-size: 10px; padding: 0 6px; }

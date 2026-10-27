@@ -40,6 +40,9 @@ export default {
     '^@dialstack/sdk-server$': '<rootDir>/server/src/index.ts',
     // Longest-first: a plain '^@dialstack/sdk-react$' would not match the
     // subpaths, and a prefix pattern would swallow them.
+    // The private headless core the native views import, at its authoring
+    // home (as .storybook-native aliases it); it is no subpath of the package.
+    '^@dialstack/sdk-react/core$': '<rootDir>/react/src/react/softphone/core/index.ts',
     '^@dialstack/sdk-react/(.+)$': '<rootDir>/react/src/$1.ts',
     '^@dialstack/sdk-react$': '<rootDir>/react/src/index.ts',
     // Story fixtures the React stories borrow from the browser package. Not a

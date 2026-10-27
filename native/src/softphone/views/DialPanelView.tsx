@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import {
   softphoneGlyphs,
+  useDialPanel,
   type DirectoryContact,
   type Locale,
   type SoftphonePalette,
 } from '@dialstack/sdk-react/core';
 import { Glyph, type makeStyles } from '../primitives';
+import { DialMatchesView } from './DialMatchesView';
 import { DirectoryPickerView } from './DirectoryPickerView';
+import { PickedTargetView } from './PickedTargetView';
 
 export interface DialPanelViewProps {
   palette: SoftphonePalette;
@@ -21,7 +24,11 @@ export interface DialPanelViewProps {
   /** The contact `value` came from, or null when it was typed. */
   picked: DirectoryContact | null;
   onPick: (entry: DirectoryContact) => void;
+  /** Drops `picked`, and the value it set. */
+  onClearPick?: () => void;
   value: string;
+  /** Says what the field or the picked contact is for ("Transfer to"). */
+  targetLabel: string;
   /** The field's placeholder, also its accessible name. */
   placeholder: string;
   onChange: (value: string) => void;
@@ -48,20 +55,25 @@ export function DialPanelView({
   directory,
   picked,
   onPick,
+  onClearPick = () => {},
   value,
+  targetLabel,
   placeholder,
   onChange,
   actions,
   onClose,
   keyboardId,
 }: DialPanelViewProps): React.JSX.Element {
-  const [dialing, setDialing] = useState(false);
-  const hasDirectory = directory.length > 0;
-  const showField = dialing || !hasDirectory;
+  const { hasDirectory, pickedNow, showField, showList, showTarget, toggleDialing } = useDialPanel(
+    directory,
+    picked,
+    value
+  );
 
   return (
     <View style={styles.dialPanel}>
-      <View style={[styles.dialPanelMain, !showField && styles.dialPanelMainList]}>
+      {/* Only the list expands to the top; the field and a pick sit lower. */}
+      <View style={[styles.dialPanelMain, showList && styles.dialPanelMainList]}>
         <View style={styles.dialPanelHeader}>
           <View style={styles.dialPanelHeading}>
             <Text style={styles.dialPanelTitle}>{title}</Text>
@@ -69,6 +81,23 @@ export function DialPanelView({
               {peerName}
             </Text>
           </View>
+          {hasDirectory && !picked && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={showField ? t('chooseFromDirectory') : t('enterNumber')}
+              onPress={toggleDialing}
+              style={({ pressed }: { pressed: boolean }) => [
+                styles.dialPanelClose,
+                pressed && styles.directoryOptionPressed,
+              ]}
+            >
+              <Glyph
+                glyph={showField ? softphoneGlyphs.contacts : softphoneGlyphs.keypad}
+                size={(styles.dialPanelClose.width as number) * 0.55}
+                color={palette.text}
+              />
+            </Pressable>
+          )}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('cancel')}
@@ -86,49 +115,61 @@ export function DialPanelView({
           </Pressable>
         </View>
 
-        {showField ? (
-          <TextInput
-            style={styles.transferInput}
-            value={value}
-            onChangeText={onChange}
-            placeholder={placeholder}
-            placeholderTextColor={palette.textSecondary}
-            accessibilityLabel={placeholder}
-            keyboardType="phone-pad"
-            inputAccessoryViewID={keyboardId}
-            autoCorrect={false}
-            autoFocus
-          />
-        ) : (
-          <DirectoryPickerView
+        {!showList && <Text style={styles.dialPanelLabel}>{targetLabel}</Text>}
+        {pickedNow ? (
+          <PickedTargetView
             palette={palette}
             styles={styles}
             t={t}
-            directory={directory}
-            isSelected={(entry) => entry.id === picked?.id}
-            onPick={onPick}
-            keyboardId={keyboardId}
+            entry={pickedNow}
+            onClear={onClearPick}
           />
-        )}
-
-        {hasDirectory && (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setDialing(!dialing)}
-            style={styles.dialPanelMode}
-          >
-            <Text style={styles.dialPanelModeText}>
-              {dialing ? t('chooseFromDirectory') : t('enterNumber')}
-            </Text>
-          </Pressable>
+        ) : (
+          <>
+            {showField && hasDirectory && (
+              <DialMatchesView
+                palette={palette}
+                styles={styles}
+                t={t}
+                directory={directory}
+                value={value}
+                picked={null}
+                onPick={onPick}
+              />
+            )}
+            {showField ? (
+              <TextInput
+                style={styles.transferInput}
+                value={value}
+                onChangeText={onChange}
+                placeholder={placeholder}
+                placeholderTextColor={palette.textSecondary}
+                accessibilityLabel={placeholder}
+                keyboardType="phone-pad"
+                inputAccessoryViewID={keyboardId}
+                autoCorrect={false}
+                autoFocus
+              />
+            ) : (
+              <DirectoryPickerView
+                palette={palette}
+                styles={styles}
+                t={t}
+                directory={directory}
+                isSelected={() => false}
+                onPick={onPick}
+                keyboardId={keyboardId}
+              />
+            )}
+          </>
         )}
       </View>
 
-      {/* The list doesn't show the destination the buttons will act on (a typed
-          number, or a pick the search has hidden), so it is spelled out. */}
-      {!showField && !!value.trim() && (
+      {/* A number typed before switching to the list is still what the buttons
+          act on, and the list doesn't show it, so it is spelled out. */}
+      {showTarget && (
         <Text style={[styles.dialPanelTarget, styles.dialPanelActions]} numberOfLines={1}>
-          {t('dialTarget')}: {picked ? `${picked.label} · ${value}` : value}
+          {t('dialTarget')}: {value}
         </Text>
       )}
 
@@ -136,7 +177,7 @@ export function DialPanelView({
         style={[
           styles.transferActions,
           // The target line, when shown, already takes the free space above.
-          !(!showField && !!value.trim()) && styles.dialPanelActions,
+          !showTarget && styles.dialPanelActions,
         ]}
       >
         {actions}

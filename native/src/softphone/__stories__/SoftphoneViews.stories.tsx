@@ -8,7 +8,16 @@ import { OngoingCallView } from '../views/OngoingCallView';
 import { HOST_SIZES, SoftphoneFrame, type HostSize } from './SoftphoneFrame';
 import { Chip, makeStyles } from '../primitives';
 import { useRoomyHost } from '../views/useRoomyHost';
-import { darkPalette, lightPalette, noop, sampleDirectory, t } from './fixtures';
+import {
+  brandedDarkPalette,
+  brandedLightPalette,
+  darkPalette,
+  lightPalette,
+  noop,
+  presenceDirectory,
+  sampleDirectory,
+  t,
+} from './fixtures';
 
 const ErrorChip: React.FC<{ palette: Palette }> = ({ palette }) => {
   const { roomy } = useRoomyHost();
@@ -153,6 +162,19 @@ const Grid: React.FC<{ palette: Palette; size?: HostSize }> = ({ palette, size }
       {emergency(palette)}
       {pad(palette, { compact: true })}
     </SoftphoneFrame>
+    <SoftphoneFrame label="dial · e911 banner · directory" palette={palette} size={size}>
+      {emergency(palette)}
+      {pad(palette, { compact: true, directory: presenceDirectory })}
+    </SoftphoneFrame>
+    <SoftphoneFrame label="dial · e911 banner · directory, typing" palette={palette} size={size}>
+      {emergency(palette)}
+      {pad(palette, {
+        compact: true,
+        directory: presenceDirectory,
+        destination: '100',
+        canCall: true,
+      })}
+    </SoftphoneFrame>
 
     <SoftphoneFrame label="dial · error chip" palette={palette} size={size}>
       {pad(palette, { errorChip: <ErrorChip palette={palette} /> })}
@@ -170,6 +192,20 @@ const Grid: React.FC<{ palette: Palette; size?: HostSize }> = ({ palette, size }
     </SoftphoneFrame>
     <SoftphoneFrame label="dial · typed" palette={palette} size={size}>
       {pad(palette, { destination: '1002', canCall: true })}
+    </SoftphoneFrame>
+    <SoftphoneFrame label="dial · directory, nothing typed" palette={palette} size={size}>
+      {pad(palette, { directory: presenceDirectory })}
+    </SoftphoneFrame>
+    <SoftphoneFrame label="dial · typing with matches" palette={palette} size={size}>
+      {pad(palette, { directory: presenceDirectory, destination: '100', canCall: true })}
+    </SoftphoneFrame>
+    <SoftphoneFrame label="dial · match picked" palette={palette} size={size}>
+      {pad(palette, {
+        directory: presenceDirectory,
+        destination: '1002',
+        picked: presenceDirectory[1],
+        canCall: true,
+      })}
     </SoftphoneFrame>
     <SoftphoneFrame label="dial · connecting" palette={palette} size={size}>
       {pad(palette, { connection: 'connecting' })}
@@ -228,6 +264,9 @@ const Grid: React.FC<{ palette: Palette; size?: HostSize }> = ({ palette, size }
     <SoftphoneFrame label="overlay · keypad" palette={palette} size={size}>
       {call(palette, { overlay: 'keypad' })}
     </SoftphoneFrame>
+    <SoftphoneFrame label="overlay · keypad · digits entered" palette={palette} size={size}>
+      {call(palette, { overlay: 'keypad', dtmfEntered: '1234#' })}
+    </SoftphoneFrame>
     <SoftphoneFrame label="overlay · transfer" palette={palette} size={size}>
       {call(palette, { overlay: 'transfer', transferTo: '1002' })}
     </SoftphoneFrame>
@@ -237,6 +276,17 @@ const Grid: React.FC<{ palette: Palette; size?: HostSize }> = ({ palette, size }
         transferTo: '201',
         directory: sampleDirectory,
         pickedTransferContact: sampleDirectory[1],
+      })}
+    </SoftphoneFrame>
+    <SoftphoneFrame label="overlay · transfer · presence" palette={palette} size={size}>
+      {call(palette, { overlay: 'transfer', directory: presenceDirectory })}
+    </SoftphoneFrame>
+    <SoftphoneFrame label="overlay · transfer · presence, picked" palette={palette} size={size}>
+      {call(palette, {
+        overlay: 'transfer',
+        transferTo: '1002',
+        directory: presenceDirectory,
+        pickedTransferContact: presenceDirectory[1],
       })}
     </SoftphoneFrame>
     <SoftphoneFrame label="overlay · add call" palette={palette} size={size}>
@@ -266,6 +316,10 @@ const Grid: React.FC<{ palette: Palette; size?: HostSize }> = ({ palette, size }
 export const AllStates: Story = { render: () => <Grid palette={lightPalette} /> };
 
 export const AllStatesDark: Story = { render: () => <Grid palette={darkPalette} /> };
+
+export const BrandedLight: Story = { render: () => <Grid palette={brandedLightPalette} /> };
+
+export const BrandedDark: Story = { render: () => <Grid palette={brandedDarkPalette} /> };
 
 export const EmergencyForm: Story = {
   render: () => (

@@ -240,7 +240,8 @@ first**, or **Call**). The close button returns to the call and clears what was
 entered.
 
 To let the user pick who to transfer to or call instead of typing a number,
-pass a `directory`. Both screens use the same list:
+pass a `directory`. Both screens use the same list, and the dial pad offers
+it too:
 
 ```tsx
 const directory: DirectoryContact[] = [
@@ -270,9 +271,38 @@ Each entry has an `id` (unique and stable, such as your own record id), a
 and optionally a `description` (a second line, defaulting to the
 destination), a `group` heading, and `tags`: short labels shown as chips
 beside the name and matched by the search. With a directory the screens open on a
-search box and the list; **Enter a number** switches to the field for anything
+search box and the list; a keypad button beside the close button switches to the field for anything
 not listed. While the list is showing, a **To:** line above the buttons names the
-destination they will use. Pass a new array when the list changes.
+destination they will use. Pass a new array when the list changes. The dial
+pad opens on its keypad. From the second character typed, entries whose number
+contains what was typed appear in a row above the number (its space is kept while empty, so
+nothing moves; it scrolls sideways when more match). A contacts button beside
+**Call** swaps the keypad for the full list, and a keypad button in the same
+spot switches back. Tapping an entry on the dial pad or in Add call calls it
+straight away (Transfer shows the picked entry in place of the list or field, with a × to change it, then waits for **Transfer now** or **Consult first**); if a call
+can't be placed yet, the tap just fills the number.
+
+An entry can also carry a `presence` (`'available'`, `'on_call'`, `'dnd'`,
+`'away'` or `'offline'`), shown as a status dot with its label beside the
+destination and matched by the search.
+
+The softphone also lists the other users in the signed-in user's DialStack
+account, with live presence. This is on by default; passing your own
+`directory` turns it off (even an empty array, so a list that is still loading
+never shows the account's users first). Set `accountDirectory` to list both,
+the account's users first, or `accountDirectory={false}` to turn it off:
+
+```tsx
+<SoftphoneProvider token={token} storage={storage} directory={entries} accountDirectory>
+  <Softphone />
+</SoftphoneProvider>
+```
+
+Each user is dialled on their first extension; users without one are left
+out. Presence is shown for the first 100, and the rest are listed without a
+status. The list is refetched on every (re)connect, and statuses are hidden
+while the connection is down. A `directory` entry whose `id` is a user's ID
+replaces them in the list and keeps their presence.
 
 ## Sizing
 

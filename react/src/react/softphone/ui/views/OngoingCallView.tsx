@@ -1,5 +1,4 @@
 import React from 'react';
-import { dialPadKeys } from '../../core/theme';
 import { softphoneGlyphs } from '../../core/icons';
 import { Glyph } from '../Glyph';
 import { ControlButton } from '../ControlButton';
@@ -7,6 +6,7 @@ import { ControlsSlot } from '../ControlsSlot';
 import { CallErrorChipView, type CallErrorChipViewProps } from './CallErrorChipView';
 import { PeerAvatar, PeerRow } from './PeerAvatar';
 import { DialPanelView } from './DialPanelView';
+import { KeypadView } from './KeypadView';
 import type { DirectoryContact } from '../../core/view-model';
 import { useRoomyHost } from './useRoomyHost';
 import {
@@ -53,8 +53,10 @@ export interface OngoingCallViewProps extends Omit<SoftphoneViewChrome, 'display
   onPickTransferContact?: (entry: DirectoryContact) => void;
   /** The contact `transferTo` came from, or null when it was typed. */
   pickedTransferContact?: DirectoryContact | null;
+  onClearTransferContact?: () => void;
   onPickAddCallContact?: (entry: DirectoryContact) => void;
   pickedAddCallContact?: DirectoryContact | null;
+  onClearAddCallContact?: () => void;
   onBlindTransfer: () => void;
   onConsultTransfer: () => void;
   addCallTo: string;
@@ -105,8 +107,10 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
   directory = NO_DIRECTORY,
   onPickTransferContact = () => {},
   pickedTransferContact = null,
+  onClearTransferContact = () => {},
   onPickAddCallContact = () => {},
   pickedAddCallContact = null,
+  onClearAddCallContact = () => {},
   onBlindTransfer,
   onConsultTransfer,
   addCallTo,
@@ -233,29 +237,19 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
 
         {isActive && overlay === 'keypad' && canSendDtmf && (
           <div className="ds-dtmf">
-            <div className="ds-keypad ds-keypad-dtmf" role="group" aria-label={t('keypad')}>
-              {dialPadKeys.map(({ digit }) => (
-                <button
-                  type="button"
-                  key={digit}
-                  className="ds-key"
-                  aria-label={digit}
-                  onClick={() => onSendDtmf(digit)}
-                >
-                  <span className="ds-key-digit">{digit}</span>
-                </button>
-              ))}
-            </div>
+            <KeypadView label={t('keypad')} onKey={onSendDtmf} keyLabel={({ digit }) => digit} />
           </div>
         )}
 
         {transferOpen && (
           <DialPanelView
             title={t('transfer')}
+            targetLabel={t('transferToLabel')}
             peerName={peer.name}
             directory={directory}
             picked={pickedTransferContact}
             onPick={onPickTransferContact}
+            onClearPick={onClearTransferContact}
             value={transferTo}
             placeholder={t('transferPlaceholder')}
             onChange={onTransferToChange}
@@ -288,10 +282,12 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
         {addCallOpen && (
           <DialPanelView
             title={t('addCall')}
+            targetLabel={t('addCallToLabel')}
             peerName={peer.name}
             directory={directory}
             picked={pickedAddCallContact}
             onPick={onPickAddCallContact}
+            onClearPick={onClearAddCallContact}
             value={addCallTo}
             placeholder={t('addCallPlaceholder')}
             onChange={onAddCallToChange}

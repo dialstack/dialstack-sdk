@@ -85,7 +85,7 @@ reconnect and no call disruption.
 ## Team presence (BLF)
 
 Once connected, the softphone calls `phone.listDirectory()`
-(`GET /v1/me/directory`) to discover the colleagues it may watch — resolved from
+(`GET /v1/me/directory`) to discover the other users it may watch — resolved from
 the session token alone, with no account context and no user list supplied by
 the backend — then subscribes to their presence over the signalling WebSocket.
 The **Team presence** panel shows each one's status (`available` or `on_call`),

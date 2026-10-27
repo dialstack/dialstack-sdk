@@ -34,6 +34,7 @@ import {
 } from '@dialstack/sdk-webrtc';
 import type { SoftphoneConnectionState } from './usePhone';
 import { useLatestRef } from './useLatestRef';
+import { createActionThrottle, throttleFor } from './actionThrottle';
 
 export interface UseCallsOptions {
   /** Fired when an inbound call arrives and becomes the foreground call. */
@@ -456,6 +457,9 @@ function callsReducerInner(state: CallsState, action: CallsAction): CallsState {
   }
 }
 
+const throttleKey = (destination: string) =>
+  sanitizeDestination(destination, DIAL_COUNTRY) || destination;
+
 /**
  * Present a phone's live calls as React state: wires per-call listeners and
  * exposes the foreground call + call actions. Re-wires when the phone instance
@@ -578,6 +582,12 @@ export function useCalls(
   // leg (never announced as a start) emits no spurious end, and a completed
   // transfer fires onCallEnded once, for the original.
   const notifiedCalls = useRef(new WeakSet<Call>());
+  // Account-level actions that a double tap would repeat or undo: placing the
+  // same call or consult again (a call only joins `unwireByCall` once the
+  // server accepts it, so a quick second tap would pass every check and dial
+  // twice), merge then split, hold then resume the conference. Per-call ones
+  // use throttleFor.
+  const [throttle] = useState(() => createActionThrottle());
 
   const unwireCall = useCallback((call: Call) => {
     const off = unwireByCall.current.get(call);
@@ -656,7 +666,7 @@ export function useCalls(
     [rerender, unwireCall, handlers]
   );
 
-  const placeCall = useCallback(
+  const placeNow = useCallback(
     async (destination: string) => {
       const phone = phoneRef.current;
       // Clean the dial string (strip formatting, E.164 a valid PSTN number) so
@@ -707,6 +717,16 @@ export function useCalls(
     },
     [wireCall, connectionRef, handlers, phoneRef]
   );
+  const placeCall = useCallback(
+    (destination: string): Promise<void> =>
+      // Keyed by destination: only a repeat of the same call is a double tap.
+      // A different one goes through, and the phone itself reports
+      // rate_limited if a call is still being set up. Normalized, so a contact's
+      // formatted number and the same number typed count as one.
+      throttle(`placeCall:${throttleKey(destination)}`, () => placeNow(destination)) ??
+      Promise.resolve(),
+    [throttle, placeNow]
+  );
 
   // Hold the current active call, then bring `target` to the foreground via
   // `activate` (resume for a held call, answer for a ringing one) and `dispatch`
@@ -743,7 +763,9 @@ export function useCalls(
   const switchToCall = useCallback(
     (call: Call) => {
       if (activeCallRef.current === call) return;
-      holdThenActivate(() => call.resume(), { type: 'switchActive', call });
+      throttleFor(call)('switch', () =>
+        holdThenActivate(() => call.resume(), { type: 'switchActive', call })
+      );
     },
     [holdThenActivate]
   );
@@ -754,16 +776,19 @@ export function useCalls(
   // this is the user's explicit accept, which owns the auto-hold + promotion.
   const answerCall = useCallback(
     (call: Call) => {
-      holdThenActivate(
-        () =>
-          handlers.current.answerIncoming ? handlers.current.answerIncoming(call) : call.answer(),
-        { type: 'answered', call }
+      // Shares the 'answer' window with the call's own answer action.
+      throttleFor(call)('answer', () =>
+        holdThenActivate(
+          () =>
+            handlers.current.answerIncoming ? handlers.current.answerIncoming(call) : call.answer(),
+          { type: 'answered', call }
+        )
       );
     },
-    [holdThenActivate]
+    [holdThenActivate, handlers]
   );
 
-  const mergeCalls = useCallback(() => {
+  const mergeNow = useCallback(() => {
     if (conferenceRef.current) return;
     // Public surface, so enforced here too. Counts EVERY live leg: a ringing
     // inbound is not `isConnected`, and its Answer is not disabled while merged.
@@ -809,7 +834,7 @@ export function useCalls(
     }
   }, [callsRef, conferenceRef, handlers, rerender]);
 
-  const splitMerge = useCallback(() => {
+  const splitNow = useCallback(() => {
     const conference = conferenceRef.current;
     if (!conference) return;
     conference.dispose();
@@ -833,6 +858,10 @@ export function useCalls(
     rerender();
   }, [callsRef, conferenceRef, rerender]);
 
+  // Merge and Split are one button, so they share a window.
+  const mergeCalls = useCallback(() => throttle('merge', mergeNow), [throttle, mergeNow]);
+  const splitMerge = useCallback(() => throttle('merge', splitNow), [throttle, splitNow]);
+
   // Hang up the whole conference. Tearing the mixer down FIRST returns each leg
   // to its own mic uplink, so the hangups go out on ordinary calls rather than
   // racing the graph's teardown; each leg's own `ended` then clears its entry.
@@ -840,20 +869,22 @@ export function useCalls(
   // other, which is why Call.hold() refuses while merged; doing all of them is
   // the coherent version, and the conference stays up throughout.
   const holdConference = useCallback(
-    (held: boolean) => {
-      const conference = conferenceRef.current;
-      if (!conference) return;
-      for (const call of conference.calls) {
-        try {
-          call.setConferenceHold(held);
-        } catch (err) {
-          const e = err as PhoneError;
-          handlers.current.onError?.({ code: e.code ?? 'call_failed', message: e.message });
+    (held: boolean) =>
+      // One Hold/Resume button: a double tap would hold, then resume.
+      throttle('conferenceHold', () => {
+        const conference = conferenceRef.current;
+        if (!conference) return;
+        for (const call of conference.calls) {
+          try {
+            call.setConferenceHold(held);
+          } catch (err) {
+            const e = err as PhoneError;
+            handlers.current.onError?.({ code: e.code ?? 'call_failed', message: e.message });
+          }
         }
-      }
-      rerender();
-    },
-    [conferenceRef, handlers, rerender]
+        rerender();
+      }),
+    [conferenceRef, handlers, rerender, throttle]
   );
 
   const hangupConference = useCallback(() => {
@@ -875,7 +906,7 @@ export function useCalls(
     }
   }, [conferenceRef, handlers]);
 
-  const startAttendedTransfer = useCallback(
+  const consultNow = useCallback(
     async (destination: string) => {
       const call = activeCallRef.current;
       const phone = phoneRef.current;
@@ -908,6 +939,12 @@ export function useCalls(
     },
     [wireCall, consultCallRef, handlers, phoneRef]
   );
+  const startAttendedTransfer = useCallback(
+    (destination: string): Promise<void> =>
+      throttle(`consult:${throttleKey(destination)}`, () => consultNow(destination)) ??
+      Promise.resolve(),
+    [throttle, consultNow]
+  );
 
   const completeAttendedTransfer = useCallback(() => {
     // completeTransfer() is called on the ORIGINAL (it bridges it to the consult).
@@ -919,26 +956,31 @@ export function useCalls(
     const original = transferOriginalRef.current;
     const consult = consultCallRef.current;
     if (!original || !consult || !consult.isConnected) return;
-    try {
-      original.completeTransfer();
-    } catch (err) {
-      const e = err as PhoneError;
-      handlers.current.onError?.({ code: e.code ?? 'call_failed', message: e.message });
-    }
-  }, [consultCallRef, handlers, transferOriginalRef]);
+    // Complete and Cancel share a window: either one ends the transfer.
+    throttle('finishTransfer', () => {
+      try {
+        original.completeTransfer();
+      } catch (err) {
+        const e = err as PhoneError;
+        handlers.current.onError?.({ code: e.code ?? 'call_failed', message: e.message });
+      }
+    });
+  }, [consultCallRef, handlers, transferOriginalRef, throttle]);
 
   const cancelAttendedTransfer = useCallback(() => {
     const consult = consultCallRef.current;
     const original = transferOriginalRef.current;
     if (!consult) return;
-    consult.hangup();
-    // hangup() only sends the request; the consult's `ended` echo isn't guaranteed
-    // for an unanswered outbound leg, so unwire now or its listeners (and the hook
-    // closure they retain) leak.
-    unwireCall(consult);
-    if (original?.state === 'held') original.resume();
-    dispatch({ type: 'cancelConsult' });
-  }, [unwireCall, consultCallRef, transferOriginalRef]);
+    throttle('finishTransfer', () => {
+      consult.hangup();
+      // hangup() only sends the request; the consult's `ended` echo isn't guaranteed
+      // for an unanswered outbound leg, so unwire now or its listeners (and the hook
+      // closure they retain) leak.
+      unwireCall(consult);
+      if (original?.state === 'held') original.resume();
+      dispatch({ type: 'cancelConsult' });
+    });
+  }, [unwireCall, consultCallRef, transferOriginalRef, throttle]);
 
   // Wire the phone's incoming-call event for the CURRENT phone instance. Keyed on
   // phone identity, so a reconnect re-runs this (unwiring the old phone, attaching

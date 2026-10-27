@@ -38,6 +38,15 @@ export type { UseLastError, SoftphoneError } from './useLastError';
 export { usePeerResolver } from './usePeerResolver';
 export type { PeerInfo, ResolvePeer } from './usePeerResolver';
 
+export { useAccountDirectory } from './useAccountDirectory';
+export { useDialBrowse } from './useDialBrowse';
+export type { UseDialBrowse } from './useDialBrowse';
+export { useDialPanel } from './useDialPanel';
+export type { UseDialPanel } from './useDialPanel';
+export { useDirectorySearch } from './useDirectorySearch';
+export type { UseDirectorySearch } from './useDirectorySearch';
+export type { AccountDirectoryPhone } from './useAccountDirectory';
+
 export { useDialInput } from './useDialInput';
 export type { UseDialInput } from './useDialInput';
 
@@ -49,6 +58,7 @@ export {
   shouldRingIncoming,
   isCallActive,
   canPlaceCall,
+  callOrPick,
   selectScreen,
   selectLayout,
   callPeerNumber,
@@ -66,6 +76,14 @@ export {
   errorMessageKey,
   filterDirectory,
   directoryContactTags,
+  presenceLabelKey,
+  contactDetail,
+  matchDirectoryByNumber,
+  currentContact,
+  presenceTone,
+  effectivePresence,
+  accountDirectoryContacts,
+  mergeDirectories,
 } from '../core/view-model';
 export type {
   SoftphoneScreen,
@@ -74,4 +92,5 @@ export type {
   SoftphoneLayoutVariant,
   DirectoryContact,
   DirectoryContactGroup,
+  PresenceTone,
 } from '../core/view-model';

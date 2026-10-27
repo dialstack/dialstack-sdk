@@ -55,10 +55,24 @@ export const en = {
     directoryLabel: 'Directory',
     directorySearchPlaceholder: 'Search directory',
     directoryNoMatches: 'No matches',
+    // A directory entry's presence, beside its destination.
+    presenceAvailable: 'Available',
+    presenceOnCall: 'On a call',
+    presenceDoNotDisturb: 'Do not disturb',
+    presenceAway: 'Away',
+    presenceOffline: 'Offline',
     enterNumber: 'Enter a number',
     chooseFromDirectory: 'Choose from directory',
+    // Names the dial pad's strip of directory entries matching what was typed.
+    directoryMatches: 'Matching contacts',
+    // Clears the contact picked in the transfer / add-call panel.
+    directoryClearPick: 'Clear selection',
+    directoryClearSearch: 'Clear search',
     // Prefixes the destination the panel's buttons will act on.
     dialTarget: 'To',
+    // Names what the transfer / add-call screen's field or picked contact is for.
+    transferToLabel: 'Transfer to',
+    addCallToLabel: 'Add to the call',
     merge: 'Merge calls',
     split: 'Split',
     conferenceLabel: 'Conference',

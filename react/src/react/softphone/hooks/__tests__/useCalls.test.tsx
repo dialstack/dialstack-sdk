@@ -14,6 +14,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { usePhone, type UsePhoneOptions } from '../usePhone';
 import { useCalls, type UseCallsOptions } from '../useCalls';
 import type { Call, CallEndReason, DialStackPhone } from '@dialstack/sdk-webrtc';
+import { ACTION_THROTTLE_MS } from '../actionThrottle';
 
 // ---- fakes -----------------------------------------------------------------
 
@@ -191,6 +192,17 @@ function useComposed(opts: UsePhoneOptions & UseCallsOptions) {
   const calls = useCalls(phone, connection, opts);
   return { ...calls, connection };
 }
+
+// A deliberate second press, after the double-tap throttle has let go.
+let clockSpy: jest.SpyInstance | null = null;
+function afterThrottle(): void {
+  const later = Date.now() + ACTION_THROTTLE_MS;
+  clockSpy = jest.spyOn(Date, 'now').mockReturnValue(later);
+}
+afterEach(() => {
+  clockSpy?.mockRestore();
+  clockSpy = null;
+});
 
 // ---- tests -----------------------------------------------------------------
 
@@ -844,6 +856,66 @@ describe('useCalls placeCall', () => {
     );
   });
 
+  it('dials a double tap on the same number once', async () => {
+    const { result } = renderHook(() => useComposed({ token: 'tok' }));
+    act(() => phone().emit('connected'));
+    await act(async () => {
+      await Promise.all([
+        result.current.placeCall('+15551110000'),
+        result.current.placeCall('+15551110000'),
+      ]);
+    });
+    expect(phone().callArgs).toEqual(['+15551110000']);
+  });
+
+  it('dials once when a double tap names the same number in two formats', async () => {
+    const { result } = renderHook(() => useComposed({ token: 'tok' }));
+    act(() => phone().emit('connected'));
+    await act(async () => {
+      await Promise.all([
+        result.current.placeCall('(415) 555-0100'),
+        result.current.placeCall('+14155550100'),
+      ]);
+    });
+    expect(phone().callArgs).toEqual(['+14155550100']);
+  });
+
+  it('never blocks a call to a different number, leaving overlaps to the phone', async () => {
+    const onError = jest.fn();
+    const { result } = renderHook(() => useComposed({ token: 'tok', onError }));
+    act(() => phone().emit('connected'));
+    const placing = phone().call.bind(phone());
+    phone().call = jest.fn((destination: string) =>
+      phone().callArgs.length === 0
+        ? placing(destination)
+        : Promise.reject({
+            code: 'rate_limited',
+            message: 'Another outbound call is still being placed',
+          })
+    );
+    await act(async () => {
+      await Promise.all([
+        result.current.placeCall('+15551110000'),
+        result.current.placeCall('+15552220000'),
+      ]);
+    });
+    expect(phone().call).toHaveBeenCalledTimes(2);
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: 'rate_limited' }));
+  });
+
+  it('dials the same number again once the window has passed', async () => {
+    const { result } = renderHook(() => useComposed({ token: 'tok' }));
+    act(() => phone().emit('connected'));
+    await act(async () => {
+      await result.current.placeCall('+15551110000');
+    });
+    afterThrottle();
+    await act(async () => {
+      await result.current.placeCall('+15551110000');
+    });
+    expect(phone().callArgs).toEqual(['+15551110000', '+15551110000']);
+  });
+
   it('resumes the call it held when the second dial fails (no stranded hold)', async () => {
     const onError = jest.fn();
     const { result } = renderHook(() => useComposed({ token: 'tok', onError }));
@@ -944,6 +1016,40 @@ describe('useCalls attended transfer', () => {
     phone().nextCall = original;
     return { ...rendered, original };
   }
+
+  it('starts one consult for a double tap on Consult', async () => {
+    const { result, original } = withActiveCall();
+    await act(async () => {
+      await result.current.placeCall('+1000');
+    });
+    const attended = jest.spyOn(original, 'attendedTransfer');
+
+    await act(async () => {
+      await Promise.all([
+        result.current.startAttendedTransfer('+2000'),
+        result.current.startAttendedTransfer('+2000'),
+      ]);
+    });
+
+    expect(attended).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts one consult when a double tap names the same number in two formats', async () => {
+    const { result, original } = withActiveCall();
+    await act(async () => {
+      await result.current.placeCall('+1000');
+    });
+    const attended = jest.spyOn(original, 'attendedTransfer');
+
+    await act(async () => {
+      await Promise.all([
+        result.current.startAttendedTransfer('(415) 555-0100'),
+        result.current.startAttendedTransfer('+14155550100'),
+      ]);
+    });
+
+    expect(attended).toHaveBeenCalledTimes(1);
+  });
 
   it('startAttendedTransfer holds the original and tracks the consult leg', async () => {
     const { result, original } = withActiveCall();
@@ -1377,9 +1483,17 @@ describe('useCalls local conference (merge)', () => {
     // And the conference survives — this is a hold, not a split.
     expect(result.current.isMerged).toBe(true);
 
+    afterThrottle();
     act(() => result.current.holdConference(false));
     expect(first.conferenceHolds).toEqual([true, false]);
     expect(second.conferenceHolds).toEqual([true, false]);
+    expect(result.current.isMerged).toBe(true);
+  });
+
+  it('ignores a quick second tap on Merge, which would split again', async () => {
+    const { result } = await withTwoCalls();
+    act(() => result.current.mergeCalls());
+    act(() => result.current.splitMerge());
     expect(result.current.isMerged).toBe(true);
   });
 
@@ -1388,6 +1502,7 @@ describe('useCalls local conference (merge)', () => {
     act(() => result.current.mergeCalls());
     const holdsBeforeSplit = second.holdCalls;
 
+    afterThrottle();
     act(() => result.current.splitMerge());
 
     expect(result.current.isMerged).toBe(false);

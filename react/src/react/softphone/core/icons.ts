@@ -4,6 +4,8 @@
  * (plus an optional transform), independent of the SDK's data-component icon set.
  */
 
+import type { PresenceStatus } from '@dialstack/sdk-webrtc';
+
 export interface SoftphoneGlyph {
   path: string;
   transform?: string;
@@ -36,6 +38,11 @@ export const softphoneGlyphs = {
     path: 'M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z',
   },
   chevronDown: { path: 'M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z' },
+  // The switch to the directory: an address book (a person on a card between
+  // two rules), not a lone person, which reads as "my profile".
+  contacts: {
+    path: 'M20 0H4v2h16V0zM4 24h16v-2H4v2zM20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 2.75c1.24 0 2.25 1.01 2.25 2.25s-1.01 2.25-2.25 2.25S9.75 10.24 9.75 9 10.76 6.75 12 6.75zM17 17H7v-1.5c0-1.67 3.33-2.5 5-2.5s5 .83 5 2.5V17z',
+  },
   speaker: {
     path: 'M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05A4.47 4.47 0 0 0 16.5 12zM14 2.23v2.06a7.5 7.5 0 0 1 0 15.42v2.06a9.5 9.5 0 0 0 0-19.54z',
   },
@@ -47,9 +54,23 @@ export const softphoneGlyphs = {
   merge: {
     path: 'M17 20.41 18.41 19 15 15.59 13.59 17 17 20.41zM7.5 8H11v5.59L5.59 19 7 20.41l6-6V8h3.5L12 3.5 7.5 8z',
   },
+  search: {
+    path: 'M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z',
+  },
   close: {
     path: 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z',
   },
 } satisfies Record<string, SoftphoneGlyph>;
 
 export type SoftphoneGlyphName = keyof typeof softphoneGlyphs;
+
+/**
+ * The mark drawn on a presence badge, in the same 24×24 grid: kept inside the
+ * middle so it reads on a ~12px disc. Most states are told apart by the disc's
+ * colour (`presenceTone`) alone; only the two the user chose, rather than
+ * fell into, carry a mark.
+ */
+export const presenceGlyphs: Partial<Record<PresenceStatus, SoftphoneGlyph>> = {
+  dnd: { path: 'M6 10.5h12v3H6z' },
+  away: { path: 'M11 6.5h2v5.1l3.6 2.1-1 1.7L11 12.7z' },
+};

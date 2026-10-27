@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import {
-  directoryContactTags,
-  filterDirectory,
+  softphoneGlyphs,
+  useDirectorySearch,
   type DirectoryContact,
   type Locale,
   type SoftphonePalette,
 } from '@dialstack/sdk-react/core';
-import type { makeStyles } from '../primitives';
+import { Glyph, type makeStyles } from '../primitives';
+import { DirectoryContactView } from './DirectoryContactView';
 
 export interface DirectoryPickerViewProps {
   palette: SoftphonePalette;
@@ -21,10 +22,7 @@ export interface DirectoryPickerViewProps {
   keyboardId: string;
 }
 
-/**
- * The host's directory as a searchable list. The search text is its own: the
- * number field only takes dial characters, so it can't double as a name search.
- */
+/** The host's directory as a searchable list. */
 export function DirectoryPickerView({
   palette,
   styles,
@@ -34,23 +32,41 @@ export function DirectoryPickerView({
   onPick,
   keyboardId,
 }: DirectoryPickerViewProps): React.JSX.Element {
-  const [query, setQuery] = useState('');
-  const groups = filterDirectory(directory, query);
+  const { query, setQuery, groups } = useDirectorySearch(directory, t);
 
   return (
     <View style={styles.directory}>
-      <TextInput
-        style={styles.transferInput}
-        value={query}
-        onChangeText={setQuery}
-        placeholder={t('directorySearchPlaceholder')}
-        placeholderTextColor={palette.textSecondary}
-        accessibilityLabel={t('directorySearchPlaceholder')}
-        inputAccessoryViewID={keyboardId}
-        autoCorrect={false}
-        autoCapitalize="none"
-        returnKeyType="search"
-      />
+      <View style={styles.directorySearch}>
+        <View style={styles.directorySearchIcon} importantForAccessibility="no">
+          <Glyph glyph={softphoneGlyphs.search} size={18} color={palette.textSecondary} />
+        </View>
+        <TextInput
+          style={[styles.transferInput, styles.directorySearchInput]}
+          value={query}
+          onChangeText={setQuery}
+          placeholder={t('directorySearchPlaceholder')}
+          placeholderTextColor={palette.textSecondary}
+          accessibilityLabel={t('directorySearchPlaceholder')}
+          inputAccessoryViewID={keyboardId}
+          autoCorrect={false}
+          autoCapitalize="none"
+          returnKeyType="search"
+        />
+        {query !== '' && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('directoryClearSearch')}
+            onPress={() => setQuery('')}
+            hitSlop={8}
+            style={({ pressed }: { pressed: boolean }) => [
+              styles.directorySearchClear,
+              pressed && styles.directoryOptionPressed,
+            ]}
+          >
+            <Glyph glyph={softphoneGlyphs.close} size={14} color={palette.textSecondary} />
+          </Pressable>
+        )}
+      </View>
       <ScrollView
         style={styles.directoryOptions}
         contentContainerStyle={styles.directoryOptionsContent}
@@ -82,17 +98,7 @@ export function DirectoryPickerView({
                     selected && styles.directoryOptionSelected,
                   ]}
                 >
-                  <View style={styles.directoryOptionTitle}>
-                    <Text style={styles.directoryOptionLabel}>{entry.label}</Text>
-                    {directoryContactTags(entry).map((tag, j) => (
-                      <View key={`${tag}|${j}`} style={styles.directoryTag}>
-                        <Text style={styles.directoryTagText}>{tag}</Text>
-                      </View>
-                    ))}
-                  </View>
-                  <Text style={styles.directoryOptionDetail}>
-                    {entry.description || entry.destination}
-                  </Text>
+                  <DirectoryContactView palette={palette} styles={styles} t={t} entry={entry} />
                 </Pressable>
               );
             })}

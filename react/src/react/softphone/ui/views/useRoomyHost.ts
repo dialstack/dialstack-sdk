@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { SoftphoneContext } from '../../provider/SoftphoneProviderBase';
 import { HOST_MIN_HEIGHT, HOST_MIN_WIDTH, isRoomyLayout } from '../../core/view-model';
 
@@ -9,6 +9,9 @@ import { HOST_MIN_HEIGHT, HOST_MIN_WIDTH, isRoomyLayout } from '../../core/view-
  * is the host.
  */
 export const HostTierContext = createContext<boolean | null>(null);
+
+// useLayoutEffect warns when rendered on a server, where there is nothing to measure.
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 /**
  * Observes the target and keeps `ds-host-small` (the compact tier, see
@@ -23,15 +26,20 @@ function useTier(
   const variant = useContext(SoftphoneContext)?.layoutVariant ?? 'auto';
   const [roomy, setRoomy] = useState(variant !== 'compact');
 
-  useEffect(() => {
+  // A layout effect, and one measure before observing: the tier is settled
+  // before the first paint. Waiting for the observer's first callback showed
+  // a frame of the full tier, then everything resized into the compact one.
+  useIsomorphicLayoutEffect(() => {
     const el = enabled ? target() : null;
     if (!el || typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(() => {
+    const measure = () => {
       const { width, height } = el.getBoundingClientRect();
       const fits = isRoomyLayout(variant, width >= HOST_MIN_WIDTH && height >= HOST_MIN_HEIGHT);
       el.classList.toggle('ds-host-small', !fits);
       setRoomy(fits);
-    });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => {
       observer.disconnect();

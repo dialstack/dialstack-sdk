@@ -217,18 +217,18 @@ export interface PresenceUpdate {
   updatedAt: string;
 }
 
-// One entry of the account directory (GET /v1/me/directory): a colleague the
-// signed-in user may see, by display name and extension. Deliberately narrow
+// One entry of the account directory (GET /v1/me/directory): another user
+// the signed-in user may see, by display name and extension. Deliberately narrow
 // (id, name, extension numbers) — the endpoint never returns full user objects to
 // a user-session credential. Used to resolve who to watch for presence, or to
 // populate a contact / transfer picker.
 export interface DirectoryEntry {
-  /** The colleague's user id (`user_…`). */
+  /** The user's id (`user_…`). */
   user: string;
   /** Display name to show. */
   displayName: string;
   /**
-   * The colleague's active extension numbers, dialable from this account,
+   * The user's active extension numbers, dialable from this account,
    * sorted as text (so `1000` comes before `999`). Empty when they have none.
    */
   extensionNumbers: string[];

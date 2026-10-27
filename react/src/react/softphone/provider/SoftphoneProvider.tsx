@@ -132,11 +132,23 @@ export interface SoftphoneProviderProps {
 
   /**
    * People and places the user can pick from instead of typing a number (a
-   * directory of colleagues or departments, say). Offered as a searchable
-   * list when transferring and when adding a call; typing a destination
-   * still works. Pass a new array when the list changes.
+   * directory of people or departments, say). Offered as a searchable
+   * list from the dial pad and when transferring or adding a call; typing a
+   * destination still works. Pass a new array when the list changes.
    */
   directory?: readonly DirectoryContact[];
+
+  /**
+   * Also list the other users in the signed-in user's DialStack account, with
+   * live presence. Unset, it is on unless you pass `directory` (even an empty
+   * one, so a list that is still loading never shows the account's users
+   * first); `true` lists both, the account's users first, and `false` turns it
+   * off. Each user is dialled on their first extension; users without one are
+   * left out. Presence is watched for the first 100 (the server's limit); the
+   * rest are listed without a status. A `directory` entry whose `id` is a
+   * user's id replaces them in the list and keeps their presence.
+   */
+  accountDirectory?: boolean;
 
   /**
    * Your application's name and version, reported to DialStack with the SDK's
@@ -196,6 +208,7 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
   resolvePeer,
   layoutVariant,
   directory,
+  accountDirectory,
   appInfo,
   children,
 }) => {
@@ -259,6 +272,7 @@ export const SoftphoneProvider: React.FC<SoftphoneProviderProps> = ({
       resolvePeer={resolvePeer}
       layoutVariant={layoutVariant}
       directory={directory}
+      accountDirectory={accountDirectory}
       extra={extra}
     >
       {/* Subscribe to live instance appearance only when a components provider is

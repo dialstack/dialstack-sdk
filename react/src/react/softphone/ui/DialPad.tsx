@@ -1,6 +1,7 @@
 /**
  * DialPad — the idle/outbound screen of the softphone: connection status chip, a
- * destination field, the 12-key pad, and the call button. Reads connection +
+ * destination field, the 12-key pad, and the call button. With a directory, a
+ * switch swaps the field and pad for the searchable list. Reads connection +
  * `placeCall` from the softphone context and owns only its own `destination` text.
  *
  * The E911 prompt is NOT rendered here — `<EmergencyBanner>` is a separate
@@ -11,9 +12,9 @@
  * Must be rendered inside a `<SoftphoneProvider>`.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useSoftphone } from '../provider/SoftphoneProvider';
-import { useDialInput, canPlaceCall } from '../hooks';
+import { useDialTarget, canPlaceCall, callOrPick, type DirectoryContact } from '../hooks';
 import { DialPadView } from './views/DialPadView';
 
 export interface DialPadProps {
@@ -25,9 +26,9 @@ export interface DialPadProps {
 }
 
 export const DialPad: React.FC<DialPadProps> = ({ autoFocusDestination = false }) => {
-  const { connection, placeCall, emergency, lastError, clearError, t, scope } = useSoftphone();
-  const [destination, setDestination] = useState('');
-  const { onType, onPasteText } = useDialInput(setDestination);
+  const { connection, placeCall, emergency, lastError, clearError, t, scope, directory } =
+    useSoftphone();
+  const { value: destination, picked, onType, onPasteText, pick } = useDialTarget();
   const destinationRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -35,6 +36,13 @@ export const DialPad: React.FC<DialPadProps> = ({ autoFocusDestination = false }
   }, [autoFocusDestination]);
 
   const canCall = canPlaceCall(connection, destination, emergency.submitting);
+  const pickOrCall = (entry: DirectoryContact) =>
+    callOrPick(entry, {
+      connection,
+      emergencySubmitting: emergency.submitting,
+      placeCall,
+      pick,
+    });
 
   return (
     <DialPadView
@@ -47,6 +55,9 @@ export const DialPad: React.FC<DialPadProps> = ({ autoFocusDestination = false }
       destinationRef={destinationRef}
       error={lastError}
       onDismissError={clearError}
+      directory={directory}
+      picked={picked}
+      onPick={pickOrCall}
       scope={scope}
       t={t}
     />

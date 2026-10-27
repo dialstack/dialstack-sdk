@@ -274,7 +274,9 @@ export function makeStyles(p: SoftphonePalette, compact = false) {
     display: {
       flexDirection: 'row',
       alignItems: 'center',
-      minHeight: 0,
+      // As tall as the backspace, so the first digit (which brings it in)
+      // doesn't push the keypad down.
+      minHeight: 40,
       gap: 8,
       flexGrow: 1,
       flexShrink: 1,
@@ -366,6 +368,27 @@ export function makeStyles(p: SoftphonePalette, compact = false) {
       justifyContent: 'center',
     },
     actionSuccess: { backgroundColor: p.success },
+    // A small round button beside Call; an empty one balances it.
+    actionSide: {
+      width: fs(44, 36),
+      height: fs(44, 36),
+      borderRadius: 999,
+      alignSelf: 'center',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: p.surface,
+    },
+    actionSideSpacer: { opacity: 0 },
+    // With a side button, the row spans the keypad's width and spreads its
+    // three buttons like the key columns, so it can't overflow a narrow host.
+    actionsColumns: {
+      width: '100%',
+      maxWidth: KEY_MAX * 3 + D.keyGap * 2,
+      alignSelf: 'center',
+      justifyContent: 'space-around',
+      alignItems: 'center',
+      gap: 0,
+    },
     actionDanger: { backgroundColor: p.danger },
     actionNeutral: { backgroundColor: p.surface },
     actionDisabled: { opacity: 0.4 },
@@ -484,6 +507,14 @@ export function makeStyles(p: SoftphonePalette, compact = false) {
     // search shortens it, and grows to its entries until it reaches the buttons.
     dialPanelMainList: { marginVertical: 0, flexShrink: 1, minHeight: 0 },
     dialPanelHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+    dialPanelLabel: {
+      fontSize: fs(12, 11),
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      color: p.textSecondary,
+      marginBottom: -4,
+    },
     dialPanelHeading: { flex: 1, minWidth: 0 },
     dialPanelTitle: { fontSize: fs(18, 15), fontWeight: '600', color: p.text },
     dialPanelPeer: { fontSize: fs(13, 12), color: p.textSecondary },
@@ -495,11 +526,81 @@ export function makeStyles(p: SoftphonePalette, compact = false) {
       justifyContent: 'center',
       backgroundColor: p.surface,
     },
-    dialPanelMode: { alignSelf: 'center', paddingVertical: 4, paddingHorizontal: 8 },
-    dialPanelModeText: { color: p.accent, fontSize: fs(14, 12), fontWeight: '500' },
+    // One row, fixed height whether or not anything matches.
+    dialMatches: { flexGrow: 0, flexShrink: 0, height: fs(32, 26) },
+    // Centred when they fit; a ScrollView still starts at the first chip when
+    // they don't, since the container only grows to fill a wider viewport.
+    dialMatchesContent: { gap: 6, alignItems: 'stretch', flexGrow: 1, justifyContent: 'center' },
+    dialMatch: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: fs(10, 8),
+      borderRadius: Math.max(D.radius - 4, 4),
+      borderWidth: 1,
+      borderColor: p.border,
+      backgroundColor: p.surface,
+    },
+    // The shared contact text, a size down to fit one line in the chip.
+    dialMatchText: { fontSize: fs(13, 12) },
+    // The contact a transfer / add-call panel will act on, in place of the
+    // field or list it was picked from.
+    dialPick: {
+      alignSelf: 'flex-start',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      maxWidth: '100%',
+      paddingVertical: fs(8, 5),
+      paddingLeft: fs(10, 8),
+      paddingRight: 8,
+      borderRadius: Math.max(D.radius - 4, 4),
+      borderWidth: 1,
+      borderColor: p.accent,
+      backgroundColor: p.surfaceActive,
+    },
+    dialPickContact: { flexShrink: 1, gap: 2 },
+    dialPickClear: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: p.surface,
+    },
+    // The number, keypad and their matches, or the list in their place: one
+    // box, so the list can hold the height they had.
+    dialBody: { flexGrow: 1, flexShrink: 1, minHeight: 0, gap: D.space },
+    // The dial pad's list takes the keypad's place and height.
+    dialDirectory: {
+      flexGrow: 1,
+      flexShrink: 1,
+      minHeight: 0,
+      width: '100%',
+      maxWidth: KEY_MAX * 3 + D.keyGap * 2,
+      alignSelf: 'center',
+    },
     dialPanelActions: { marginTop: 'auto' },
     dialPanelTarget: { fontSize: fs(13, 12), color: p.textSecondary, textAlign: 'center' },
     directory: { gap: 8, flexShrink: 1, minHeight: 0 },
+    directorySearch: { justifyContent: 'center' },
+    directorySearchInput: { paddingLeft: fs(38, 30), paddingRight: fs(38, 30) },
+    directorySearchIcon: {
+      position: 'absolute',
+      left: fs(12, 9),
+      zIndex: 1,
+      pointerEvents: 'none',
+    },
+    directorySearchClear: {
+      position: 'absolute',
+      right: fs(8, 5),
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: p.surfaceActive,
+    },
     directoryOptions: {
       flexGrow: 0,
       flexShrink: 1,
@@ -547,6 +648,14 @@ export function makeStyles(p: SoftphonePalette, compact = false) {
     },
     directoryTagText: { fontSize: fs(11, 10), fontWeight: '500', color: p.textSecondary },
     directoryOptionDetail: { fontSize: 12, color: p.textSecondary },
+    directoryPresence: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      overflow: 'hidden',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     directoryEmpty: { padding: 10, fontSize: 13, textAlign: 'center', color: p.textSecondary },
     transferInput: {
       minHeight: fs(52, 38),

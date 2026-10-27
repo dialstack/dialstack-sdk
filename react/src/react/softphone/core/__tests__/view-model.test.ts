@@ -1,4 +1,6 @@
 import {
+  contactDetail,
+  callOrPick,
   isIncomingRinging,
   shouldRingIncoming,
   isCallActive,
@@ -19,9 +21,16 @@ import {
   errorMessageKey,
   filterDirectory,
   directoryContactTags,
+  presenceLabelKey,
+  presenceTone,
+  matchDirectoryByNumber,
+  currentContact,
+  effectivePresence,
+  accountDirectoryContacts,
+  mergeDirectories,
   type DirectoryContact,
 } from '../view-model';
-import type { Call, CallDirection, CallState } from '@dialstack/sdk-webrtc';
+import type { Call, CallDirection, CallState, DirectoryEntry } from '@dialstack/sdk-webrtc';
 
 // A minimal Call-shaped stub — the view-model only reads these fields.
 function fakeCall(partial: Partial<Call> = {}): Call {
@@ -86,6 +95,57 @@ describe('isCallActive', () => {
     expect(isCallActive(fakeCall({ state: 'ringing' }))).toBe(false);
     expect(isCallActive(fakeCall({ state: 'trying' }))).toBe(false);
     expect(isCallActive(fakeCall({ state: 'ended' }))).toBe(false);
+  });
+});
+
+describe('contactDetail', () => {
+  const t = (key: string) => ({ presenceOnCall: 'On a call' })[key] ?? key;
+  const sam = { id: 's', label: 'Sam', destination: '102', description: 'Sales' };
+
+  it('shows the description over the number, and the status after it', () => {
+    expect(contactDetail(sam, false, t)).toBe('Sales');
+    expect(contactDetail({ ...sam, presence: 'on_call' }, false, t)).toBe('Sales · On a call');
+  });
+
+  it('shows the number when inline', () => {
+    expect(contactDetail({ ...sam, presence: 'on_call' }, true, t)).toBe('102 · On a call');
+  });
+});
+
+describe('callOrPick', () => {
+  const entry = { id: 'u1', label: 'Ana', destination: '1001' };
+  const setup = (over: Partial<Parameters<typeof callOrPick>[1]> = {}) => {
+    const placeCall = jest.fn(() => Promise.resolve());
+    const pick = jest.fn();
+    const onCalled = jest.fn();
+    callOrPick(entry, {
+      connection: 'connected',
+      emergencySubmitting: false,
+      placeCall,
+      pick,
+      onCalled,
+      ...over,
+    });
+    return { placeCall, pick, onCalled };
+  };
+
+  it('picks and calls when a call can be placed', () => {
+    const { placeCall, pick, onCalled } = setup();
+    expect(pick).toHaveBeenCalledWith(entry);
+    expect(placeCall).toHaveBeenCalledWith('1001');
+    expect(onCalled).toHaveBeenCalled();
+  });
+
+  it('only picks while not connected', () => {
+    const { placeCall, pick, onCalled } = setup({ connection: 'connecting' });
+    expect(pick).toHaveBeenCalledWith(entry);
+    expect(placeCall).not.toHaveBeenCalled();
+    expect(onCalled).not.toHaveBeenCalled();
+  });
+
+  it('only picks when the screen takes no more calls', () => {
+    const { placeCall } = setup({ allowed: false });
+    expect(placeCall).not.toHaveBeenCalled();
   });
 });
 
@@ -449,5 +509,197 @@ describe('filterDirectory', () => {
   it('treats a blank group as no group', () => {
     const blank = { id: 'lobby', label: 'Lobby', destination: '200', group: ' ' };
     expect(filterDirectory([blank], '')).toEqual([{ group: undefined, destinations: [blank] }]);
+  });
+});
+
+describe('directory presence', () => {
+  it('matches a presence by its label only when the picker supplies one', () => {
+    const busy: DirectoryContact = {
+      id: 'u1',
+      label: 'Kim Lo',
+      destination: '300',
+      presence: 'on_call',
+    };
+    const idle: DirectoryContact = {
+      id: 'u2',
+      label: 'Ray Tan',
+      destination: '301',
+      presence: 'available',
+    };
+    const label = (p: string) => ({ on_call: 'On a call', available: 'Available' })[p] ?? p;
+    expect(filterDirectory([busy, idle], 'on a call', label)).toEqual([
+      { group: undefined, destinations: [busy] },
+    ]);
+    expect(filterDirectory([busy, idle], 'on a call')).toEqual([]);
+  });
+
+  it('does not match part of a status, so a name search stays a name search', () => {
+    const ava: DirectoryContact = { id: 'u1', label: 'Ava Ng', destination: '300' };
+    const idle: DirectoryContact = {
+      id: 'u2',
+      label: 'Ray Tan',
+      destination: '301',
+      presence: 'available',
+    };
+    const label = () => 'Available';
+    expect(filterDirectory([ava, idle], 'ava', label)).toEqual([
+      { group: undefined, destinations: [ava] },
+    ]);
+  });
+
+  it('maps every state to its own locale key', () => {
+    expect(
+      (['available', 'on_call', 'dnd', 'away', 'offline'] as const).map(presenceLabelKey)
+    ).toEqual([
+      'presenceAvailable',
+      'presenceOnCall',
+      'presenceDoNotDisturb',
+      'presenceAway',
+      'presenceOffline',
+    ]);
+  });
+
+  it('keeps red for Do Not Disturb, not for a call', () => {
+    expect((['available', 'on_call', 'dnd', 'away', 'offline'] as const).map(presenceTone)).toEqual(
+      ['success', 'warning', 'danger', 'muted', 'muted']
+    );
+  });
+
+  it('folds Do Not Disturb into the status, except for an offline user', () => {
+    expect(effectivePresence('available', true)).toBe('dnd');
+    expect(effectivePresence('on_call', true)).toBe('dnd');
+    expect(effectivePresence('offline', true)).toBe('offline');
+    expect(effectivePresence('on_call', false)).toBe('on_call');
+  });
+});
+
+describe('accountDirectoryContacts', () => {
+  const entry = (
+    user: string,
+    displayName: string,
+    extensionNumbers: string[]
+  ): DirectoryEntry => ({
+    user,
+    displayName,
+    extensionNumbers,
+  });
+
+  it('dials each user on their first extension and skips those with none', () => {
+    expect(
+      accountDirectoryContacts(
+        [
+          entry('user_a', 'Ana Diaz', ['1001', '1009']),
+          entry('user_b', 'No Extension', []),
+          entry('user_c', '', ['1003']),
+        ],
+        { user_a: 'away', user_b: 'available' }
+      )
+    ).toEqual([
+      { id: 'user_a', label: 'Ana Diaz', destination: '1001', presence: 'away' },
+      { id: 'user_c', label: '1003', destination: '1003' },
+    ]);
+  });
+});
+
+describe('mergeDirectories', () => {
+  const ana: DirectoryContact = {
+    id: 'user_a',
+    label: 'Ana',
+    destination: '1001',
+    presence: 'available',
+  };
+  const bo: DirectoryContact = { id: 'user_b', label: 'Bo', destination: '1002' };
+  const desk: DirectoryContact = { id: 'desk', label: 'Front desk', destination: '100' };
+
+  it('returns either side untouched when the other is empty', () => {
+    const host = [desk];
+    const account = [ana];
+    expect(mergeDirectories([], host)).toBe(host);
+    expect(mergeDirectories(account, [])).toBe(account);
+  });
+
+  it('lists users first, then the host entries', () => {
+    expect(mergeDirectories([ana, bo], [desk])).toEqual([ana, bo, desk]);
+  });
+
+  it('lets a host entry with a user id take their place, keeping live presence', () => {
+    const anaHost: DirectoryContact = {
+      id: 'user_a',
+      label: 'Ana (Sales)',
+      destination: '1001',
+      group: 'Sales',
+    };
+    expect(mergeDirectories([ana, bo], [desk, anaHost])).toEqual([
+      { ...anaHost, presence: 'available' },
+      bo,
+      desk,
+    ]);
+  });
+
+  it("keeps the host's own presence when it sets one", () => {
+    const anaHost: DirectoryContact = { ...ana, presence: 'dnd' };
+    expect(mergeDirectories([ana], [anaHost])).toEqual([anaHost]);
+  });
+});
+
+describe('currentContact', () => {
+  const ana = { id: 'ana', label: 'Ana', destination: '1001', presence: 'available' as const };
+
+  it('follows the directory, so a pick shows presence as it changes', () => {
+    const now = { ...ana, presence: 'on_call' as const };
+    expect(currentContact([now], ana)).toEqual(now);
+  });
+
+  it('keeps the picked number when the directory entry changes it', () => {
+    const now = { ...ana, destination: '1009', presence: 'on_call' as const };
+    expect(currentContact([now], ana)).toEqual({ ...ana, presence: 'on_call' });
+  });
+
+  it('returns the pick itself while its presence is unchanged', () => {
+    expect(currentContact([{ ...ana, label: 'Ana D.' }], ana)).toBe(ana);
+  });
+
+  it('keeps the pick once the contact has left the directory', () => {
+    expect(currentContact([], ana)).toBe(ana);
+  });
+
+  it('is null without a pick', () => {
+    expect(currentContact([ana], null)).toBeNull();
+  });
+});
+
+describe('matchDirectoryByNumber', () => {
+  const ana: DirectoryContact = { id: 'a', label: 'Ana Diaz', destination: '1001' };
+  const bo: DirectoryContact = { id: 'b', label: 'Bo Chen', destination: '1002' };
+  const desk: DirectoryContact = { id: 'd', label: 'Front desk', destination: '(415) 555-0100' };
+  const all = [ana, bo, desk];
+
+  it('offers nothing before anything is typed', () => {
+    expect(matchDirectoryByNumber(all, '')).toEqual([]);
+    expect(matchDirectoryByNumber(all, '  ')).toEqual([]);
+  });
+
+  it('waits for a second key before matching part of a number', () => {
+    expect(matchDirectoryByNumber(all, '1')).toEqual([]);
+    const operator = { id: 'op', label: 'Operator', destination: '0' };
+    expect(matchDirectoryByNumber([operator, ana], '0')).toEqual([operator]);
+  });
+
+  it('matches a part of the number, in directory order', () => {
+    expect(matchDirectoryByNumber(all, '100')).toEqual([ana, bo, desk]);
+    expect(matchDirectoryByNumber(all, '1002')).toEqual([bo]);
+  });
+
+  it('compares a formatted number digit for digit', () => {
+    expect(matchDirectoryByNumber(all, '4155550100')).toEqual([desk]);
+  });
+
+  it('ignores names', () => {
+    expect(matchDirectoryByNumber(all, 'Ana')).toEqual([]);
+  });
+
+  it('matches feature codes as typed', () => {
+    const vm: DirectoryContact = { id: 'vm', label: 'Voicemail', destination: '*97' };
+    expect(matchDirectoryByNumber([vm, ana], '*9')).toEqual([vm]);
   });
 });

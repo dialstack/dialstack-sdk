@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import React from 'react';
-import { defaultLocale } from '@dialstack/sdk-js';
+import { defaultLocale, type AppearanceOptions } from '@dialstack/sdk-js';
 import { buildSoftphoneStyles } from '../softphone/core/styles';
 import { resolveSoftphonePalette, softphoneDimensions } from '../softphone/core/theme';
-import { formatDisplayNumber } from '../softphone/core/view-model';
+import { formatDisplayNumber, type DirectoryContact } from '../softphone/core/view-model';
 import { DialPadView } from '../softphone/ui/views/DialPadView';
 import { EmergencyBannerView } from '../softphone/ui/views/EmergencyBannerView';
 import { IncomingCallCardView } from '../softphone/ui/views/IncomingCallCardView';
@@ -49,14 +49,48 @@ const Cell: React.FC<{ label: string; children: React.ReactNode }> = ({ label, c
   );
 };
 
+// A host's brand, through the same appearance variables a host passes the
+// provider (as the onboarding stories do), on both themes.
+const BRANDED_LIGHT = {
+  theme: 'light',
+  variables: {
+    colorPrimary: '#D1442A',
+    colorBackground: '#FFF6EA',
+    colorSurfaceSubtle: '#FBE6CF',
+    colorText: '#1B2A4A',
+    colorTextSecondary: '#7A6352',
+    colorBorder: '#EFCFAE',
+    colorSuccess: '#2A9D8F',
+    colorWarning: '#E39B2D',
+    colorDanger: '#B23A48',
+  },
+} as const;
+
+const BRANDED_DARK = {
+  theme: 'dark',
+  variables: {
+    colorPrimary: '#E0457B',
+    colorBackground: '#0B1F24',
+    colorSurfaceSubtle: '#123138',
+    colorText: '#E6F4F1',
+    colorTextSecondary: '#8FB3AE',
+    colorBorder: '#1F4A52',
+    colorSuccess: '#4CD4A0',
+    colorWarning: '#FFB454',
+    colorDanger: '#FF6B6B',
+  },
+} as const;
+
 const Grid: React.FC<{
   theme: 'light' | 'dark';
   size?: Size;
   height?: string;
+  /** A host's brand colours; the theme still picks the base palette. */
+  appearance?: AppearanceOptions;
   children: React.ReactNode;
-}> = ({ theme, size = BASELINE, height, children }) => (
+}> = ({ theme, size = BASELINE, height, appearance, children }) => (
   <>
-    <style>{buildSoftphoneStyles(resolveSoftphonePalette({ theme }))}</style>
+    <style>{buildSoftphoneStyles(resolveSoftphonePalette(appearance ?? { theme }))}</style>
     <SizeContext.Provider value={height ? { ...size, h: height as unknown as number } : size}>
       <div
         style={{
@@ -64,8 +98,9 @@ const Grid: React.FC<{
           flexWrap: 'wrap',
           gap: 28,
           padding: 20,
-          background: theme === 'dark' ? '#111' : '#f6f6fa',
-          color: theme === 'dark' ? '#eee' : '#111',
+          background:
+            appearance?.variables?.colorSurfaceSubtle ?? (theme === 'dark' ? '#111' : '#f6f6fa'),
+          color: appearance?.variables?.colorText ?? (theme === 'dark' ? '#eee' : '#111'),
         }}
       >
         {children}
@@ -225,12 +260,22 @@ const sampleDirectory = [
   },
 ];
 
+// Users in every presence state, and a department with none.
+const presenceDirectory: DirectoryContact[] = [
+  { id: 'user_ana', label: 'Ana Diaz', destination: '1001', presence: 'available' },
+  { id: 'user_bo', label: 'Bo Chen', destination: '1002', presence: 'on_call' },
+  { id: 'user_cy', label: 'Cy Ford', destination: '1003', presence: 'dnd' },
+  { id: 'user_di', label: 'Di Moreau', destination: '1004', presence: 'away' },
+  { id: 'user_ed', label: 'Ed Park', destination: '1005', presence: 'offline' },
+  { id: 'sales', label: 'Sales', destination: '300', group: 'Departments' },
+];
+
 const overlayCell = (panel: Exclude<OverlayPanel, null>) =>
   ongoing({
     overlay: panel,
     transferTo: panel === 'transfer' ? '1002' : '',
     addCallTo: panel === 'addcall' ? '1002' : '',
-    dtmfEntered: panel === 'keypad' ? '12' : '',
+    dtmfEntered: '',
     devicesPanel: panel === 'devices' ? <div className="ds-devices" /> : null,
   });
 
@@ -238,6 +283,12 @@ const AllCells: React.FC = () => (
   <>
     <Cell label="dial · no e911 banner">{dialScreen(null)}</Cell>
     <Cell label="dial · e911 banner">{dialScreen(emergency())}</Cell>
+    <Cell label="dial · e911 banner · directory">
+      {dialScreen(emergency(), { directory: presenceDirectory })}
+    </Cell>
+    <Cell label="dial · e911 banner · directory, typing">
+      {dialScreen(emergency(), { directory: presenceDirectory, destination: '100', canCall: true })}
+    </Cell>
     <Cell label="dial · e911 expanded">{dialScreen(emergency({ defaultExpanded: true }))}</Cell>
     <Cell label="dial · e911 new address">
       {dialScreen(emergency({ defaultExpanded: true, defaultAddingNew: true }))}
@@ -245,6 +296,18 @@ const AllCells: React.FC = () => (
 
     <Cell label="dial · idle">{dial()}</Cell>
     <Cell label="dial · typed">{dial({ destination: '1002', canCall: true })}</Cell>
+    <Cell label="dial · directory, nothing typed">{dial({ directory: presenceDirectory })}</Cell>
+    <Cell label="dial · typing with matches">
+      {dial({ directory: presenceDirectory, destination: '100', canCall: true })}
+    </Cell>
+    <Cell label="dial · match picked">
+      {dial({
+        directory: presenceDirectory,
+        destination: '1002',
+        picked: presenceDirectory[1],
+        canCall: true,
+      })}
+    </Cell>
     <Cell label="dial · connecting">{dial({ connection: 'connecting' })}</Cell>
     <Cell label="dial · reconnecting">{dial({ connection: 'reconnecting' })}</Cell>
     <Cell label="dial · disconnected">{dial({ connection: 'disconnected' })}</Cell>
@@ -291,6 +354,9 @@ const AllCells: React.FC = () => (
     <Cell label="in call · no dtmf">{ongoing({ canSendDtmf: false })}</Cell>
 
     <Cell label="overlay · keypad">{overlayCell('keypad')}</Cell>
+    <Cell label="overlay · keypad · digits entered">
+      {ongoing({ overlay: 'keypad', dtmfEntered: '1234#' })}
+    </Cell>
     <Cell label="overlay · transfer">{overlayCell('transfer')}</Cell>
     <Cell label="overlay · transfer · directory">
       {ongoing({
@@ -298,6 +364,17 @@ const AllCells: React.FC = () => (
         transferTo: '201',
         directory: sampleDirectory,
         pickedTransferContact: sampleDirectory[1],
+      })}
+    </Cell>
+    <Cell label="overlay · transfer · presence">
+      {ongoing({ overlay: 'transfer', directory: presenceDirectory })}
+    </Cell>
+    <Cell label="overlay · transfer · presence, picked">
+      {ongoing({
+        overlay: 'transfer',
+        transferTo: '1002',
+        directory: presenceDirectory,
+        pickedTransferContact: presenceDirectory[1],
       })}
     </Cell>
     <Cell label="overlay · add call">{overlayCell('addcall')}</Cell>
@@ -351,6 +428,22 @@ export const AllStates: Story = {
 export const AllStatesDark: Story = {
   render: () => (
     <Grid theme="dark">
+      <AllCells />
+    </Grid>
+  ),
+};
+
+export const BrandedLight: Story = {
+  render: () => (
+    <Grid theme="light" appearance={BRANDED_LIGHT}>
+      <AllCells />
+    </Grid>
+  ),
+};
+
+export const BrandedDark: Story = {
+  render: () => (
+    <Grid theme="dark" appearance={BRANDED_DARK}>
       <AllCells />
     </Grid>
   ),

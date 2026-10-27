@@ -187,3 +187,65 @@ describe('useCallActions transfer', () => {
     expect(handedOff).toBe(false);
   });
 });
+
+describe('useCallActions double taps', () => {
+  afterEach(() => jest.useRealTimers());
+
+  it('sends one hangup for two quick taps', () => {
+    const { call, spies } = fakeCall();
+    const { result } = renderHook(() => useCallActions(call));
+    act(() => result.current.hangup());
+    act(() => result.current.hangup());
+    expect(spies.hangup).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a call muted when mute is tapped twice', () => {
+    const { call, spies } = fakeCall();
+    spies.mute.mockImplementation(() => ((call as { isMuted: boolean }).isMuted = true));
+    const { result } = renderHook(() => useCallActions(call));
+    act(() => result.current.toggleMute());
+    act(() => result.current.toggleMute());
+    expect(spies.mute).toHaveBeenCalledTimes(1);
+    expect(spies.unmute).not.toHaveBeenCalled();
+  });
+
+  it('shares the window between the foreground actions and a card bound to the same call', () => {
+    const { call, spies } = fakeCall({ state: 'ringing' });
+    const { result } = renderHook(() => useCallActions(call));
+    act(() => result.current.answer());
+    act(() => result.current.callActionsFor(call).answer());
+    expect(spies.answer).toHaveBeenCalledTimes(1);
+  });
+
+  it('accepts the same action again after the window', () => {
+    jest.useFakeTimers();
+    const { call, spies } = fakeCall();
+    const { result } = renderHook(() => useCallActions(call));
+    act(() => result.current.toggleHold());
+    act(() => jest.advanceTimersByTime(500));
+    act(() => result.current.toggleHold());
+    expect(spies.hold).toHaveBeenCalledTimes(2);
+  });
+
+  it('still sends every DTMF digit', () => {
+    const { call, spies } = fakeCall();
+    const { result } = renderHook(() => useCallActions(call));
+    act(() => result.current.sendDtmf('1'));
+    act(() => result.current.sendDtmf('1'));
+    expect(spies.sendDtmf).toHaveBeenCalledTimes(2);
+  });
+
+  it('initiates one transfer for two quick taps', () => {
+    const { call, spies } = fakeCall();
+    const { result } = renderHook(() => useCallActions(call));
+    let first = false;
+    let second = true;
+    act(() => {
+      first = result.current.transfer('1001');
+      second = result.current.transfer('1001');
+    });
+    expect(first).toBe(true);
+    expect(second).toBe(false);
+    expect(spies.transfer).toHaveBeenCalledTimes(1);
+  });
+});

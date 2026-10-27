@@ -6,7 +6,7 @@
  */
 
 import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenumber-js';
-import type { Call, CallState } from '@dialstack/sdk-webrtc';
+import type { Call, CallState, DirectoryEntry, PresenceStatus } from '@dialstack/sdk-webrtc';
 import type { Locale } from '@dialstack/sdk-js';
 
 /** Which screen the softphone should present for the current foreground call. */
@@ -57,6 +57,32 @@ export function canPlaceCall(
   emergencySubmitting: boolean
 ): boolean {
   return connection === 'connected' && destination.length > 0 && !emergencySubmitting;
+}
+
+/**
+ * A tapped directory entry where calling is the only thing to do with it (the
+ * dial pad, Add call): it is picked, and called at once when a call can be
+ * placed. When one can't yet, the pick is left filling the number for Call.
+ */
+export function callOrPick(
+  entry: DirectoryContact,
+  options: {
+    connection: string;
+    emergencySubmitting: boolean;
+    /** False when the screen can't take another call, e.g. at the call limit. */
+    allowed?: boolean;
+    placeCall: (destination: string) => Promise<void>;
+    pick: (entry: DirectoryContact) => void;
+    /** After the call is placed, e.g. to clear and close the panel. */
+    onCalled?: () => void;
+  }
+): void {
+  const { allowed = true, placeCall, pick, onCalled } = options;
+  pick(entry);
+  if (!allowed || !canPlaceCall(options.connection, entry.destination, options.emergencySubmitting))
+    return;
+  void placeCall(entry.destination);
+  onCalled?.();
 }
 
 /** Pick the screen for the current foreground call (null → the dial pad). */
@@ -375,6 +401,12 @@ export interface DirectoryContact {
    * call"), and matched by the search like the other fields.
    */
   tags?: readonly string[];
+  /**
+   * The entry's live availability, drawn as a status dot with its label beside
+   * the destination, and matched by the search like a tag. Leave it unset for
+   * entries that have no presence (a department, an outside number).
+   */
+  presence?: PresenceStatus;
 }
 
 /** An entry's tags as chips: trimmed, blanks dropped. */
@@ -391,12 +423,13 @@ export interface DirectoryContactGroup {
 /**
  * The picker's entries matching `query`, grouped for display. Matches a
  * case-insensitive substring of the label, description, group, destination or
- * a tag, and a number-like query against the destination's digits; a blank
- * query matches everything.
+ * a tag, a number-like query against the destination's digits, and the whole
+ * status label when the picker supplies one; a blank query matches everything.
  */
 export function filterDirectory(
   destinations: readonly DirectoryContact[],
-  query: string
+  query: string,
+  presenceLabel?: (presence: PresenceStatus) => string
 ): DirectoryContactGroup[] {
   const needle = query.trim().toLowerCase();
   // A query typed the way a number is read ("415-555", "(415) 555") is also
@@ -407,6 +440,9 @@ export function filterDirectory(
     [d.label, d.description, d.group, d.destination, ...(d.tags ?? [])].some(
       (field) => typeof field === 'string' && field.toLowerCase().includes(needle)
     ) ||
+    // A status only as a whole word: as a substring, "Ava" or "on" would list
+    // everyone Available or On a call.
+    (!!d.presence && presenceLabel?.(d.presence).toLowerCase() === needle) ||
     (digits.length >= 2 && d.destination.replace(/\D/g, '').includes(digits));
   const ungrouped: DirectoryContact[] = [];
   const grouped = new Map<string, DirectoryContact[]>();
@@ -425,4 +461,149 @@ export function filterDirectory(
   if (ungrouped.length) out.push({ group: undefined, destinations: ungrouped });
   for (const [group, list] of grouped) out.push({ group, destinations: list });
   return out;
+}
+
+/**
+ * A picked contact with its presence as the directory has it now, so the status
+ * keeps moving after the pick. Only presence: the rest stays as picked, so the
+ * card shows the number a transfer will send even if the host changes it.
+ */
+export function currentContact(
+  directory: readonly DirectoryContact[],
+  picked: DirectoryContact | null
+): DirectoryContact | null {
+  if (!picked) return null;
+  const now = directory.find((d) => d.id === picked.id);
+  if (!now || now.presence === picked.presence) return picked;
+  return { ...picked, presence: now.presence };
+}
+
+/** Typed characters before partial matches start, so one key doesn't offer most of the directory. */
+const DIAL_MATCH_MIN = 2;
+
+/**
+ * The entries offered while a number is being typed on the dial pad, in
+ * directory order. Matches on the number only: what a keypad types is digits,
+ * so a name can't be what the user is after. Below DIAL_MATCH_MIN characters
+ * only a whole number matches (an operator on "0").
+ */
+export function matchDirectoryByNumber(
+  directory: readonly DirectoryContact[],
+  typed: string
+): DirectoryContact[] {
+  const needle = typed.trim();
+  if (!needle) return [];
+  if (needle.length < DIAL_MATCH_MIN) return directory.filter((d) => d.destination === needle);
+  const digits = needle.replace(/\D/g, '');
+  return directory.filter(
+    (d) =>
+      d.destination.includes(needle) ||
+      (digits.length > 0 && d.destination.replace(/\D/g, '').includes(digits))
+  );
+}
+
+/**
+ * A contact's line under its name: the number (or its description, unless
+ * `inline`, where the number is the point) and its status.
+ */
+export function contactDetail(
+  entry: DirectoryContact,
+  inline: boolean,
+  t: (key: keyof Locale['softphone']) => string
+): string {
+  const lead = inline ? entry.destination : entry.description || entry.destination;
+  return entry.presence ? `${lead} · ${t(presenceLabelKey(entry.presence))}` : lead;
+}
+
+/** Locale key for a presence state, resolved by each UI like `callStateLabelKey`. */
+export function presenceLabelKey(presence: PresenceStatus): keyof Locale['softphone'] {
+  switch (presence) {
+    case 'available':
+      return 'presenceAvailable';
+    case 'on_call':
+      return 'presenceOnCall';
+    case 'dnd':
+      return 'presenceDoNotDisturb';
+    case 'away':
+      return 'presenceAway';
+    default:
+      return 'presenceOffline';
+  }
+}
+
+/**
+ * The theme colour of a presence badge. On a call is amber, not red: red is
+ * kept for Do Not Disturb, the one state that means "don't send calls here".
+ * Offline is drawn hollow, so it doesn't read as one more colour to decode.
+ */
+export type PresenceTone = 'success' | 'warning' | 'danger' | 'muted';
+
+export function presenceTone(presence: PresenceStatus): PresenceTone {
+  switch (presence) {
+    case 'available':
+      return 'success';
+    case 'on_call':
+      return 'warning';
+    case 'dnd':
+      return 'danger';
+    default:
+      return 'muted';
+  }
+}
+
+/**
+ * The one state to show for a user, folding the separate Do Not Disturb flag
+ * into `status`. Offline wins, since a DND badge on a user with no registered
+ * device implies a reachability that isn't there; below that DND wins, being
+ * the strongest "don't send this call here" signal.
+ */
+export function effectivePresence(status: PresenceStatus, doNotDisturb: boolean): PresenceStatus {
+  return doNotDisturb && status !== 'offline' ? 'dnd' : status;
+}
+
+/**
+ * The account directory as picker entries: one per user who has an
+ * extension, dialled on their first one. Users without an extension have
+ * nothing to transfer to, so they are left out.
+ */
+export function accountDirectoryContacts(
+  entries: readonly DirectoryEntry[],
+  presence: Readonly<Record<string, PresenceStatus>>
+): DirectoryContact[] {
+  const out: DirectoryContact[] = [];
+  for (const e of entries) {
+    const destination = e.extensionNumbers[0];
+    if (!destination) continue;
+    const contact: DirectoryContact = {
+      id: e.user,
+      label: e.displayName || destination,
+      destination,
+    };
+    const status = presence[e.user];
+    if (status) contact.presence = status;
+    out.push(contact);
+  }
+  return out;
+}
+
+/**
+ * The picker's list when the account directory is on: users first, then
+ * the host's entries. A host entry whose `id` is a user's id takes
+ * that user's place, so a host can relabel, group or tag them; it keeps
+ * the live presence unless it sets its own.
+ */
+export function mergeDirectories(
+  account: readonly DirectoryContact[],
+  host: readonly DirectoryContact[]
+): readonly DirectoryContact[] {
+  if (account.length === 0) return host;
+  if (host.length === 0) return account;
+  const overrides = new Map(host.map((h) => [h.id, h]));
+  const merged = account.map((a) => {
+    const h = overrides.get(a.id);
+    if (!h) return a;
+    overrides.delete(a.id);
+    return h.presence || !a.presence ? h : { ...h, presence: a.presence };
+  });
+  return [...merged, ...host.filter((h) => overrides.has(h.id))];
 }

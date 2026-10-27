@@ -15,6 +15,7 @@
 import { useCallback, useState } from 'react';
 import type { Call, PhoneError } from '@dialstack/sdk-webrtc';
 import { sanitizeOrEmitInvalid } from '../core/view-model';
+import { throttleFor } from './actionThrottle';
 
 export interface UseCallActionsOptions {
   /** Fired on a failed action (e.g. DTMF on a call with no sender, transfer). */
@@ -66,50 +67,32 @@ function makeCallActions(
   fail: (err: unknown, fallbackCode: string) => void,
   rerender: () => void
 ): CallActions {
+  // A double tap would otherwise send two frames: hangup twice, or a mute or
+  // hold that the second tap undoes. DTMF is left alone; fast repeats there are
+  // meant.
+  const throttled = (key: string, run: (c: Call) => void) => (): void => {
+    if (!call) return;
+    throttleFor(call)(key, () => {
+      try {
+        run(call);
+      } catch (err) {
+        fail(err, 'call_failed');
+      }
+    });
+  };
   return {
-    answer: () => {
-      if (!call) return;
-      try {
-        call.answer();
-      } catch (err) {
-        fail(err, 'call_failed');
-      }
-    },
-    reject: () => {
-      if (!call) return;
-      try {
-        call.reject();
-      } catch (err) {
-        fail(err, 'call_failed');
-      }
-    },
-    hangup: () => {
-      if (!call) return;
-      try {
-        call.hangup();
-      } catch (err) {
-        fail(err, 'call_failed');
-      }
-    },
-    toggleMute: () => {
-      if (!call) return;
-      try {
-        if (call.isMuted) call.unmute();
-        else call.mute();
-        rerender();
-      } catch (err) {
-        fail(err, 'call_failed');
-      }
-    },
-    toggleHold: () => {
-      if (!call) return;
-      try {
-        if (call.state === 'held') call.resume();
-        else call.hold();
-      } catch (err) {
-        fail(err, 'call_failed');
-      }
-    },
+    answer: throttled('answer', (c) => c.answer()),
+    reject: throttled('reject', (c) => c.reject()),
+    hangup: throttled('hangup', (c) => c.hangup()),
+    toggleMute: throttled('mute', (c) => {
+      if (c.isMuted) c.unmute();
+      else c.mute();
+      rerender();
+    }),
+    toggleHold: throttled('hold', (c) => {
+      if (c.state === 'held') c.resume();
+      else c.hold();
+    }),
     sendDtmf: (digit: string) => {
       if (!digit || !call) return;
       try {
@@ -168,16 +151,20 @@ export function useCallActions(
       // junk input — silent for an empty field, since the UI gates on non-empty.
       const target = sanitizeOrEmitInvalid(destination, onError, { silentWhenEmpty: true });
       if (!target) return false;
-      try {
-        call.transfer(target);
-        // Report that the transfer was initiated (not confirmed — the core call is
-        // fire-and-forget) so the caller can close its transfer overlay; this hook
-        // no longer owns that view-state (it lives in useCallOverlays).
-        return true;
-      } catch (err) {
-        fail(err, 'call_failed');
-        return false;
-      }
+      // Report that the transfer was initiated (not confirmed — the core call is
+      // fire-and-forget) so the caller can close its transfer overlay; this hook
+      // no longer owns that view-state (it lives in useCallOverlays). A repeat
+      // within the throttle window initiates nothing.
+      let initiated = false;
+      throttleFor(call)('transfer', () => {
+        try {
+          call.transfer(target);
+          initiated = true;
+        } catch (err) {
+          fail(err, 'call_failed');
+        }
+      });
+      return initiated;
     },
     [call, fail, onError]
   );

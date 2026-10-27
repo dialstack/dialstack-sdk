@@ -598,11 +598,11 @@ export default function Page() {
         <section className={styles.panel}>
           <h2 className={styles.panelTitle}>Team presence</h2>
           {status !== 'connected' ? (
-            <p className={styles.empty}>Connect to see your colleagues&apos; presence.</p>
+            <p className={styles.empty}>Connect to see your team&apos;s presence.</p>
           ) : Object.values(seenUsers).length === 0 ? (
             <p className={styles.empty}>
               No presence yet. (Resolved from your account directory on connect;
-              updates appear here as colleagues come online or take calls.)
+              updates appear here as users come online or take calls.)
             </p>
           ) : (
             Object.values(seenUsers).map((u) => (

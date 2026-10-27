@@ -10,7 +10,15 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useSoftphone } from '../provider/SoftphoneProvider';
-import { peerDisplay, callStateLabelKey, isCallActive, useDialTarget, MAX_CALLS } from '../hooks';
+import {
+  peerDisplay,
+  callStateLabelKey,
+  isCallActive,
+  callOrPick,
+  useDialTarget,
+  MAX_CALLS,
+  type DirectoryContact,
+} from '../hooks';
 import { AudioDevicePicker } from './AudioDevicePicker';
 import { OngoingCallView } from './views/OngoingCallView';
 import type { OverlayPanel, PeerSummary } from './views/types';
@@ -46,6 +54,8 @@ export const OngoingCall: React.FC = () => {
     lastError,
     clearError,
     directory,
+    connection,
+    emergency,
   } = useSoftphone();
   const { showKeypad, showTransfer, showDevices, showAddCall } = overlays;
   const [dtmfEntered, setDtmfEntered] = useState('');
@@ -120,6 +130,21 @@ export const OngoingCall: React.FC = () => {
     overlays.closeAddCall();
   };
 
+  // Add call has a single action, so a tapped entry is called right away (unlike
+  // Transfer, which still has to choose between transferring and consulting).
+  const pickAddCall = (entry: DirectoryContact) =>
+    callOrPick(entry, {
+      connection,
+      emergencySubmitting: emergency.submitting,
+      allowed: canAddCall,
+      placeCall,
+      pick: addCallTarget.pick,
+      onCalled: () => {
+        clearAddCall();
+        overlays.closeAddCall();
+      },
+    });
+
   const summarize = (c: Call): PeerSummary => ({
     id: c.id,
     ...peerDisplay(c, peerInfo(c), displayNumber, t('unknownCaller')),
@@ -180,8 +205,10 @@ export const OngoingCall: React.FC = () => {
       directory={directory}
       onPickTransferContact={transferTarget.pick}
       pickedTransferContact={transferTarget.picked}
-      onPickAddCallContact={addCallTarget.pick}
+      onClearTransferContact={clearTransfer}
+      onPickAddCallContact={pickAddCall}
       pickedAddCallContact={canAddCall ? addCallTarget.picked : null}
+      onClearAddCallContact={clearAddCall}
       onBlindTransfer={() => {
         if (actions.transfer(transferTo)) {
           clearTransfer();

@@ -21,7 +21,8 @@ const Page: React.FC = () => {
   const [status, setStatus] = useState<Status>('idle');
   const [message, setMessage] = useState<string>('');
   const [flow, setFlow] = useState<Flow>('batteries');
-  // Off by default, so the example starts with the plain transfer field.
+  // Unchecked, the softphone lists the account's users with live presence;
+  // checked, the sample list replaces them. Flipping it never reconnects.
   const [offerDirectory, setOfferDirectory] = useState(false);
 
   // Mint a short-lived WebRTC token from our own backend (/api/session), which

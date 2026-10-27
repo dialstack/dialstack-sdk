@@ -13,8 +13,10 @@ import {
   peerDisplay,
   callStateLabelKey,
   isCallActive,
+  callOrPick,
   useDialTarget,
   MAX_CALLS,
+  type DirectoryContact,
 } from '@dialstack/sdk-react/core';
 import { useSoftphone } from '../SoftphoneProvider';
 import { CallErrorChip } from './CallErrorChip';
@@ -42,6 +44,8 @@ export function OngoingCall(): React.JSX.Element | null {
     palette,
     audio,
     directory,
+    connection,
+    emergency,
   } = useSoftphone();
   const { showKeypad, showTransfer, showAddCall } = overlays;
   const [dtmfEntered, setDtmfEntered] = useState('');
@@ -75,6 +79,20 @@ export function OngoingCall(): React.JSX.Element | null {
     : null;
   const switchableHeld = heldCalls.filter((c: Call) => c !== transferOther);
   const canAddCall = calls.length < MAX_CALLS;
+  // Add call has a single action, so a tapped entry is called right away (unlike
+  // Transfer, which still has to choose between transferring and consulting).
+  const pickAddCall = (entry: DirectoryContact) =>
+    callOrPick(entry, {
+      connection,
+      emergencySubmitting: emergency.submitting,
+      allowed: canAddCall,
+      placeCall,
+      pick: addCallTarget.pick,
+      onCalled: () => {
+        clearAddCall();
+        overlays.closeAddCall();
+      },
+    });
   const addCallValue = canAddCall ? addCallTo : '';
 
   const overlay: OverlayPanel = showKeypad
@@ -134,8 +152,10 @@ export function OngoingCall(): React.JSX.Element | null {
       directory={directory}
       onPickTransferContact={transferTarget.pick}
       pickedTransferContact={transferTarget.picked}
-      onPickAddCallContact={addCallTarget.pick}
+      onClearTransferContact={clearTransfer}
+      onPickAddCallContact={pickAddCall}
       pickedAddCallContact={canAddCall ? addCallTarget.picked : null}
+      onClearAddCallContact={clearAddCall}
       canStartTransfer={!inTransfer && heldCalls.length + incomingCalls.length === 0}
       canAddCall={canAddCall}
       onToggleMute={actions.toggleMute}

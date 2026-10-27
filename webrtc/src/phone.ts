@@ -1014,13 +1014,13 @@ export class DialStackPhone {
   }
 
   /**
-   * List the account directory — the colleagues this user may see, by name and
+   * List the account directory — the other users in this user's account, by name and
    * extension number (`GET /v1/me/directory`). Resolved from the session token alone (no account
    * context needed), so a softphone can discover who to watch for presence, or
    * populate a contact / transfer picker, without its backend supplying the set.
    *
    * Auto-paginates the whole directory and returns a flat list. To watch every
-   * colleague's presence: `phone.subscribePresence((await phone.listDirectory()).map(e => e.user))`.
+   * user's presence: `phone.subscribePresence((await phone.listDirectory()).map(e => e.user))`.
    * Note presence subscription accepts at most 100 users at once, so watching a
    * very large directory means subscribing to a subset.
    */

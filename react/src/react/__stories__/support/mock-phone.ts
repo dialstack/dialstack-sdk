@@ -154,6 +154,10 @@ export class MockPhone extends Emitter {
 
   // E911 is disabled in the stories (the built-in prompt only fires when there's
   // a saved address), so these are inert.
+  listDirectory(): Promise<never[]> {
+    return Promise.resolve([]);
+  }
+  subscribePresence(): void {}
   listEmergencyAddresses(): Promise<never[]> {
     return Promise.resolve([]);
   }

@@ -19,10 +19,14 @@ export {
   useLastError,
   useDialInput,
   useDialTarget,
+  useDialBrowse,
+  useDialPanel,
+  useDirectorySearch,
   isIncomingRinging,
   shouldRingIncoming,
   isCallActive,
   canPlaceCall,
+  callOrPick,
   selectScreen,
   selectLayout,
   callPeerNumber,
@@ -40,6 +44,14 @@ export {
   errorMessageKey,
   filterDirectory,
   directoryContactTags,
+  presenceLabelKey,
+  contactDetail,
+  matchDirectoryByNumber,
+  currentContact,
+  presenceTone,
+  effectivePresence,
+  accountDirectoryContacts,
+  mergeDirectories,
 } from '../hooks';
 export type {
   UsePhoneOptions,
@@ -55,6 +67,9 @@ export type {
   UseLastError,
   UseDialInput,
   UseDialTarget,
+  UseDialBrowse,
+  UseDialPanel,
+  UseDirectorySearch,
   SoftphoneError,
   SoftphoneScreen,
   SoftphoneLayout,
@@ -64,6 +79,7 @@ export type {
   SoftphoneLayoutVariant,
   DirectoryContact,
   DirectoryContactGroup,
+  PresenceTone,
 } from '../hooks';
 
 // The shared provider core (DOM/RN-free). Platform providers build on this.
@@ -96,7 +112,7 @@ export { resolveSoftphonePalette, softphoneDimensions, dialPadKeys } from './the
 export type { SoftphonePalette } from './theme';
 
 // Shared softphone glyph set (pure SVG path data — no DOM/RN).
-export { softphoneGlyphs } from './icons';
+export { softphoneGlyphs, presenceGlyphs } from './icons';
 export type { SoftphoneGlyph } from './icons';
 
 // Shared emergency-address form helpers (pure — no DOM/RN).

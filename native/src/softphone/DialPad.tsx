@@ -1,6 +1,7 @@
 /**
  * DialPad (RN) — the idle/outbound screen: connection status chip, a destination
- * field, the keypad, and the call button. Reads connection + placeCall from the
+ * field, the keypad, and the call button. With a directory, a switch swaps the
+ * field and keypad for the searchable list. Reads connection + placeCall from the
  * softphone context; owns its own destination.
  *
  * The E911 prompt is NOT rendered here — <EmergencyBanner> is a separate
@@ -10,8 +11,13 @@
  *
  * Must be rendered inside a <SoftphoneProvider>.
  */
-import React, { useState } from 'react';
-import { useDialInput, canPlaceCall } from '@dialstack/sdk-react/core';
+import React from 'react';
+import {
+  useDialTarget,
+  canPlaceCall,
+  callOrPick,
+  type DirectoryContact,
+} from '@dialstack/sdk-react/core';
 import { useSoftphone } from '../SoftphoneProvider';
 import { CallErrorChip } from './CallErrorChip';
 import { DialPadView } from './views/DialPadView';
@@ -25,9 +31,15 @@ export function DialPad({
   autoFocusDestination = false,
   compact = false,
 }: DialPadProps): React.JSX.Element {
-  const { connection, placeCall, emergency, t, palette } = useSoftphone();
-  const [destination, setDestination] = useState('');
-  const { onType } = useDialInput(setDestination);
+  const { connection, placeCall, emergency, t, palette, directory } = useSoftphone();
+  const { value: destination, picked, onType, pick } = useDialTarget();
+  const pickOrCall = (entry: DirectoryContact) =>
+    callOrPick(entry, {
+      connection,
+      emergencySubmitting: emergency.submitting,
+      placeCall,
+      pick,
+    });
 
   return (
     <DialPadView
@@ -41,6 +53,9 @@ export function DialPad({
       autoFocusDestination={autoFocusDestination}
       compact={compact}
       errorChip={<CallErrorChip />}
+      directory={directory}
+      picked={picked}
+      onPick={pickOrCall}
     />
   );
 }

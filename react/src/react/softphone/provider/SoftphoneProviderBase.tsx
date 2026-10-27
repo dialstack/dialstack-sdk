@@ -33,6 +33,8 @@ import {
   type ResolvePeer,
   type SoftphoneLayoutVariant,
   type DirectoryContact,
+  useAccountDirectory,
+  mergeDirectories,
 } from '../hooks';
 import {
   createPaginatedList,
@@ -109,7 +111,11 @@ export interface SoftphoneContextBase {
   peerInfo: (call: Call | null | undefined) => PeerInfo | null;
   /** The size tier the host asked for (`'auto'` unless pinned). */
   layoutVariant: SoftphoneLayoutVariant;
-  /** The host's `directory`; empty when none were supplied. */
+  /**
+   * What the transfer / add-call picker lists: the users from
+   * `accountDirectory` when on, then the host's `directory`. Empty when neither
+   * has entries.
+   */
   directory: readonly DirectoryContact[];
 }
 
@@ -196,10 +202,16 @@ export interface SoftphoneCoreProps {
    */
   layoutVariant?: SoftphoneLayoutVariant;
   /**
-   * Entries offered as a searchable list when transferring and when adding a
-   * call, so the user can pick a destination instead of typing it.
+   * Entries offered as a searchable list from the dial pad and when
+   * transferring or adding a call, so the user can pick a destination instead
+   * of typing it.
    */
   directory?: readonly DirectoryContact[];
+  /**
+   * Also list the other users in the signed-in user's account, with live
+   * presence. Unset, it is on unless the host passes a `directory`.
+   */
+  accountDirectory?: boolean;
 }
 
 export interface SoftphoneProviderBaseProps<Extra extends object> extends SoftphoneCoreProps {
@@ -241,7 +253,8 @@ export function SoftphoneProviderBase<Extra extends object>({
   onError,
   resolvePeer,
   layoutVariant = 'auto',
-  directory = NO_DIRECTORY,
+  directory: hostList,
+  accountDirectory,
   placeOutbound,
   answerIncoming,
   extra,
@@ -335,6 +348,15 @@ export function SoftphoneProviderBase<Extra extends object>({
 
   const calls = useMemo(() => callEntries.map((e) => e.call), [callEntries]);
   const peerInfo = usePeerResolver(resolvePeer, calls);
+  // Off for a host with its own list, even an empty one still loading, so our
+  // users never show first and then get swapped out.
+  const listUsers = accountDirectory ?? hostList === undefined;
+  const hostDirectory = hostList ?? NO_DIRECTORY;
+  const accountUsers = useAccountDirectory(phone, connection, listUsers);
+  const directory = useMemo(
+    () => mergeDirectories(accountUsers, hostDirectory),
+    [accountUsers, hostDirectory]
+  );
   const incomingRinging = shouldRingIncoming(incomingCalls);
 
   // Clear a stale error banner only on the error→connected edge, not every render.
