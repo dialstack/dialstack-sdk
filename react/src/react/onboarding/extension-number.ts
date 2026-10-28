@@ -6,7 +6,7 @@
  * An admin-side test checks the two agree, so change both together.
  */
 
-// 3-digit service codes that collide with dialed codes on a 3-digit account.
+// Numbers reserved as extensions: service codes and emergency numbers.
 // Exported only for the admin parity test; the onboarding entry point does not
 // re-export this module.
 export const RESERVED_SERVICE_CODES: ReadonlySet<string> = new Set([
@@ -18,9 +18,17 @@ export const RESERVED_SERVICE_CODES: ReadonlySet<string> = new Set([
   '711',
   '811',
   '911',
+  '112',
   '988',
   '933',
+  '999',
 ]);
+
+// Dialing 911 followed by more digits still places an emergency call, so no
+// extension of any length may start with 911.
+function isReserved(n: string): boolean {
+  return RESERVED_SERVICE_CODES.has(n) || n.startsWith('911');
+}
 
 /**
  * Lowest free number in the user range (1xx, 1xxx, ...), falling back to the
@@ -33,7 +41,7 @@ export function suggestUserExtension(
   const base = Math.pow(10, extensionLength - 1);
   const maxNumber = Math.pow(10, extensionLength) - 1;
   const used = new Set(existingNumbers.map((n) => parseInt(n, 10)));
-  const isAvailable = (n: number) => !used.has(n) && !RESERVED_SERVICE_CODES.has(n.toString());
+  const isAvailable = (n: number) => !used.has(n) && !isReserved(n.toString());
 
   for (let n = base; n <= Math.min(2 * base - 1, maxNumber); n++) {
     if (isAvailable(n)) return n.toString();
