@@ -49,6 +49,17 @@ export type {
   DeviceDisplayNameSource,
 } from './utils/device-display-name';
 
+// How to render each device setting. The API decides which settings a level may
+// write; this catalog says how to show them, so the admin portal and SDK
+// components render the same controls.
+export {
+  deviceSettingsCatalog,
+  deviceSettingsPatch,
+  readDeviceSetting,
+  settableDeviceSettings,
+} from './utils/device-settings-catalog';
+export type { DeviceSettingDefinition, DeviceSettingKind } from './utils/device-settings-catalog';
+
 // Bulk phone-number entry. Shared so the admin portal and the onboarding portal
 // accept and reject exactly the same input — a number one surface takes and the
 // other refuses is a number left off a port order.

@@ -78,6 +78,9 @@ import type {
   DeviceZeroTouchEscalation,
   DeviceType,
   DeviceSettings,
+  DeviceSettingsResource,
+  DeviceSettingsSource,
+  DeviceSettingsUpdateParams,
 } from '@dialstack/sdk-js';
 
 // Re-export error classes for consumers
@@ -1478,6 +1481,9 @@ export interface TemplateButtonListParams {
 export type {
   CreateDeviceResponse,
   DeviceSettings,
+  DeviceSettingsResource,
+  DeviceSettingsSource,
+  DeviceSettingsUpdateParams,
   DeviceStatus,
   DeviceType,
   DeviceZeroTouchEscalation,
@@ -3832,6 +3838,33 @@ export class DialStack {
       options?: RequestOptions
     ): Promise<AccountPricing> => {
       return this._request('POST', `/v1/accounts/${accountId}/pricing`, params, options);
+    },
+
+    /**
+     * Retrieve the account's device settings: what the account sets itself,
+     * the defaults it inherits and which level each comes from, and which
+     * settings it can change (`settable`).
+     */
+    retrieveDeviceSettings: (
+      accountId: string,
+      options?: RequestOptions
+    ): Promise<DeviceSettingsResource> => {
+      return this._request('GET', `/v1/accounts/${accountId}/device-settings`, undefined, options);
+    },
+
+    /**
+     * Change the account's device settings. `settings` is merged into what the
+     * account already sets: send only what you change, `null` to clear a
+     * setting back to its default. Choosing `tls` for the SIP transport makes
+     * phones connect only over encrypted signaling and audio: a phone that
+     * cannot connect securely stays offline rather than falling back.
+     */
+    updateDeviceSettings: (
+      accountId: string,
+      params: DeviceSettingsUpdateParams,
+      options?: RequestOptions
+    ): Promise<DeviceSettingsResource> => {
+      return this._request('POST', `/v1/accounts/${accountId}/device-settings`, params, options);
     },
 
     /**

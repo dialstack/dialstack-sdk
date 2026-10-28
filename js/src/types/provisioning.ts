@@ -337,3 +337,50 @@ export interface DeviceSettings {
    */
   abstractions?: AbstractSettings;
 }
+
+/** The level a device setting's default is inherited from. `global` is the DialStack default. */
+export type DeviceSettingsSource = 'global' | 'platform' | 'account';
+
+/**
+ * The device settings of one level of the inheritance chain (an account):
+ * what it sets itself, the defaults it inherits, where each default comes from,
+ * and which settings it can change.
+ */
+export interface DeviceSettingsResource {
+  object: 'device_settings';
+  /** The settings this level sets itself. Only paths listed in `settable` appear. */
+  settings: DeviceSettings;
+  /**
+   * What each settable setting falls back to when this level does not set it.
+   * Never includes this level's own value. Defaults, not what every phone uses:
+   * a phone's own overrides win, and a phone that cannot use a value is served
+   * what it supports.
+   */
+  defaults: DeviceSettings;
+  /** Which level each entry in `defaults` comes from, keyed by dotted path. */
+  sources: Record<string, DeviceSettingsSource>;
+  /** Dotted paths of the settings this level can change. */
+  settable: string[];
+}
+
+/** A merge patch over {@link DeviceSettings}: every field optional, `null` clears. */
+export type DeviceSettingsPatch = {
+  [K in keyof DeviceSettings]?: DeviceSettingsPatchValue<DeviceSettings[K]> | null;
+};
+
+type DeviceSettingsPatchValue<T> =
+  T extends ReadonlyArray<unknown>
+    ? T
+    : T extends object
+      ? { [K in keyof T]?: DeviceSettingsPatchValue<T[K]> | null }
+      : T;
+
+/**
+ * Body of a device settings update. `settings` is merged into what the level
+ * already sets: send only what you want to change, `null` to clear a setting
+ * back to inheriting it, or `settings: null` to clear every setting at the
+ * level. A setting the level cannot change is rejected with a 400 naming it.
+ */
+export interface DeviceSettingsUpdateParams {
+  settings: DeviceSettingsPatch | null;
+}

@@ -252,6 +252,10 @@ export type {
   // Top-level types
   AbstractSettings,
   DeviceSettings,
+  DeviceSettingsPatch,
+  DeviceSettingsResource,
+  DeviceSettingsSource,
+  DeviceSettingsUpdateParams,
 } from './provisioning';
 
 // Device types
