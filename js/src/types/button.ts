@@ -158,6 +158,8 @@ export interface MaterializedButton {
   override?: string | null;
   /** @deprecated Use `override`. Retained for backwards compatibility. */
   override_id?: string | null;
+  /** The user the phone serves, whose layout this is; `null` when it serves nobody. */
+  source_user?: string | null;
   compatibility: ButtonCompatibilityVerdict;
 }
 

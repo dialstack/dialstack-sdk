@@ -80,12 +80,10 @@ describe('Devices', () => {
       expect(query.get('limit')).toBe('50');
     });
 
-    it('accepts button_template only on the single-device read', () => {
-      // The list handler hydrates `users` only; a button_template expand there
-      // would be silently ignored, so the list params must not offer it.
-      const listExpand: DeviceListExpand[] = ['users'];
+    it('accepts button_template on both the list and the single-device read', () => {
+      const listExpand: DeviceListExpand[] = ['users', 'button_template'];
       const retrieveExpand: DeviceExpand[] = ['users', 'button_template'];
-      expect(listExpand).not.toContain('button_template');
+      expect(listExpand).toContain('button_template');
       expect(retrieveExpand).toContain('button_template');
     });
   });

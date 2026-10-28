@@ -644,6 +644,13 @@ export interface User {
    * `null`.
    */
   voicemail_greeting_clip: string | null;
+  /**
+   * The button template shown on whichever phone serves this user, or `null`
+   * when the user has none (the phone's own template is used, else the
+   * account's default). An ID, or the full template when the request includes
+   * `expand: ['button_template']`.
+   */
+  button_template: string | ButtonTemplate | null;
   created_at: string;
   updated_at: string;
   /**
@@ -682,6 +689,12 @@ export interface UserUpdateParams {
    * unchanged.
    */
   voicemail_greeting_clip?: string | null;
+  /**
+   * The button template to show on whichever phone serves this user. It takes
+   * over the phone's whole layout. Pass `null` to remove it (the phone's own
+   * template is then used, else the account default). Omit to leave unchanged.
+   */
+  button_template?: string | null;
   config?: {
     /**
      * Replace the user's Find-Me/Follow-Me sequence. Pass `null` to remove it
@@ -697,11 +710,11 @@ export interface UserListParams {
   page?: string;
   /** Filter by name or email (case-insensitive partial match). */
   search?: string;
-  /** Related resources to include inline. Supported values: `extensions`. */
+  /** Related resources to include inline. */
   expand?: UserExpand[];
 }
 
-export type UserExpand = 'extensions';
+export type UserExpand = 'extensions' | 'hot_desk' | 'button_template';
 
 /**
  * A person who can administer an account in the admin portal.
@@ -1388,7 +1401,24 @@ export interface DeviceButtonOverride {
   created_at: string;
 }
 
-/** The effective button after template rows and per-device overrides merge. */
+/**
+ * A button override owned by a user. It is shown on whichever phone serves the
+ * user, on top of the template that phone uses.
+ */
+export interface UserButtonOverride {
+  id: string;
+  object: 'user_button_override';
+  user: string;
+  position: number;
+  /** When true, hides any template button at this position. */
+  suppressed: boolean;
+  label?: string | null;
+  type?: ButtonType | null;
+  target?: ButtonTarget;
+  created_at: string;
+}
+
+/** The effective button after the winning template and the overrides merge. */
 export interface MaterializedButton {
   position: number;
   label: string;
@@ -1403,6 +1433,12 @@ export interface MaterializedButton {
   source: 'template' | 'override' | 'template_overridden' | 'model_default';
   template_button?: string | null;
   override?: string | null;
+  /**
+   * The user the phone serves, whose layout this is; `null` when it serves
+   * nobody. An `override` owned by this user is changed through
+   * `users.createButtonOverride` / `users.delButtonOverride`.
+   */
+  source_user: string | null;
   compatibility: ButtonCompatibilityVerdict;
 }
 
@@ -1590,7 +1626,12 @@ export interface Device {
   assignments?: DeviceUserAssignment[];
   /** Programmable-key compatibility for the current effective button set. */
   compatibility?: ButtonCompatibilitySummary;
-  /** The bound template's id, or null when none is bound. */
+  /**
+   * The bound template's id, or null when none is bound.
+   * @deprecated A phone shows the layout of the user it serves; see
+   * `User.button_template`. The device's template is used only when that user
+   * has none.
+   */
   button_template_id?: string | null;
   /**
    * The full bound template. Present only when
@@ -1647,6 +1688,10 @@ export interface DeviceUpdateParams {
    * account, or `null` to unpair (it stays in inventory).
    */
   base?: string | null;
+  /**
+   * @deprecated Set `button_template` on the user instead: a phone shows the
+   * layout of the user it serves. Still honoured.
+   */
   button_template?: string | null;
   /**
    * Manufacturer serial number, deskphones and DECT bases only. Trimmed; `null`
@@ -1662,14 +1707,8 @@ export interface DeviceAssignUserParams {
 /** Expansions available on a single-device read. */
 export type DeviceExpand = 'users' | 'button_template';
 
-/**
- * Expansions available on the device *list*, which is narrower than
- * {@link DeviceExpand}: the list endpoint hydrates `users` only. Requesting
- * `button_template` there is silently ignored rather than rejected, so it is not
- * offered here — read the device individually to get the template object, or use
- * the always-present `button_template_id`.
- */
-export type DeviceListExpand = 'users';
+/** Expansions available on the device list. */
+export type DeviceListExpand = 'users' | 'button_template';
 
 export interface DeviceListParams {
   limit?: number;
@@ -3963,6 +4002,53 @@ export class DialStack {
       return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
     },
 
+    /** List the buttons this user changed on top of their phone's template. */
+    listButtonOverrides: (
+      userId: string,
+      params: DeviceButtonListParams | undefined,
+      options: RequestOptions & { dialstackAccount: string }
+    ): PaginatedList<UserButtonOverride> => {
+      const queryParams = new URLSearchParams();
+      if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
+      if (params?.page) queryParams.set('page', params.page);
+
+      const query = queryParams.toString();
+      const path = `/v1/users/${userId}/button_overrides${query ? `?${query}` : ''}`;
+
+      const fetchPage = (url: string): Promise<ListResponse<UserButtonOverride>> => {
+        return this._request('GET', url, undefined, options);
+      };
+
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+
+    /**
+     * Override one position for this user, on whichever phone serves them:
+     * suppress the template's button there, or replace it. A `target.user` of
+     * `'self'` is rejected; name the user.
+     */
+    createButtonOverride: (
+      userId: string,
+      params: DeviceButtonOverrideCreateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<UserButtonOverride> => {
+      return this._request('POST', `/v1/users/${userId}/button_overrides`, params, options);
+    },
+
+    /** Drop a user override, restoring the template's button at that position. */
+    delButtonOverride: (
+      userId: string,
+      overrideId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<void> => {
+      return this._request(
+        'DELETE',
+        `/v1/users/${userId}/button_overrides/${overrideId}`,
+        undefined,
+        options
+      );
+    },
+
     /**
      * Retrieve a user's live presence — reachable / on a call right now. The
      * value is always freshly verified; a read that cannot be confirmed fails
@@ -4697,6 +4783,10 @@ export class DialStack {
       return this._request('GET', `/v1/devices/${deviceId}/buttons`, undefined, options);
     },
 
+    /**
+     * @deprecated Use `users.listButtonOverrides`: a phone shows the layout of
+     * the user it serves. Still honoured.
+     */
     listButtonOverrides: (
       deviceId: string,
       params: DeviceButtonListParams | undefined,
@@ -4719,6 +4809,7 @@ export class DialStack {
     /**
      * Override one position on this device: either suppress the template's
      * button there, or replace it with a different one.
+     * @deprecated Use `users.createButtonOverride`. Still honoured.
      */
     createButtonOverride: (
       deviceId: string,
@@ -4728,7 +4819,10 @@ export class DialStack {
       return this._request('POST', `/v1/devices/${deviceId}/button_overrides`, params, options);
     },
 
-    /** Drop an override, restoring the template's button at that position. */
+    /**
+     * Drop an override, restoring the template's button at that position.
+     * @deprecated Use `users.delButtonOverride`. Still honoured.
+     */
     delButtonOverride: (
       deviceId: string,
       overrideId: string,
