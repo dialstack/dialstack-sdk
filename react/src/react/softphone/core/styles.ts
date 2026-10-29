@@ -8,6 +8,11 @@ import { softphoneDimensions, softphoneFontFamily, type SoftphonePalette } from 
 
 export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'): string {
   const d = softphoneDimensions;
+  // Dial-match chip heights per tier, and the room left under them for the
+  // row's scrollbar. Sized for the widest one a browser draws, not WebKit's
+  // styled 6px: Firefox can't size its own, and "thin" is still 11px on macOS.
+  const matchChip = { full: 32, small: 22 };
+  const matchScrollRoom = 14;
   return `
     .${scope} {
       --dsd-bg: ${p.background};
@@ -199,8 +204,12 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     /* The row's height includes the scrollbar's, so it doesn't grow (or
        squeeze the chips) when there are enough matches to scroll. */
     .${scope} .ds-dial-matches {
-      display: flex; align-items: flex-start; gap: 6px; height: 42px; flex: none;
+      display: flex; align-items: flex-start; gap: 6px; flex: none;
+      height: ${matchChip.full + matchScrollRoom}px;
       overflow-x: auto; overflow-y: hidden;
+      /* The scrollbar's room already spaces the chips from the number; the
+         section gap on top of it left them looking detached. */
+      margin-bottom: -8px;
     }
     /* Styled, so WebKit shows it all the time rather than only mid-scroll:
        a mouse user otherwise has no sign the row scrolls. Chrome drops these
@@ -222,7 +231,7 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     .${scope} .ds-dial-match:last-child { margin-right: auto; }
     .${scope} .ds-dial-match {
       flex: none; display: inline-flex; align-items: center; gap: 6px;
-      height: 32px; padding: 0 10px; border-radius: ${Math.max(d.radius - 4, 4)}px; cursor: pointer;
+      height: ${matchChip.full}px; padding: 0 10px; border-radius: ${Math.max(d.radius - 4, 4)}px; cursor: pointer;
       border: 1px solid var(--dsd-border); background: var(--dsd-surface);
       color: var(--dsd-text); font-family: inherit; font-size: 13px; white-space: nowrap;
     }
@@ -707,8 +716,8 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     .ds-host-small .ds-actions { gap: 32px; padding-top: 4px; }
     .ds-host-small .ds-action { width: 48px; height: 48px; }
     .ds-host-small .ds-action-side { width: 36px; height: 36px; padding: 9px; }
-    .ds-host-small .ds-dial-matches { height: 30px; gap: 4px; }
-    .ds-host-small .ds-dial-match { height: 22px; font-size: 11px; padding: 0 7px; gap: 4px; }
+    .ds-host-small .ds-dial-matches { height: ${matchChip.small + matchScrollRoom}px; gap: 4px; }
+    .ds-host-small .ds-dial-match { height: ${matchChip.small}px; font-size: 11px; padding: 0 7px; gap: 4px; }
     .ds-host-small .ds-dial-match .ds-directory-option-label { font-size: 11px; }
     .ds-host-small .ds-dial-match .ds-directory-option-detail { font-size: 11px; }
     .ds-host-small .ds-controls { gap: 4px 8px; max-width: ${56 * 3 + 8 * 2}px; }
