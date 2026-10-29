@@ -5,7 +5,7 @@
 import React from 'react';
 import { useDialstackComponents } from './DialstackComponentsProvider';
 import { useCreateComponent } from './useCreateComponent';
-import { useUpdateWithSetter } from './useUpdateWithSetter';
+import { useUpdateHandlerWithSetter, useUpdateWithSetter } from './useUpdateWithSetter';
 import {
   type DateRange,
   type LoaderStart,
@@ -93,6 +93,10 @@ export interface CallLogsProps {
 
   /**
    * Custom row renderer for call log rows
+   *
+   * A new function re-renders the list, since it may draw rows differently.
+   * Written inline, that happens on every render of your component; wrap it in
+   * `useCallback` so the list re-renders only when the renderer changes.
    */
   customRowRenderer?: CallLogRowRenderer;
 
@@ -179,15 +183,19 @@ export const CallLogs: React.FC<CallLogsProps> = ({
   useUpdateWithSetter(componentInstance, displayOptions, (comp, val) =>
     comp.setDisplayOptions(val)
   );
-  useUpdateWithSetter(componentInstance, customRowRenderer, (comp, val) =>
+  useUpdateHandlerWithSetter(componentInstance, customRowRenderer, (comp, val) =>
     comp.setCustomRowRenderer(val)
   );
 
   // Sync callbacks to Web Component
-  useUpdateWithSetter(componentInstance, onLoaderStart, (comp, val) => comp.setOnLoaderStart(val));
-  useUpdateWithSetter(componentInstance, onLoadError, (comp, val) => comp.setOnLoadError(val));
-  useUpdateWithSetter(componentInstance, onRowClick, (comp, val) => comp.setOnRowClick(val));
-  useUpdateWithSetter(componentInstance, onFiltersChange, (comp, val) =>
+  useUpdateHandlerWithSetter(componentInstance, onLoaderStart, (comp, val) =>
+    comp.setOnLoaderStart(val)
+  );
+  useUpdateHandlerWithSetter(componentInstance, onLoadError, (comp, val) =>
+    comp.setOnLoadError(val)
+  );
+  useUpdateHandlerWithSetter(componentInstance, onRowClick, (comp, val) => comp.setOnRowClick(val));
+  useUpdateHandlerWithSetter(componentInstance, onFiltersChange, (comp, val) =>
     comp.setOnFiltersChange(val)
   );
 

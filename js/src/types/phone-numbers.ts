@@ -276,5 +276,5 @@ export interface PhoneNumbersClasses extends BaseComponentClasses {
 export interface PhoneNumbersElement extends Omit<BaseComponentElement, 'setClasses'> {
   setClasses: (classes: PhoneNumbersClasses) => void;
   setLimit: (limit: number) => void;
-  setOnRowClick: (callback: (event: PhoneNumberRowClickEvent) => void) => void;
+  setOnRowClick: (callback: ((event: PhoneNumberRowClickEvent) => void) | undefined) => void;
 }

@@ -5,7 +5,7 @@
 import React from 'react';
 import { useDialstackComponents } from './DialstackComponentsProvider';
 import { useCreateComponent } from './useCreateComponent';
-import { useUpdateWithSetter } from './useUpdateWithSetter';
+import { useUpdateHandlerWithSetter, useUpdateWithSetter } from './useUpdateWithSetter';
 import {
   type LoaderStart,
   type LoadError,
@@ -121,9 +121,13 @@ export const PhoneNumbers: React.FC<PhoneNumbersProps> = ({
   useUpdateWithSetter(componentInstance, classes, (comp, val) => comp.setClasses(val));
 
   // Sync callbacks to Web Component
-  useUpdateWithSetter(componentInstance, onLoaderStart, (comp, val) => comp.setOnLoaderStart(val));
-  useUpdateWithSetter(componentInstance, onLoadError, (comp, val) => comp.setOnLoadError(val));
-  useUpdateWithSetter(componentInstance, onRowClick, (comp, val) => comp.setOnRowClick(val));
+  useUpdateHandlerWithSetter(componentInstance, onLoaderStart, (comp, val) =>
+    comp.setOnLoaderStart(val)
+  );
+  useUpdateHandlerWithSetter(componentInstance, onLoadError, (comp, val) =>
+    comp.setOnLoadError(val)
+  );
+  useUpdateHandlerWithSetter(componentInstance, onRowClick, (comp, val) => comp.setOnRowClick(val));
 
   return <div ref={containerRef} className={className} style={style} />;
 };

@@ -504,6 +504,12 @@ export class AIAgentComponent extends BaseComponent {
   setSubmitMode(mode: AIAgentSubmitMode): void {
     if (this.submitMode === mode) return;
     this.submitMode = mode;
+    // Initial values only apply in host mode, and the host may have set them
+    // before switching; it won't necessarily set them again.
+    if (mode === 'host' && this.hostInitialValues) {
+      this.setInitialValues(this.hostInitialValues);
+      return;
+    }
     if ((this as unknown as { isInitialized: boolean }).isInitialized) this.render();
   }
 

@@ -284,6 +284,7 @@ export abstract class BaseComponent extends getHTMLElementBase() {
    * Set the locale for UI strings
    */
   setLocale(locale: Locale): void {
+    if (locale === this.locale) return;
     this.locale = locale;
     if (this.isInitialized) {
       this.render();
@@ -294,7 +295,9 @@ export abstract class BaseComponent extends getHTMLElementBase() {
    * Set formatting options
    */
   setFormatting(formatting: FormattingOptions): void {
-    this.formatting = { ...this.formatting, ...formatting };
+    const next = this.mergeIfChanged(this.formatting, formatting);
+    if (!next) return;
+    this.formatting = next;
     if (this.isInitialized) {
       this.render();
     }
@@ -304,7 +307,9 @@ export abstract class BaseComponent extends getHTMLElementBase() {
    * Set custom icons (partial override)
    */
   setIcons(icons: ComponentIcons): void {
-    this.icons = { ...this.icons, ...icons };
+    const next = this.mergeIfChanged(this.icons, icons);
+    if (!next) return;
+    this.icons = next;
     if (this.isInitialized) {
       this.render();
     }
@@ -314,6 +319,7 @@ export abstract class BaseComponent extends getHTMLElementBase() {
    * Set layout variant (compact, comfortable, default)
    */
   setLayoutVariant(variant: LayoutVariant): void {
+    if (variant === this.layoutVariant) return;
     this.layoutVariant = variant;
     if (this.isInitialized) {
       this.render();
@@ -337,10 +343,24 @@ export abstract class BaseComponent extends getHTMLElementBase() {
    * ```
    */
   setClasses(classes: BaseComponentClasses): void {
-    this.classes = { ...this.classes, ...classes };
+    const next = this.mergeIfChanged(this.classes, classes);
+    if (!next) return;
+    this.classes = next;
     if (this.isInitialized) {
       this.render();
     }
+  }
+
+  /**
+   * `current` with `patch` merged in, or null when `patch` changes nothing.
+   * Hosts often pass the same options again (React wrappers with an inline
+   * `classes={{…}}` do on every render); redrawing for that would rebuild the
+   * shadow DOM and drop focus and scroll for identical output.
+   */
+  protected mergeIfChanged<T extends object>(current: T, patch: Partial<T>): T | null {
+    const keys = Object.keys(patch) as (keyof T)[];
+    if (keys.every((k) => Object.is(current[k], patch[k]))) return null;
+    return { ...current, ...patch };
   }
 
   /**
@@ -381,14 +401,14 @@ export abstract class BaseComponent extends getHTMLElementBase() {
   /**
    * Set callback for loader start events
    */
-  setOnLoaderStart(callback: (event: LoaderStart) => void): void {
+  setOnLoaderStart(callback: ((event: LoaderStart) => void) | undefined): void {
     this._onLoaderStart = callback;
   }
 
   /**
    * Set callback for load error events
    */
-  setOnLoadError(callback: (event: LoadError) => void): void {
+  setOnLoadError(callback: ((event: LoadError) => void) | undefined): void {
     this._onLoadError = callback;
   }
 

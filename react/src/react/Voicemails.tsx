@@ -5,7 +5,7 @@
 import React from 'react';
 import { useDialstackComponents } from './DialstackComponentsProvider';
 import { useCreateComponent } from './useCreateComponent';
-import { useUpdateWithSetter } from './useUpdateWithSetter';
+import { useUpdateHandlerWithSetter, useUpdateWithSetter } from './useUpdateWithSetter';
 import {
   type LoaderStart,
   type LoadError,
@@ -84,6 +84,10 @@ export interface VoicemailsProps {
 
   /**
    * Custom row renderer for collapsed voicemail items
+   *
+   * A new function re-renders the list, since it may draw rows differently.
+   * Written inline, that happens on every render of your component; wrap it in
+   * `useCallback` so the list re-renders only when the renderer changes.
    */
   customRowRenderer?: VoicemailRowRenderer;
 
@@ -184,27 +188,31 @@ export const Voicemails: React.FC<VoicemailsProps> = ({
   useUpdateWithSetter(componentInstance, behaviorOptions, (comp, val) =>
     comp.setBehaviorOptions(val)
   );
-  useUpdateWithSetter(componentInstance, customRowRenderer, (comp, val) =>
+  useUpdateHandlerWithSetter(componentInstance, customRowRenderer, (comp, val) =>
     comp.setCustomRowRenderer(val)
   );
 
   // Sync callbacks to Web Component
-  useUpdateWithSetter(componentInstance, onLoaderStart, (comp, val) => comp.setOnLoaderStart(val));
-  useUpdateWithSetter(componentInstance, onLoadError, (comp, val) => comp.setOnLoadError(val));
-  useUpdateWithSetter(componentInstance, onVoicemailSelect, (comp, val) =>
+  useUpdateHandlerWithSetter(componentInstance, onLoaderStart, (comp, val) =>
+    comp.setOnLoaderStart(val)
+  );
+  useUpdateHandlerWithSetter(componentInstance, onLoadError, (comp, val) =>
+    comp.setOnLoadError(val)
+  );
+  useUpdateHandlerWithSetter(componentInstance, onVoicemailSelect, (comp, val) =>
     comp.setOnVoicemailSelect(val)
   );
-  useUpdateWithSetter(componentInstance, onVoicemailPlay, (comp, val) =>
+  useUpdateHandlerWithSetter(componentInstance, onVoicemailPlay, (comp, val) =>
     comp.setOnVoicemailPlay(val)
   );
-  useUpdateWithSetter(componentInstance, onVoicemailPause, (comp, val) =>
+  useUpdateHandlerWithSetter(componentInstance, onVoicemailPause, (comp, val) =>
     comp.setOnVoicemailPause(val)
   );
-  useUpdateWithSetter(componentInstance, onVoicemailDelete, (comp, val) =>
+  useUpdateHandlerWithSetter(componentInstance, onVoicemailDelete, (comp, val) =>
     comp.setOnVoicemailDelete(val)
   );
-  useUpdateWithSetter(componentInstance, onCallBack, (comp, val) => comp.setOnCallBack(val));
-  useUpdateWithSetter(componentInstance, onDeleteRequest, (comp, val) =>
+  useUpdateHandlerWithSetter(componentInstance, onCallBack, (comp, val) => comp.setOnCallBack(val));
+  useUpdateHandlerWithSetter(componentInstance, onDeleteRequest, (comp, val) =>
     comp.setOnDeleteRequest(val)
   );
 

@@ -5,7 +5,7 @@
 import React from 'react';
 import { useDialstackComponents } from './DialstackComponentsProvider';
 import { useCreateComponent } from './useCreateComponent';
-import { useUpdateWithSetter } from './useUpdateWithSetter';
+import { useUpdateHandlerWithSetter, useUpdateWithSetter } from './useUpdateWithSetter';
 import {
   type LoaderStart,
   type LoadError,
@@ -138,11 +138,11 @@ export const PhoneNumberOrdering: React.FC<PhoneNumberOrderingProps> = ({
   useUpdateWithSetter(componentInstance, searchTypes, (c, v) => c.setSearchTypes(v));
 
   // Sync callbacks
-  useUpdateWithSetter(componentInstance, onLoaderStart, (c, v) => c.setOnLoaderStart(v));
-  useUpdateWithSetter(componentInstance, onLoadError, (c, v) => c.setOnLoadError(v));
-  useUpdateWithSetter(componentInstance, onOrderComplete, (c, v) => c.setOnOrderComplete(v));
-  useUpdateWithSetter(componentInstance, onOrderError, (c, v) => c.setOnOrderError(v));
-  useUpdateWithSetter(componentInstance, onOrderPending, (c, v) => c.setOnOrderPending(v));
+  useUpdateHandlerWithSetter(componentInstance, onLoaderStart, (c, v) => c.setOnLoaderStart(v));
+  useUpdateHandlerWithSetter(componentInstance, onLoadError, (c, v) => c.setOnLoadError(v));
+  useUpdateHandlerWithSetter(componentInstance, onOrderComplete, (c, v) => c.setOnOrderComplete(v));
+  useUpdateHandlerWithSetter(componentInstance, onOrderError, (c, v) => c.setOnOrderError(v));
+  useUpdateHandlerWithSetter(componentInstance, onOrderPending, (c, v) => c.setOnOrderPending(v));
 
   return <div ref={containerRef} className={className} style={style} />;
 };

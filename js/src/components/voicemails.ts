@@ -141,42 +141,42 @@ export class VoicemailsComponent extends BaseComponent {
   /**
    * Set callback for voicemail select events
    */
-  setOnVoicemailSelect(callback: (event: { voicemailId: string }) => void): void {
+  setOnVoicemailSelect(callback: ((event: { voicemailId: string }) => void) | undefined): void {
     this._onVoicemailSelect = callback;
   }
 
   /**
    * Set callback for voicemail play events
    */
-  setOnVoicemailPlay(callback: (event: { voicemailId: string }) => void): void {
+  setOnVoicemailPlay(callback: ((event: { voicemailId: string }) => void) | undefined): void {
     this._onVoicemailPlay = callback;
   }
 
   /**
    * Set callback for voicemail pause events
    */
-  setOnVoicemailPause(callback: (event: { voicemailId: string }) => void): void {
+  setOnVoicemailPause(callback: ((event: { voicemailId: string }) => void) | undefined): void {
     this._onVoicemailPause = callback;
   }
 
   /**
    * Set callback for voicemail delete events
    */
-  setOnVoicemailDelete(callback: (event: { voicemailId: string }) => void): void {
+  setOnVoicemailDelete(callback: ((event: { voicemailId: string }) => void) | undefined): void {
     this._onVoicemailDelete = callback;
   }
 
   /**
    * Set callback for call back events
    */
-  setOnCallBack(callback: (event: { phoneNumber: string }) => void): void {
+  setOnCallBack(callback: ((event: { phoneNumber: string }) => void) | undefined): void {
     this._onCallBack = callback;
   }
 
   /**
    * Set custom delete confirmation handler
    */
-  setOnDeleteRequest(callback: (voicemailId: string) => Promise<boolean>): void {
+  setOnDeleteRequest(callback: ((voicemailId: string) => Promise<boolean>) | undefined): void {
     this._onDeleteRequest = callback;
   }
 
@@ -188,7 +188,9 @@ export class VoicemailsComponent extends BaseComponent {
    * Set display options (partial override)
    */
   setDisplayOptions(options: VoicemailDisplayOptions): void {
-    this.displayOptions = { ...this.displayOptions, ...options };
+    const next = this.mergeIfChanged(this.displayOptions, options);
+    if (!next) return;
+    this.displayOptions = next;
     if (this.isInitialized) {
       this.render();
     }
@@ -215,7 +217,9 @@ export class VoicemailsComponent extends BaseComponent {
    * Set custom CSS classes for styling integration
    */
   override setClasses(classes: VoicemailsClasses): void {
-    this.classes = { ...this.classes, ...classes };
+    const next = this.mergeIfChanged(this.classes, classes);
+    if (!next) return;
+    this.classes = next;
     if (this.isInitialized) {
       this.render();
     }

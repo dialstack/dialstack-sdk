@@ -8,11 +8,12 @@
  * host would use — so the wrapper and a plain HTML drop-in stay in sync.
  */
 
-import React, { useEffect, useLayoutEffect } from 'react';
+import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 import { useDialstackComponents } from './DialstackComponentsProvider';
 import { useCreateComponent } from './useCreateComponent';
+import { useLayoutUpdateHandlerWithSetter, useLayoutUpdateWithSetter } from './useUpdateWithSetter';
 import {
   type AIAgent as AIAgentData,
   type AIAgentExtensionAvailabilityResult,
@@ -78,24 +79,6 @@ export interface AIAgentProps {
 // useUpdateWithSetter skips when value is undefined; a sentinel `[]` makes
 // the reset declarative.
 const EMPTY_HIDE_FIELDS: AIAgentField[] = [];
-const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
-
-function useLayoutUpdateWithSetter<T extends HTMLElement, V>(
-  component: T | null,
-  value: V | undefined,
-  onUpdated: (component: T, value: V) => void
-): void {
-  useIsomorphicLayoutEffect(() => {
-    if (!component || value === undefined) return;
-
-    try {
-      onUpdated(component, value);
-    } catch (error) {
-      console.error('DialStack: Error calling setter:', error);
-    }
-  }, [component, value, onUpdated]);
-}
-
 export const AIAgent: React.FC<AIAgentProps> = ({
   agentId,
   mode = 'edit',
@@ -125,16 +108,16 @@ export const AIAgent: React.FC<AIAgentProps> = ({
     comp.setInitialValues(val)
   );
   useLayoutUpdateWithSetter(componentInstance, secret, (comp, val) => comp.setSecret(val));
-  useLayoutUpdateWithSetter(componentInstance, onCreateRequested, (comp, val) =>
+  useLayoutUpdateHandlerWithSetter(componentInstance, onCreateRequested, (comp, val) =>
     comp.setOnCreateRequested(val)
   );
-  useLayoutUpdateWithSetter(componentInstance, onSaveRequested, (comp, val) =>
+  useLayoutUpdateHandlerWithSetter(componentInstance, onSaveRequested, (comp, val) =>
     comp.setOnSaveRequested(val)
   );
-  useLayoutUpdateWithSetter(componentInstance, onCheckExtensionAvailability, (comp, val) =>
+  useLayoutUpdateHandlerWithSetter(componentInstance, onCheckExtensionAvailability, (comp, val) =>
     comp.setOnCheckExtensionAvailability(val)
   );
-  useLayoutUpdateWithSetter(componentInstance, onRotateSecretRequested, (comp, val) =>
+  useLayoutUpdateHandlerWithSetter(componentInstance, onRotateSecretRequested, (comp, val) =>
     comp.setOnRotateSecretRequested(val)
   );
   useLayoutUpdateWithSetter(componentInstance, agentId, (comp, val) => comp.setAgentId(val));

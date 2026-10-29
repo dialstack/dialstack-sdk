@@ -550,8 +550,8 @@ export interface BaseComponentElement extends HTMLElement {
   setIcons: (icons: ComponentIcons) => void;
   setLayoutVariant: (variant: LayoutVariant) => void;
   setClasses: (classes: BaseComponentClasses) => void;
-  setOnLoaderStart: (callback: (event: LoaderStart) => void) => void;
-  setOnLoadError: (callback: (event: LoadError) => void) => void;
+  setOnLoaderStart: (callback: ((event: LoaderStart) => void) | undefined) => void;
+  setOnLoadError: (callback: ((event: LoadError) => void) | undefined) => void;
 }
 
 /**
@@ -563,12 +563,12 @@ export interface VoicemailsElement extends Omit<BaseComponentElement, 'setClasse
   setDisplayOptions: (options: VoicemailDisplayOptions) => void;
   setBehaviorOptions: (options: VoicemailBehaviorOptions) => void;
   setCustomRowRenderer: (renderer: VoicemailRowRenderer | undefined) => void;
-  setOnVoicemailSelect: (callback: (event: { voicemailId: string }) => void) => void;
-  setOnVoicemailPlay: (callback: (event: { voicemailId: string }) => void) => void;
-  setOnVoicemailPause: (callback: (event: { voicemailId: string }) => void) => void;
-  setOnVoicemailDelete: (callback: (event: { voicemailId: string }) => void) => void;
-  setOnCallBack: (callback: (event: { phoneNumber: string }) => void) => void;
-  setOnDeleteRequest: (callback: (voicemailId: string) => Promise<boolean>) => void;
+  setOnVoicemailSelect: (callback: ((event: { voicemailId: string }) => void) | undefined) => void;
+  setOnVoicemailPlay: (callback: ((event: { voicemailId: string }) => void) | undefined) => void;
+  setOnVoicemailPause: (callback: ((event: { voicemailId: string }) => void) | undefined) => void;
+  setOnVoicemailDelete: (callback: ((event: { voicemailId: string }) => void) | undefined) => void;
+  setOnCallBack: (callback: ((event: { phoneNumber: string }) => void) | undefined) => void;
+  setOnDeleteRequest: (callback: ((voicemailId: string) => Promise<boolean>) | undefined) => void;
 }
 
 /**
@@ -582,7 +582,9 @@ export interface CallLogsElement extends Omit<BaseComponentElement, 'setClasses'
   setLimit: (limit: number) => void;
   setDisplayOptions: (options: CallLogDisplayOptions) => void;
   setCustomRowRenderer: (renderer: CallLogRowRenderer | undefined) => void;
-  setOnRowClick: (callback: (event: { callId: string; call: CallLog }) => void) => void;
+  setOnRowClick: (
+    callback: ((event: { callId: string; call: CallLog }) => void) | undefined
+  ) => void;
 }
 
 /**

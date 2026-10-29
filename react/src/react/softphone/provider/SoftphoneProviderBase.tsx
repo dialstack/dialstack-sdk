@@ -16,13 +16,13 @@ import {
   MAX_CALLS,
   useCallActions,
   useCallOverlays,
-  useCallDuration,
   useEmergencyBinding,
   type PhoneE911Api,
   useLastError,
   shouldRingIncoming,
   isIncomingRinging,
   formatDisplayNumber,
+  useCallDuration,
   type UseCallActions,
   type UseCallOverlays,
   type UseEmergencyBinding,
@@ -75,6 +75,14 @@ export interface SoftphoneContextBase {
    * web and React Native can't drift on when the overlays reset.
    */
   overlays: UseCallOverlays;
+  /**
+   * Live `m:ss` duration of the active call.
+   *
+   * @deprecated Use `useCallDuration(activeCall)`. This field changes on every
+   * clock tick, so it re-renders every `useSoftphone()` consumer twice a second
+   * during a call, even ones that never read it. It will be removed in the next
+   * major release.
+   */
   duration: string;
   consultCall: Call | null;
   transferOriginal: Call | null;
@@ -262,7 +270,7 @@ export function SoftphoneProviderBase<Extra extends object>({
 }: SoftphoneProviderBaseProps<Extra>): React.JSX.Element {
   const { lastError, handleError, clearError } = useLastError(onError);
   // Key on appearance CONTENT, not object identity, so an inline `appearance`
-  // literal doesn't recompute the palette every render (incl. the 1s duration tick).
+  // literal doesn't recompute the palette every render.
   const appearanceKey = `${appearance?.theme ?? ''}|${JSON.stringify(appearance?.variables ?? {})}`;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on appearance content (appearanceKey), not identity
   const palette = useMemo(() => resolveSoftphonePalette(appearance), [appearanceKey]);
@@ -344,6 +352,11 @@ export function SoftphoneProviderBase<Extra extends object>({
   // Force the add-call panel closed at the concurrent-call cap, so it cannot
   // linger unreachable and reappear with stale digits when a leg drops.
   const overlays = useCallOverlays(activeCall, callEntries.length < MAX_CALLS);
+  // NEXT MAJOR: delete `duration` (this line, the context type, the value and
+  // its memo dep). It is the only field that changes on a timer, so while it
+  // is here every useSoftphone() consumer re-renders on each tick; removing it
+  // stops that. Clocks reading it move to `useCallDuration(call)`, and
+  // softphone-duration-tick.test.tsx's consumer assertion becomes `.toBe(0)`.
   const duration = useCallDuration(activeCall);
 
   const calls = useMemo(() => callEntries.map((e) => e.call), [callEntries]);

@@ -88,4 +88,107 @@ describe('useUpdateWithSetter', () => {
 
     expect(mockCallback).toHaveBeenCalledWith(mockComponent, testValue);
   });
+  // Wrappers pass the setter inline, so it is a new function every render; a
+  // host re-rendering on a timer must not re-apply an unchanged prop.
+  it('does not re-apply the same value when only the setter closure is new', () => {
+    const mockSetter = jest.fn();
+    const mockComponent = { setLimit: mockSetter } as unknown as HTMLElement & {
+      setLimit: (val: number) => void;
+    };
+
+    const { rerender } = renderHook(() =>
+      useUpdateWithSetter(mockComponent, 3, (comp, val) => comp.setLimit(val))
+    );
+    rerender();
+    rerender();
+
+    expect(mockSetter).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not re-apply the same object', () => {
+    const mockSetter = jest.fn();
+    const mockComponent = { setClasses: mockSetter } as unknown as HTMLElement & {
+      setClasses: (val: Record<string, string>) => void;
+    };
+    const classes = { base: 'rounded-lg' };
+
+    const { rerender } = renderHook(() =>
+      useUpdateWithSetter(mockComponent, classes, (comp, val) => comp.setClasses(val))
+    );
+    rerender();
+
+    expect(mockSetter).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-applies an object whose contents changed', () => {
+    const mockSetter = jest.fn();
+    const mockComponent = { setClasses: mockSetter } as unknown as HTMLElement & {
+      setClasses: (val: Record<string, string>) => void;
+    };
+
+    const { rerender } = renderHook(
+      ({ base }) =>
+        useUpdateWithSetter(mockComponent, { base }, (comp, val) => comp.setClasses(val)),
+      { initialProps: { base: 'a' } }
+    );
+    rerender({ base: 'b' });
+
+    expect(mockSetter).toHaveBeenLastCalledWith({ base: 'b' });
+    expect(mockSetter).toHaveBeenCalledTimes(2);
+  });
+
+  // A new callback closes over the host's latest state, so it must reach the
+  // element even though it does the same thing.
+  it('re-applies a new callback', () => {
+    const mockSetter = jest.fn();
+    const mockComponent = { setOnRowClick: mockSetter } as unknown as HTMLElement & {
+      setOnRowClick: (val: () => void) => void;
+    };
+
+    const { rerender } = renderHook(() =>
+      useUpdateWithSetter(
+        mockComponent,
+        () => {},
+        (comp, val) => comp.setOnRowClick(val)
+      )
+    );
+    rerender();
+
+    expect(mockSetter).toHaveBeenCalledTimes(2);
+  });
+
+  it('re-applies every value to a new component instance', () => {
+    const first = jest.fn();
+    const second = jest.fn();
+    const make = (setLimit: jest.Mock) =>
+      ({ setLimit }) as unknown as HTMLElement & { setLimit: (val: number) => void };
+
+    const { rerender } = renderHook(
+      ({ comp }) => useUpdateWithSetter(comp, 3, (c, val) => c.setLimit(val)),
+      { initialProps: { comp: make(first) } }
+    );
+    rerender({ comp: make(second) });
+
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledWith(3);
+  });
+  it('logs a throwing setter once per value, not on every render', () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const setter = jest.fn(() => {
+      throw new Error('bad value');
+    });
+    const mockComponent = { setLimit: setter } as unknown as HTMLElement & {
+      setLimit: (val: number) => void;
+    };
+
+    const { rerender } = renderHook(() =>
+      useUpdateWithSetter(mockComponent, 3, (comp, val) => comp.setLimit(val))
+    );
+    rerender();
+    rerender();
+
+    expect(setter).toHaveBeenCalledTimes(1);
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    errorSpy.mockRestore();
+  });
 });

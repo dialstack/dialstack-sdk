@@ -109,7 +109,7 @@ export class CallLogsComponent extends BaseComponent {
   /**
    * Set callback for row click events
    */
-  setOnRowClick(callback: (event: { callId: string; call: CallLog }) => void): void {
+  setOnRowClick(callback: ((event: { callId: string; call: CallLog }) => void) | undefined): void {
     this._onRowClick = callback;
   }
 
@@ -125,7 +125,9 @@ export class CallLogsComponent extends BaseComponent {
    */
   setDisplayOptions(options: CallLogDisplayOptions): void {
     const defaultPreset = this.defaultDatePreset();
-    this.displayOptions = { ...this.displayOptions, ...options };
+    const next = this.mergeIfChanged(this.displayOptions, options);
+    if (!next) return;
+    this.displayOptions = next;
     if (!this.isInitialized) return;
     // Hiding the toolbar moves the default window to all time, which changes
     // the query when the window in force is that default.
@@ -151,7 +153,9 @@ export class CallLogsComponent extends BaseComponent {
    * Set custom CSS classes for styling integration
    */
   override setClasses(classes: CallLogsClasses): void {
-    this.classes = { ...this.classes, ...classes };
+    const next = this.mergeIfChanged(this.classes, classes);
+    if (!next) return;
+    this.classes = next;
     if (this.isInitialized) {
       this.render();
     }
@@ -1331,8 +1335,8 @@ export class CallLogsComponent extends BaseComponent {
    * Set date range filter and reload data (for React integration)
    */
   setDateRange(dateRange: DateRange): void {
-    // React re-runs setters every render. Re-applying the same range would
-    // reload each time and undo a preset the user picked since.
+    // A host may apply the same range again (a fresh `{ start, end }` object,
+    // say). Re-applying it would reload and undo a preset the user picked since.
     if (
       this.hostDateRange &&
       this.hostDateRange.start === dateRange.start &&
@@ -1353,8 +1357,7 @@ export class CallLogsComponent extends BaseComponent {
    */
   setFilters(filters: CallLogFilters): void {
     // A no-op for the filters already applied, so a host that feeds
-    // onFiltersChange back in (React re-runs the setter every render) does not
-    // reload the list.
+    // onFiltersChange back in does not reload the list.
     const keys: Array<keyof CallLogFilters> = ['search', 'direction', 'status', 'datePreset'];
     if (keys.every((k) => (filters[k] || undefined) === (this.filters[k] || undefined))) return;
 

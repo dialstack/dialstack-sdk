@@ -93,7 +93,9 @@ export interface PhoneNumberOrderingClasses extends BaseComponentClasses {
 export interface PhoneNumberOrderingElement extends Omit<BaseComponentElement, 'setClasses'> {
   setClasses: (classes: PhoneNumberOrderingClasses) => void;
   setSearchTypes: (types: SearchType[]) => void;
-  setOnOrderComplete: (cb: (event: { orderId: string; order: NumberOrder }) => void) => void;
-  setOnOrderError: (cb: (event: PhoneNumberOrderErrorEvent) => void) => void;
-  setOnOrderPending: (cb: (event: PhoneNumberOrderPendingEvent) => void) => void;
+  setOnOrderComplete: (
+    cb: ((event: { orderId: string; order: NumberOrder }) => void) | undefined
+  ) => void;
+  setOnOrderError: (cb: ((event: PhoneNumberOrderErrorEvent) => void) | undefined) => void;
+  setOnOrderPending: (cb: ((event: PhoneNumberOrderPendingEvent) => void) | undefined) => void;
 }

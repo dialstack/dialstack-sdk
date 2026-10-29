@@ -783,21 +783,25 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
   // ============================================================================
 
   override setClasses(classes: PhoneNumberOrderingClasses): void {
-    this.classes = { ...this.classes, ...classes };
+    const next = this.mergeIfChanged(this.classes, classes);
+    if (!next) return;
+    this.classes = next;
     if (this.isInitialized) {
       this.render();
     }
   }
 
-  setOnOrderComplete(cb: (event: { orderId: string; order: NumberOrder }) => void): void {
+  setOnOrderComplete(
+    cb: ((event: { orderId: string; order: NumberOrder }) => void) | undefined
+  ): void {
     this._onOrderComplete = cb;
   }
 
-  setOnOrderError(cb: (event: PhoneNumberOrderErrorEvent) => void): void {
+  setOnOrderError(cb: ((event: PhoneNumberOrderErrorEvent) => void) | undefined): void {
     this._onOrderError = cb;
   }
 
-  setOnOrderPending(cb: (event: PhoneNumberOrderPendingEvent) => void): void {
+  setOnOrderPending(cb: ((event: PhoneNumberOrderPendingEvent) => void) | undefined): void {
     this._onOrderPending = cb;
   }
 

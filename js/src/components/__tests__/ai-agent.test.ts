@@ -245,6 +245,29 @@ describe('AIAgentComponent', () => {
     );
   });
 
+  it('applies stored initial values when switching to host submit mode', async () => {
+    const { instance } = makeInstance(makeAgent({ name: 'Stored name' }));
+    const el = document.createElement('dialstack-ai-agent') as HTMLElement & {
+      setInstance: (i: DialStackInstanceImpl) => void;
+      setAgentId: (id: string) => void;
+      setSubmitMode: (mode: 'sdk' | 'host') => void;
+      setInitialValues: (values: Record<string, unknown>) => void;
+    };
+    const nameValue = () =>
+      el.shadowRoot?.querySelector<HTMLInputElement>('[data-field="name"]')?.value;
+
+    el.setInstance(instance);
+    el.setAgentId('aia_01abc');
+    el.setInitialValues({ name: 'Host name', faq_responses: [] });
+    document.body.appendChild(el);
+    await flush();
+    expect(nameValue()).toBe('Stored name');
+
+    el.setSubmitMode('host');
+
+    expect(nameValue()).toBe('Host name');
+  });
+
   it('shows host-required errors when host callbacks are missing', async () => {
     const { instance } = makeInstance();
     const el = document.createElement('dialstack-ai-agent') as HTMLElement & {

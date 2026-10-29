@@ -127,19 +127,23 @@ export class PhoneNumbersComponent extends BaseComponent {
   // Callback Setters
   // ============================================================================
 
-  setOnRowClick(callback: (event: PhoneNumberRowClickEvent) => void): void {
+  setOnRowClick(callback: ((event: PhoneNumberRowClickEvent) => void) | undefined): void {
+    const wasWired = !!this._onRowClick;
     this._onRowClick = callback;
-    // Render output depends on _onRowClick (the routing cell only becomes an
-    // actionable deep-link when a handler is wired), so re-render if a host wires
-    // or changes it after the initial render — e.g. React's effect firing after
-    // loadData's render.
-    if (this.isInitialized) {
+    // Render output depends on whether a handler is wired (the routing cell only
+    // becomes an actionable deep-link then), so re-render when that flips after
+    // the initial render — e.g. React's effect firing after loadData's render.
+    // Swapping one handler for another changes nothing on screen: clicks read
+    // _onRowClick when they happen.
+    if (this.isInitialized && wasWired !== !!callback) {
       this.render();
     }
   }
 
   override setClasses(classes: PhoneNumbersClasses): void {
-    this.classes = { ...this.classes, ...classes };
+    const next = this.mergeIfChanged(this.classes, classes);
+    if (!next) return;
+    this.classes = next;
     if (this.isInitialized) {
       this.render();
     }

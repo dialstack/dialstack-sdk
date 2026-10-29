@@ -75,7 +75,9 @@ export class CallHistoryComponent extends BaseComponent {
    * Set display options
    */
   setDisplayOptions(options: CallHistoryDisplayOptions): void {
-    this.displayOptions = { ...this.displayOptions, ...options };
+    const next = this.mergeIfChanged(this.displayOptions, options);
+    if (!next) return;
+    this.displayOptions = next;
     if (this.isInitialized) {
       this.render();
     }
@@ -85,7 +87,9 @@ export class CallHistoryComponent extends BaseComponent {
    * Override setClasses with component-specific type
    */
   override setClasses(classes: CallHistoryClasses): void {
-    this.classes = { ...this.classes, ...classes };
+    const next = this.mergeIfChanged(this.classes, classes);
+    if (!next) return;
+    this.classes = next;
     if (this.isInitialized) {
       this.render();
     }

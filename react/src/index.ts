@@ -36,7 +36,7 @@ export {
   useReportComponent,
 } from './react/DialstackComponentsProvider';
 export { useCreateComponent } from './react/useCreateComponent';
-export { useUpdateWithSetter } from './react/useUpdateWithSetter';
+export { useUpdateWithSetter, useUpdateHandlerWithSetter } from './react/useUpdateWithSetter';
 export { useAppearance } from './react/useAppearance';
 
 export type { DialstackComponentsProviderProps } from './react/DialstackComponentsProvider';
