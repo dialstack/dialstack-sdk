@@ -28,6 +28,7 @@
       "@dialstack/sdk-js": ["./js/src/index.ts"],
       "@dialstack/sdk-js/pure": ["./js/src/pure.ts"],
       "@dialstack/sdk-webrtc": ["./webrtc/src/index.ts"],
+      "@dialstack/sdk-react/core": ["./react/src/react/softphone/core/index.ts"],
       "#storybook-fixtures/types": ["./js/src/__storybook__/types.ts"],
       "#storybook-fixtures/mock-instance": ["./js/src/__mocks__/mock-instance.ts"]
     },

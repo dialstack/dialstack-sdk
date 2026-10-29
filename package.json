@@ -96,6 +96,7 @@
     "prettier": "^3.9.10",
     "publint": "^0.3.25",
     "react-native": "^0.88.0",
+    "react-native-incall-manager": "^4.2.2",
     "react-native-svg": "^15.16.0",
     "react-native-web": "^0.21.4",
     "rollup": "^4.65.0",
