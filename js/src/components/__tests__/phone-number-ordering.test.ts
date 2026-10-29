@@ -1,4 +1,4 @@
-import '../phone-number-ordering';
+import { parseTollFreeContains, vanitySpelling } from '../phone-number-ordering';
 import type { DialStackInstanceImpl, RoutingTarget } from '../../types/core';
 import type { EffectivePricing } from '../../types/account-onboarding';
 import type { DIDItem } from '../../types/phone-numbers';
@@ -335,6 +335,198 @@ describe('PhoneNumberOrdering toll-free search', () => {
     await settle();
 
     expect(search).toHaveBeenCalledWith({ numberType: 'toll_free', quantity: 10 });
+  });
+
+  async function typeContains(el: OrderingEl, value: string): Promise<void> {
+    tollFreeTab(el)!.click();
+    await settle();
+    const input = el.shadowRoot.querySelector<HTMLInputElement>('#search-toll-free-contains')!;
+    input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  it('searches for a vanity word and spells it in the results', async () => {
+    const instance = withPricing(makeInstance(jest.fn()), true);
+    const search = jest.fn(async (): Promise<AvailablePhoneNumber[]> => [
+      { phone_number: '+18447543556', number_type: 'toll_free' },
+    ]);
+    (
+      instance as unknown as { availablePhoneNumbers: { search: jest.Mock } }
+    ).availablePhoneNumbers.search = search;
+    const el = await mount(instance);
+
+    await typeContains(el, 'hello');
+    click(el, 'search');
+    await settle();
+
+    expect(search).toHaveBeenCalledWith({
+      numberType: 'toll_free',
+      contains: 'HELLO',
+      quantity: 10,
+    });
+    const row = el.shadowRoot.querySelector('tr[data-phone="+18447543556"]');
+    expect(row?.textContent).toContain('1-844-75-HELLO');
+  });
+
+  it('takes the code from "800-FLOWERS" and searches the word', async () => {
+    const instance = withPricing(makeInstance(jest.fn()), true);
+    const search = jest.fn(async (): Promise<AvailablePhoneNumber[]> => []);
+    (
+      instance as unknown as { availablePhoneNumbers: { search: jest.Mock } }
+    ).availablePhoneNumbers.search = search;
+    const el = await mount(instance);
+
+    await typeContains(el, '1-800-FLOWERS');
+    expect(el.shadowRoot.querySelector<HTMLSelectElement>('#search-toll-free')!.value).toBe('800');
+    click(el, 'search');
+    await settle();
+
+    expect(search).toHaveBeenCalledWith({
+      numberType: 'toll_free',
+      areaCode: '800',
+      contains: 'FLOWERS',
+      quantity: 10,
+    });
+  });
+
+  it('puts the select back on any code when the typed code is removed', async () => {
+    const instance = withPricing(makeInstance(jest.fn()), true);
+    const search = jest.fn(async (): Promise<AvailablePhoneNumber[]> => []);
+    (
+      instance as unknown as { availablePhoneNumbers: { search: jest.Mock } }
+    ).availablePhoneNumbers.search = search;
+    const el = await mount(instance);
+
+    await typeContains(el, '800-FLOWERS');
+    await typeContains(el, 'HELLO');
+    expect(el.shadowRoot.querySelector<HTMLSelectElement>('#search-toll-free')!.value).toBe('');
+    click(el, 'search');
+    await settle();
+
+    expect(search).toHaveBeenCalledWith({
+      numberType: 'toll_free',
+      contains: 'HELLO',
+      quantity: 10,
+    });
+  });
+
+  it('keeps a code picked after typing one while the word is edited', async () => {
+    const instance = withPricing(makeInstance(jest.fn()), true);
+    const search = jest.fn(async (): Promise<AvailablePhoneNumber[]> => []);
+    (
+      instance as unknown as { availablePhoneNumbers: { search: jest.Mock } }
+    ).availablePhoneNumbers.search = search;
+    const el = await mount(instance);
+
+    await typeContains(el, '800-FLOWERS');
+    const select = el.shadowRoot.querySelector<HTMLSelectElement>('#search-toll-free')!;
+    select.value = '888';
+    select.dispatchEvent(new Event('input', { bubbles: true }));
+    await typeContains(el, '800-FLOWER');
+    expect(el.shadowRoot.querySelector<HTMLSelectElement>('#search-toll-free')!.value).toBe('888');
+    click(el, 'search');
+    await settle();
+
+    expect(search).toHaveBeenCalledWith({
+      numberType: 'toll_free',
+      areaCode: '888',
+      contains: 'FLOWER',
+      quantity: 10,
+    });
+  });
+
+  it('keeps a picked code while the word is typed', async () => {
+    const instance = withPricing(makeInstance(jest.fn()), true);
+    const search = jest.fn(async (): Promise<AvailablePhoneNumber[]> => []);
+    (
+      instance as unknown as { availablePhoneNumbers: { search: jest.Mock } }
+    ).availablePhoneNumbers.search = search;
+    const el = await mount(instance);
+
+    tollFreeTab(el)!.click();
+    await settle();
+    const select = el.shadowRoot.querySelector<HTMLSelectElement>('#search-toll-free')!;
+    select.value = '888';
+    select.dispatchEvent(new Event('input', { bubbles: true }));
+    const input = el.shadowRoot.querySelector<HTMLInputElement>('#search-toll-free-contains')!;
+    input.value = 'PIZZA';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    click(el, 'search');
+    await settle();
+
+    expect(search).toHaveBeenCalledWith({
+      numberType: 'toll_free',
+      areaCode: '888',
+      contains: 'PIZZA',
+      quantity: 10,
+    });
+  });
+
+  it('suggests a shorter word when a vanity search finds nothing', async () => {
+    const instance = withPricing(makeInstance(jest.fn()), true);
+    (
+      instance as unknown as { availablePhoneNumbers: { search: jest.Mock } }
+    ).availablePhoneNumbers.search = jest.fn(async () => []);
+    const el = await mount(instance);
+
+    await typeContains(el, 'FLOWERS');
+    click(el, 'search');
+    await settle();
+
+    expect(text(el)).toContain(
+      'No toll-free numbers contain FLOWERS. Shorter words find more numbers'
+    );
+  });
+
+  it('explains the rule only once the entry cannot become valid', async () => {
+    const el = await mount(withPricing(makeInstance(jest.fn()), true));
+    const error = () =>
+      el.shadowRoot.querySelector<HTMLElement>('#search-toll-free-contains-error')!;
+
+    await typeContains(el, 'FLO');
+    expect(error().hidden).toBe(true);
+    await typeContains(el, 'FLOWERSS');
+    expect(error().hidden).toBe(false);
+    expect(error().textContent).toContain('Use 4 to 7 letters or digits.');
+  });
+
+  it('holds the search until the vanity word is 4 to 7 letters or digits', async () => {
+    const el = await mount(withPricing(makeInstance(jest.fn()), true));
+    const button = () => el.shadowRoot.querySelector<HTMLButtonElement>('[data-action="search"]')!;
+
+    await typeContains(el, 'FLO');
+    expect(button().disabled).toBe(true);
+    await typeContains(el, 'FLO*ERS');
+    expect(button().disabled).toBe(true);
+    await typeContains(el, 'FLOW');
+    expect(button().disabled).toBe(false);
+  });
+});
+
+describe('parseTollFreeContains', () => {
+  it.each([
+    ['hello', { word: 'HELLO' }],
+    ['800-FLOWERS', { code: '800', word: 'FLOWERS' }],
+    ['800-HELP', { code: '800', word: 'HELP' }],
+    ['1 (888) PIZZA', { code: '888', word: 'PIZZA' }],
+    // Seven characters or fewer are the word, even when they start like a code.
+    ['8005551', { word: '8005551' }],
+    // Not a toll-free code: left whole for validation to reject.
+    ['512-FLOWERS', { word: '512FLOWERS' }],
+  ])('%s', (raw, want) => {
+    expect(parseTollFreeContains(raw)).toEqual(want);
+  });
+});
+
+describe('vanitySpelling', () => {
+  it.each([
+    ['+18447543556', 'HELLO', '1-844-75-HELLO'],
+    ['+18888749920', 'PIZZA', '1-888-8-PIZZA-0'],
+    ['+18003569377', 'FLOWERS', '1-800-FLOWERS'],
+    ['+18338812343', '1234', '1-833-88-1234-3'],
+    ['+18335409250', 'HELLO', undefined],
+  ])('%s with %s', (phone, word, want) => {
+    expect(vanitySpelling(phone, word)).toBe(want);
   });
 });
 

@@ -15,6 +15,12 @@ export interface SearchAvailableNumbersOptions {
   numberType?: PhoneNumberType;
   /** A local area code, or with `numberType: 'toll_free'`, one toll-free code. */
   areaCode?: string;
+  /**
+   * With `numberType: 'toll_free'`, 4 to 7 letters or digits that the number's
+   * last seven digits spell on a phone keypad, anywhere in them (`HELLO` finds
+   * 1-844-75-HELLO). Case, spaces and hyphens are ignored.
+   */
+  contains?: string;
   zip?: string;
   quantity?: number;
 }

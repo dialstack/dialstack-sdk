@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import type { DialStackInstanceImpl } from '../../types/core';
 import type { AppearanceOptions, LayoutVariant } from '../../types/appearance';
 import type { DIDItem, NumberOrder, PortOrder } from '../../types';
+import type { EffectivePricing } from '../../types/account-onboarding';
 import { createMockInstance } from '../../__mocks__/mock-instance';
 
 export interface WebComponentStoryProps {
@@ -16,6 +17,8 @@ export interface WebComponentStoryProps {
   orders?: NumberOrder[];
   /** Port orders returned by the mock instance */
   ports?: PortOrder[];
+  /** Override the account's effective pricing (e.g. a toll-free rate) */
+  effectivePricing?: Partial<EffectivePricing>;
   /** Extra setup after setInstance (e.g. calling setUserId) */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setup?: (el: any) => void;
@@ -32,6 +35,7 @@ export const WebComponentStory: React.FC<WebComponentStoryProps> = ({
   dids,
   orders,
   ports,
+  effectivePricing,
   setup,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -41,7 +45,13 @@ export const WebComponentStory: React.FC<WebComponentStoryProps> = ({
     if (!container) return;
 
     const appearance: AppearanceOptions = { theme };
-    const rawInstance = createMockInstance(appearance, { empty, dids, orders, ports });
+    const rawInstance = createMockInstance(appearance, {
+      empty,
+      dids,
+      orders,
+      ports,
+      effectivePricing,
+    });
     // Wrap with logging proxy to trace API calls
     const instance = new Proxy(rawInstance, {
       get(target, prop, receiver) {
@@ -87,7 +97,7 @@ export const WebComponentStory: React.FC<WebComponentStoryProps> = ({
     return () => {
       container.removeChild(el);
     };
-  }, [tagName, theme, layoutVariant, empty, dids, orders, ports, setup]);
+  }, [tagName, theme, layoutVariant, empty, dids, orders, ports, effectivePricing, setup]);
 
   return <div ref={containerRef} />;
 };

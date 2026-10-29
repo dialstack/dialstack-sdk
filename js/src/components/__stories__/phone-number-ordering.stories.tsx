@@ -19,6 +19,31 @@ export const Compact: Story = { args: { layoutVariant: 'compact' } };
 const shadow = (canvasElement: HTMLElement): ShadowRoot | null | undefined =>
   canvasElement.querySelector('dialstack-phone-number-ordering')?.shadowRoot;
 
+/**
+ * An account that may order toll-free numbers. The search panels are overlaid
+ * so switching tabs never moves the form, which sizes every tab to the tallest
+ * panel: the toll-free one must stay as short as the area code one.
+ */
+export const TollFree: Story = {
+  args: { effectivePricing: { toll_free_minute_rate_decimal: '1.9' } },
+  play: async ({ canvasElement }) => {
+    await waitFor(() => {
+      const root = shadow(canvasElement);
+      expect(root?.querySelector('[data-type="toll_free"]')).toBeTruthy();
+    });
+    const root = shadow(canvasElement)!;
+    // The stack is as tall as its tallest panel: without the toll-free one it
+    // must be no shorter. A select renders a couple of pixels taller than an input.
+    const stack = root.querySelector<HTMLElement>('.search-fields-stack')!;
+    const withTollFree = stack.offsetHeight;
+    const tollFree = root.querySelector<HTMLElement>('[data-panel="toll_free"]')!;
+    tollFree.style.display = 'none';
+    const withoutTollFree = stack.offsetHeight;
+    tollFree.style.display = '';
+    expect(withTollFree).toBeLessThanOrEqual(withoutTollFree + 4);
+  },
+};
+
 const clickAction = (root: ShadowRoot, action: string): void => {
   root.querySelector<HTMLElement>(`[data-action="${action}"]`)?.click();
 };

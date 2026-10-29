@@ -304,6 +304,35 @@ const COMPONENT_STYLES = `
     letter-spacing: 0.02em;
   }
 
+  .vanity-spelling {
+    margin-left: var(--ds-layout-spacing-sm);
+    color: var(--ds-color-text-secondary);
+  }
+
+  /* Side by side, so the toll-free panel is no taller than the others in the
+     overlaid stack, which sizes every tab to its tallest panel. */
+  .toll-free-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--ds-layout-spacing-sm);
+  }
+
+  .form-input[aria-invalid='true'] {
+    border-color: var(--ds-color-danger);
+  }
+
+  /* Shown only while the entry can't become valid, so it adds height only then. */
+  .field-error {
+    margin: calc(-1 * var(--ds-layout-spacing-sm)) 0 var(--ds-layout-spacing-md);
+    font-size: var(--ds-font-size-small);
+    color: var(--ds-color-danger);
+  }
+
+  .field-error[hidden],
+  .search-fields-hidden .field-error {
+    display: none;
+  }
+
   /* ── Checkbox (row checkboxes are display-only, row click handles toggle) ── */
   .checkbox-visual {
     display: inline-flex;
@@ -696,6 +725,57 @@ const COMPONENT_STYLES = `
 /** The toll-free codes a toll-free search can narrow to. */
 const TOLL_FREE_AREA_CODES = ['800', '833', '844', '855', '866', '877', '888'];
 
+/** What the API accepts as `contains`, once case, spaces and hyphens are dropped. */
+const CONTAINS_RE = /^[A-Z0-9]{4,7}$/;
+
+const KEYPAD: Record<string, string> = Object.fromEntries(
+  ['ABC', 'DEF', 'GHI', 'JKL', 'MNO', 'PQRS', 'TUV', 'WXYZ'].flatMap((letters, i) =>
+    [...letters].map((l) => [l, String(i + 2)])
+  )
+);
+
+/**
+ * Reads the Contains field. Someone typing "800-HELP" or "1-800-FLOWERS"
+ * means the code and the word; the search takes the code separately and at
+ * most seven characters of word, so an entry that starts with a toll-free
+ * code is split when the rest has a letter or the whole is too long to be
+ * the word. "8005551" stays whole: it is a valid digit pattern.
+ */
+export function parseTollFreeContains(raw: string): { code?: string; word: string } {
+  const word = raw.toUpperCase().replace(/[\s\-().]/g, '');
+  const [, code, rest] = /^1?(8\d\d)(.+)$/.exec(word) || [];
+  if (code && rest && TOLL_FREE_AREA_CODES.includes(code)) {
+    if (word.length > 7 || /[A-Z]/.test(rest)) return { code, word: rest };
+  }
+  return { word };
+}
+
+/**
+ * Whether no further typing can make the Contains entry valid: too long, or a
+ * character the search refuses. Too short is not flagged, since "FLO" is
+ * on its way to "FLOW"; the disabled Search button covers it.
+ */
+function containsCannotBecomeValid(raw: string): boolean {
+  const { word } = parseTollFreeContains(raw);
+  return word.length > 7 || /[^A-Z0-9]/.test(word);
+}
+
+/**
+ * Spells `word` into a toll-free number the way it is advertised:
+ * +18447543556 with HELLO is "1-844-75-HELLO". Undefined when the word's
+ * keypad digits aren't in the last seven digits.
+ */
+export function vanitySpelling(phoneNumber: string, word: string): string | undefined {
+  const digits = phoneNumber.replace(/\D/g, '');
+  if (digits.length !== 11 || !word) return undefined;
+  const code = digits.slice(1, 4);
+  const line = digits.slice(4);
+  const at = line.indexOf([...word].map((c) => KEYPAD[c] ?? c).join(''));
+  if (at < 0) return undefined;
+  const parts = [line.slice(0, at), word, line.slice(at + word.length)].filter(Boolean);
+  return ['1', code, ...parts].join('-');
+}
+
 export class PhoneNumberOrderingComponent extends BaseComponent {
   // State machine
   private step: Step = 'search';
@@ -709,6 +789,14 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
   // The toll-free code to narrow to, '' for any. Kept apart from searchValue:
   // a local area code is never a valid toll-free one.
   private tollFreeCode: string = '';
+  // The Contains field as typed, and the word the shown results were searched
+  // for, which spells them.
+  private tollFreeContains: string = '';
+  private searchedContains: string = '';
+  // The code last typed into Contains, and whether tollFreeCode came from it,
+  // so it goes when that code is typed away.
+  private typedTollFreeCode: string | undefined;
+  private tollFreeCodeFromContains: boolean = false;
   private quantity: number = 10;
   private isSearching: boolean = false;
 
@@ -832,6 +920,11 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     return phone;
   }
 
+  private renderVanitySpelling(num: AvailablePhoneNumber): string {
+    const spelled = vanitySpelling(num.phone_number, this.searchedContains);
+    return spelled ? `<span class="vanity-spelling">${this.escapeHtml(spelled)}</span>` : '';
+  }
+
   /** The results' State column: a toll-free number has no state. */
   private numberRegion(num: AvailablePhoneNumber): string {
     if (num.number_type === 'toll_free') return this.t('phoneNumberOrdering.results.tollFree');
@@ -846,7 +939,14 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     const type = this.activeSearchType();
     if (!type) return false;
     // A toll-free search needs no filter: "any code" is a valid search.
-    return type === 'toll_free' || this.searchValue.trim() !== '';
+    if (type === 'toll_free') return this.canSearchTollFree();
+    return this.searchValue.trim() !== '';
+  }
+
+  /** A toll-free search takes any code, and a Contains word only if valid. */
+  private canSearchTollFree(): boolean {
+    const { word } = parseTollFreeContains(this.tollFreeContains);
+    return word === '' || CONTAINS_RE.test(word);
   }
 
   private async searchNumbers(): Promise<void> {
@@ -861,6 +961,8 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
       if (type === 'toll_free') {
         options.numberType = 'toll_free';
         if (this.tollFreeCode) options.areaCode = this.tollFreeCode;
+        const { word } = parseTollFreeContains(this.tollFreeContains);
+        if (word) options.contains = word;
       } else if (type === 'zip') {
         options.zip = this.searchValue;
       } else {
@@ -868,6 +970,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
       }
 
       this.availableNumbers = await this.instance.availablePhoneNumbers.search(options);
+      this.searchedContains = options.contains ?? '';
       this.selectedNumbers = new Set();
       this.step = 'results';
     } catch (err) {
@@ -1193,6 +1296,10 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     this.step = 'search';
     this.searchValue = '';
     this.tollFreeCode = '';
+    this.tollFreeContains = '';
+    this.searchedContains = '';
+    this.typedTollFreeCode = undefined;
+    this.tollFreeCodeFromContains = false;
     this.quantity = 10;
     this.availableNumbers = [];
     this.selectedNumbers = new Set();
@@ -1322,7 +1429,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
             .map((type) => {
               if (type === 'area_code')
                 return `
-              <div class="${hidden('area_code')}">
+              <div class="${hidden('area_code')}" data-panel="area_code">
                 <div class="form-group">
                   <label class="form-label">${this.t('phoneNumberOrdering.search.areaCodeLabel')}</label>
                   <input class="form-input" type="text" id="search-area-code"
@@ -1333,7 +1440,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
               </div>`;
               if (type === 'zip')
                 return `
-              <div class="${hidden('zip')}">
+              <div class="${hidden('zip')}" data-panel="zip">
                 <div class="form-group">
                   <label class="form-label">${this.t('phoneNumberOrdering.search.zipLabel')}</label>
                   <input class="form-input" type="text" id="search-zip"
@@ -1344,7 +1451,8 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
               </div>`;
               if (type === 'toll_free')
                 return `
-              <div class="${hidden('toll_free')}">
+              <div class="${hidden('toll_free')}" data-panel="toll_free">
+                <div class="toll-free-row">
                 <div class="form-group">
                   <label class="form-label" for="search-toll-free">${this.t('phoneNumberOrdering.search.tollFreeLabel')}</label>
                   <select class="form-input" id="search-toll-free">
@@ -1355,6 +1463,17 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
                     ).join('')}
                   </select>
                 </div>
+                <div class="form-group">
+                  <label class="form-label" for="search-toll-free-contains">${this.t('phoneNumberOrdering.search.tollFreeContainsLabel')}</label>
+                  <input class="form-input" type="text" id="search-toll-free-contains"
+                    placeholder="${this.t('phoneNumberOrdering.search.tollFreeContainsPlaceholder')}"
+                    value="${this.escapeHtml(this.tollFreeContains)}"
+                    aria-describedby="search-toll-free-contains-error"
+                    aria-invalid="${containsCannotBecomeValid(this.tollFreeContains)}" />
+                </div>
+                </div>
+                <div class="field-error" id="search-toll-free-contains-error"
+                  ${containsCannotBecomeValid(this.tollFreeContains) ? '' : 'hidden'}>${this.t('phoneNumberOrdering.search.tollFreeContainsInvalid')}</div>
               </div>`;
               return '';
             })
@@ -1385,7 +1504,13 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
           <div class="results-header">
             <h2 class="section-title">${this.t('phoneNumberOrdering.results.title')}</h2>
           </div>
-          <div class="empty-state">${this.t('phoneNumberOrdering.results.noResults')}</div>
+          <div class="empty-state">${
+            this.searchedContains
+              ? this.t('phoneNumberOrdering.results.noVanityResults', {
+                  word: this.escapeHtml(this.searchedContains),
+                })
+              : this.t('phoneNumberOrdering.results.noResults')
+          }</div>
           <div class="footer-bar">
             <div></div>
             <div class="footer-right">
@@ -1410,7 +1535,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
             <td>
               <span class="checkbox-visual ${isSelected ? 'checked' : ''}" aria-hidden="true">${CHECK_SVG}</span>
             </td>
-            <td class="phone-number-cell">${this.formatPhone(num.phone_number)}</td>
+            <td class="phone-number-cell">${this.formatPhone(num.phone_number)}${this.renderVanitySpelling(num)}</td>
             <td>${this.escapeHtml(this.numberRegion(num))}</td>
           </tr>
         `;
@@ -1464,7 +1589,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
       .map(
         (num) => `
         <div class="confirm-item">
-          <span class="confirm-phone">${this.formatPhone(num.phone_number)}</span>
+          <span class="confirm-phone">${this.formatPhone(num.phone_number)}${this.renderVanitySpelling(num)}</span>
           <span class="confirm-state">${this.escapeHtml(this.numberRegion(num))}</span>
         </div>
       `
@@ -1897,6 +2022,32 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     });
     bindInput('search-toll-free', (v) => {
       this.tollFreeCode = v;
+      this.tollFreeCodeFromContains = false;
+    });
+    bindInput('search-toll-free-contains', (v) => {
+      this.tollFreeContains = v;
+      const invalid = containsCannotBecomeValid(v);
+      this.shadowRoot!.getElementById('search-toll-free-contains')?.setAttribute(
+        'aria-invalid',
+        String(invalid)
+      );
+      this.shadowRoot!.getElementById('search-toll-free-contains-error')?.toggleAttribute(
+        'hidden',
+        !invalid
+      );
+      // A code typed with the word ("800-FLOWERS") selects that code, and
+      // typing it away puts the select back on any code. Only a change to the
+      // typed code does: a code picked since then survives editing the word.
+      const { code } = parseTollFreeContains(v);
+      if (code === this.typedTollFreeCode) return;
+      this.typedTollFreeCode = code;
+      if (!code && !this.tollFreeCodeFromContains) return;
+      this.tollFreeCode = code ?? '';
+      this.tollFreeCodeFromContains = code !== undefined;
+      const select = this.shadowRoot!.getElementById(
+        'search-toll-free'
+      ) as HTMLSelectElement | null;
+      if (select) select.value = this.tollFreeCode;
     });
     bindInput('search-quantity', (v) => {
       const val = parseInt(v, 10);

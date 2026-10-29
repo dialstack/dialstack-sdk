@@ -734,6 +734,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       const params = new URLSearchParams();
       if (options.numberType) params.set('number_type', options.numberType);
       if (options.areaCode) params.set('area_code', options.areaCode);
+      if (options.contains) params.set('contains', options.contains);
       if (options.zip) params.set('zip', options.zip);
       if (options.quantity) params.set('quantity', String(options.quantity));
 

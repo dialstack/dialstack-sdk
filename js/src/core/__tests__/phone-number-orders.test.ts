@@ -61,6 +61,19 @@ describe('phoneNumberOrders.retrieve', () => {
 });
 
 describe('availablePhoneNumbers.search', () => {
+  it('sends a toll-free vanity word as contains', async () => {
+    const instance = instanceAnswering(200, '');
+    let url = '';
+    instance.fetchApi = async (path: string) => {
+      url = path;
+      return { ok: true, json: async () => ({ data: [] }) } as unknown as Response;
+    };
+
+    await instance.availablePhoneNumbers.search({ numberType: 'toll_free', contains: 'HELLO' });
+
+    expect(url).toBe('/v1/available-phone-numbers?number_type=toll_free&contains=HELLO');
+  });
+
   it('rejects with an ApiError whose message is the API error text', async () => {
     const instance = instanceAnswering(400, JSON.stringify({ error: 'invalid area code' }));
 
