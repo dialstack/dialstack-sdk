@@ -153,6 +153,8 @@ export interface Account {
   hold_music_clip?: string | null;
   /** @deprecated Use `hold_music_clip`. Retained for backwards compatibility. */
   hold_music_clip_id?: string | null;
+  /** Audio clip played to both parties when an outbound call to an external number is answered. */
+  outbound_announcement_clip?: string | null;
   main_location?: string | null;
   /** @deprecated Use `main_location`. Retained for backwards compatibility. */
   main_location_id?: string | null;
@@ -171,6 +173,8 @@ export interface UpdateAccountRequest {
   hold_music_clip?: string | null;
   /** @deprecated Use `hold_music_clip`. Retained for backwards compatibility. */
   hold_music_clip_id?: string | null;
+  /** Set or clear the clip played when an outbound call to an external number is answered. */
+  outbound_announcement_clip?: string | null;
   main_location?: string;
   /** @deprecated Use `main_location`. Retained for backwards compatibility. */
   main_location_id?: string;

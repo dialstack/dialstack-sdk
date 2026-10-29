@@ -170,6 +170,8 @@ export interface Account {
   primary_contact_name: string | null;
   config: AccountConfig;
   hold_music_clip_id: string | null;
+  /** Audio clip played to both parties when an outbound call to an external number is answered. */
+  outbound_announcement_clip: string | null;
   main_location_id: string | null;
   /** Button template inherited by newly created deskphones and DECT handsets. */
   default_button_template: string | null;
@@ -351,6 +353,8 @@ export interface AccountUpdateParams {
   primary_contact_name?: string;
   config?: AccountConfig;
   hold_music_clip_id?: string | null;
+  /** Set or clear the clip played when an outbound call to an external number is answered. */
+  outbound_announcement_clip?: string | null;
   main_location_id?: string;
   /** Set or clear the template inherited by newly created compatible devices. */
   default_button_template?: string | null;
