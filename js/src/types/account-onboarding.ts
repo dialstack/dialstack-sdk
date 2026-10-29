@@ -202,6 +202,11 @@ export interface AccountPricing {
   per_user_rate: number | null;
   per_did_rate: number | null;
   per_voiceai_location_rate: number | null;
+  /**
+   * Price per inbound minute to the account's toll-free numbers, in cents as a
+   * decimal string (`"1.9"`). Optional on a write: omitted keeps the current rate.
+   */
+  toll_free_minute_rate_decimal?: string;
 }
 
 /**
@@ -242,6 +247,8 @@ export interface EffectivePricing {
     per_did_rate: number;
     /** Omitted on the same condition as the in-force leg. */
     per_voiceai_location_rate?: number;
+    /** Omitted on the same condition as the in-force leg. */
+    toll_free_minute_rate_decimal?: string;
     /** The month start the change applies from, `YYYY-MM-DD`. */
     effective_from: string;
   } | null;

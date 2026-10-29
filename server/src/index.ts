@@ -377,6 +377,12 @@ export interface AccountPricing {
   per_user_rate: number;
   per_did_rate: number;
   per_voiceai_location_rate: number;
+  /**
+   * Price per inbound minute to the account's toll-free numbers, in cents as a
+   * decimal string (`"1.9"` is $0.019). Absent from a subscription agreement
+   * acceptance's snapshot, which records the monthly rates only.
+   */
+  toll_free_minute_rate_decimal?: string;
 }
 
 /**
@@ -399,6 +405,12 @@ export interface EffectivePricing {
   per_did_rate: number;
   /** Absent when the account cannot incur the Managed VoiceAI fee. */
   per_voiceai_location_rate?: number;
+  /**
+   * Price per inbound minute to the account's toll-free numbers, in cents as a
+   * decimal string. Absent when the account can neither order toll-free numbers
+   * nor already holds one.
+   */
+  toll_free_minute_rate_decimal?: string;
   /** The month start the rates above took effect, `YYYY-MM-DD`. */
   effective_from: string;
   /** An agreed change that has not taken effect yet; null in the steady state. */
@@ -407,6 +419,8 @@ export interface EffectivePricing {
     per_did_rate: number;
     /** Omitted on the same condition as the in-force leg. */
     per_voiceai_location_rate?: number;
+    /** Omitted on the same condition as the in-force leg. */
+    toll_free_minute_rate_decimal?: string;
     /** The month start the change applies from, `YYYY-MM-DD`. */
     effective_from: string;
   } | null;
@@ -520,6 +534,12 @@ export interface AccountPricingParams {
   per_user_rate: number;
   per_did_rate: number;
   per_voiceai_location_rate: number;
+  /**
+   * Price per inbound minute to the account's toll-free numbers, in cents as a
+   * decimal string with at most two decimal places, between `"1.65"` and `"10"`.
+   * Omit to keep the account's current rate (or the default, for a new account).
+   */
+  toll_free_minute_rate_decimal?: string;
 }
 
 export type AccountPricingUpdateParams = AccountPricingParams;

@@ -7,7 +7,7 @@ import { screen } from '@testing-library/react';
 import { renderWithOnboarding } from '../__test-helpers__/onboarding';
 import { AccountRatesCard } from '../components/AccountRatesCard';
 
-const card = () => screen.queryByRole('region', { name: 'Your monthly rates' });
+const card = () => screen.queryByRole('region', { name: 'Rates' });
 const text = () => card()?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 
 const RATES = { per_user_rate: 3000, per_did_rate: 500, per_voiceai_location_rate: 10000 };
@@ -27,9 +27,9 @@ const WITH_PENDING = {
 describe('onboarding AccountRatesCard', () => {
   it('lists every rate in force, with the taxes and fees qualifier', async () => {
     await renderWithOnboarding(<AccountRatesCard />, { pricing: IN_FORCE });
-    expect(text()).toContain('$30.00/month');
-    expect(text()).toContain('$5.00/month');
-    expect(text()).toContain('$100.00/month');
+    expect(text()).toContain('$30.00');
+    expect(text()).toContain('$5.00');
+    expect(text()).toContain('$100.00');
     expect(text()).toContain('Taxes and fees are additional.');
   });
 
@@ -38,7 +38,7 @@ describe('onboarding AccountRatesCard', () => {
     // Anchor on a rendered rate first: every assertion below is an absence, and
     // text() falls back to '' when the card is missing, so without this the spec
     // passes for a card that failed to render at all.
-    expect(text()).toContain('$30.00/month');
+    expect(text()).toContain('$30.00');
     expect(text()).not.toMatch(/from \w+ \d+, \d{4}/);
     expect(text()).not.toContain('next billing period');
   });
@@ -47,8 +47,8 @@ describe('onboarding AccountRatesCard', () => {
     // The card has to agree with the invoice the customer is holding, so a
     // pending rate is additive and never replaces the amount being billed.
     await renderWithOnboarding(<AccountRatesCard />, { pricing: WITH_PENDING });
-    expect(text()).toContain('$30.00/month');
-    expect(text()).toContain('$35.00/month from Sep 1, 2026');
+    expect(text()).toContain('$30.00');
+    expect(text()).toContain('$35.00 from Sep 1, 2026');
     expect(text()).toContain('Rate changes take effect at the start of the next billing period.');
   });
 
@@ -74,7 +74,7 @@ describe('onboarding AccountRatesCard', () => {
       );
       // Anchored on an in-force figure too: without it this spec passes while
       // every rate on the card is the deprecated latest-set value.
-      expect(text()).toContain('$30.00/month');
+      expect(text()).toContain('$30.00');
       expect(text()).toContain('Sep 1, 2026');
     } finally {
       spy.mockRestore();
@@ -91,7 +91,7 @@ describe('onboarding AccountRatesCard', () => {
         next: { ...RATES, per_did_rate: 0, effective_from: '2026-09-01' },
       },
     });
-    expect(text()).toContain('$5.00/month');
+    expect(text()).toContain('$5.00');
     expect(text()).not.toContain('$0.00');
     expect(text()).not.toContain('from Sep 1, 2026');
     expect(text()).not.toContain('next billing period');
@@ -108,7 +108,7 @@ describe('onboarding AccountRatesCard', () => {
         next: { ...RATES, per_did_rate: 500, effective_from: '2026-09-01' },
       },
     });
-    expect(text()).toContain('$30.00/month');
+    expect(text()).toContain('$30.00');
     expect(text()).not.toContain('from Sep 1, 2026');
     expect(text()).not.toContain('next billing period');
   });
@@ -164,7 +164,7 @@ describe('onboarding AccountRatesCard', () => {
     await renderWithOnboarding(<AccountRatesCard />, {
       pricing: { ...IN_FORCE, per_voiceai_location_rate: 0 },
     });
-    expect(text()).toContain('$30.00/month');
+    expect(text()).toContain('$30.00');
     expect(text()).toContain('Not set');
   });
 });
@@ -183,15 +183,15 @@ describe('onboarding AccountRatesCard — Managed VoiceAI row', () => {
     await renderWithOnboarding(<AccountRatesCard />, { pricing: omitVoiceAi(IN_FORCE) });
     // Anchored on a rate that must survive, so this cannot pass on a card that
     // failed to render at all.
-    expect(text()).toContain('$30.00/month');
+    expect(text()).toContain('$30.00');
     expect(text()).not.toContain('Managed VoiceAI');
-    expect(text()).not.toContain('$100.00/month');
+    expect(text()).not.toContain('$100.00');
   });
 
   it('renders the row, and the multiplier, when the leg is present', async () => {
     await renderWithOnboarding(<AccountRatesCard />, { pricing: IN_FORCE });
     expect(text()).toContain('Managed VoiceAI, per location');
-    expect(text()).toContain('$100.00/month');
+    expect(text()).toContain('$100.00');
     expect(text()).toContain('Charged for every location once Managed VoiceAI is active.');
   });
 
@@ -200,5 +200,44 @@ describe('onboarding AccountRatesCard — Managed VoiceAI row', () => {
       pricing: omitVoiceAi({ ...IN_FORCE, per_user_rate: 0, per_did_rate: 0 }),
     });
     expect(text()).toContain('No rates are set for this account yet.');
+  });
+});
+
+// The toll-free rate sits in its own panel, with its unit, after the monthly ones.
+describe('onboarding AccountRatesCard — calling', () => {
+  it('shows the toll-free rate and its dated change only when reported', async () => {
+    await renderWithOnboarding(<AccountRatesCard />, {
+      pricing: {
+        ...IN_FORCE,
+        toll_free_minute_rate_decimal: '1.9',
+        next: { ...RATES, toll_free_minute_rate_decimal: '2.5', effective_from: '2026-09-01' },
+      },
+    });
+    expect(text()).toContain('Calling');
+    expect(text()).toContain('Inbound toll-free calls1.9¢/minute');
+    expect(text()).toContain('2.5¢/minute from Sep 1, 2026');
+    expect(text()).toContain('next billing period');
+  });
+
+  it('shows the toll-free rate even when no monthly rate is agreed', async () => {
+    // Toll-free is billed at its rate whatever the monthly legs say, so "no rates
+    // are set" would hide a charge.
+    await renderWithOnboarding(<AccountRatesCard />, {
+      pricing: {
+        ...IN_FORCE,
+        per_user_rate: 0,
+        per_did_rate: 0,
+        per_voiceai_location_rate: 0,
+        toll_free_minute_rate_decimal: '1.9',
+      },
+    });
+    expect(text()).toContain('Inbound toll-free calls1.9¢/minute');
+    expect(text()).not.toContain('No rates are set');
+  });
+
+  it('has no calling panel when the account cannot incur a toll-free rate', async () => {
+    await renderWithOnboarding(<AccountRatesCard />, { pricing: IN_FORCE });
+    expect(text()).toContain('$30.00');
+    expect(text()).not.toContain('Calling');
   });
 });

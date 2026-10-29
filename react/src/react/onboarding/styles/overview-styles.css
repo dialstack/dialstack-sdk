@@ -464,6 +464,8 @@
 .portal-rates {
   margin-top: var(--ds-layout-spacing-lg);
   padding: var(--ds-layout-spacing-md);
+  color: var(--ds-color-text);
+  font-size: 14px;
   border: 1px solid var(--ds-color-border);
   border-radius: 10px;
   background: var(--ds-color-background);
@@ -491,61 +493,86 @@
 
 .portal-rates-subtitle,
 .portal-rates-note {
-  margin: 2px 0 0;
+  margin: 0;
   font-size: 12px;
   color: var(--ds-color-text-secondary);
 }
 
+.portal-rates-subtitle {
+  margin-top: 2px;
+}
+
+/* Side by side when there is room, stacked when there is not. */
+.portal-rates-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: var(--ds-layout-spacing-md);
+  align-items: start;
+  margin-bottom: var(--ds-layout-spacing-md);
+}
+
+.portal-rates-section-title {
+  margin: 0 0 var(--ds-layout-spacing-sm);
+  font-size: 11px;
+  font-weight: var(--ds-font-weight-medium);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ds-color-text-secondary);
+}
+
+/* Each group is a panel of rows, so a figure reads as belonging to its label
+   rather than to a block of text. */
 .portal-rates-list {
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--ds-layout-spacing-sm);
-  /* Bounded so each label keeps its figure: the card stretches to the portal
-     content width, and an unbounded space-between pins the amount to the far
-     edge with a gap wide enough that the pair stops reading as a pair. */
-  max-width: 22rem;
-  /* Separates the figures from the caveats below. Without it the notes butt
-     against the last row and read as belonging to that rate rather than to the
-     card. */
-  margin-bottom: var(--ds-layout-spacing-md);
+  border: 1px solid var(--ds-color-border);
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .portal-rates-row {
   display: flex;
-  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: var(--ds-layout-spacing-sm);
+  gap: var(--ds-layout-spacing-md);
+  padding: 10px 14px;
+}
+
+.portal-rates-row + .portal-rates-row {
+  border-top: 1px solid var(--ds-color-border);
 }
 
 .portal-rates-row dt {
-  font-size: 13px;
-  color: var(--ds-color-text);
+  min-width: 0;
+}
+
+.portal-rates-label {
+  display: block;
+}
+
+/* Under its own label, so it qualifies that one rate. */
+.portal-rates-row-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--ds-color-text-secondary);
 }
 
 .portal-rates-row dd {
   margin: 0;
+  flex: none;
   text-align: right;
 }
 
 .portal-rates-amount {
-  font-size: 13px;
   font-weight: var(--ds-font-weight-medium);
-  color: var(--ds-color-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .portal-rates-pending {
   display: block;
+  margin-top: 2px;
   font-size: 12px;
   color: var(--ds-color-text-secondary);
-}
-
-/* Sits inside its own .portal-rates-row and takes the full width, so it wraps
-   under that one rate rather than reading as a footnote about all of them. */
-.portal-rates-row-note {
-  flex-basis: 100%;
-  margin: 0;
-  font-size: 12px;
-  color: var(--ds-color-text-secondary);
+  white-space: nowrap;
 }
