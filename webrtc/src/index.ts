@@ -29,6 +29,9 @@ export type {
   PresenceEntry,
   PresenceUpdate,
   DirectoryEntry,
+  DirectoryEntryType,
+  ListDirectoryOptions,
+  TypedDirectoryEntry,
   EmergencyAddress,
   EmergencyAddressInput,
   EmergencyAddressDetails,
@@ -39,3 +42,4 @@ export type { PaginatedList, Page, PageItem } from './pagination.js';
 // its own and takes them from here rather than from the browser package, so that
 // edge stays a dependency it already has instead of widening the peer.
 export { createPaginatedList } from './pagination.js';
+export { DIRECTORY_TYPES } from './types.js';

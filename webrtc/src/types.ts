@@ -229,15 +229,62 @@ export interface DirectoryEntry {
   displayName: string;
   /**
    * The user's active extension numbers, dialable from this account,
-   * sorted as text (so `1000` comes before `999`). Empty when they have none.
+   * sorted. Empty when they have none.
    */
   extensionNumbers: string[];
 }
 
-// Wire shape of a DirectoryEntry (snake_case, as returned by the API). Mapped to
-// the camelCase DirectoryEntry before it reaches the app.
+/**
+ * What a directory entry is. `user` is the only type `listDirectory()` returns
+ * by default; ask for the others with `listDirectory({ types })`.
+ */
+export type DirectoryEntryType =
+  'user' | 'queue' | 'ring_group' | 'voice_app' | 'dial_plan' | 'shared_voicemail_box';
+
+/** Every directory entry type, e.g. to list a whole transfer picker. */
+export const DIRECTORY_TYPES: readonly DirectoryEntryType[] = [
+  'user',
+  'queue',
+  'ring_group',
+  'voice_app',
+  'dial_plan',
+  'shared_voicemail_box',
+];
+
+/** Options for `listDirectory()`. */
+export interface ListDirectoryOptions {
+  /**
+   * The entry types to return — exactly these. Defaults to users only. `'all'`
+   * asks for every type, including ones added after this SDK version; entries
+   * of a type this version doesn't know are skipped.
+   */
+  types?: readonly DirectoryEntryType[] | 'all';
+}
+
+/**
+ * One entry of a typed directory listing (`listDirectory({ types })`): a user
+ * or another dialable destination in the account.
+ */
+export interface TypedDirectoryEntry {
+  type: DirectoryEntryType;
+  /** The resource's id (`user_…`, `qu_…`, `rg_…`, …), whatever the type. */
+  id: string;
+  /** The resource's own name, with no type suffix. Empty when none is set. */
+  displayName: string;
+  /**
+   * Active extension numbers that reach it, sorted. Empty only for a user with
+   * no extension; other types are listed only when dialable.
+   */
+  extensionNumbers: string[];
+}
+
+// Wire shape of a directory entry (snake_case, as returned by the API). Mapped
+// to the camelCase DirectoryEntry / TypedDirectoryEntry before it reaches the
+// app. Fields an older API omits are optional.
 export interface DirectoryEntryWire {
-  user: string;
+  type?: string;
+  id?: string;
+  user?: string;
   display_name: string;
   extension_numbers?: string[];
 }

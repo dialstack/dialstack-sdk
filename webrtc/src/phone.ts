@@ -16,20 +16,24 @@ import {
 import type { Ringback } from './ringback.js';
 import { PACKAGE_VERSION } from './version.js';
 import { Transport, type AppResumeSubscribe, type SignalingSocketFactory } from './transport.js';
-import type {
-  AudioDevice,
-  AudioDeviceList,
-  DirectoryEntry,
-  DirectoryEntryWire,
-  EmergencyAddress,
-  EmergencyAddressInput,
-  IceServersResponse,
-  ListResponse,
-  PhoneOptions,
-  PresenceEntry,
-  PresenceUpdate,
-  ServerMessage,
-  SettablePresenceStatus,
+import {
+  DIRECTORY_TYPES,
+  type AudioDevice,
+  type AudioDeviceList,
+  type DirectoryEntry,
+  type DirectoryEntryType,
+  type DirectoryEntryWire,
+  type ListDirectoryOptions,
+  type TypedDirectoryEntry,
+  type EmergencyAddress,
+  type EmergencyAddressInput,
+  type IceServersResponse,
+  type ListResponse,
+  type PhoneOptions,
+  type PresenceEntry,
+  type PresenceUpdate,
+  type ServerMessage,
+  type SettablePresenceStatus,
 } from './types.js';
 
 const DEFAULT_API_BASE_URL = 'https://api.dialstack.ai';
@@ -1024,19 +1028,38 @@ export class DialStackPhone {
    * Note presence subscription accepts at most 100 users at once, so watching a
    * very large directory means subscribing to a subset.
    */
-  async listDirectory(): Promise<DirectoryEntry[]> {
+  listDirectory(): Promise<DirectoryEntry[]>;
+  /**
+   * List the directory entries of the given types — users and the account's
+   * other dialable destinations (queues, ring groups, voice apps, dial plans,
+   * shared voicemail boxes), e.g. for a transfer picker. Each entry's `id`
+   * identifies it whatever its `type`.
+   */
+  listDirectory(options: ListDirectoryOptions): Promise<TypedDirectoryEntry[]>;
+  listDirectory(options?: ListDirectoryOptions): Promise<DirectoryEntry[] | TypedDirectoryEntry[]>;
+  async listDirectory(
+    options?: ListDirectoryOptions
+  ): Promise<DirectoryEntry[] | TypedDirectoryEntry[]> {
+    const query = new URLSearchParams();
+    const types = options?.types;
+    for (const t of types === 'all' ? ['all'] : (types ?? [])) query.append('types[]', t);
+    const qs = query.toString();
     const fetchPage = (url: string) =>
       this.apiRequest<ListResponse<DirectoryEntryWire>>('GET', url);
     const rows = await createPaginatedList(
-      fetchPage('/v1/me/directory'),
+      fetchPage(qs ? `/v1/me/directory?${qs}` : '/v1/me/directory'),
       fetchPage
     ).autoPagingToArray();
-    return rows.map((r) => ({
-      user: r.user,
-      displayName: r.display_name,
-      // An API that predates the field omits it; keep the non-optional type true.
-      extensionNumbers: r.extension_numbers ?? [],
-    }));
+    if (!options) {
+      return rows.map((r) => ({
+        user: r.user ?? '',
+        displayName: r.display_name,
+        // An API that predates the field omits it; keep the non-optional type true.
+        extensionNumbers: r.extension_numbers ?? [],
+      }));
+    }
+    // A type this SDK version doesn't know is skipped rather than guessed at.
+    return rows.flatMap((r) => toTypedDirectoryEntry(r) ?? []);
   }
 
   /** Delete a saved emergency address. Clears the local selection if it matched. */
@@ -1648,4 +1671,17 @@ function persistId(
   const key = prefix + userId;
   if (id) storage.setItem(key, id);
   else storage.removeItem(key);
+}
+
+function toTypedDirectoryEntry(r: DirectoryEntryWire): TypedDirectoryEntry | undefined {
+  // A row without `type` is a user from an API that predates it.
+  const type = r.type ?? 'user';
+  if (!(DIRECTORY_TYPES as readonly string[]).includes(type)) return undefined;
+  return {
+    type: type as DirectoryEntryType,
+    // An API that predates `id` identified users by `user` alone.
+    id: r.id ?? r.user ?? '',
+    displayName: r.display_name,
+    extensionNumbers: r.extension_numbers ?? [],
+  };
 }
