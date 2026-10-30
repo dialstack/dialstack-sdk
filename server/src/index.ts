@@ -5815,6 +5815,7 @@ export type {
   AudioFormat,
   MediaStreamBeginEvent,
   MediaStreamAudioEvent,
+  MediaStreamDtmfEvent,
   MediaStreamMessage,
   MediaStreamEvents,
 } from './media-stream.js';

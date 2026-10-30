@@ -24,6 +24,10 @@
  *     stream.sendAudio(responseAudio);
  *   });
  *
+ *   stream.on('dtmf', (event) => {
+ *     console.log('Caller pressed', event.digit);
+ *   });
+ *
  *   stream.on('close', () => {
  *     console.log('Call ended');
  *   });
@@ -71,11 +75,23 @@ export interface MediaStreamAudioEvent {
   payload: string;
 }
 
-export type MediaStreamMessage = MediaStreamBeginEvent | MediaStreamAudioEvent;
+/**
+ * A key the caller pressed. `timestamp` shares the clock of `audio` events.
+ */
+export interface MediaStreamDtmfEvent {
+  event: 'dtmf';
+  timestamp: number;
+  digit:
+    '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '*' | '#' | 'A' | 'B' | 'C' | 'D';
+}
+
+export type MediaStreamMessage =
+  MediaStreamBeginEvent | MediaStreamAudioEvent | MediaStreamDtmfEvent;
 
 export interface MediaStreamEvents {
   begin: (event: MediaStreamBeginEvent) => void;
   audio: (event: MediaStreamAudioEvent) => void;
+  dtmf: (event: MediaStreamDtmfEvent) => void;
   close: (code: number, reason: string) => void;
   error: (error: Error) => void;
 }
@@ -131,6 +147,8 @@ export class MediaStream extends EventEmitter {
           this.emit('begin', message);
         } else if (message.event === 'audio') {
           this.emit('audio', message);
+        } else if (message.event === 'dtmf') {
+          this.emit('dtmf', message);
         }
       } catch (error) {
         this.emit('error', error as Error);
