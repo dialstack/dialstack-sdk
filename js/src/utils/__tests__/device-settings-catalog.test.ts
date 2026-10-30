@@ -27,6 +27,13 @@ describe('deviceSettingsCatalog', () => {
     });
   });
 
+  it('offers exactly the user languages and formats the API accepts', () => {
+    const options = (path: string) => deviceSettingsCatalog.find((d) => d.path === path)?.options;
+    expect(options('abstractions.regional.language')).toEqual(['en-US', 'fr-CA', 'es-MX']);
+    expect(options('abstractions.display.time_format')).toEqual(['12h', '24h']);
+    expect(options('abstractions.display.date_format')).toEqual(['M/D/Y', 'D/M/Y', 'Y-M-D']);
+  });
+
   it('has unique paths', () => {
     const paths = deviceSettingsCatalog.map((d) => d.path);
     expect(new Set(paths).size).toBe(paths.length);

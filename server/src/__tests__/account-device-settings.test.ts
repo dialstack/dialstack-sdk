@@ -56,3 +56,39 @@ describe('account device settings', () => {
     expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({ settings: null });
   });
 });
+
+describe('user device settings', () => {
+  let dialstack: DialStack;
+
+  beforeEach(() => {
+    dialstack = new DialStack('sk_test_xxx');
+    mockFetch.mockReset();
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => view,
+      text: async () => JSON.stringify(view),
+      headers: new Headers({ 'x-request-id': 'req_123' }),
+    });
+  });
+
+  it('retrieves the singleton for the account', async () => {
+    await dialstack.users.retrieveDeviceSettings('user_1', { dialstackAccount: 'acct_1' });
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe('https://api.dialstack.ai/v1/users/user_1/device-settings');
+    expect(init.method).toBe('GET');
+    expect(init.headers['DialStack-Account']).toBe('acct_1');
+  });
+
+  it('posts a merge patch', async () => {
+    const params = {
+      settings: { abstractions: { regional: { language: 'fr-CA' } } },
+    } satisfies DeviceSettingsUpdateParams;
+    await dialstack.users.updateDeviceSettings('user_1', params, { dialstackAccount: 'acct_1' });
+
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe('https://api.dialstack.ai/v1/users/user_1/device-settings');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual(params);
+  });
+});

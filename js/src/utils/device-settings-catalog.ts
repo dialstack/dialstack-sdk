@@ -38,6 +38,44 @@ export const deviceSettingsCatalog: readonly DeviceSettingDefinition[] = [
     labelKey: 'sipTransport',
     confirmOn: ['tls'],
   },
+  {
+    path: 'abstractions.features.call_waiting_enabled',
+    kind: 'boolean',
+    labelKey: 'callWaiting',
+  },
+  {
+    path: 'abstractions.features.call_waiting_dialtone_enabled',
+    kind: 'boolean',
+    labelKey: 'callWaitingDialtone',
+  },
+  {
+    path: 'abstractions.features.auto_answer_enabled',
+    kind: 'boolean',
+    labelKey: 'autoAnswer',
+  },
+  {
+    path: 'abstractions.features.ring_group_silent_ring_enabled',
+    kind: 'boolean',
+    labelKey: 'ringGroupSilentRing',
+  },
+  {
+    path: 'abstractions.display.time_format',
+    kind: 'enum',
+    options: ['12h', '24h'],
+    labelKey: 'timeFormat',
+  },
+  {
+    path: 'abstractions.display.date_format',
+    kind: 'enum',
+    options: ['M/D/Y', 'D/M/Y', 'Y-M-D'],
+    labelKey: 'dateFormat',
+  },
+  {
+    path: 'abstractions.regional.language',
+    kind: 'enum',
+    options: ['en-US', 'fr-CA', 'es-MX'],
+    labelKey: 'language',
+  },
 ];
 
 /** The catalog entries the level may write, in catalog order. */

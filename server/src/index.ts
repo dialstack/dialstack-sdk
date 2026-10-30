@@ -4071,6 +4071,31 @@ export class DialStack {
       return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
     },
 
+    /**
+     * Retrieve the user's device settings: the phone preferences that follow
+     * the user to whatever phone serves them, the defaults they inherit from
+     * the account and above, and which settings a user can change (`settable`).
+     */
+    retrieveDeviceSettings: (
+      userId: string,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<DeviceSettingsResource> => {
+      return this._request('GET', `/v1/users/${userId}/device-settings`, undefined, options);
+    },
+
+    /**
+     * Change the user's device settings. `settings` is merged into what the
+     * user already sets: send only what you change, `null` to clear a setting
+     * back to its default. A setting the user cannot change returns 400.
+     */
+    updateDeviceSettings: (
+      userId: string,
+      params: DeviceSettingsUpdateParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<DeviceSettingsResource> => {
+      return this._request('POST', `/v1/users/${userId}/device-settings`, params, options);
+    },
+
     /** List the buttons this user changed on top of their phone's template. */
     listButtonOverrides: (
       userId: string,
