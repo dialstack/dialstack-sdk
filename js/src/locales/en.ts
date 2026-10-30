@@ -1092,11 +1092,16 @@ export const en = {
     },
     splash: {
       title: 'Welcome\nto {platformName}',
-      subtitle: "Let's get your business set up in 3 easy steps",
+      subtitle: "Let's get your business set up in {count} easy steps",
       start: 'Start Onboarding',
       step1: 'Account Details',
       step2: 'Setup Phone Numbers',
       step3: 'Assign Hardware',
+      // Optional so that a locale written against an earlier release still
+      // compiles; the splash falls back to English when a locale omits it.
+      ...({ subtitleSingleStep: "Let's get your business set up" } as {
+        subtitleSingleStep?: string;
+      }),
     },
   },
   dialPlan: {

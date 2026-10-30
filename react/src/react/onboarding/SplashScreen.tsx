@@ -10,6 +10,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
+import { defaultLocale } from '@dialstack/sdk-js';
 import { useOnboarding } from './OnboardingContext';
 import {
   SPLASH_BG_SHAPE_SVG,
@@ -29,7 +30,7 @@ function tp(str: string, platformName: string | undefined): string {
 }
 
 const SplashScreenBase: React.FC<SplashScreenProps> = ({ logoHtml, platformName, onStart }) => {
-  const { locale } = useOnboarding();
+  const { locale, activeSteps } = useOnboarding();
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Imperative manipulation of the illustration SVG after mount —
@@ -77,11 +78,17 @@ const SplashScreenBase: React.FC<SplashScreenProps> = ({ logoHtml, platformName,
     }
   }, [logoHtml]);
 
-  const chipLabels = [
-    locale.onboardingPortal.splash.step1,
-    locale.onboardingPortal.splash.step2,
-    locale.onboardingPortal.splash.step3,
-  ];
+  const splash = locale.onboardingPortal.splash;
+  const stepLabels: Record<string, string> = {
+    account: splash.step1,
+    numbers: splash.step2,
+    hardware: splash.step3,
+  };
+  const chipLabels = activeSteps.flatMap((step) => stepLabels[step] ?? []);
+  const subtitle =
+    chipLabels.length <= 1
+      ? (splash.subtitleSingleStep ?? defaultLocale.onboardingPortal.splash.subtitleSingleStep)
+      : splash.subtitle.replace('{count}', String(chipLabels.length));
 
   return (
     <div className="splash-container" ref={containerRef}>
@@ -92,7 +99,7 @@ const SplashScreenBase: React.FC<SplashScreenProps> = ({ logoHtml, platformName,
       <div className="splash-content">
         <div className="splash-text">
           <h1 className="splash-title">{tp(locale.onboardingPortal.splash.title, platformName)}</h1>
-          <p className="splash-subtitle">{locale.onboardingPortal.splash.subtitle}</p>
+          <p className="splash-subtitle">{subtitle}</p>
           <button className="splash-btn" onClick={onStart}>
             <span>{locale.onboardingPortal.splash.start}</span>
             {/* SAFETY: ARROW_RIGHT_SVG is a static constant from constants.ts */}
@@ -102,7 +109,7 @@ const SplashScreenBase: React.FC<SplashScreenProps> = ({ logoHtml, platformName,
         </div>
         <div className="splash-chips">
           {chipLabels.map((label, i) => (
-            <div key={i} className="splash-chip">
+            <div key={label} className="splash-chip">
               <div className="splash-chip-number">{i + 1}</div>
               <span className="splash-chip-label">{label}</span>
             </div>
