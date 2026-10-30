@@ -205,6 +205,11 @@ export interface Account {
    * account is treated as unsigned outright.
    */
   tos_resign_by?: string | null;
+  /**
+   * Whether the account's users may order hardware themselves, with the
+   * `customer_ordering_enabled` override resolved against the platform default.
+   */
+  customer_ordering_effective?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -279,6 +284,13 @@ export interface AccountConfig {
    * default, `true` shows it, `false` hides it.
    */
   default_agent_visible?: boolean | null;
+  /**
+   * Account-level override of the platform's customer ordering default: whether
+   * this account's users may order hardware themselves. Tri-state:
+   * null/undefined inherits the platform default, `true` allows, `false`
+   * refuses. Settable only with a platform secret key.
+   */
+  customer_ordering_enabled?: boolean | null;
 }
 
 export interface BillingAddress {
