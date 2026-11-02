@@ -1948,14 +1948,26 @@ export interface HardwareOrderLine {
    */
   hardware_catalog: string | HardwareCatalogItem;
   quantity: number;
+  /** @deprecated Read `buy_unit_price_cents`. */
+  unit_price_cents: number | null;
+  /** @deprecated Read `buy_amount_cents`. `quantity * unit_price_cents`. */
+  amount_cents: number | null;
   /**
-   * Price charged per unit, in USD cents, as of when the order was placed. A
-   * draft re-prices from the catalog at checkout; from then on it is frozen, so
-   * repricing the catalog afterwards does not move a placed order's numbers.
+   * What the platform pays per unit, in USD cents, as of when the order was
+   * placed. A draft re-prices from the catalog at checkout; from then on it is
+   * frozen, so repricing the catalog afterwards does not move a placed order's
+   * numbers. `null` while unpriced.
    */
-  unit_price_cents: number;
-  /** `quantity * unit_price_cents`, in USD cents. */
-  amount_cents: number;
+  buy_unit_price_cents: number | null;
+  /** `quantity * buy_unit_price_cents`; null exactly when it is. */
+  buy_amount_cents: number | null;
+  /**
+   * What the account pays per unit, in USD cents: the buy price plus the
+   * customer markup. `null` while unpriced or with no customer markup set.
+   */
+  sell_unit_price_cents: number | null;
+  /** `quantity * sell_unit_price_cents`; null exactly when it is. */
+  sell_amount_cents: number | null;
   created_at: string;
   updated_at: string;
 }

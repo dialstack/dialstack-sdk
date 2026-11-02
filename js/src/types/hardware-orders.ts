@@ -12,29 +12,22 @@ export interface HardwareOrderApproval {
 }
 
 // NEXT MAJOR: remove HardwareOrderLine.unit_price_cents and amount_cents; the
-// platform_ and account_ fields replace them.
+// sell_ fields replace them.
 export interface HardwareOrderLine {
   id: string;
   hardware_catalog_id: string;
   quantity: number;
-  /**
-   * @deprecated Its amount depends on the caller: the platform's price for a
-   * platform key, the account's for an account session. Read
-   * `platform_unit_price_cents` or `account_unit_price_cents` instead. Removed
-   * in the next major.
-   */
+  /** @deprecated Read `sell_unit_price_cents`. Removed in the next major. */
   unit_price_cents: number | null;
-  /** @deprecated Like `unit_price_cents`; read `platform_amount_cents` or `account_amount_cents`. Removed in the next major. */
+  /** @deprecated Read `sell_amount_cents`. Removed in the next major. */
   amount_cents: number | null;
-  /** What the platform pays per unit. Null while unpriced, and always for an account session. */
-  platform_unit_price_cents: number | null;
-  platform_amount_cents: number | null;
   /**
-   * What the account pays per unit. Null while unpriced, when the platform sets
-   * no customer markup, or for an account session whose platform hides prices.
+   * What the account pays per unit, in USD cents. `null` while the line is not
+   * yet priced; absent when the platform does not show the account its prices.
    */
-  account_unit_price_cents: number | null;
-  account_amount_cents: number | null;
+  sell_unit_price_cents?: number | null;
+  /** `quantity * sell_unit_price_cents`; null or absent exactly when it is. */
+  sell_amount_cents?: number | null;
 }
 
 /** Where an order ships. */
