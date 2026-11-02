@@ -5,6 +5,108 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.0](https://github.com/dialstack/dialstack-sdk/compare/v3.8.0...v3.9.0) (2026-11-02)
+
+### Features
+
+- **react/softphone:** The softphone lists the account's colleagues, with
+  live presence, in its directory. `SoftphoneProvider` takes
+  `accountDirectory`, which defaults to on when the host passes no
+  `directory`; pass both to list the colleagues ahead of the host's entries.
+  `useAccountDirectory` exposes the same list for custom UIs. Each presence
+  state has its own badge, and Do Not Disturb and away are marked.
+- **react/softphone:** The web dial pad offers the directory and suggests
+  matching contacts as you dial; tapping a suggestion or a directory entry
+  calls it, from the dial pad and from Add call. `matchDirectoryByNumber` and
+  `currentContact` are exported for custom dial pads.
+- **react/softphone:** The transfer and add-call panels say what the target is,
+  switch with an icon button, and show the picked contact as its directory row
+  with live presence and a × to change it. The directory search has a search
+  icon and a clear button, and closes on a pick.
+- **webrtc:** `listDirectory({ types })` returns typed entries for the
+  account's other dialable destinations as well as users: queues, ring
+  groups, voice apps, dial plans and shared voicemail boxes. Every entry has an
+  `id`. `types: 'all'` asks for every type, and entries of a type this SDK
+  version doesn't know are skipped. `listDirectory()` without options is
+  unchanged.
+- **js:** `on('call.ringing', handler)` delivers a `RingingCallEvent` when a
+  user's phones start ringing.
+- **server:** `MediaStream` emits `dtmf` events carrying the key the caller
+  pressed.
+- **server:** Voice app call actions gain `hangup`, and `attach` takes
+  `metadata`, echoed on the media WebSocket's `begin` message.
+  `WebhookEvent` carries an `id` that is repeated on retries, so a duplicate
+  delivery can be recognised.
+- **server:** Device settings per account and per user:
+  `accounts.retrieveDeviceSettings` / `updateDeviceSettings` and
+  `users.retrieveDeviceSettings` / `updateDeviceSettings`, returning a
+  `DeviceSettingsResource` with the inherited defaults, where each comes from,
+  and which settings that level may change. Accounts also carry
+  `device_settings`, and `effective_device_settings` with
+  `expand: ['effective_device_settings']`.
+- **js:** `deviceSettingsCatalog`, `settableDeviceSettings`,
+  `readDeviceSetting` and `deviceSettingsPatch` describe how to render and
+  write each device setting.
+- **server:** Per-user button layouts: users take a `button_template`
+  (expandable), `users.listButtonOverrides` / `createButtonOverride` /
+  `delButtonOverride` manage the buttons a user changes on top of it, and a
+  device's resolved buttons carry `source_user`.
+- **server:** Accounts carry `outbound_announcement_clip`, the clip played to
+  both parties when an outbound call to an external number is answered, and
+  `customer_ordering_enabled` (with the resolved `customer_ordering_effective`)
+  to override the platform's hardware-ordering default for one account.
+- **js, server:** Account pricing carries `toll_free_minute_rate_decimal`, the
+  per-minute rate for inbound calls to the account's toll-free numbers. It is
+  absent when the account can neither order toll-free numbers nor holds one.
+- **js:** `PhoneNumberOrdering` searches toll-free numbers by vanity word (e.g.
+  `800-HELP`), and shows the toll-free tab only to accounts that can order
+  toll-free numbers.
+- **react/onboarding:** The onboarding rates card groups rates as Monthly and
+  Calling, and includes the toll-free per-minute rate when it applies.
+- **js, react:** Component handler setters accept `undefined` to unwire a
+  callback, and a React wrapper clears a handler when the host stops passing
+  it. `useUpdateHandlerWithSetter` is exported for wrappers of your own.
+
+### Deprecations
+
+- **react/softphone:** `useSoftphone().duration` is deprecated in favour of
+  `useCallDuration(activeCall)` and will be removed in the next major release.
+  It is now read on demand, so `useSoftphone()` consumers no longer re-render
+  on every tick of the call clock.
+
+### Bug Fixes
+
+- **react/softphone:** Repeated taps on answer, decline, hang up, mute, hold,
+  transfer, merge, conference hold and switch are ignored. A second
+  `placeCall` is dropped while one is still being placed, and repeat calls to
+  the same number are throttled.
+- **react/softphone:** Directory presence re-subscribes when the server reports
+  it unavailable or the subscription fails, and survives a failed refetch on
+  reconnect.
+- **react/softphone:** Dial pad matching waits for a second key before offering
+  partial number matches, matches a presence status only as the whole label,
+  closes the list when the directory empties, and keeps a picked contact's
+  number and presence current.
+- **react/softphone:** The web dial pad fits its keys to the available height
+  in small hosts, keeps its proportions and size as it shrinks or the directory
+  opens, stays still as the first digit is typed, and centres the match row
+  with a visible scrollbar, including in Firefox. Its size is decided before
+  the first paint.
+- **js, react:** `CallHistory`, `CallLogs`, `Voicemails`, `PhoneNumbers` and
+  `PhoneNumberOrdering` no longer redraw or reload when given unchanged
+  options or props, while explicit repeat calls to `CallHistory` and
+  `Voicemails` setters still reload. React wrappers pass a prop on only when
+  its value changes, including in-place changes, and report a throwing setter
+  once per value.
+- **js:** `AIAgent` applies stored initial values when it switches to host
+  mode.
+- **react/onboarding:** The splash screen lists only the steps that are
+  active, and custom locales keep compiling.
+- **react/onboarding:** Suggested extensions never start with 911 and are never
+  112 or 999.
+- **server:** `AccountCreateParamsBase` and `AccountCreateAddress` are
+  exported.
+
 ## [3.8.0](https://github.com/dialstack/dialstack-sdk/compare/v3.7.0...v3.8.0) (2026-10-25)
 
 ### Features
