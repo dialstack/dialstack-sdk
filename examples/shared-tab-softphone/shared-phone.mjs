@@ -180,10 +180,12 @@ export function createSharedPhone({ fetchToken, render, showError, phoneOptions 
         players.forEach(applySpeaker);
         return;
       case 'setEmergencyAddress': {
-        // Reconnecting applies the address, and ends any call in progress.
+        // Binds over the open connection; calls in progress stay up. anchor:
+        // the user just entered where they are. A denial also fires
+        // network.changed, which keeps the prompt showing.
         const address = await phone.setEmergencyAddress(command.address);
-        await phone.reconnectWithEmergency(address.id);
-        needsLocation = false;
+        const { bound } = await phone.rebindEmergencyAddress(address.id, { anchor: true });
+        needsLocation = !bound;
         return publish();
       }
       default:

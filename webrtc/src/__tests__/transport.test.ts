@@ -45,7 +45,9 @@ class FakeWebSocket {
   send(data: string): void {
     this.sent.push(data);
   }
-  close(): void {
+  closeCode: number | undefined;
+  close(code?: number): void {
+    this.closeCode = code;
     // Real WS goes to CLOSED and fires close asynchronously; the transport's
     // identity guard tolerates a late fire, but tests drive close explicitly.
     this.readyState = FakeWebSocket.CLOSED;
@@ -298,6 +300,15 @@ describe('Transport wake-probe (stale-session watchdog)', () => {
     // The scheduled reconnect opens a fresh socket.
     jest.runOnlyPendingTimers();
     expect(FakeWebSocket.instances).toHaveLength(2);
+  });
+
+  it('abandons the dead socket with a non-normal close, so the server holds its calls', () => {
+    const { ws } = connectAuthenticated();
+    __triggerAppResume();
+    jest.advanceTimersByTime(5000);
+    // A 1000 would tell the server the client left on purpose, and it would
+    // hang the session's calls up instead of waiting for the resume.
+    expect(ws.closeCode).toBe(4000);
   });
 
   it('does not reconnect when the probe gets a pong (socket alive)', () => {

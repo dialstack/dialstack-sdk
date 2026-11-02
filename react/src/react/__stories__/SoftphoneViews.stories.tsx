@@ -352,6 +352,9 @@ const AllCells: React.FC = () => (
       })}
     </Cell>
     <Cell label="in call · no dtmf">{ongoing({ canSendDtmf: false })}</Cell>
+    <Cell label="in call · reconnecting">
+      {ongoing({ reconnecting: true, stateLabel: defaultLocale.softphone.reconnecting })}
+    </Cell>
 
     <Cell label="overlay · keypad">{overlayCell('keypad')}</Cell>
     <Cell label="overlay · keypad · digits entered">

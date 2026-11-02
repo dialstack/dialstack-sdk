@@ -260,6 +260,9 @@ const Grid: React.FC<{ palette: Palette; size?: HostSize }> = ({ palette, size }
     <SoftphoneFrame label="in call · no dtmf" palette={palette} size={size}>
       {call(palette, { canSendDtmf: false })}
     </SoftphoneFrame>
+    <SoftphoneFrame label="in call · reconnecting" palette={palette} size={size}>
+      {call(palette, { reconnecting: true, stateLabel: 'Reconnecting…' })}
+    </SoftphoneFrame>
 
     <SoftphoneFrame label="overlay · keypad" palette={palette} size={size}>
       {call(palette, { overlay: 'keypad' })}

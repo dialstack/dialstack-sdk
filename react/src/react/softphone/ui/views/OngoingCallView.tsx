@@ -66,6 +66,12 @@ export interface OngoingCallViewProps extends Omit<SoftphoneViewChrome, 'display
   devicesPanel?: React.ReactNode;
 
   canStartTransfer: boolean;
+  /**
+   * The call's signalling is reconnecting. Only hang-up, mute and the audio
+   * controls stay on: the rest needs the server, and DTMF needs media that
+   * may have dropped with it. Panels that need the server close.
+   */
+  reconnecting?: boolean;
   canAddCall: boolean;
   canMerge: boolean;
   onToggleMute: () => void;
@@ -119,6 +125,7 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
   onSubmitAddCall,
   devicesPanel = null,
   canStartTransfer,
+  reconnecting = false,
   canAddCall,
   canMerge,
   onToggleMute,
@@ -129,9 +136,9 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
   scope = DEFAULT_SCOPE,
   t,
 }) => {
-  const inKeypadMode = isActive && overlay === 'keypad' && canSendDtmf;
-  const transferOpen = isActive && overlay === 'transfer' && canStartTransfer;
-  const addCallOpen = isActive && overlay === 'addcall' && canAddCall;
+  const inKeypadMode = isActive && overlay === 'keypad' && canSendDtmf && !reconnecting;
+  const transferOpen = isActive && overlay === 'transfer' && canStartTransfer && !reconnecting;
+  const addCallOpen = isActive && overlay === 'addcall' && canAddCall && !reconnecting;
   // Both panels take over the screen above hang up (see DialPanelView).
   const panelOpen = transferOpen || addCallOpen;
 
@@ -323,6 +330,7 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
               label={isHeld ? t('resume') : t('hold')}
               glyph={softphoneGlyphs.pause}
               on={isHeld}
+              disabled={reconnecting}
               onClick={onToggleHold}
             />
             {canSendDtmf && (
@@ -330,6 +338,7 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
                 label={t('keypad')}
                 glyph={softphoneGlyphs.keypad}
                 on={overlay === 'keypad'}
+                disabled={reconnecting}
                 onClick={() => onToggleOverlay('keypad')}
               />
             )}
@@ -337,7 +346,7 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
               label={t('addCall')}
               glyph={softphoneGlyphs.addCall}
               on={overlay === 'addcall'}
-              disabled={!canAddCall || isMerged}
+              disabled={!canAddCall || isMerged || reconnecting}
               onClick={() => onToggleOverlay('addcall')}
             />
             {}
@@ -346,6 +355,7 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
                 label={isMerged ? t('split') : t('merge')}
                 glyph={softphoneGlyphs.merge}
                 on={isMerged}
+                disabled={reconnecting}
                 onClick={onMergeOrSplit}
               />
             ) : (
@@ -353,7 +363,7 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
                 label={t('transfer')}
                 glyph={softphoneGlyphs.transfer}
                 on={overlay === 'transfer'}
-                disabled={!canStartTransfer}
+                disabled={!canStartTransfer || reconnecting}
                 onClick={() => onToggleOverlay('transfer')}
               />
             )}

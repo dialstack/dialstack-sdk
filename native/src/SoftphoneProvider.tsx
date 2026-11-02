@@ -84,6 +84,22 @@ const nativeAppResume: AppResumeSubscribe = (cb) => {
   return () => sub.remove();
 };
 
+// Adds a host-supplied network-change source (e.g. NetInfo) to the foreground
+// resume: a Wi-Fi to cellular switch kills the signalling socket without a
+// close, and probing on the switch finds that out in seconds instead of on the
+// next heartbeat.
+function withNetworkChange(subscribeNetworkChange?: AppResumeSubscribe): AppResumeSubscribe {
+  if (!subscribeNetworkChange) return nativeAppResume;
+  return (cb) => {
+    const offResume = nativeAppResume(cb);
+    const offNetwork = subscribeNetworkChange(cb);
+    return () => {
+      offResume();
+      offNetwork();
+    };
+  };
+}
+
 export type ConnectionState = SoftphoneConnectionState;
 
 export interface SoftphoneProviderProps {
@@ -117,6 +133,14 @@ export interface SoftphoneProviderProps {
    * the host owns the permission prompt, geolocation, and reverse-geocoding.
    */
   locationProvider?: () => Promise<EmergencyAddressInput>;
+  /**
+   * Subscribe to the device's network changes (Wi-Fi to cellular and back) and
+   * return an unsubscribe function, e.g. with `@react-native-community/netinfo`.
+   * Optional: the SDK takes no network dependency of its own. When given, a
+   * network change makes the softphone check its connection at once, so a call
+   * in progress resumes in seconds rather than after a missed heartbeat.
+   */
+  subscribeNetworkChange?: AppResumeSubscribe;
   /** Connect automatically once mounted (default: true). */
   autoConnect?: boolean;
   /** Theming — the shared appearance surface. */
@@ -215,6 +239,7 @@ export function SoftphoneProvider({
   onTokenExpiring,
   emergencyAddressId,
   locationProvider,
+  subscribeNetworkChange,
   autoConnect = true,
   appearance,
   locale,
@@ -255,6 +280,10 @@ export function SoftphoneProvider({
   );
   // Stable identity so the base's context-value memo isn't busted every render.
   const extra = useMemo(() => ({ locationProvider, audio }), [locationProvider, audio]);
+  const onAppResume = useMemo(
+    () => withNetworkChange(subscribeNetworkChange),
+    [subscribeNetworkChange]
+  );
 
   // The bridge's BridgeCall is structurally the webrtc Call the softphone renders
   // — the port is narrow on purpose, so the two types are decoupled by design
@@ -276,7 +305,7 @@ export function SoftphoneProvider({
       ringback={callAudio === 'host' ? silentRingback : nativeRingback}
       createSignalingSocket={nativeSignalingSocket}
       client={() => nativeClient(appInfo)}
-      onAppResume={nativeAppResume}
+      onAppResume={onAppResume}
       apiBaseUrl={apiBaseUrl}
       onTokenExpiring={onTokenExpiring}
       emergencyAddressId={emergencyAddressId}

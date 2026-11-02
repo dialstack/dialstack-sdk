@@ -652,6 +652,8 @@ export function useCalls(
       call.on('answered', onAnswered);
       call.on('held', refresh);
       call.on('resumed', refresh);
+      call.on('reconnecting', refresh);
+      call.on('reconnected', refresh);
       call.on('ended', onEnded);
 
       unwireByCall.current.set(call, () => {
@@ -660,6 +662,8 @@ export function useCalls(
         call.off('answered', onAnswered);
         call.off('held', refresh);
         call.off('resumed', refresh);
+        call.off('reconnecting', refresh);
+        call.off('reconnected', refresh);
         call.off('ended', onEnded);
       });
     },

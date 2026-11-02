@@ -187,7 +187,7 @@ function makeInit(overrides: Partial<CallInit> = {}): CallInit {
     fromName: null,
     to: 'user_test-wrtc',
     initialState: 'ringing',
-    transport: { send: jest.fn() } as never,
+    transport: ((send) => ({ send, sendOrQueue: send }))(jest.fn()) as never,
     iceServers: [],
     startConsult: jest.fn(),
     nextReqId: () => 'req_test',

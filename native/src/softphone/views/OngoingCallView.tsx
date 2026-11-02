@@ -67,6 +67,12 @@ export interface OngoingCallViewProps {
   onClearAddCallContact?: () => void;
 
   canStartTransfer: boolean;
+  /**
+   * The call's signalling is reconnecting. Only hang-up, mute and the audio
+   * controls stay on: the rest needs the server, and DTMF needs media that
+   * may have dropped with it. Panels that need the server close.
+   */
+  reconnecting?: boolean;
   canAddCall: boolean;
   onToggleMute: () => void;
   onToggleHold: () => void;
@@ -117,6 +123,7 @@ export function OngoingCallView({
   pickedAddCallContact = null,
   onClearAddCallContact = () => {},
   canStartTransfer,
+  reconnecting = false,
   canAddCall,
   onToggleMute,
   onToggleHold,
@@ -129,9 +136,9 @@ export function OngoingCallView({
 }: OngoingCallViewProps): React.JSX.Element {
   const { roomy, onLayout } = useRoomyHost();
   const styles = useMemo(() => makeStyles(palette, !roomy), [palette, roomy]);
-  const inKeypadMode = isActive && overlay === 'keypad' && canSendDtmf;
-  const transferOpen = isActive && overlay === 'transfer' && canStartTransfer;
-  const addCallOpen = isActive && overlay === 'addcall' && canAddCall;
+  const inKeypadMode = isActive && overlay === 'keypad' && canSendDtmf && !reconnecting;
+  const transferOpen = isActive && overlay === 'transfer' && canStartTransfer && !reconnecting;
+  const addCallOpen = isActive && overlay === 'addcall' && canAddCall && !reconnecting;
   // Both panels take over the screen above hang up (see DialPanelView).
   const panelOpen = transferOpen || addCallOpen;
 
@@ -315,6 +322,7 @@ export function OngoingCallView({
             label={isHeld ? t('resume') : t('hold')}
             glyph={softphoneGlyphs.pause}
             on={isHeld}
+            disabled={reconnecting}
             onPress={onToggleHold}
             palette={palette}
             styles={styles}
@@ -324,6 +332,7 @@ export function OngoingCallView({
               label={t('keypad')}
               glyph={softphoneGlyphs.keypad}
               on={overlay === 'keypad'}
+              disabled={reconnecting}
               onPress={() => onToggleOverlay('keypad')}
               palette={palette}
               styles={styles}
@@ -336,7 +345,7 @@ export function OngoingCallView({
             onPress={() => onToggleOverlay('transfer')}
             palette={palette}
             styles={styles}
-            disabled={!canStartTransfer}
+            disabled={!canStartTransfer || reconnecting}
           />
           <ControlButton
             label={t('addCall')}
@@ -345,7 +354,7 @@ export function OngoingCallView({
             onPress={() => onToggleOverlay('addcall')}
             palette={palette}
             styles={styles}
-            disabled={!canAddCall}
+            disabled={!canAddCall || reconnecting}
           />
           <ControlButton
             label={t('audioSpeaker')}

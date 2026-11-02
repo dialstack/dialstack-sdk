@@ -323,9 +323,18 @@ export default function Page() {
     (field: keyof EmergencyAddressInput) => (e: React.ChangeEvent<HTMLInputElement>) =>
       setE911Form((prev) => ({ ...prev, [field]: e.target.value }));
 
-  // Validate + save the address, then reconnect so it binds to the current
-  // network. A freshly created address has no binding, so a plain reconnect is
-  // enough to bind it.
+  // Bind the address to the network the device is on now, over the open
+  // connection, so a call in progress stays up. anchor: the user has just told
+  // us this is where they are, so it replaces whatever network the address was
+  // confirmed on before.
+  const bindHere = async (phone: DialStackPhone, id: string) => {
+    const { bound } = await phone.rebindEmergencyAddress(id, { anchor: true });
+    setNotBound(!bound);
+    if (bound) setNetworkChanged(false);
+    setMessage(bound ? '' : "This address couldn't be confirmed on this network.");
+  };
+
+  // Validate + save the address, then bind it to the current network.
   const saveEmergencyAddress = async () => {
     const phone = phoneRef.current;
     if (!phone) return;
@@ -336,7 +345,7 @@ export default function Page() {
       emergencyIdRef.current = addr.id;
       setEmergency(addr);
       setMessage('Address saved. Binding it to this network …');
-      await reconnect();
+      await bindHere(phone, addr.id);
     } catch (e) {
       setMessage((e as Error).message);
     } finally {
@@ -344,8 +353,8 @@ export default function Page() {
     }
   };
 
-  // Re-bind after a network change: clear the stale binding, then reconnect so
-  // the server registers the address against the network the device is on now.
+  // Re-bind after a network change: confirm the saved address for the network
+  // the device is on now.
   const rebindForCurrentNetwork = async () => {
     const phone = phoneRef.current;
     const id = emergencyIdRef.current;
@@ -353,25 +362,12 @@ export default function Page() {
     setE911Busy(true);
     try {
       setMessage('Re-binding emergency address to this network …');
-      await phone.clearEmergencyAddressRegisteredIp(id);
-      await reconnect();
+      await bindHere(phone, id);
     } catch (e) {
       setMessage((e as Error).message);
     } finally {
       setE911Busy(false);
     }
-  };
-
-  // Tear down and reconnect. The new session presents emergencyIdRef on its
-  // authenticate handshake, which is where the network binding happens.
-  const reconnect = async () => {
-    phoneRef.current?.disconnect();
-    phoneRef.current = null;
-    // disconnect() disposes the old Call objects without emitting 'ended', so
-    // clear them here too — otherwise they'd render live-looking controls
-    // pointing at a disposed phone (mirrors disconnect()).
-    setCalls({});
-    await connect();
   };
 
   const placeCall = async () => {

@@ -6,6 +6,12 @@ export type CallState = 'trying' | 'ringing' | 'active' | 'held' | 'ended';
 export type CallDirection = 'inbound' | 'outbound';
 export type CallEndReason = 'hangup' | 'no-answer' | 'busy' | 'failed' | 'transferred' | 'rejected';
 export type RejectReason = 'busy' | 'decline';
+/**
+ * Who put a call on hold. Always `'local'`: the far end holding the call is
+ * not reported, and the call stays `active` while it does.
+ */
+// NEXT MAJOR: narrow to 'local' (or drop HeldBy and the `held` event's
+// argument). 'remote' is kept only so code that compares against it compiles.
 export type HeldBy = 'local' | 'remote';
 export type PresenceStatus = 'available' | 'on_call' | 'dnd' | 'away' | 'offline';
 export type SettablePresenceStatus = 'available' | 'dnd' | 'away';
@@ -301,8 +307,12 @@ export type ClientMessage =
       token: string;
       emergency_address_id?: string;
       client?: string;
+      // The session to resume after a dropped socket, from the last
+      // `authenticated`. Sent only while calls are suspended.
+      resume_token?: string;
     }
   | { type: 'auth.refresh'; req_id?: string; token: string }
+  | { type: 'emergency.rebind'; req_id?: string; emergency_address_id: string; anchor?: boolean }
   // Application-layer liveness probe. Sent by the client to confirm the socket
   // is still alive after the environment resumes from a background throttle —
   // browsers can't send WS control-frame pings from JS, so this is a data frame.
@@ -326,7 +336,9 @@ export type ClientMessage =
       sdp?: string;
     }
   | { type: 'call.unmute'; req_id?: string; call_id: string }
-  | { type: 'sdp.offer'; call_id: string; sdp: string }
+  // From the client, an offer on an established call renegotiates it (an ICE
+  // restart after a network change); the server replies with sdp.answer.
+  | { type: 'sdp.offer'; req_id?: string; call_id: string; sdp: string }
   | { type: 'sdp.answer'; call_id: string; sdp: string }
   | {
       type: 'ice.candidate';
@@ -336,6 +348,9 @@ export type ClientMessage =
       sdp_m_line_index: number | null;
     }
   | { type: 'ice.done'; call_id: string }
+  // The candidate pair ICE nominated, as SDP candidate values, so the
+  // server's later offers and answers list only it.
+  | { type: 'ice.selected'; call_id: string; local: string; remote: string; ufrag: string }
   // Presence: subscribe to an explicit, bounded set of users to watch (BLF).
   // `users` is required and non-empty; the server rejects an empty/over-cap
   // list with a non-fatal `invalid_message` error.
@@ -360,12 +375,22 @@ export type ServerMessage =
       req_id?: string | null;
       user_id: string;
       account_id: string;
-      reconnected?: boolean;
+      // Present when the server can hold the session's calls through a dropped
+      // socket: the token to resume it with, how long it waits, and the regional
+      // endpoint to reconnect to so the resume reaches the region holding them.
+      resume_token?: string;
+      resume_window_seconds?: number;
+      resume_url?: string;
+      // True when this connection resumed a detached session. call.ended and
+      // call.restored frames for its calls follow.
+      resumed?: boolean;
     }
   | { type: 'auth.refreshed'; req_id?: string | null }
   // Reply to a client `ping`; echoes its req_id. Proof the socket is alive.
   | { type: 'pong'; req_id?: string | null }
   | { type: 'network.changed' }
+  // Reply to `emergency.rebind`. A `network.changed` precedes it when bound is false.
+  | { type: 'emergency.rebound'; req_id?: string | null; bound: boolean }
   | {
       type: 'error';
       code: string;
@@ -389,12 +414,13 @@ export type ServerMessage =
   | {
       type: 'call.restored';
       call_id: string;
-      state: 'ringing' | 'active' | 'held';
+      held: boolean;
+      muted: boolean;
       from: string;
-      from_name: string | null;
+      from_name?: string | null;
       to: string;
       direction: CallDirection;
-      answered_at: string | null;
+      answered_at: string;
     }
   | { type: 'call.held'; call_id: string; held_by: HeldBy }
   | { type: 'call.resumed'; call_id: string }

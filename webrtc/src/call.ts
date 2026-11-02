@@ -81,6 +81,11 @@ type CallEventMap = {
   held: (by: HeldBy) => void;
   resumed: () => void;
   ended: (reason: CallEndReason) => void;
+  // The signalling socket dropped; the call stays up while the phone reconnects
+  // and resumes its session. Actions issued meanwhile apply once it is back.
+  reconnecting: () => void;
+  // The session resumed and the call is reachable again.
+  reconnected: () => void;
   audioInputChanged: (deviceId: string | null) => void;
   // The sender keeps a dead track, so the far end hears silence and nothing throws.
   audioInputLost: () => void;
@@ -125,7 +130,29 @@ export interface CallInit {
   // (which echoes it) can be traced back to this call and this action. Threaded
   // from the phone so ids stay unique across calls.
   nextReqId: () => string;
+  // Fresh ICE servers for an ICE restart: TURN credentials expire, and a restart
+  // on a new network may need a relay. Optional; without it the restart reuses
+  // the servers the call started with.
+  refreshIceServers?: () => Promise<RTCIceServer[]>;
+  // ICE lost connectivity while the socket still looks up: a network change the
+  // signalling socket hasn't noticed yet. The phone probes the socket.
+  onIceTrouble?: () => void;
 }
+
+// How long ICE may sit in `disconnected` before the call restarts it. Short
+// blips recover on their own; a network change does not.
+const ICE_DISCONNECTED_RESTART_MS = 2_000;
+
+// How long a sent restart offer may wait for its answer. The answer can be
+// lost (it was emitted while the socket was down), and an unanswered restart
+// would block every later one.
+const ICE_RESTART_ANSWER_TIMEOUT_MS = 15_000;
+
+// Retries of a restart that failed or got no answer, while ICE stays down:
+// after 2s, 4s, then 8s. Past that the network is not coming back for this
+// call; the far end ends it when media times out.
+const ICE_RESTART_RETRIES = 3;
+const ICE_RESTART_RETRY_BASE_MS = 2_000;
 
 /**
  * `localMediaReady`'s rejection while capture is deferred. A distinct type so the
@@ -154,6 +181,15 @@ export class Call {
 
   get isHeld(): boolean {
     return this.state === 'held';
+  }
+
+  /**
+   * True while the signalling socket is down and the phone is resuming its
+   * session. The call is still up: audio keeps flowing on an unchanged
+   * network, and hold, mute and hang-up issued now apply once it is back.
+   */
+  get isReconnecting(): boolean {
+    return this.suspended;
   }
 
   /**
@@ -198,6 +234,25 @@ export class Call {
   private answeredAt: number | null = null;
   private listeners: { [K in keyof CallEventMap]?: Set<Listener<K>> } = {};
   private endedSettled = false;
+  private suspended = false;
+  // ICE restart state: one at a time, and a restart wanted while suspended
+  // waits for the resume (the gateway can't route the offer before it).
+  private restartReqId: string | null = null;
+  private restartWanted = false;
+  // Until the restart offer is sent, the new generation's candidates are in
+  // it, and frames for them must not reach the gateway first: it would file
+  // them, and the end of gathering, under the generation being replaced.
+  private restartOfferSent = false;
+  private restartGatheringDone = false;
+  private restartAnswerTimer: ReturnType<typeof setTimeout> | null = null;
+  private restartRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private restartAttempts = 0;
+  // The nominated pair last reported, so a repeat isn't resent.
+  private reportedPair: string | null = null;
+  private watchingSelectedPair = false;
+  private iceDisconnectedTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly refreshIceServers: (() => Promise<RTCIceServer[]>) | null;
+  private readonly onIceTrouble: (() => void) | null;
   private pendingAnswerSdp: string | null = null;
   // Held across buildAnswer's awaits so a second caller cannot start one while
   // the first is mid-flight; pendingAnswerSdp only lands after the work is done.
@@ -249,6 +304,8 @@ export class Call {
     this.transport = init.transport;
     this.nextReqId = init.nextReqId;
     this.startConsult = init.startConsult;
+    this.refreshIceServers = init.refreshIceServers ?? null;
+    this.onIceTrouble = init.onIceTrouble ?? null;
     this.ringback = init.ringback ?? new RingbackTone();
     this.ringback.setSinkId?.(init.audioOutputDeviceId ?? null);
     this.localStream = createMediaStream();
@@ -520,6 +577,7 @@ export class Call {
   /** @internal The server's error reply to one of this call's actions. */
   handleActionError(reqId: string): void {
     if (!this.issuedReqIds.delete(reqId)) return;
+    if (reqId === this.restartReqId) this.abandonIceRestart();
     // The server refuses a hangup only when it has no such call (a repeat of one
     // it already ended is accepted), so any error answering one means the call
     // is over. Revisit this if the server ever refuses a hangup for another reason.
@@ -593,7 +651,10 @@ export class Call {
     if (this.endedSettled) return;
     const reqId = this.issueReqId();
     this.hangupReqIds.add(reqId);
-    this.transport.send({ type: 'call.hangup', req_id: reqId, call_id: this.id });
+    this.transport.sendOrQueue({ type: 'call.hangup', req_id: reqId, call_id: this.id });
+    // Nothing is waiting for the server to agree: the hangup goes out on the
+    // resume, and if there is none the server ends the call itself.
+    if (this.suspended) this.settleEnded('hangup');
   }
 
   hold(): void {
@@ -605,7 +666,8 @@ export class Call {
     // call) — sending call.hold for a non-active call draws a server
     // `invalid_message: call is not active` that surfaces as a spurious error.
     if (this.state !== 'active') return;
-    this.transport.send({ type: 'call.hold', req_id: this.issueReqId(), call_id: this.id });
+    this.refuseWhileReconnecting();
+    this.transport.sendOrQueue({ type: 'call.hold', req_id: this.issueReqId(), call_id: this.id });
   }
 
   /**
@@ -617,7 +679,8 @@ export class Call {
    */
   setConferenceHold(held: boolean): void {
     if (this.state === 'ended') return;
-    this.transport.send({
+    this.refuseWhileReconnecting();
+    this.transport.sendOrQueue({
       type: held ? 'call.hold' : 'call.resume',
       req_id: this.issueReqId(),
       call_id: this.id,
@@ -632,13 +695,19 @@ export class Call {
   holdAfterResume(): void {
     if (this.conference) return;
     if (this.state === 'ended') return;
-    this.transport.send({ type: 'call.hold', req_id: this.issueReqId(), call_id: this.id });
+    this.refuseWhileReconnecting();
+    this.transport.sendOrQueue({ type: 'call.hold', req_id: this.issueReqId(), call_id: this.id });
   }
 
   resume(): void {
     // Symmetric to hold(): only a held call can be resumed.
     if (this.state !== 'held') return;
-    this.transport.send({ type: 'call.resume', req_id: this.issueReqId(), call_id: this.id });
+    this.refuseWhileReconnecting();
+    this.transport.sendOrQueue({
+      type: 'call.resume',
+      req_id: this.issueReqId(),
+      call_id: this.id,
+    });
   }
 
   mute(): void {
@@ -674,7 +743,7 @@ export class Call {
     // ever widens what the server permits, so it is always safe — and without it
     // a pre-merge mute would stay `recvonly` with no way back.
     if (!muted || !this.conference) {
-      this.transport.send({
+      this.transport.sendOrQueue({
         type: muted ? 'call.mute' : 'call.unmute',
         req_id: this.issueReqId(),
         call_id: this.id,
@@ -704,7 +773,8 @@ export class Call {
    */
   transfer(destination: string): void {
     this.assertTransferable();
-    this.transport.send({
+    this.refuseWhileReconnecting();
+    this.transport.sendOrQueue({
       type: 'call.transfer',
       req_id: this.issueReqId(),
       call_id: this.id,
@@ -730,6 +800,7 @@ export class Call {
       });
     }
     this.assertTransferable();
+    this.refuseWhileReconnecting();
     return this.startConsult(this, destination);
   }
 
@@ -754,11 +825,27 @@ export class Call {
         callId: this.id,
       });
     }
-    this.transport.send({
+    this.refuseWhileReconnecting();
+    this.transport.sendOrQueue({
       type: 'call.transfer.attended',
       req_id: this.issueReqId(),
       call_id: this.id,
       step: 'complete',
+    });
+  }
+
+  /**
+   * Hold, resume and transfer are refused while the call is reconnecting rather
+   * than queued for the resume: the user would see nothing happen, then have
+   * it happen up to the resume window later, after they may have tried again or
+   * moved on. Mute and hangup still work, since both take effect locally at once.
+   */
+  private refuseWhileReconnecting(): void {
+    if (!this.suspended) return;
+    throw new PhoneError({
+      code: 'transport_closed',
+      message: 'The call is reconnecting',
+      callId: this.id,
     });
   }
 
@@ -979,12 +1066,23 @@ export class Call {
     // As in prepareAnswerForOffer: an end landing mid-apply closes the connection,
     // and that is not a failure to report.
     if (this.isFinished) return;
+    // An answer to an ICE restart settles it, applied or not.
+    const restart = this.restartReqId;
+    if (restart) {
+      this.issuedReqIds.delete(restart);
+      this.clearRestart();
+    }
     try {
       await this.peerConnection.setRemoteDescription({ type: 'answer', sdp });
       this.remoteDescriptionSet = true;
       await this.flushPendingRemoteCandidates();
     } catch (e) {
       if (this.isFinished) return;
+      if (restart) {
+        // Back to the description ICE was running on; a retry offers afresh.
+        this.rollbackLocalOffer();
+        this.scheduleIceRestartRetry();
+      }
       throw e;
     }
   }
@@ -1076,6 +1174,178 @@ export class Call {
   }
 
   /**
+   * @internal The socket dropped and the phone is resuming the session; the call
+   * stays up meanwhile.
+   */
+  suspend(): void {
+    if (this.suspended || this.endedSettled) return;
+    this.suspended = true;
+    // A restart under way may lose its answer with the socket; drop it now
+    // and run a fresh one once the session is back.
+    if (this.restartReqId) {
+      this.abandonIceRestart();
+      this.restartWanted = true;
+    }
+    this.emit('reconnecting');
+  }
+
+  /**
+   * @internal The resumed session still has this call. Adopts the server's view
+   * of its hold state, which the frames lost in the gap may have changed.
+   *
+   * Mute goes the other way: the user's choice is the local one, and the track
+   * already follows it, so a server that disagrees lost a mute or unmute on
+   * the dying socket and is told again. One the user made during the drop was
+   * queued and is already on its way; sending it twice changes nothing.
+   */
+  restore(msg: Extract<ServerMessage, { type: 'call.restored' }>): void {
+    if (this.endedSettled) return;
+    const { held } = msg;
+    if (held && this.state !== 'held') {
+      this.state = 'held';
+      this.emit('held', 'local');
+    } else if (!held && this.state === 'held') {
+      this.state = 'active';
+      this.emit('resumed');
+    }
+    // Merged, a mute stays local by design (see setMuted).
+    if (msg.muted !== this.isMuted && !(this.isMuted && this.conference)) {
+      this.transport.sendOrQueue({
+        type: this.isMuted ? 'call.mute' : 'call.unmute',
+        req_id: this.issueReqId(),
+        call_id: this.id,
+      });
+    }
+    if (!this.suspended) return;
+    this.suspended = false;
+    this.emit('reconnected');
+    // A restart under way when the socket dropped may have lost its answer
+    // with it; start over rather than wait on it.
+    if (this.restartReqId) {
+      this.abandonIceRestart();
+      this.restartWanted = true;
+    }
+    // A drop that came with a network change left ICE on the old network, so
+    // media is dead until the restart; only now can the gateway route it.
+    const ice = this.peerConnection.iceConnectionState;
+    if (this.restartWanted || ice === 'disconnected' || ice === 'failed') {
+      this.restartWanted = false;
+      this.requestIceRestart();
+    }
+  }
+
+  /**
+   * Restart ICE on this call: gather candidates afresh on the current network
+   * and renegotiate them with the far end. The call does this by itself when
+   * ICE fails, stays disconnected, or a resumed session finds media down; it is
+   * public for hosts that learn of a network change first (an OS event).
+   * A no-op unless the call is connected, and while a restart is under way.
+   */
+  restartIce(): void {
+    this.requestIceRestart();
+  }
+
+  private requestIceRestart(): void {
+    if (this.endedSettled || !this.isConnected) return;
+    if (this.suspended) {
+      this.restartWanted = true;
+      return;
+    }
+    if (this.restartReqId) return;
+    if (this.restartRetryTimer) {
+      clearTimeout(this.restartRetryTimer);
+      this.restartRetryTimer = null;
+    }
+    const reqId = this.issueReqId();
+    this.restartReqId = reqId;
+    // The restart starts a new generation, whose pair is reported afresh.
+    this.reportedPair = null;
+    this.restartOfferSent = false;
+    this.restartGatheringDone = false;
+    void this.runIceRestart(reqId).catch((e) => {
+      logWarn('ICE restart failed', { callId: this.id, error: (e as Error).message });
+      this.abandonIceRestart();
+      this.scheduleIceRestartRetry();
+    });
+  }
+
+  private async runIceRestart(reqId: string): Promise<void> {
+    if (this.refreshIceServers) {
+      try {
+        const iceServers = await this.refreshIceServers();
+        this.peerConnection.setConfiguration({
+          ...this.peerConnection.getConfiguration(),
+          iceServers,
+        });
+      } catch (e) {
+        // The servers the call started with may still do; restart anyway.
+        logWarn('Could not refresh ICE servers for the restart', { error: (e as Error).message });
+      }
+    }
+    if (this.isFinished || this.restartReqId !== reqId) return;
+    const offer = await this.peerConnection.createOffer({ iceRestart: true });
+    await this.peerConnection.setLocalDescription(offer);
+    // A complete-enough candidate set in the offer, as for the call's first
+    // offer: the far end may not take trickled candidates.
+    await this.waitForIceGatheringComplete();
+    if (this.isFinished || this.restartReqId !== reqId) return;
+    this.transport.sendOrQueue({
+      type: 'sdp.offer',
+      req_id: reqId,
+      call_id: this.id,
+      sdp: this.localDescriptionOr(offer).sdp ?? '',
+    });
+    this.restartOfferSent = true;
+    // Gathering finished before the offer went: say so now, after it, so the
+    // end of candidates lands on the new generation (RFC 8838 § 13).
+    if (this.restartGatheringDone) {
+      this.transport.trySendOrQueue({ type: 'ice.done', call_id: this.id });
+    }
+    this.restartAnswerTimer = setTimeout(() => {
+      this.restartAnswerTimer = null;
+      if (this.restartReqId !== reqId) return;
+      logWarn('ICE restart got no answer', { callId: this.id });
+      this.abandonIceRestart();
+      this.scheduleIceRestartRetry();
+    }, ICE_RESTART_ANSWER_TIMEOUT_MS);
+  }
+
+  // The restart is over without an answer: drop the half-done offer so a later
+  // one can start from a stable state.
+  private abandonIceRestart(): void {
+    this.clearRestart();
+    this.rollbackLocalOffer();
+  }
+
+  private clearRestart(): void {
+    this.restartReqId = null;
+    this.restartOfferSent = false;
+    this.restartGatheringDone = false;
+    if (this.restartAnswerTimer) {
+      clearTimeout(this.restartAnswerTimer);
+      this.restartAnswerTimer = null;
+    }
+  }
+
+  private rollbackLocalOffer(): void {
+    if (this.isFinished || this.peerConnection.signalingState !== 'have-local-offer') return;
+    void this.peerConnection.setLocalDescription({ type: 'rollback' }).catch(() => undefined);
+  }
+
+  // Try again while media is still down, a bounded number of times.
+  private scheduleIceRestartRetry(): void {
+    if (this.endedSettled || this.restartRetryTimer) return;
+    if (this.restartAttempts >= ICE_RESTART_RETRIES) return;
+    const delay = ICE_RESTART_RETRY_BASE_MS * 2 ** this.restartAttempts;
+    this.restartAttempts += 1;
+    this.restartRetryTimer = setTimeout(() => {
+      this.restartRetryTimer = null;
+      const ice = this.peerConnection.iceConnectionState;
+      if (ice === 'failed' || ice === 'disconnected') this.requestIceRestart();
+    }, delay);
+  }
+
+  /**
    * @internal End the call here without waiting for the server, because the
    * socket it lived on is gone. Emits `ended` like a server end, so every owner
    * tears down the same way.
@@ -1087,6 +1357,16 @@ export class Call {
   private settleEnded(reason: CallEndReason): void {
     if (this.endedSettled) return;
     this.endedSettled = true;
+    this.suspended = false;
+    if (this.iceDisconnectedTimer) {
+      clearTimeout(this.iceDisconnectedTimer);
+      this.iceDisconnectedTimer = null;
+    }
+    this.clearRestart();
+    if (this.restartRetryTimer) {
+      clearTimeout(this.restartRetryTimer);
+      this.restartRetryTimer = null;
+    }
     // Nothing can answer an ended call's actions any more.
     this.issuedReqIds.clear();
     this.hangupReqIds.clear();
@@ -1145,14 +1425,27 @@ export class Call {
       }
     });
 
+    this.peerConnection.addEventListener('iceconnectionstatechange', () =>
+      this.onIceConnectionStateChange()
+    );
+
     this.peerConnection.addEventListener('icecandidate', (evt) => {
       // ICE candidates fire asynchronously from the peer connection and can
       // arrive while the socket is mid-reconnect or closed. Use best-effort
       // trySend so a late candidate doesn't throw an uncaught PhoneError into
       // this handler (trickle ICE tolerates loss; a closed socket means the
-      // call is already tearing down).
+      // call is already tearing down). While the session is detached they
+      // queue with everything else, so they can't overtake the frames before
+      // them.
+      //
+      // A restart's own candidates wait for its offer, which carries every
+      // one gathered so far; only the end of gathering is worth remembering.
+      if (this.restartReqId && !this.restartOfferSent) {
+        if (!evt.candidate) this.restartGatheringDone = true;
+        return;
+      }
       if (evt.candidate) {
-        this.transport.trySend({
+        this.transport.trySendOrQueue({
           type: 'ice.candidate',
           call_id: this.id,
           candidate: evt.candidate.candidate,
@@ -1160,9 +1453,73 @@ export class Call {
           sdp_m_line_index: evt.candidate.sdpMLineIndex ?? null,
         });
       } else {
-        this.transport.trySend({ type: 'ice.done', call_id: this.id });
+        this.transport.trySendOrQueue({ type: 'ice.done', call_id: this.id });
       }
     });
+  }
+
+  // A network change shows up here first when the signalling socket survives
+  // it, or hasn't noticed yet. `failed` is final for this ICE generation;
+  // `disconnected` often recovers by itself within a second or two, so it gets
+  // that long before the call restarts.
+  private onIceConnectionStateChange(): void {
+    const state = this.peerConnection.iceConnectionState;
+    if (state !== 'disconnected' && this.iceDisconnectedTimer) {
+      clearTimeout(this.iceDisconnectedTimer);
+      this.iceDisconnectedTimer = null;
+    }
+    if (state === 'connected' || state === 'completed') {
+      this.restartAttempts = 0;
+      this.watchSelectedPair();
+      void this.reportSelectedPair();
+    }
+    if (this.endedSettled || !this.isConnected) return;
+    if (state === 'failed') {
+      this.requestIceRestart();
+    } else if (state === 'disconnected' && !this.iceDisconnectedTimer) {
+      this.onIceTrouble?.();
+      this.iceDisconnectedTimer = setTimeout(() => {
+        this.iceDisconnectedTimer = null;
+        if (this.peerConnection.iceConnectionState === 'disconnected') this.requestIceRestart();
+      }, ICE_DISCONNECTED_RESTART_MS);
+    }
+  }
+
+  // Tells the gateway which candidate pair ICE nominated. Offers and answers
+  // it builds later (hold, mute, the far end's re-INVITEs) must list only that
+  // pair once there is one (RFC 8839 § 4.4.1.2.2), and only this side knows it.
+  //
+  // The report names its ICE generation by ufrag, so the gateway can drop one a
+  // restart has overtaken. None goes out while a restart is in flight: the
+  // pair then still belongs to the old generation while the local description
+  // already names the new one.
+  private async reportSelectedPair(): Promise<void> {
+    if (this.restartReqId) return;
+    const ufrag = iceUfrag(this.peerConnection.localDescription?.sdp);
+    if (!ufrag) return;
+    const pair = await selectedCandidatePair(this.peerConnection).catch(() => null);
+    if (!pair || this.endedSettled || this.restartReqId) return;
+    if (iceUfrag(this.peerConnection.localDescription?.sdp) !== ufrag) return;
+    const key = `${ufrag}|${pair.local}|${pair.remote}`;
+    if (key === this.reportedPair) return;
+    this.reportedPair = key;
+    this.transport.trySendOrQueue({
+      type: 'ice.selected',
+      call_id: this.id,
+      local: pair.local,
+      remote: pair.remote,
+      ufrag,
+    });
+  }
+
+  // ICE can switch pairs without leaving `connected`, which fires no state
+  // change; the transport's own event covers that where the platform has it.
+  private watchSelectedPair(): void {
+    if (this.watchingSelectedPair) return;
+    const ice = iceTransportOf(this.peerConnection);
+    if (!ice?.addEventListener) return;
+    this.watchingSelectedPair = true;
+    ice.addEventListener('selectedcandidatepairchange', () => void this.reportSelectedPair());
   }
 
   // Resolve once ICE gathering reaches 'complete', or after a timeout so a
@@ -1292,4 +1649,79 @@ export class Call {
       (h as (...a: unknown[]) => void)(...(args as unknown[]));
     });
   }
+}
+
+interface CandidateStats {
+  foundation?: string;
+  protocol?: string;
+  priority?: number;
+  address?: string;
+  ip?: string;
+  port?: number;
+  candidateType?: string;
+}
+
+// An SDP candidate value rebuilt from candidate stats, for stacks that expose
+// no RTCIceCandidate for the selected pair.
+function candidateFromStats(c: CandidateStats): string | null {
+  const address = c.address ?? c.ip;
+  if (!address || c.port === undefined || !c.protocol || !c.candidateType) return null;
+  return `candidate:${c.foundation ?? '1'} 1 ${c.protocol} ${c.priority ?? 0} ${address} ${c.port} typ ${c.candidateType}`;
+}
+
+/**
+ * The nominated candidate pair, as SDP candidate values. Read from the ICE
+ * transport where the stack exposes it (browsers), else from stats (React
+ * Native). Null before nomination.
+ */
+type IceTransportLike = {
+  getSelectedCandidatePair?: () => {
+    local?: RTCIceCandidate;
+    remote?: RTCIceCandidate;
+  } | null;
+  addEventListener?: (event: string, handler: () => void) => void;
+};
+
+// The ICE transport under the call's media, where the platform exposes it
+// (browsers do; React Native WebRTC does not).
+function iceTransportOf(pc: RTCPeerConnection): IceTransportLike | undefined {
+  return (pc.getSenders?.()[0] as { transport?: { iceTransport?: IceTransportLike } } | undefined)
+    ?.transport?.iceTransport;
+}
+
+// The ICE username fragment a description declares, session or media level.
+function iceUfrag(sdp: string | undefined): string | null {
+  return sdp?.match(/^a=ice-ufrag:(\S+)/m)?.[1] ?? null;
+}
+
+async function selectedCandidatePair(
+  pc: RTCPeerConnection
+): Promise<{ local: string; remote: string } | null> {
+  const ice = iceTransportOf(pc);
+  const direct = ice?.getSelectedCandidatePair?.();
+  if (direct?.local?.candidate && direct.remote?.candidate) {
+    return { local: direct.local.candidate, remote: direct.remote.candidate };
+  }
+  if (typeof pc.getStats !== 'function') return null;
+  const stats = await pc.getStats();
+  const byId = new Map<string, Record<string, unknown>>();
+  let pairId: string | undefined;
+  stats.forEach((s: Record<string, unknown>) => {
+    byId.set(s.id as string, s);
+    if (s.type === 'transport' && typeof s.selectedCandidatePairId === 'string') {
+      pairId = s.selectedCandidatePairId;
+    }
+  });
+  if (!pairId) {
+    stats.forEach((s: Record<string, unknown>) => {
+      if (!pairId && s.type === 'candidate-pair' && s.nominated && s.state === 'succeeded') {
+        pairId = s.id as string;
+      }
+    });
+  }
+  const pair = pairId ? byId.get(pairId) : undefined;
+  if (!pair) return null;
+  const local = candidateFromStats(byId.get(pair.localCandidateId as string) ?? {});
+  const remote = candidateFromStats(byId.get(pair.remoteCandidateId as string) ?? {});
+  return local && remote ? { local, remote } : null;
 }

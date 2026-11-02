@@ -1,5 +1,5 @@
 import { createPaginatedList, type PaginatedList } from './pagination.js';
-import { Call, CaptureDeferred } from './call.js';
+import { Call, CaptureDeferred, type CallInit } from './call.js';
 import { ConnectHandshake } from './connect-handshake.js';
 import { devicePhoneError, NotImplementedError, PhoneError } from './errors.js';
 import { logError, logWarn } from './logger.js';
@@ -54,6 +54,12 @@ const OUTBOUND_CALL_TIMEOUT_MS = 30_000;
 // pending forever.
 const CONNECT_TIMEOUT_MS = 20_000;
 
+// How long past the server's resume window the phone keeps a suspended call
+// before ending it itself. The server's own verdict normally arrives first, as
+// call.ended or call.restored on the resume; this covers a resume that never
+// comes, without racing one that lands near the end of the window.
+const SUSPEND_GRACE_MS = 5_000;
+
 // How long to wait for the ICE-servers HTTP fetch before failing connect(). This
 // runs before the socket opens, so CONNECT_TIMEOUT_MS (which only arms after) does
 // not cover it — a stalled/half-open fetch would otherwise leave connect() (and a
@@ -84,6 +90,10 @@ const TOKEN_REFRESH_MIN_DELAY_MS = 5_000;
 // lost reply can't wedge the cadence. Mirrors the bounded-wait pattern used by
 // connect() and outbound calls (armTimeout).
 const TOKEN_REFRESH_TIMEOUT_MS = 15_000;
+
+// How long rebindEmergencyAddress() waits for `emergency.rebound`. The bind is a
+// DB round trip on the server, so this only catches a reply lost on an open socket.
+const EMERGENCY_REBIND_TIMEOUT_MS = 15_000;
 
 /**
  * A one-shot timeout for a request awaiting a server reply. `onExpire` runs once
@@ -195,6 +205,12 @@ export class DialStackPhone {
   private pendingCall: Call | null = null;
   private hasConnectedOnce = false;
   private reqSeq = 0;
+  // From the last `authenticated`: what a dropped socket needs to resume the
+  // session instead of losing its calls. Null when the server offered none.
+  private resume: { token: string; windowMs: number; url: string | null } | null = null;
+  // Ends the suspended calls if no resume brings them back. Set while any call
+  // is suspended.
+  private suspendTimer: ReturnType<typeof setTimeout> | null = null;
   // Armed pre-`exp` refresh timer, and the in-flight refresh awaiting an
   // auth.refreshed reply. `pendingRefresh` carries the req_id we correlate the
   // reply against, the exact token we sent (so a success adopts that token, never
@@ -208,6 +224,17 @@ export class DialStackPhone {
   // The E911 gate keys off this so "presented this session" means what the live
   // socket carried, not what happens to be selected right now.
   private presentedEmergencyAddressId_: string | null = null;
+  // In-flight `emergency.rebind` requests by req_id. A map, not a slot: two quick
+  // selections each get their own answer, and the server applies them in order.
+  private pendingRebinds = new Map<
+    string,
+    {
+      id: string;
+      resolve: (r: { bound: boolean }) => void;
+      reject: (e: PhoneError) => void;
+      settle: () => void;
+    }
+  >();
   // User id (token `sub` claim) used to namespace localStorage persistence.
   // null when the token can't be decoded — persistence is then disabled and
   // the app must supply PhoneOptions.emergencyAddressId itself.
@@ -507,13 +534,15 @@ export class DialStackPhone {
     transport.on('reconnecting', (attempt, delayMs) => {
       if (!isCurrent()) return;
       this.isConnected = false;
-      this.endCallsOfLostSession();
+      this.failPendingRebinds();
+      this.suspendCallsOfLostSession(transport);
       this.emit('reconnecting', attempt, delayMs);
     });
 
     transport.on('closed', (reason) => {
       if (!isCurrent()) return;
       this.isConnected = false;
+      this.failPendingRebinds();
       // No reconnect follows a 'closed' (the transport schedules one itself
       // otherwise), so the transport is finished. Drop it: a later connect()
       // must open a fresh socket, not wait on a reconnect that never comes (a
@@ -630,6 +659,9 @@ export class DialStackPhone {
       token: this.token,
       client: this.client,
       ...(this.emergencyAddressId ? { emergency_address_id: this.emergencyAddressId } : {}),
+      // Only with calls to bring back: resuming an idle session would buy
+      // nothing, and a fresh one is what a plain reconnect means.
+      ...(this.resume && this.awaitingResume() ? { resume_token: this.resume.token } : {}),
     });
   }
 
@@ -681,6 +713,8 @@ export class DialStackPhone {
     // Stop the refresh timer first so it can't fire against the socket we're
     // about to tear down (or leak past it).
     this.clearTokenRefreshTimer();
+    this.clearSuspendTimer();
+    this.failPendingRebinds();
     // Settle an in-flight outbound (awaiting call.trying) that isn't in
     // activeCalls yet — otherwise its promise hangs forever and its timeout
     // timer + Call leak until it fires. reject() clears the timer, disposes the
@@ -737,13 +771,99 @@ export class DialStackPhone {
 
   /**
    * Re-present a chosen `emergencyAddressId` on a fresh authenticate handshake, in
-   * one call. Rebinding requires a fresh socket (the server binds E911 once per
-   * connection, after REGISTER), so this tears down and reconnects like
-   * `reconnect()`; resolves once the server confirms the new binding.
+   * one call. This tears down and reconnects like `reconnect()`, ending any live
+   * calls; resolves once the new session is authenticated.
+   *
+   * @deprecated Use `rebindEmergencyAddress()`, which binds the address on the
+   * open connection and keeps calls up. Removed in the next major version.
    */
+  // NEXT MAJOR: delete reconnectWithEmergency; rebindEmergencyAddress replaces it
+  // without ending live calls.
   reconnectWithEmergency(emergencyAddressId: string): Promise<void> {
     this.selectEmergencyAddress(emergencyAddressId);
     return this.reconnect();
+  }
+
+  /**
+   * Bind an emergency address to this connection's network without reconnecting,
+   * so calls in progress stay up.
+   *
+   * Without `anchor`, the server checks the address against the network it was
+   * confirmed on, as it does when the phone connects: an address confirmed on
+   * another network is not bound. Pass `anchor: true` when the user has just
+   * confirmed they are at this address, or has just created it: the address is
+   * then confirmed for the current network, whatever network it was confirmed on
+   * before.
+   *
+   * Resolves with `bound: false` when the server could not bind the address on
+   * this network; `network.changed` is emitted first in that case. When the phone
+   * is not connected, it connects (or waits for the reconnect in progress) and
+   * then binds. Rejects with `transport_closed` if the connection drops first.
+   */
+  async rebindEmergencyAddress(
+    emergencyAddressId: string,
+    options: { anchor?: boolean } = {}
+  ): Promise<{ bound: boolean }> {
+    // Selected first, so a reconnect that happens meanwhile presents it too.
+    this.selectEmergencyAddress(emergencyAddressId);
+    // When it has to connect first, the authenticate binds the address and the
+    // in-band rebind below binds it again. That second bind is deliberate: the
+    // handshake's verdict is only an optional trailing network.changed with no
+    // end marker, so it can't be awaited; the in-band reply is the one answer
+    // this method can return. A denial then emits network.changed twice, which a
+    // prompt handles as one.
+    if (!this.transport || !this.isConnected) await this.connect();
+    const transport = this.transport;
+    if (!transport || !this.isConnected) {
+      throw new PhoneError({ code: 'transport_closed', message: 'Phone is not connected' });
+    }
+    const reqId = this.nextReqId();
+    return new Promise<{ bound: boolean }>((resolve, reject) => {
+      const timeout = armTimeout(EMERGENCY_REBIND_TIMEOUT_MS, () => {
+        this.pendingRebinds.delete(reqId);
+        reject(
+          new PhoneError({
+            code: 'transport_closed',
+            message: 'Timed out waiting for the server to confirm the emergency address',
+          })
+        );
+      });
+      this.pendingRebinds.set(reqId, {
+        id: emergencyAddressId,
+        resolve,
+        reject,
+        settle: timeout.settle,
+      });
+      try {
+        transport.send({
+          type: 'emergency.rebind',
+          req_id: reqId,
+          emergency_address_id: emergencyAddressId,
+          ...(options.anchor ? { anchor: true } : {}),
+        });
+      } catch (e) {
+        // The socket closed before its close event reached us: nothing is in
+        // flight, so drop the entry and its timer now.
+        this.pendingRebinds.delete(reqId);
+        timeout.settle();
+        reject(e);
+      }
+    });
+  }
+
+  private failPendingRebinds(): void {
+    if (this.pendingRebinds.size === 0) return;
+    const pending = [...this.pendingRebinds.values()];
+    this.pendingRebinds.clear();
+    for (const p of pending) {
+      p.settle();
+      p.reject(
+        new PhoneError({
+          code: 'transport_closed',
+          message: 'Disconnected before the emergency address was confirmed',
+        })
+      );
+    }
   }
 
   call(destination: string): Promise<Call> {
@@ -805,6 +925,7 @@ export class DialStackPhone {
       iceServers: this.iceServers,
       startConsult: (p, d) => this.startConsult(p, d),
       nextReqId: () => this.nextReqId(),
+      ...this.iceRestartHooks(),
       ringback: this.ringback ?? undefined,
       audioInputDeviceId: this.audioInputDeviceId_ ?? undefined,
       audioOutputDeviceId: this.audioOutputDeviceId_ ?? undefined,
@@ -879,17 +1000,79 @@ export class DialStackPhone {
     });
   }
 
-  // The server destroys a session's calls when its socket closes and never
-  // restores them onto the next one, so once the socket is lost they are over —
-  // keeping them would leave calls that look live but that no action can reach.
-  private endCallsOfLostSession(): void {
+  // The server holds a session's answered calls for a resume window after its
+  // socket drops, so they are suspended rather than ended: media keeps flowing on
+  // an unchanged network, and actions wait for the resume. Unanswered calls
+  // can't survive (the server ends them too), and without a resume token, or
+  // past the window, nothing can bring a call back, so those end now.
+  // Called on every reconnect attempt; only the first one suspends.
+  private suspendCallsOfLostSession(transport: Transport): void {
     this.pendingOutbound?.reject(
       new PhoneError({
         code: 'transport_closed',
         message: 'Disconnected before the call connected',
       })
     );
-    for (const call of [...this.activeCalls]) call.endLocally('failed');
+    for (const call of [...this.activeCalls]) {
+      if (!this.resume || !call.isConnected) call.endLocally('failed');
+    }
+    if (!this.resume || this.suspendTimer || this.activeCalls.length === 0) return;
+    transport.startQueueing();
+    transport.preferUrl(this.resume.url);
+    for (const call of this.activeCalls) call.suspend();
+    // A little past the server's window: its call.ended frames arrive with the
+    // resume, and this only covers a resume that never comes.
+    this.suspendTimer = setTimeout(() => {
+      this.suspendTimer = null;
+      this.endSuspendedCalls();
+    }, this.resume.windowMs + SUSPEND_GRACE_MS);
+  }
+
+  // What a call needs to restart ICE after a network change: fresh TURN
+  // credentials (they expire, and the new network may need a relay), and a
+  // probe of the socket, which the same network change has likely killed.
+  private iceRestartHooks(): Pick<CallInit, 'refreshIceServers' | 'onIceTrouble'> {
+    return {
+      refreshIceServers: () =>
+        this.iceServersOverride ? Promise.resolve(this.iceServersOverride) : this.fetchIceServers(),
+      onIceTrouble: () => this.transport?.probe(),
+    };
+  }
+
+  // Something only a resume can deliver: a suspended call, or an action queued
+  // for one, such as the hangup of the last call, which ends it on screen at
+  // once but still has to reach the server.
+  private awaitingResume(): boolean {
+    return this.hasSuspendedCalls() || !!this.transport?.isQueueing();
+  }
+
+  private hasSuspendedCalls(): boolean {
+    return this.activeCalls.some((c) => c.isReconnecting);
+  }
+
+  // No resume will bring the suspended calls back: end them and forget the
+  // actions queued for them.
+  private endSuspendedCalls(): void {
+    this.clearSuspendTimer();
+    this.transport?.dropQueue();
+    this.transport?.preferUrl(null);
+    for (const call of [...this.activeCalls]) {
+      if (call.isReconnecting) call.endLocally('failed');
+    }
+  }
+
+  // Every suspended call is accounted for (restored or ended).
+  private settleSuspension(): void {
+    if (this.hasSuspendedCalls()) return;
+    this.clearSuspendTimer();
+    this.transport?.preferUrl(null);
+  }
+
+  private clearSuspendTimer(): void {
+    if (this.suspendTimer) {
+      clearTimeout(this.suspendTimer);
+      this.suspendTimer = null;
+    }
   }
 
   // A call leaves activeCalls however it ends — the server's call.ended or a
@@ -953,9 +1136,9 @@ export class DialStackPhone {
    * Register and validate an emergency (E911) address. Creates the
    * resource via the REST API (validated against the carrier MSAG), persists
    * its id, and presents it on the next connect so the server binds it to the
-   * device's network. This does not alter an already-authenticated session. To
-   * apply a new address there (e.g. responding to a `network.changed` event),
-   * pass the returned id to `reconnectWithEmergency()`.
+   * device's network. It does not bind the address to an already-authenticated
+   * session. To apply it there (e.g. responding to a `network.changed` event),
+   * pass the returned id to `rebindEmergencyAddress()`, which keeps calls up.
    *
    * Rejects with a `PhoneError` (code `invalid_message`) when the address
    * can't be validated.
@@ -973,8 +1156,8 @@ export class DialStackPhone {
 
   /**
    * Select an already-saved emergency address to present on the next
-   * (re)connect (sets + persists it). The server binds it at the authenticate
-   * handshake, so call `reconnect()` afterwards for it to take effect.
+   * (re)connect (sets + persists it). It does not bind the address to the open
+   * connection; use `rebindEmergencyAddress()` for that.
    */
   selectEmergencyAddress(id: string): void {
     this.emergencyAddressId = id;
@@ -982,10 +1165,11 @@ export class DialStackPhone {
   }
 
   /**
-   * The emergency-address id actually sent in the CURRENT socket's authenticate
-   * frame (latched at send time), or null. This is what the E911 gate keys off —
-   * a saved address's `registered_ip`, or a selection made without a reconnect,
-   * does NOT mean this session bound it.
+   * The emergency-address id the server last evaluated for the CURRENT
+   * connection, or null: the one sent in its authenticate frame (latched at send
+   * time), or the last one `rebindEmergencyAddress()` got an answer for. This is
+   * what the E911 gate keys off — a saved address's `registered_ip`, or a
+   * selection never sent to the server, does NOT mean this session bound it.
    */
   get presentedEmergencyAddressId(): string | null {
     return this.presentedEmergencyAddressId_;
@@ -1279,6 +1463,26 @@ export class DialStackPhone {
         const isOurHandshake = this.handshake.isAuthOutstanding;
         this.handshake.clearAuth();
         this.isConnected = true;
+        this.resume = msg.resume_token
+          ? {
+              token: msg.resume_token,
+              windowMs: (msg.resume_window_seconds ?? 0) * 1000,
+              url: msg.resume_url ?? null,
+            }
+          : null;
+        if (msg.resumed) {
+          // The server re-attached the session; the actions taken during the
+          // drop go out now, ahead of anything new. call.ended / call.restored
+          // for each suspended call follow.
+          this.transport?.flushQueue();
+          // Nothing may be left to restore: the drop's only call was hung up.
+          this.settleSuspension();
+        } else {
+          // A fresh session: the old one, its calls and anything queued for
+          // them are gone. Always settle the queue, or the next call's
+          // actions would queue behind a resume that won't come.
+          this.endSuspendedCalls();
+        }
         // A session just came up (initial connect or reconnect); the current
         // token is unchanged, so this is a bare re-arm rather than an adoptToken.
         this.scheduleTokenRefresh();
@@ -1304,6 +1508,17 @@ export class DialStackPhone {
       }
       case 'network.changed': {
         this.emit('network.changed');
+        return;
+      }
+      case 'emergency.rebound': {
+        const pending = msg.req_id ? this.pendingRebinds.get(msg.req_id) : undefined;
+        if (!pending) return;
+        this.pendingRebinds.delete(msg.req_id!);
+        pending.settle();
+        // The server evaluated this address on the live socket, as an
+        // authenticate would have, so it now counts as presented.
+        this.presentedEmergencyAddressId_ = pending.id;
+        pending.resolve({ bound: msg.bound });
         return;
       }
       case 'error': {
@@ -1342,6 +1557,12 @@ export class DialStackPhone {
         if (this.pendingOutbound && (msg.req_id === this.pendingOutbound.reqId || err.fatal)) {
           this.pendingOutbound.reject(err);
         }
+        const rebind = msg.req_id ? this.pendingRebinds.get(msg.req_id) : undefined;
+        if (rebind) {
+          this.pendingRebinds.delete(msg.req_id!);
+          rebind.settle();
+          rebind.reject(err);
+        }
         this.emit('error', err);
         owner?.handleActionError(msg.req_id!);
         return;
@@ -1362,15 +1583,8 @@ export class DialStackPhone {
         return;
       }
       case 'call.restored': {
-        // Not yet implemented. Surface a non-fatal error so consumers know.
-        this.emit(
-          'error',
-          new PhoneError({
-            code: 'internal_error',
-            message: 'call.restored received but reconnect/restore is not yet implemented',
-            callId: msg.call_id,
-          })
-        );
+        this.getCall(msg.call_id)?.restore(msg);
+        this.settleSuspension();
         return;
       }
       case 'sdp.offer': {
@@ -1441,6 +1655,7 @@ export class DialStackPhone {
         const call = this.getCall(msg.call_id);
         if (!call) return;
         call.handleServerMessage(msg);
+        if (msg.type === 'call.ended') this.settleSuspension();
         return;
       }
       case 'presence.list': {
@@ -1485,6 +1700,7 @@ export class DialStackPhone {
       iceServers: this.iceServers,
       startConsult: (p, d) => this.startConsult(p, d),
       nextReqId: () => this.nextReqId(),
+      ...this.iceRestartHooks(),
       ringback: this.ringback ?? undefined,
       audioInputDeviceId: this.audioInputDeviceId_ ?? undefined,
       audioOutputDeviceId: this.audioOutputDeviceId_ ?? undefined,

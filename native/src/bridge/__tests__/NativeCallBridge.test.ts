@@ -402,15 +402,56 @@ describe('foreground', () => {
   });
 });
 
+describe('a dropped signalling socket', () => {
+  it('keeps the OS call up while the phone resumes the session', async () => {
+    const { phone, os, bridge } = rig();
+    bridge.start();
+    const call = new FakeCall('c1');
+    phone.emitIncoming(call);
+    await flush();
+    const sid = sessionOf(os);
+    await os.answer(sid);
+    call.emitAnswered();
+
+    phone.startReconnecting();
+    call.emitReconnecting();
+    jest.advanceTimersByTime(30_000);
+    await flush();
+    call.emitReconnected();
+    await flush();
+
+    expect(os.log.filter((l) => l.startsWith(`reportEnded ${sid}`))).toEqual([]);
+    expect(os.isConnected(sid)).toBe(true);
+  });
+
+  it('ends the OS call as failed when the resume never comes', async () => {
+    const { phone, os, bridge } = rig();
+    bridge.start();
+    const call = new FakeCall('c1');
+    phone.emitIncoming(call);
+    await flush();
+    const sid = sessionOf(os);
+    await os.answer(sid);
+    call.emitAnswered();
+
+    phone.startReconnecting();
+    call.emitReconnecting();
+    call.emitEnded('failed');
+    await flush();
+
+    expect(os.log).toContain(`reportEnded ${sid} failed`);
+  });
+});
+
 describe('echo tolerance', () => {
-  it('a remote hold is reported once and its echo is not taken for an OS request', async () => {
+  it('an in-app hold is reported once and its echo is not taken for an OS request', async () => {
     const { phone, os, bridge } = rig(); // fake echoes set* like the real library
     bridge.start();
     const call = new FakeCall('c1');
     phone.emitIncoming(call);
     await flush();
     const sid = sessionOf(os);
-    call.emitHeld('remote');
+    call.emitHeld('local');
     await flush();
     expect(os.log.filter((l) => l.startsWith('setHeld'))).toEqual([`setHeld ${sid} true`]);
     expect(call.actions).toEqual([]);
@@ -471,7 +512,7 @@ describe('echo tolerance', () => {
     const sid = sessionOf(os);
 
     // Far end holds us → reported once, no echo comes back, token left pending.
-    call.emitHeld('remote');
+    call.emitHeld('local');
     await flush();
     expect(os.log.filter((l) => l.startsWith('setHeld'))).toEqual([`setHeld ${sid} true`]);
     expect(call.actions).toEqual([]);
@@ -934,9 +975,7 @@ describe('in-app buttons', () => {
 
   it('reports an in-app hold to the OS', async () => {
     // The OS's own hold button and call log track held state, so a hold the user
-    // takes in-app has to reach it. `held` carries by='local' for an in-app hold
-    // and by='remote' when the far end holds us — both are news to the OS, which
-    // did not initiate either.
+    // takes in-app has to reach it: the OS did not initiate it.
     const { phone, os, bridge } = rig();
     bridge.start();
     await bridge.ensureConnected();
@@ -1204,7 +1243,7 @@ describe('reconcile', () => {
     expect(call.actions).toEqual([]);
   });
 
-  it('puts the OS on hold when it missed a remote hold', async () => {
+  it('puts the OS on hold when it missed an in-app hold', async () => {
     const { phone, os, bridge } = rig();
     bridge.start();
     const call = new FakeCall('c1');
@@ -1216,7 +1255,7 @@ describe('reconcile', () => {
     await flush();
     os.ignoreNext('setHeld');
 
-    call.emitHeld('remote');
+    call.emitHeld('local');
     await flush();
     expect((await os.getActiveSession())?.held).toBe(false);
 
@@ -1256,7 +1295,7 @@ describe('reconcile', () => {
     await jest.advanceTimersByTimeAsync(RECONCILE_MS);
     // The OS lost the hold while the app was away, with no event about it.
     os.ignoreNext('setHeld');
-    call.emitHeld('remote');
+    call.emitHeld('local');
     await jest.advanceTimersByTimeAsync(0);
     os.ignoreNext('setHeld');
     await jest.advanceTimersByTimeAsync(RECONCILE_MS);
@@ -1451,6 +1490,23 @@ describe('OS actions whose SDK side fails', () => {
     await flush();
 
     expect(os.log).toContain(`setHeld ${sessionId} false`);
+  });
+
+  it('a hold refused while reconnecting is undone at once, not retried into a hangup', async () => {
+    // The OS hold button can't be disabled during a drop the way the in-app one is.
+    const { os, call, sessionId } = await liveCall();
+    call.emitAnswered();
+    call.failNext.hold = Object.assign(new Error('The call is reconnecting'), {
+      code: 'transport_closed',
+    });
+
+    os.hold(sessionId, true);
+    await flush();
+    await jest.advanceTimersByTimeAsync(30_000);
+
+    expect(os.log).toContain(`setHeld ${sessionId} false`);
+    expect(call.actions).not.toContain('hangup');
+    expect(call.actions.filter((a) => a === 'hold').length).toBeLessThanOrEqual(1);
   });
 
   it('retries a hold the server fails, then ends the call once none lands', async () => {

@@ -173,7 +173,7 @@ function makeInit(): CallInit {
     fromName: null,
     to: 'user_test-wrtc',
     initialState: 'ringing',
-    transport: { send: jest.fn() } as never,
+    transport: ((send) => ({ send, sendOrQueue: send }))(jest.fn()) as never,
     iceServers: [],
     startConsult: jest.fn(),
     nextReqId: () => 'req_test',
@@ -792,7 +792,11 @@ describe('Call transfer preconditions', () => {
   function makeCall(): Call {
     const send = jest.fn();
     const startConsult = jest.fn().mockResolvedValue({} as never);
-    const call = new Call({ ...makeInit(), transport: { send } as never, startConsult });
+    const call = new Call({
+      ...makeInit(),
+      transport: { send, sendOrQueue: send } as never,
+      startConsult,
+    });
     return call;
   }
 
@@ -831,7 +835,7 @@ describe('Call transfer preconditions', () => {
     const send = jest.fn();
     const call = new Call({
       ...makeInit(),
-      transport: { send } as never,
+      transport: { send, sendOrQueue: send } as never,
       startConsult: jest.fn().mockResolvedValue({} as never),
     });
     return { call, send };
@@ -929,7 +933,7 @@ describe('Call while merged into a local conference', () => {
 
   it('does not hold a conference leg', () => {
     const send = jest.fn();
-    const call = new Call({ ...makeInit(), transport: { send } as never });
+    const call = new Call({ ...makeInit(), transport: { send, sendOrQueue: send } as never });
     call.state = 'active';
     attach(call);
 
@@ -942,7 +946,7 @@ describe('Call while merged into a local conference', () => {
 
   it('routes mute to the conference instead of the server', () => {
     const send = jest.fn();
-    const call = new Call({ ...makeInit(), transport: { send } as never });
+    const call = new Call({ ...makeInit(), transport: { send, sendOrQueue: send } as never });
     call.state = 'active';
     const conference = attach(call);
 
@@ -958,7 +962,7 @@ describe('Call while merged into a local conference', () => {
 
   it('still sends unmute while merged, so a pre-merge mute can be undone', () => {
     const send = jest.fn();
-    const call = new Call({ ...makeInit(), transport: { send } as never });
+    const call = new Call({ ...makeInit(), transport: { send, sendOrQueue: send } as never });
     call.state = 'active';
     // Muted BEFORE the merge: the server already narrowed this leg to recvonly.
     call.mute();

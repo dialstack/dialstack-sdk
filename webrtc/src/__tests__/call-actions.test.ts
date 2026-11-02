@@ -52,7 +52,7 @@ function makeCall(overrides: Partial<CallInit> = {}): {
     fromName: null,
     to: 'user_test-wrtc',
     initialState: 'active',
-    transport: { send, trySend: send } as never,
+    transport: { send, sendOrQueue: send, trySend: send, trySendOrQueue: send } as never,
     iceServers: [],
     startConsult: jest.fn(),
     nextReqId: () => `req_${++seq}`,
@@ -118,7 +118,14 @@ describe('Call.hangup', () => {
     const send = jest.fn(() => {
       throw new PhoneError({ code: 'transport_closed', message: 'WebSocket is not open' });
     });
-    const { call } = makeCall({ transport: { send, trySend: jest.fn() } as never });
+    const { call } = makeCall({
+      transport: {
+        send,
+        sendOrQueue: send,
+        trySend: jest.fn(),
+        trySendOrQueue: jest.fn(),
+      } as never,
+    });
     expect(() => call.hold()).toThrow(PhoneError);
     call.state = 'held';
     expect(() => call.resume()).toThrow(PhoneError);

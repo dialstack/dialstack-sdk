@@ -11,7 +11,7 @@ import React, { useEffect, useState } from 'react';
 import type { Call } from '@dialstack/sdk-react/core';
 import {
   peerDisplay,
-  callStateLabelKey,
+  callStatusLabelKey,
   isCallActive,
   callOrPick,
   useDialTarget,
@@ -78,6 +78,10 @@ export function OngoingCall(): React.JSX.Element | null {
       : consultCall
     : null;
   const switchableHeld = heldCalls.filter((c: Call) => c !== transferOther);
+  // While a call is reconnecting the server can't be asked for anything, and
+  // doing it late would surprise the user; the view keeps only the controls
+  // that act locally.
+  const reconnecting = call.isReconnecting || calls.some((c: Call) => c.isReconnecting);
   const canAddCall = calls.length < MAX_CALLS;
   // Add call has a single action, so a tapped entry is called right away (unlike
   // Transfer, which still has to choose between transferring and consulting).
@@ -108,14 +112,16 @@ export function OngoingCall(): React.JSX.Element | null {
       palette={palette}
       t={t}
       peer={summarize(call)}
-      stateLabel={t(callStateLabelKey(call.state))}
+      stateLabel={t(callStatusLabelKey(call))}
       duration={duration}
       showDuration={call.state === 'active'}
       isActive={isCallActive(call)}
       isMuted={call.isMuted}
       isHeld={call.state === 'held'}
       transferOther={transferOther ? summarize(transferOther) : null}
-      canCompleteTransfer={focusInTransfer && consultCall !== null && consultCall.isConnected}
+      canCompleteTransfer={
+        !reconnecting && focusInTransfer && consultCall !== null && consultCall.isConnected
+      }
       onSwitchToTransferOther={() => transferOther && switchToCall(transferOther)}
       onCancelTransfer={cancelAttendedTransfer}
       onCompleteTransfer={completeAttendedTransfer}
@@ -157,6 +163,7 @@ export function OngoingCall(): React.JSX.Element | null {
       pickedAddCallContact={canAddCall ? addCallTarget.picked : null}
       onClearAddCallContact={clearAddCall}
       canStartTransfer={!inTransfer && heldCalls.length + incomingCalls.length === 0}
+      reconnecting={reconnecting}
       canAddCall={canAddCall}
       onToggleMute={actions.toggleMute}
       onToggleHold={actions.toggleHold}

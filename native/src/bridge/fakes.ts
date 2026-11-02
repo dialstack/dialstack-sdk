@@ -109,6 +109,13 @@ export class FakeCall implements BridgeCall {
     this.state = 'active';
     this.emit('resumed');
   }
+  /** The phone suspended the call while its socket reconnects. */
+  emitReconnecting(): void {
+    this.emit('reconnecting');
+  }
+  emitReconnected(): void {
+    this.emit('reconnected');
+  }
   emitEnded(reason: CallEndReason): void {
     this.state = 'ended';
     this.emit('ended', reason);

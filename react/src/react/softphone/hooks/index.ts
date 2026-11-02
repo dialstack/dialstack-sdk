@@ -73,6 +73,7 @@ export {
   sanitizeDestination,
   DIAL_COUNTRY,
   callStateLabelKey,
+  callStatusLabelKey,
   errorMessageKey,
   filterDirectory,
   directoryContactTags,

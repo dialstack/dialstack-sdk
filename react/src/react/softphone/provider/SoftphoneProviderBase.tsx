@@ -158,8 +158,7 @@ const DISCONNECTED_PHONE: PhoneE911Api = {
     createPaginatedList<ListResponse<EmergencyAddress>>(notConnected(), notConnected),
   setEmergencyAddress: notConnected,
   presentedEmergencyAddressId: null,
-  clearEmergencyAddressRegisteredIp: notConnected,
-  reconnectWithEmergency: notConnected,
+  rebindEmergencyAddress: notConnected,
 };
 
 export interface SoftphoneCoreProps {
@@ -331,10 +330,6 @@ export function SoftphoneProviderBase<Extra extends object>({
     disabled: !!emergencyAddressId,
     connection,
     identityKey: token,
-    // `callEntries` is the one array every call lives in (active, ringing, held,
-    // transfer legs are all derived views), so a woken inbound counts and a consult
-    // leg isn't double-counted the way summing the derived views did.
-    liveCallCount: callEntries.length,
   });
   // Subscribe to network.changed here — after both hooks exist — so no forward-ref
   // is needed. Attaching a commit after construct misses no signal: network.changed

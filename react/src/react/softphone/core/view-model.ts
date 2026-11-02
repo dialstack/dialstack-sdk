@@ -340,6 +340,17 @@ export function callStateLabelKey(state: CallState): keyof Locale['softphone'] {
 }
 
 /**
+ * The in-call status line: "Reconnecting…" while the signalling socket is down
+ * and the call is being resumed, the call state otherwise.
+ */
+export function callStatusLabelKey(call: {
+  state: CallState;
+  isReconnecting: boolean;
+}): keyof Locale['softphone'] {
+  return call.isReconnecting ? 'reconnecting' : callStateLabelKey(call.state);
+}
+
+/**
  * Map an error `code` to a stable, locale-agnostic message key for the built-in
  * error banner. Most failures collapse to a single generic key (we deliberately
  * don't leak raw server text to the user); the exception is a denied microphone

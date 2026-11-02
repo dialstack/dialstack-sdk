@@ -12,7 +12,7 @@ import React, { useEffect, useState } from 'react';
 import { useSoftphone } from '../provider/SoftphoneProvider';
 import {
   peerDisplay,
-  callStateLabelKey,
+  callStatusLabelKey,
   isCallActive,
   callOrPick,
   useDialTarget,
@@ -111,6 +111,10 @@ export const OngoingCall: React.FC = () => {
   // live: a new transfer in either situation is ambiguous (which call? on top of
   // the existing consult?). Barred while merged — transferring one leg out of a
   // conference is ambiguous too.
+  // While a call is reconnecting the server can't be asked for anything, and
+  // doing it late would surprise the user; the view keeps only the controls
+  // that act locally.
+  const reconnecting = call.isReconnecting || calls.some((c) => c.isReconnecting);
   const canStartTransfer = !inTransfer && !isMerged && otherLiveCalls === 0;
 
   // The legs are held and resumed together, so any one of them answers for the
@@ -174,7 +178,7 @@ export const OngoingCall: React.FC = () => {
   return (
     <OngoingCallView
       peer={summarize(call)}
-      stateLabel={t(callStateLabelKey(call.state))}
+      stateLabel={t(callStatusLabelKey(call))}
       duration={duration}
       showDuration={call.state === 'active'}
       isActive={isActive}
@@ -184,7 +188,7 @@ export const OngoingCall: React.FC = () => {
       conferenceParties={mergedCalls.map(summarize)}
       conferenceLabel={t('conferenceLabel')}
       transferOther={focusInTransfer && transferOther ? summarize(transferOther) : null}
-      canCompleteTransfer={canComplete}
+      canCompleteTransfer={canComplete && !reconnecting}
       onSwitchToTransferOther={() => transferOther && switchToCall(transferOther)}
       onCancelTransfer={cancelAttendedTransfer}
       onCompleteTransfer={completeAttendedTransfer}
@@ -222,6 +226,7 @@ export const OngoingCall: React.FC = () => {
       onSubmitAddCall={submitAddCall}
       devicesPanel={<AudioDevicePicker />}
       canStartTransfer={canStartTransfer}
+      reconnecting={reconnecting}
       canAddCall={canAddCall}
       canMerge={canMerge}
       onToggleMute={actions.toggleMute}

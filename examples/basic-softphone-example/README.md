@@ -115,12 +115,13 @@ In the **Emergency address (E911)** panel (shown once connected):
 
 1. Fill in the civic address and click **Save & bind**. This calls
    `phone.setEmergencyAddress(...)`, which validates the address against the
-   carrier database, then reconnects so the address binds to the current network
-   (it is presented on the `authenticate` handshake via `emergencyAddressId`).
+   carrier database, then `phone.rebindEmergencyAddress(id, { anchor: true })`,
+   which binds it to the current network over the open connection. Calls in
+   progress stay up.
 2. When the SDK emits `network.changed` (the device moved networks), the panel
    shows a **Re-bind** prompt. Re-binding calls
-   `phone.clearEmergencyAddressRegisteredIp(id)` and reconnects so 911 routes to
-   the device's current location.
+   `phone.rebindEmergencyAddress(id, { anchor: true })` so 911 routes to the
+   device's current location.
 
 The selected address id is persisted by the SDK (localStorage) and reused on the
 next connect, so returning users keep their binding.

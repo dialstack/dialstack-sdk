@@ -47,15 +47,20 @@ const defaultAppResume: AppResumeSubscribe = (cb) => {
     if (!doc || doc.visibilityState === 'visible') fire();
   };
 
+  // A network switch (Wi-Fi to cellular) changes the connection's type without
+  // any lifecycle event, and kills the socket without a FIN: probe on it too.
+  const connection = (globalThis.navigator as { connection?: EventTarget } | undefined)?.connection;
   w.addEventListener('online', fire);
   w.addEventListener('pageshow', fire);
   w.addEventListener('focus', fire);
   doc?.addEventListener('visibilitychange', onVisible);
+  connection?.addEventListener?.('change', fire);
   return () => {
     w.removeEventListener('online', fire);
     w.removeEventListener('pageshow', fire);
     w.removeEventListener('focus', fire);
     doc?.removeEventListener('visibilitychange', onVisible);
+    connection?.removeEventListener?.('change', fire);
   };
 };
 
@@ -64,6 +69,11 @@ const BACKOFF_STEPS_MS = [1000, 2000, 4000, 8000, 16000, 30000];
 // How long to wait for a `pong` after a wake-probe `ping` before declaring the
 // socket dead and forcing a reconnect.
 const PROBE_TIMEOUT_MS = 5000;
+
+// Close code for a socket we abandon to reconnect. Anything but 1000/1001 tells
+// the server the drop wasn't deliberate, so it holds the session's calls for a
+// resume instead of hanging them up. 4000–4999 is the application range.
+const ABANDON_CLOSE_CODE = 4000;
 
 // Fatal error codes a reconnect genuinely cannot recover: the credential is
 // dead server-side (session_revoked / auth_expired), or a newer connection has
@@ -132,6 +142,14 @@ export class Transport {
   // `closed`.
   private stopped = false;
 
+  // While set, sendOrQueue() holds frames instead of sending them: the session
+  // is detached and its calls' actions wait for the resume.
+  private queue: ClientMessage[] | null = null;
+  // Where reconnects go while a resume is pending: the task's regional
+  // endpoint, so a DNS change can't send it to the region without the calls.
+  // Dropped for the latency-routed url once an attempt there fails.
+  private resumeUrl: string | null = null;
+
   constructor(
     url: string,
     autoReconnect: boolean,
@@ -187,6 +205,66 @@ export class Transport {
     }
   }
 
+  /**
+   * Send now, or, while the session is detached, hold the frame for the resume
+   * (see startQueueing). Still throws `transport_closed` when the socket is
+   * down and nothing is queueing.
+   */
+  sendOrQueue(msg: ClientMessage): void {
+    if (this.queue) {
+      this.queue.push(msg);
+      return;
+    }
+    this.send(msg);
+  }
+
+  /**
+   * trySend(), except that while frames are queueing it queues too, so a
+   * best-effort frame can't overtake the queued ones it follows.
+   */
+  trySendOrQueue(msg: ClientMessage): void {
+    if (this.queue) {
+      this.queue.push(msg);
+      return;
+    }
+    this.trySend(msg);
+  }
+
+  /** True while frames are being held for a resume. */
+  isQueueing(): boolean {
+    return this.queue !== null;
+  }
+
+  /** Hold sendOrQueue() frames until flushQueue() or dropQueue(). */
+  startQueueing(): void {
+    this.queue ??= [];
+  }
+
+  /** Send the held frames in order and stop queueing. */
+  flushQueue(): void {
+    const held = this.queue ?? [];
+    this.queue = null;
+    for (const msg of held) this.trySend(msg);
+  }
+
+  /** Discard the held frames and stop queueing. */
+  dropQueue(): void {
+    this.queue = null;
+  }
+
+  /** Reconnect to `url` (or, with null, the default endpoint) from now on. */
+  preferUrl(url: string | null): void {
+    this.resumeUrl = url;
+  }
+
+  /**
+   * Check the socket is alive now: ping it and reconnect if nothing comes back.
+   * For a hint the network changed under an open socket (ICE disconnected).
+   */
+  probe(): void {
+    this.onWake();
+  }
+
   close(): void {
     this.closedByUser = true;
     this.clearProbe();
@@ -195,7 +273,9 @@ export class Transport {
       this.unsubscribeResume = null;
     }
     if (this.ws) {
-      this.ws.close();
+      // 1000 explicitly: a bare close() sends no code at all, and only a
+      // normal closure tells the server the client left on purpose.
+      this.ws.close(1000);
       this.ws = null;
     }
   }
@@ -205,12 +285,14 @@ export class Transport {
    * normal backoff reconnect. For an attempt that must not authenticate.
    */
   dropSocket(): void {
-    this.ws?.close();
+    this.ws?.close(1000);
   }
 
   private openSocket(): void {
-    const ws = this.createSocket(this.url, ['dialstack.webrtc.v1']);
+    const url = this.resumeUrl ?? this.url;
+    const ws = this.createSocket(url, ['dialstack.webrtc.v1']);
     this.ws = ws;
+    let authenticated = false;
 
     ws.addEventListener('open', () => {
       this.listeners.open?.();
@@ -236,6 +318,7 @@ export class Transport {
       this.clearProbe();
       if (parsed.type === 'pong') return;
       if (parsed.type === 'authenticated') {
+        authenticated = true;
         // Reset the backoff only once the session is fully established, NOT on
         // socket `open`. The socket opens (TCP + WS upgrade) before the auth
         // handshake and the server-side REGISTER; a REGISTER rejected because
@@ -274,6 +357,9 @@ export class Transport {
       // state) over the replacement.
       if (this.ws !== ws) return;
       this.ws = null;
+      // The regional endpoint didn't take us (the region is down, or it is
+      // unreachable from this network): fall back to the latency-routed name.
+      if (!authenticated && url === this.resumeUrl) this.resumeUrl = null;
       // A pending probe is moot once the socket is gone — its timer would just
       // call forceReconnect, which this close path already handles.
       this.clearProbe();
@@ -370,7 +456,7 @@ export class Transport {
     this.ws = null;
     if (dead) {
       try {
-        dead.close();
+        dead.close(ABANDON_CLOSE_CODE, 'reconnecting');
       } catch {
         // Already closing/closed — nothing to do.
       }

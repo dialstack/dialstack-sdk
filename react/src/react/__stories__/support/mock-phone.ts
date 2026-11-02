@@ -143,6 +143,9 @@ export class MockPhone extends Emitter {
   reconnectWithEmergency(_id: string): Promise<void> {
     return this.reconnect();
   }
+  rebindEmergencyAddress(_id: string): Promise<{ bound: boolean }> {
+    return Promise.resolve({ bound: true });
+  }
   call(to: string): Promise<Call> {
     const c = new MockCall(`out-${++this.seq}`, 'outbound', '', null, to);
     // An outbound goes active once the far end answers; keep it simple for the

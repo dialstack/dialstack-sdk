@@ -74,6 +74,7 @@ export {
   sanitizeDestination,
   DIAL_COUNTRY,
   callStateLabelKey,
+  callStatusLabelKey,
   errorMessageKey,
 } from './hooks';
 export type {

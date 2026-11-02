@@ -103,7 +103,12 @@ function outboundInit(): CallInit {
     fromName: null,
     to: 'user_test-wrtc',
     initialState: 'trying',
-    transport: { send: jest.fn(), trySend: jest.fn() } as never,
+    transport: ((send) => ({
+      send,
+      sendOrQueue: send,
+      trySend: jest.fn(),
+      trySendOrQueue: jest.fn(),
+    }))(jest.fn()) as never,
     iceServers: [],
     startConsult: jest.fn(),
     nextReqId: () => 'req_test',

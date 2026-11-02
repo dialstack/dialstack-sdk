@@ -649,19 +649,17 @@ export class NativeCallBridge {
       })();
     });
 
-    // Both origins are news to the OS. `by` says who put the call on hold, not
-    // who asked: an in-app Hold reports 'local' and the OS knows nothing about
-    // it, so filtering those out left the OS showing an active call and its own
-    // hold button out of step. An OS-originated hold is the one to skip, and the
-    // echo token is what identifies it — not `by`.
-    call.on('held', (by) => {
-      this.reportHold(call, true, `hold ${call.id} (${by})`);
+    // An in-app Hold is news to the OS, which would otherwise show an active
+    // call with its own hold button out of step. An OS-originated hold is the
+    // one to skip, and the echo token is what identifies it.
+    call.on('held', () => {
+      this.reportHold(call, true, `hold ${call.id}`);
       this.scheduleReconcile();
     });
-    // `resumed` carries no origin flag. The value-matched echo token is again
-    // what tells an OS-originated resume from an in-app one.
+    // The value-matched echo token is again what tells an OS-originated
+    // resume from an in-app one.
     call.on('resumed', () => {
-      this.reportHold(call, false, `remote resume ${call.id}`);
+      this.reportHold(call, false, `resume ${call.id}`);
       this.scheduleReconcile();
     });
 

@@ -37,7 +37,7 @@ Every tab calls `send(command)`. The leader runs the command:
 | `answer`, `reject`, `hangup`, `hold`, `resume`, `mute`, `unmute` | `callId`      | The same method on that call                                        |
 | `setMicrophone`                                                  | `deviceId`    | `phone.setAudioInputDevice(deviceId)`                               |
 | `setSpeaker`                                                     | `deviceId`    | `setSinkId(deviceId)` on each call's `<audio>` element              |
-| `setEmergencyAddress`                                            | `address`     | `phone.setEmergencyAddress(address)`, then `reconnectWithEmergency` |
+| `setEmergencyAddress`                                            | `address`     | `phone.setEmergencyAddress(address)`, then `rebindEmergencyAddress` |
 | `connect`                                                        | —             | Connects again, for example after `session_replaced`                |
 
 ## Things to plan for
