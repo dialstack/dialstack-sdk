@@ -783,6 +783,12 @@ export function createMockInstance(
           updated_at: new Date().toISOString(),
         } as Device;
       },
+      retrieveZeroTouch: async (id: string) => ({
+        object: 'device_zero_touch' as const,
+        device: id,
+        checked_at: new Date().toISOString(),
+        last_contacts: [],
+      }),
       listButtons: async (id: string) => ({
         object: 'list' as const,
         url: `/v1/devices/${id}/buttons`,

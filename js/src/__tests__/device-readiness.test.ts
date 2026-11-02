@@ -1,4 +1,5 @@
 import { deviceReadiness, type DeviceReadinessInput } from '../utils/device-readiness';
+import type { DeviceZeroTouch } from '../types/device';
 
 function device(overrides: Partial<DeviceReadinessInput> = {}): DeviceReadinessInput {
   return {
@@ -54,6 +55,7 @@ describe('deviceReadiness', () => {
   it('reports a freshly added device as fully pending', () => {
     const r = deviceReadiness(device({ status: 'pending-sync' }));
     expect(r).toEqual({
+      contacted: false,
       provisioned: false,
       online: false,
       assigned: false,
@@ -188,5 +190,63 @@ describe('deviceReadiness', () => {
     });
     expect(r.assigned).toBe(false);
     expect(r.currentStep).toBe('online');
+  });
+
+  describe('zero-touch', () => {
+    const zeroTouch = (overrides: Partial<DeviceZeroTouch> = {}): DeviceZeroTouch => ({
+      object: 'device_zero_touch',
+      device: 'dev_x',
+      vendor: 'snom',
+      checked_at: '2026-10-30T14:05:00Z',
+      last_contacts: [{ contacted_at: '2026-10-30T14:02:11Z', status_code: 200, path: '/x.htm' }],
+      ...overrides,
+    });
+    const snom = (overrides: Partial<DeviceReadinessInput> = {}) =>
+      device({ status: 'pending-sync', vendor: 'snom', ...overrides });
+    const withContact = ['contacted', 'provisioned', 'online', 'ready_to_call', 'first_call'];
+
+    it('leads with the contact step for a zero-touch vendor, with or without a read', () => {
+      expect(deviceReadiness(snom()).steps).toEqual(withContact);
+      expect(deviceReadiness(snom({ vendor: 'yealink' })).steps).toEqual(withContact);
+      expect(deviceReadiness(snom()).currentStep).toBe('contacted');
+    });
+
+    it('adds no step for other vendors, open escalations, or DECT handsets', () => {
+      const plain = ['provisioned', 'online', 'ready_to_call', 'first_call'];
+      expect(deviceReadiness(snom({ vendor: 'polycom' })).steps).toEqual(plain);
+      expect(deviceReadiness(snom({ zero_touch_escalation: { reason: 'other' } })).steps).toEqual(
+        plain
+      );
+      expect(
+        deviceReadiness(snom({ type: 'dect_handset', base_id: 'dectb_x' }), {
+          zeroTouch: zeroTouch(),
+        }).steps
+      ).toEqual(['online', 'ready_to_call', 'first_call']);
+    });
+
+    it('marks contacted from a read with a contact', () => {
+      const r = deviceReadiness(snom(), { zeroTouch: zeroTouch() });
+      expect(r.contacted).toBe(true);
+      expect(r.currentStep).toBe('provisioned');
+      expect(r.completedCount).toBe(1);
+    });
+
+    it('waits on contact when the phone never asked or the vendor keeps no log', () => {
+      expect(
+        deviceReadiness(snom(), { zeroTouch: zeroTouch({ last_contacts: [] }) }).contacted
+      ).toBe(false);
+      expect(
+        deviceReadiness(snom({ vendor: 'yealink' }), {
+          zeroTouch: zeroTouch({ last_contacts: null }),
+        }).currentStep
+      ).toBe('contacted');
+    });
+
+    it('counts contacted done once the device has provisioned, without a read', () => {
+      const r = deviceReadiness(snom({ status: 'provisioned' }));
+      expect(r.contacted).toBe(true);
+      expect(r.steps).toEqual(withContact);
+      expect(r.currentStep).toBe('online');
+    });
   });
 });

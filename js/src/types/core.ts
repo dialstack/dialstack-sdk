@@ -35,6 +35,7 @@ import type {
   AssignDeviceUserRequest,
   ProvisioningEvent,
   ProvisioningEventListOptions,
+  DeviceZeroTouch,
 } from './device';
 import type {
   ButtonTemplate,
@@ -435,6 +436,11 @@ export interface DevicesResource {
   list(options?: DeviceListOptions): Promise<Device[]>;
   /** Update a device */
   update(id: string, request: UpdateDeviceRequest): Promise<Device>;
+  /**
+   * Retrieve a deskphone's or DECT base's live zero-touch status from its
+   * manufacturer. Each call queries the manufacturer; not meant for polling.
+   */
+  retrieveZeroTouch(id: string): Promise<DeviceZeroTouch>;
   /** List effective programmable buttons for a device (compatibility is on the parent Device retrieve) */
   listButtons(id: string): Promise<PaginatedResponse<MaterializedButton>>;
   /** List button templates that render at least one supported button on this device */

@@ -264,6 +264,8 @@ export type {
   Device,
   DeviceZeroTouchEscalation,
   DeviceZeroTouchEscalationReason,
+  DeviceZeroTouch,
+  DeviceZeroTouchContact,
   DeviceStatus,
   RegistrationStatus,
   DeviceLine,

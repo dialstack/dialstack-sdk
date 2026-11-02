@@ -35,6 +35,36 @@ export interface DeviceZeroTouchEscalation {
   reason: DeviceZeroTouchEscalationReason;
 }
 
+/** One contact the phone made with the manufacturer's zero-touch service. */
+export interface DeviceZeroTouchContact {
+  /** ISO 8601 timestamp */
+  contacted_at: string;
+  /** HTTP status the manufacturer's service answered the phone with */
+  status_code: number;
+  /** Path the phone requested */
+  path: string;
+}
+
+/**
+ * A device's recent contacts with the manufacturer's zero-touch service, from
+ * `GET /v1/devices/:id/zero-touch`. Every read asks the manufacturer, so fetch
+ * it on demand rather than polling.
+ */
+export interface DeviceZeroTouch {
+  object: 'device_zero_touch';
+  device: string;
+  /** The manufacturer whose service was asked; absent when none applies. */
+  vendor?: string;
+  /** ISO 8601 timestamp of the manufacturer read */
+  checked_at: string;
+  /**
+   * Most recent contacts since the device was added, newest first. `null`
+   * when the manufacturer keeps no contact history or zero-touch does not
+   * apply; empty when the phone has not contacted the service.
+   */
+  last_contacts: DeviceZeroTouchContact[] | null;
+}
+
 /**
  * A device returned by `GET /v1/devices` or `GET /v1/devices/:id`.
  * The `type` field discriminates between deskphones and DECT bases.

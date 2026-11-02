@@ -37,6 +37,7 @@ export type {
   DeviceReadinessInput,
   DeviceReadiness,
   DeviceReadinessStep,
+  DeviceReadinessOptions,
   DeviceReadinessPrerequisite,
 } from './utils/device-readiness';
 

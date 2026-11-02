@@ -20,6 +20,12 @@
  * - **readyToCall** — assigned AND online: the user's line is live, the
  *   device can make and receive calls.
  * - **firstCall** — the device has carried a call (`last_call_at` non-null).
+ * - **contacted** — a zero-touch step ahead of provisioned, for deskphones
+ *   and DECT bases whose manufacturer runs a zero-touch service (Snom,
+ *   Yealink) and that have no open zero-touch escalation: the phone has
+ *   asked that service where to get its settings. Done once the device has
+ *   provisioned; before that, only a `DeviceZeroTouch` read
+ *   (`devices.retrieveZeroTouch`) with a contact can mark it done.
  *
  * `graduated` (=== `firstCall`) is the one-way gate out of onboarding UX: a
  * device that has carried a call shows a calm steady-state view instead of
@@ -28,7 +34,7 @@
  * re-opens onboarding for the new user's line.
  */
 
-import type { DeviceType, RegistrationStatus } from '../types/device';
+import type { DeviceType, DeviceZeroTouch, RegistrationStatus } from '../types/device';
 
 /**
  * Structural subset of `Device` that readiness derivation needs. Accepting a
@@ -58,7 +64,14 @@ export interface DeviceReadinessInput {
   location_id?: string | null;
   /** Paired DECT base (handsets only). */
   base_id?: string | null;
+  /** Manufacturer; decides whether the zero-touch step applies. */
+  vendor?: string;
+  /** An open zero-touch escalation, which replaces the zero-touch step. */
+  zero_touch_escalation?: unknown;
 }
+
+/** Manufacturers whose zero-touch service sends a new phone to the platform. */
+const ZERO_TOUCH_VENDORS: ReadonlySet<string> = new Set(['snom', 'yealink']);
 
 /** A configuration prerequisite the device is still missing. */
 export type DeviceReadinessPrerequisite =
@@ -71,9 +84,24 @@ export type DeviceReadinessPrerequisite =
   | 'base';
 
 /** Onboarding spine steps, in order. */
-export type DeviceReadinessStep = 'provisioned' | 'online' | 'ready_to_call' | 'first_call';
+export type DeviceReadinessStep =
+  'contacted' | 'provisioned' | 'online' | 'ready_to_call' | 'first_call';
+
+/** Optional live signals that add steps to the spine. */
+export interface DeviceReadinessOptions {
+  /**
+   * The device's live zero-touch read. Marks `contacted` done before the
+   * device has provisioned when the phone has contacted the manufacturer.
+   */
+  zeroTouch?: DeviceZeroTouch;
+}
 
 export interface DeviceReadiness {
+  /**
+   * The phone has contacted the manufacturer's zero-touch service. Only
+   * meaningful when `steps` includes `'contacted'`.
+   */
+  contacted: boolean;
   /**
    * The device has fetched its settings. Only meaningful when `steps`
    * includes `'provisioned'`.
@@ -112,10 +140,13 @@ export interface DeviceReadiness {
  * Derive the readiness conditions for a device.
  *
  * The spine is provisioned → online → ready to call → first call (DECT
- * handsets start at online), but it is not a strict sequence: `assigned` floats and gates `readyToCall`, so e.g. a
+ * handsets start at online; Snom and Yealink phones start at contacted), but it is not a strict sequence: `assigned` floats and gates `readyToCall`, so e.g. a
  * userless device can be online while blocked on assignment.
  */
-export function deviceReadiness(device: DeviceReadinessInput): DeviceReadiness {
+export function deviceReadiness(
+  device: DeviceReadinessInput,
+  options: DeviceReadinessOptions = {}
+): DeviceReadiness {
   // Note: the backend never reports a registered device that hasn't
   // provisioned (a registration requires a fetched configuration), so the
   // raw fields are taken at face value — no client-side reconciliation.
@@ -128,6 +159,13 @@ export function deviceReadiness(device: DeviceReadinessInput): DeviceReadiness {
   const assigned = device.type === 'dect_base' ? true : (device.assignments?.length ?? 0) > 0;
   const readyToCall = assigned && online;
   const firstCall = device.last_call_at !== null && device.last_call_at !== undefined;
+  const zeroTouchStep =
+    device.type !== 'dect_handset' &&
+    ZERO_TOUCH_VENDORS.has(device.vendor ?? '') &&
+    !device.zero_touch_escalation;
+  // A provisioned phone reached the platform, so it contacted the
+  // manufacturer whatever a later read says.
+  const contacted = provisioned || (options.zeroTouch?.last_contacts?.length ?? 0) > 0;
 
   const missing: DeviceReadinessPrerequisite[] = [];
   if (device.type !== 'dect_base' && !assigned) missing.push('user');
@@ -136,15 +174,20 @@ export function deviceReadiness(device: DeviceReadinessInput): DeviceReadiness {
 
   const spine = (
     [
+      ['contacted', contacted],
       ['provisioned', provisioned],
       ['online', online],
       ['ready_to_call', readyToCall],
       ['first_call', firstCall],
     ] satisfies Array<[DeviceReadinessStep, boolean]>
-  ).filter(([step]) => step !== 'provisioned' || device.type !== 'dect_handset');
+  ).filter(([step]) => {
+    if (step === 'contacted') return zeroTouchStep;
+    return step !== 'provisioned' || device.type !== 'dect_handset';
+  });
   const firstIncomplete = spine.find(([, done]) => !done);
 
   return {
+    contacted,
     provisioned,
     online,
     assigned,

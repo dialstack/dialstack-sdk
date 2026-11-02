@@ -50,6 +50,7 @@ import type {
   TemplateButton,
   DeviceButtonOverride,
   MaterializedButton,
+  DeviceZeroTouch,
   CreateButtonTemplateRequest,
   UpdateButtonTemplateRequest,
   CreateTemplateButtonRequest,
@@ -1415,6 +1416,14 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Failed to update device: ${response.status} ${errorText}`);
+      }
+      return response.json();
+    },
+    retrieveZeroTouch: async (id: string): Promise<DeviceZeroTouch> => {
+      const response = await this.fetchApi(`/v1/devices/${id}/zero-touch`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to retrieve device zero-touch: ${response.status} ${errorText}`);
       }
       return response.json();
     },
