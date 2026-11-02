@@ -13,7 +13,14 @@ import type {
 } from './components';
 import type { CallEventMap, CallEventHandler } from './callbacks';
 import type { DialPlan as DialPlanData, Extension } from './dial-plan';
-import type { HardwareOrder, HardwareOrderList } from './hardware-orders';
+import type {
+  CreateHardwareOrderRequest,
+  HardwareCatalogList,
+  HardwareOrder,
+  HardwareOrderList,
+  HardwareShippingQuote,
+  UpdateHardwareOrderRequest,
+} from './hardware-orders';
 import type {
   AvailablePhoneNumber,
   NumberOrder,
@@ -299,6 +306,22 @@ export interface HardwareOrdersResource {
   approve(orderId: string): Promise<HardwareOrder>;
   /** Decline a pending order, returning it to a draft with the reason. */
   decline(orderId: string, reason: string): Promise<HardwareOrder>;
+  /** Start a draft. Needs the `hardware_ordering_edit` component. */
+  create(request: CreateHardwareOrderRequest): Promise<HardwareOrder>;
+  /** Change a draft the account built. */
+  update(orderId: string, request: UpdateHardwareOrderRequest): Promise<HardwareOrder>;
+  /** Delete a draft the account built. */
+  del(orderId: string): Promise<void>;
+  shippingQuotes: {
+    /** Price shipping for a draft; changes nothing on the order. */
+    create(orderId: string): Promise<HardwareShippingQuote>;
+    retrieve(orderId: string, quoteId: string): Promise<HardwareShippingQuote>;
+  };
+}
+
+export interface HardwareCatalogResource {
+  /** The hardware the account can order, at its own price. Needs `hardware_ordering_edit`. */
+  list(): Promise<HardwareCatalogList>;
 }
 
 export interface PortOrdersResource {
@@ -736,6 +759,7 @@ export interface DialStackInstance {
   availablePhoneNumbers: AvailablePhoneNumbersResource;
   phoneNumberOrders: PhoneNumberOrdersResource;
   hardwareOrders: HardwareOrdersResource;
+  hardwareCatalog: HardwareCatalogResource;
   portOrders: PortOrdersResource;
   audioClips: AudioClipsResource;
   dialPlans: DialPlansResource;

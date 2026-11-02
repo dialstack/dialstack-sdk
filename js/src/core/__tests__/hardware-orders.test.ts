@@ -67,4 +67,62 @@ describe('hardwareOrders', () => {
       code: 'hardware_order_approval_out_of_order',
     });
   });
+
+  it('creates a draft from catalog lines', async () => {
+    const { instance, calls } = recordingInstance();
+
+    await instance.hardwareOrders.create({ items: [{ hardware_catalog: 'hwc_1', quantity: 2 }] });
+
+    expect(calls[0][0]).toBe('/v1/hardware-orders');
+    expect(calls[0][1]?.method).toBe('POST');
+    expect(JSON.parse(String(calls[0][1]?.body))).toEqual({
+      items: [{ hardware_catalog: 'hwc_1', quantity: 2 }],
+    });
+  });
+
+  it('updates only the fields given', async () => {
+    const { instance, calls } = recordingInstance();
+
+    await instance.hardwareOrders.update('hwo_1', {
+      shipping_quote: 'shq_1',
+      shipping_method: 'ground',
+    });
+
+    expect(calls[0][0]).toBe('/v1/hardware-orders/hwo_1');
+    expect(calls[0][1]?.method).toBe('POST');
+    expect(JSON.parse(String(calls[0][1]?.body))).toEqual({
+      shipping_quote: 'shq_1',
+      shipping_method: 'ground',
+    });
+  });
+
+  it('deletes a draft', async () => {
+    const { instance, calls } = recordingInstance(204, null);
+
+    await instance.hardwareOrders.del('hwo_1');
+
+    expect(calls[0][0]).toBe('/v1/hardware-orders/hwo_1');
+    expect(calls[0][1]?.method).toBe('DELETE');
+  });
+
+  it('creates and retrieves a shipping quote', async () => {
+    const { instance, calls } = recordingInstance(200, { id: 'shq_1', options: [] });
+
+    await instance.hardwareOrders.shippingQuotes.create('hwo_1');
+    await instance.hardwareOrders.shippingQuotes.retrieve('hwo_1', 'shq_1');
+
+    expect(calls[0][0]).toBe('/v1/hardware-orders/hwo_1/shipping-quotes');
+    expect(calls[0][1]?.method).toBe('POST');
+    expect(calls[1][0]).toBe('/v1/hardware-orders/hwo_1/shipping-quotes/shq_1');
+  });
+});
+
+describe('hardwareCatalog', () => {
+  it('lists the catalog', async () => {
+    const { instance, calls } = recordingInstance(200, { object: 'list', data: [] });
+
+    await instance.hardwareCatalog.list();
+
+    expect(calls[0][0]).toBe('/v1/catalog');
+  });
 });

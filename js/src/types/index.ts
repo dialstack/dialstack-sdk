@@ -322,8 +322,17 @@ export type {
 export type { QueueStrategy } from './queue';
 
 export type {
+  CreateHardwareOrderRequest,
+  HardwareCatalogComponent,
+  HardwareCatalogItem,
+  HardwareCatalogList,
   HardwareOrder,
+  HardwareOrderAddress,
   HardwareOrderApproval,
   HardwareOrderLine,
+  HardwareOrderLineInput,
   HardwareOrderList,
+  HardwareShippingOption,
+  HardwareShippingQuote,
+  UpdateHardwareOrderRequest,
 } from './hardware-orders';

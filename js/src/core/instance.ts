@@ -94,7 +94,14 @@ import type { DialPlan as DialPlanData } from '../types/dial-plan';
 import { CLIENT_HEADER, ClientInfo } from './client-info';
 import { PACKAGE_VERSION } from '../version';
 import type { AIAgent, UpdateAIAgentRequest } from '../types/ai-agent';
-import type { HardwareOrder, HardwareOrderList } from '../types/hardware-orders';
+import type {
+  CreateHardwareOrderRequest,
+  HardwareCatalogList,
+  HardwareOrder,
+  HardwareOrderList,
+  HardwareShippingQuote,
+  UpdateHardwareOrderRequest,
+} from '../types/hardware-orders';
 
 /**
  * Error thrown by SDK API calls, carrying the HTTP status code.
@@ -835,6 +842,50 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         { method: 'POST', body: JSON.stringify({ reason }) },
         'Failed to decline hardware order'
       ),
+    create: async (request: CreateHardwareOrderRequest): Promise<HardwareOrder> =>
+      this.hardwareOrderRequest(
+        '/v1/hardware-orders',
+        { method: 'POST', body: JSON.stringify(request) },
+        'Failed to create hardware order'
+      ),
+    update: async (orderId: string, request: UpdateHardwareOrderRequest): Promise<HardwareOrder> =>
+      this.hardwareOrderRequest(
+        `/v1/hardware-orders/${encodeURIComponent(orderId)}`,
+        { method: 'POST', body: JSON.stringify(request) },
+        'Failed to update hardware order'
+      ),
+    del: async (orderId: string): Promise<void> => {
+      const response = await this.fetchApi(`/v1/hardware-orders/${encodeURIComponent(orderId)}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const { message, code, details } = await extractApiError(
+          response,
+          'Failed to delete hardware order'
+        );
+        throw new ApiError(message, response.status, code, details);
+      }
+    },
+    // Named as in the server SDK, so one endpoint has one name across both.
+    shippingQuotes: {
+      create: async (orderId: string): Promise<HardwareShippingQuote> =>
+        this.hardwareOrderRequest(
+          `/v1/hardware-orders/${encodeURIComponent(orderId)}/shipping-quotes`,
+          { method: 'POST' },
+          'Failed to quote shipping'
+        ),
+      retrieve: async (orderId: string, quoteId: string): Promise<HardwareShippingQuote> =>
+        this.hardwareOrderRequest(
+          `/v1/hardware-orders/${encodeURIComponent(orderId)}/shipping-quotes/${encodeURIComponent(quoteId)}`,
+          undefined,
+          'Failed to get shipping quote'
+        ),
+    },
+  };
+
+  hardwareCatalog = {
+    list: async (): Promise<HardwareCatalogList> =>
+      this.hardwareOrderRequest('/v1/catalog', undefined, 'Failed to list hardware catalog'),
   };
 
   private async hardwareOrderRequest<T>(
