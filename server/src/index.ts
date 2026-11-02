@@ -548,8 +548,9 @@ export interface AccountPricingParams {
   per_voiceai_location_rate: number;
   /**
    * Price per inbound minute to the account's toll-free numbers, in cents as a
-   * decimal string with at most two decimal places, between `"1.65"` and `"10"`.
-   * Omit to keep the account's current rate (or the default, for a new account).
+   * decimal string with at most two decimal places. A rate outside the permitted
+   * range is rejected with a 400 explaining why. Omit to keep the account's
+   * current rate (or the default, for a new account).
    */
   toll_free_minute_rate_decimal?: string;
 }
