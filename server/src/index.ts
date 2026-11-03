@@ -3312,6 +3312,12 @@ export interface TestScenarioOverride {
   talk_seconds?: number;
   recording?: boolean;
   voicemail_seconds?: number;
+  /**
+   * Inbound, answered calls only: the answering user blind-transfers the
+   * caller to this extension or E.164 number once `talk_seconds` is up. The
+   * caller keeps its call, as on a live call.
+   */
+  transfer_to?: string;
 }
 
 export interface TestCallCreateParams {
