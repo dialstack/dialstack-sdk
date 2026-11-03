@@ -222,6 +222,34 @@ describe('Transport session_revoked handling', () => {
     expect(delay).toBeLessThanOrEqual(1000);
   });
 
+  it('caps the backoff at 2 s while a resume is pending, and escalates again after', () => {
+    const { transport, reconnecting } = connect(true);
+    transport.setResumePending(true);
+
+    // Past the 4 s step the uncapped delays would be 8/16/30 s, which would let
+    // a 17–30 s outage outlast the server's resume window.
+    const fail = () => {
+      const ws = FakeWebSocket.instances[FakeWebSocket.instances.length - 1]!;
+      ws.fire('open', {});
+      ws.fire('close', {});
+      jest.runOnlyPendingTimers();
+    };
+    for (let i = 0; i < 7; i++) fail();
+    for (const [, delay] of reconnecting.mock.calls as [number, number][]) {
+      expect(delay).toBeLessThanOrEqual(2000);
+    }
+    const capped = reconnecting.mock.calls.slice(2) as [number, number][];
+    for (const [, delay] of capped) expect(delay).toBeGreaterThanOrEqual(1000);
+
+    transport.setResumePending(false);
+    fail();
+    const [, delay] = reconnecting.mock.calls[reconnecting.mock.calls.length - 1]! as [
+      number,
+      number,
+    ];
+    expect(delay).toBeGreaterThanOrEqual(15000);
+  });
+
   it('jitters the backoff so lockstep clients de-synchronise', () => {
     // Many independent transports all at the first step should spread their
     // retry delays across [500, 1000] rather than firing at an identical time.

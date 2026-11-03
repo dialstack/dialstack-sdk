@@ -66,6 +66,15 @@ const defaultAppResume: AppResumeSubscribe = (cb) => {
 
 const BACKOFF_STEPS_MS = [1000, 2000, 4000, 8000, 16000, 30000];
 
+// The longest step while a resume is pending. The server holds the calls for
+// a window of about 30 s, and nothing may announce the network coming back (an
+// AP roam, an upstream outage), so the 8/16/30 s steps could leave the first
+// attempt after recovery due only once the window has closed. Jittered to
+// 1–2 s, the attempt after recovery lands within 2 s plus the handshake, so
+// an outage up to about 27 s still resumes. The window is short and bounds
+// these attempts, so the load a longer step would save is small.
+const RESUME_BACKOFF_CAP_MS = 2000;
+
 // How long to wait for a `pong` after a wake-probe `ping` before declaring the
 // socket dead and forcing a reconnect.
 const PROBE_TIMEOUT_MS = 5000;
@@ -149,6 +158,9 @@ export class Transport {
   // endpoint, so a DNS change can't send it to the region without the calls.
   // Dropped for the latency-routed url once an attempt there fails.
   private resumeUrl: string | null = null;
+  // Set while the server holds this session's calls for a resume: backoff
+  // steps are capped so an attempt lands inside the window.
+  private resumePending = false;
 
   constructor(
     url: string,
@@ -255,6 +267,11 @@ export class Transport {
   /** Reconnect to `url` (or, with null, the default endpoint) from now on. */
   preferUrl(url: string | null): void {
     this.resumeUrl = url;
+  }
+
+  /** Cap the reconnect backoff while the server holds calls for a resume. */
+  setResumePending(pending: boolean): void {
+    this.resumePending = pending;
   }
 
   /**
@@ -389,7 +406,8 @@ export class Transport {
   }
 
   private scheduleReconnect(): void {
-    const step = BACKOFF_STEPS_MS[Math.min(this.reconnectAttempts, BACKOFF_STEPS_MS.length - 1)]!;
+    let step = BACKOFF_STEPS_MS[Math.min(this.reconnectAttempts, BACKOFF_STEPS_MS.length - 1)]!;
+    if (this.resumePending) step = Math.min(step, RESUME_BACKOFF_CAP_MS);
     // Equal jitter (AWS "Exponential Backoff And Jitter"): hold half the step
     // as a floor and randomise the other half → delay ∈ [step/2, step]. Several
     // sessions for one user (e.g. multiple tabs) that drop in lockstep against

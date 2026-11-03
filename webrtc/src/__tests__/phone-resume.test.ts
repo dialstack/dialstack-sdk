@@ -302,6 +302,36 @@ describe('a dropped socket on an answered call', () => {
     phone.disconnect();
   });
 
+  it('still resumes after a 27 s outage: no backoff step outlasts the window', async () => {
+    const { phone, ws, call } = await phoneOnCall();
+    ws.drop();
+
+    // Every attempt fails until the network comes back at +27 s.
+    let t = 0;
+    let seen = FakeWebSocket.instances.length;
+    while (t < 27_000) {
+      jest.advanceTimersByTime(100);
+      t += 100;
+      await drain();
+      if (FakeWebSocket.instances.length > seen) {
+        seen = FakeWebSocket.instances.length;
+        latest().drop();
+      }
+    }
+    while (FakeWebSocket.instances.length === seen) {
+      jest.advanceTimersByTime(100);
+      t += 100;
+      await drain();
+    }
+    // Inside the server's 30 s window.
+    expect(t).toBeLessThanOrEqual(29_000);
+    expect(t - 27_000).toBeLessThanOrEqual(2_000);
+    latest().authenticate({ resumed: true });
+    latest().deliver(restored());
+    expect(call.state).toBe('active');
+    phone.disconnect();
+  });
+
   it('falls back to the latency-routed endpoint when the regional one fails', async () => {
     const { phone, ws } = await phoneOnCall();
     ws.drop();

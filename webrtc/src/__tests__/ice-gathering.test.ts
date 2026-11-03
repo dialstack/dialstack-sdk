@@ -70,6 +70,12 @@ class SlowGatheringPeerConnection {
     });
   }
 
+  /** Gathering finishes. */
+  completeGathering(): void {
+    this.iceGatheringState = 'complete';
+    this.emit('icegatheringstatechange', {});
+  }
+
   /** Gathering ends having produced nothing (no interfaces, everything blocked). */
   completeWithNothing(): void {
     this.iceGatheringState = 'complete';
@@ -90,6 +96,14 @@ class SlowGatheringPeerConnection {
   setLocalDescription(d: RTCSessionDescriptionInit): Promise<void> {
     this.localDescription = { type: d.type as string, sdp: d.sdp ?? '' };
     return Promise.resolve();
+  }
+  remoteDescription: { type: string; sdp: string } | null = null;
+  setRemoteDescription(d: RTCSessionDescriptionInit): Promise<void> {
+    this.remoteDescription = { type: d.type as string, sdp: d.sdp ?? '' };
+    return Promise.resolve();
+  }
+  createAnswer(): Promise<RTCSessionDescriptionInit> {
+    return Promise.resolve({ type: 'answer', sdp: OFFER_NO_CANDIDATES });
   }
   addTransceiver(): void {}
   close(): void {}
@@ -152,16 +166,43 @@ describe('outbound offer ICE candidates', () => {
     expect(offer?.sdp).toContain('a=candidate:');
   });
 
-  it('releases as soon as the first candidate arrives, without waiting for the cap', async () => {
+  // Half trickle (RFC 8840 § 5.3): nothing has said the far end takes trickled
+  // candidates yet, so the first offer waits for a complete set, not the first
+  // host candidate.
+  it('waits past the first candidate for gathering to complete', async () => {
     const call = new Call(outboundInit());
     const pc = call.peerConnection as unknown as SlowGatheringPeerConnection;
 
-    const pending = call.startOutbound();
+    let offer: RTCSessionDescriptionInit | undefined;
+    const pending = call.startOutbound().then((o) => {
+      offer = o;
+    });
     await jest.advanceTimersByTimeAsync(10);
     pc.produceCandidate();
+    await jest.advanceTimersByTimeAsync(500);
+    expect(offer).toBeUndefined();
 
-    const offer = await pending;
-    expect(offer.sdp).toContain('a=candidate:');
+    pc.completeGathering();
+    await pending;
+    expect(offer?.sdp).toContain('a=candidate:');
+  });
+
+  it('releases what it has at the cap when gathering is slow to complete', async () => {
+    const call = new Call(outboundInit());
+    const pc = call.peerConnection as unknown as SlowGatheringPeerConnection;
+
+    let offer: RTCSessionDescriptionInit | undefined;
+    const pending = call.startOutbound().then((o) => {
+      offer = o;
+    });
+    await jest.advanceTimersByTimeAsync(10);
+    pc.produceCandidate();
+    await jest.advanceTimersByTimeAsync(1900);
+    expect(offer).toBeUndefined();
+
+    await jest.advanceTimersByTimeAsync(100);
+    await pending;
+    expect(offer?.sdp).toContain('a=candidate:');
   });
 
   it('rejects when the call ends before any candidate is gathered', async () => {
@@ -201,5 +242,56 @@ describe('outbound offer ICE candidates', () => {
 
     const offer = await pending;
     expect(offer.sdp).not.toContain('a=candidate:');
+  });
+});
+
+// RFC 8838 § 5: an answer may carry any candidates only when the offer
+// advertised trickle; otherwise the far end does regular ICE and needs them all.
+describe('inbound answer ICE candidates', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    (globalThis as Record<string, unknown>).RTCPeerConnection = SlowGatheringPeerConnection;
+    (globalThis as Record<string, unknown>).MediaStream = FakeMediaStream;
+    Object.defineProperty(globalThis, 'navigator', {
+      value: {
+        mediaDevices: { getUserMedia: async () => new FakeMediaStream([new FakeTrack()]) },
+      },
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  function inboundCall() {
+    const call = new Call({ ...outboundInit(), direction: 'inbound', initialState: 'ringing' });
+    const pc = call.peerConnection as unknown as SlowGatheringPeerConnection;
+    const answer = () => (call as unknown as { pendingAnswerSdp: string | null }).pendingAnswerSdp;
+    return { call, pc, answer };
+  }
+
+  it('answers at the first candidate when the offer advertises trickle', async () => {
+    const { call, pc, answer } = inboundCall();
+    const pending = call.prepareAnswerForOffer(OFFER_NO_CANDIDATES);
+    await jest.advanceTimersByTimeAsync(10);
+    pc.produceCandidate();
+    await pending;
+    expect(answer()).toContain('a=candidate:');
+  });
+
+  it('waits for gathering to complete when the offer does not advertise trickle', async () => {
+    const { call, pc, answer } = inboundCall();
+    const pending = call.prepareAnswerForOffer(
+      OFFER_NO_CANDIDATES.replace('a=ice-options:trickle\r\n', '')
+    );
+    await jest.advanceTimersByTimeAsync(10);
+    pc.produceCandidate();
+    await jest.advanceTimersByTimeAsync(500);
+    expect(answer()).toBeNull();
+
+    pc.completeGathering();
+    await pending;
+    expect(answer()).toContain('a=candidate:');
   });
 });

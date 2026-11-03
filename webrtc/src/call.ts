@@ -244,6 +244,15 @@ export class Call {
   // them, and the end of gathering, under the generation being replaced.
   private restartOfferSent = false;
   private restartGatheringDone = false;
+  // The restart offer's ufrag, and whether a candidate of that generation has
+  // been seen. An end of candidates counts only after one has: before, it is
+  // the old generation's, or one setConfiguration provoked, and taken for the
+  // new one it sent end-of-candidates straight after the offer, so the gateway
+  // dropped the srflx/relay candidates that followed. Telling the generations
+  // apart by when events arrive is not enough, since an old one's can still
+  // be delivered after the offer is set.
+  private restartUfrag: string | null = null;
+  private restartGathering = false;
   private restartAnswerTimer: ReturnType<typeof setTimeout> | null = null;
   private restartRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private restartAttempts = 0;
@@ -898,13 +907,10 @@ export class Call {
     this.attachDtmfSender();
     const offer = await this.peerConnection.createOffer();
     await this.peerConnection.setLocalDescription(offer);
-    // Half trickle (RFC 8838 § 16): wait for a usable candidate set rather than
-    // a complete one. The offer must carry at least one a=candidate — a
-    // candidate-less offer reads to the far end as "no ICE" and comes back with
-    // an answer that has no ICE block, which the browser cannot apply.
-    // Candidates gathered after this point are trickled separately and are
-    // negotiated into the session where the path supports it.
-    await this.waitForIceGatheringComplete();
+    // Half trickle (RFC 8840 § 5.3, RFC 8838 § 16): nothing has told us yet
+    // that the far end takes trickled candidates, so the first offer waits for
+    // gathering to complete. Candidates gathered after the cap trickle.
+    await this.waitForIceGatheringComplete(2000, 15000, { peerTrickles: false });
     return this.localDescriptionOr(offer);
   }
 
@@ -988,9 +994,12 @@ export class Call {
     if (this.isFinished) return;
     await this.peerConnection.setLocalDescription(answer);
     if (this.isFinished) return;
-    // Same requirement as startOutbound: the answer must carry at least one
-    // candidate, or the negotiated session has no ICE.
-    await this.waitForIceGatheringComplete();
+    // RFC 8838 § 5: the answer may carry any candidates only if the offer
+    // advertised trickle; otherwise the far end does regular ICE and needs a
+    // complete set.
+    await this.waitForIceGatheringComplete(2000, 15000, {
+      peerTrickles: this.remoteAdvertisesTrickle(),
+    });
     if (this.isFinished) return;
     this.pendingAnswerSdp = this.peerConnection.localDescription?.sdp ?? answer.sdp ?? null;
     // Flush a deferred answer: answer() may have been clicked before the SDP
@@ -1262,6 +1271,8 @@ export class Call {
     this.reportedPair = null;
     this.restartOfferSent = false;
     this.restartGatheringDone = false;
+    this.restartUfrag = null;
+    this.restartGathering = false;
     void this.runIceRestart(reqId).catch((e) => {
       logWarn('ICE restart failed', { callId: this.id, error: (e as Error).message });
       this.abandonIceRestart();
@@ -1285,9 +1296,13 @@ export class Call {
     if (this.isFinished || this.restartReqId !== reqId) return;
     const offer = await this.peerConnection.createOffer({ iceRestart: true });
     await this.peerConnection.setLocalDescription(offer);
-    // A complete-enough candidate set in the offer, as for the call's first
-    // offer: the far end may not take trickled candidates.
-    await this.waitForIceGatheringComplete();
+    this.restartUfrag = /^a=ice-ufrag:(\S+)/m.exec(offer.sdp ?? '')?.[1] ?? '';
+    // A later exchange may be partial once the far end has advertised trickle
+    // (RFC 8838 § 3); otherwise this waits like the call's first offer.
+    await this.waitForIceGatheringComplete(2000, 15000, {
+      freshGeneration: true,
+      peerTrickles: this.remoteAdvertisesTrickle(),
+    });
     if (this.isFinished || this.restartReqId !== reqId) return;
     this.transport.sendOrQueue({
       type: 'sdp.offer',
@@ -1321,6 +1336,8 @@ export class Call {
     this.restartReqId = null;
     this.restartOfferSent = false;
     this.restartGatheringDone = false;
+    this.restartUfrag = null;
+    this.restartGathering = false;
     if (this.restartAnswerTimer) {
       clearTimeout(this.restartAnswerTimer);
       this.restartAnswerTimer = null;
@@ -1438,11 +1455,22 @@ export class Call {
       // queue with everything else, so they can't overtake the frames before
       // them.
       //
-      // A restart's own candidates wait for its offer, which carries every
-      // one gathered so far; only the end of gathering is worth remembering.
-      if (this.restartReqId && !this.restartOfferSent) {
-        if (!evt.candidate) this.restartGatheringDone = true;
-        return;
+      // While a restart runs, only the new generation's events count: the
+      // old one's candidates are stale, and its end of candidates would end
+      // the new generation's trickle at the gateway.
+      if (this.restartReqId) {
+        if (evt.candidate) {
+          if (!this.isRestartGeneration(evt.candidate)) return;
+          this.restartGathering = true;
+        } else if (!this.restartGathering) {
+          return;
+        }
+        // Its own candidates wait for its offer, which carries every one
+        // gathered so far; only the end of gathering is worth remembering.
+        if (!this.restartOfferSent) {
+          if (!evt.candidate) this.restartGatheringDone = true;
+          return;
+        }
       }
       if (evt.candidate) {
         this.transport.trySendOrQueue({
@@ -1522,10 +1550,19 @@ export class Call {
     ice.addEventListener('selectedcandidatepairchange', () => void this.reportSelectedPair());
   }
 
-  // Resolve once ICE gathering reaches 'complete', or after a timeout so a
-  // slow/unreachable STUN/TURN server can't stall call setup — host candidates
-  // (gathered near-instantly) are enough for the SDP to be ICE-valid, and any
-  // server-reflexive candidates that arrive later are a bonus we don't block on.
+  // How long a description waits for its candidates depends on what the far end
+  // has said about trickle (RFC 8838, RFC 8840):
+  //
+  //   - peerTrickles: its description advertised a=ice-options:trickle, so
+  //     ours may carry any candidates (RFC 8838 § 5 for an answer, § 3 for a
+  //     later exchange). Release at the first candidate; the rest trickle.
+  //   - otherwise: half trickle (RFC 8840 § 5.3, RFC 8838 § 16). Wait for
+  //     gathering to complete, capped at timeoutMs so a slow or unreachable
+  //     STUN/TURN server can't stall the call; what arrives after the cap
+  //     trickles. The call's first offer is always this case, since nothing
+  //     has been heard from the far end yet. Assuming trickle there would need
+  //     Require: trickle-ice (RFC 8840 § 5.1), which turns a wrong assumption
+  //     into a failed call.
   //
   // The timeout MUST NOT release a description with no candidates in it. That
   // is a well-formed trickle offer as far as the spec goes, but the far end
@@ -1538,15 +1575,28 @@ export class Call {
   //
   // So the cap is a cap on waiting for a COMPLETE generation, not on waiting
   // for a usable one. If it fires with nothing gathered we keep waiting for the
-  // first candidate — that is the half trickle of RFC 8838 § 16, and it is what
-  // makes the offer safe against any peer, whether or not it supports trickle.
+  // first candidate — still half trickle, whose initial description need only
+  // be "usable but not necessarily full" (RFC 8838 § 16).
   // Waiting past the cap is only safe because two things can still end the wait
   // when no candidate ever arrives: the hard deadline below, and abortIceGathering()
   // on teardown. A closed peer connection fires no further ICE events, so without
   // those the promise would neither resolve nor reject and the caller's call()/
   // answer() would hang with no error to surface.
-  private waitForIceGatheringComplete(timeoutMs = 2000, hardTimeoutMs = 15000): Promise<void> {
-    if (this.peerConnection.iceGatheringState === 'complete') return Promise.resolve();
+  // freshGeneration: an ICE restart's offer was just set, and the gathering
+  // state can still read the old generation's `complete` before the browser
+  // moves it to `gathering`. Trusted then, the offer would go out with none of
+  // the new generation's candidates.
+  private waitForIceGatheringComplete(
+    timeoutMs = 2000,
+    hardTimeoutMs = 15000,
+    { freshGeneration = false, peerTrickles }: { freshGeneration?: boolean; peerTrickles: boolean }
+  ): Promise<void> {
+    if (
+      this.peerConnection.iceGatheringState === 'complete' &&
+      (!freshGeneration || this.hasLocalCandidate())
+    ) {
+      return Promise.resolve();
+    }
     return new Promise<void>((resolve, reject) => {
       let settled = false;
       const cleanup = () => {
@@ -1567,15 +1617,23 @@ export class Call {
       };
       const onChange = () => {
         if (settled) return;
-        if (this.peerConnection.iceGatheringState === 'complete') {
-          // Gathering really is finished. Nothing more is coming, so release
-          // even if it produced nothing — continuing to wait would hang the
-          // call outright, which is worse than an offer the far end rejects.
-          cleanup();
-          resolve();
-        }
+        if (this.peerConnection.iceGatheringState !== 'complete') return;
+        // On a restart, a `complete` with nothing gathered can be the old
+        // generation's, delivered late (seen on React Native). Wait for a
+        // candidate instead; the hard deadline fails the restart if none comes.
+        if (freshGeneration && !this.hasLocalCandidate()) return;
+        // Gathering really is finished. Nothing more is coming, so release
+        // even if it produced nothing — continuing to wait would hang the
+        // call outright, which is worse than an offer the far end rejects.
+        cleanup();
+        resolve();
       };
-      const onCandidate = () => finish();
+      // Before the cap a candidate releases the wait only when the far end
+      // takes the rest by trickle.
+      let capped = false;
+      const onCandidate = () => {
+        if (capped || peerTrickles) finish();
+      };
       // Nothing was gathered and nothing ever will be: the peer connection went
       // away (call cancelled, socket dropped) or the platform never produced a
       // candidate at all. Fail the setup rather than leave the caller waiting.
@@ -1585,7 +1643,10 @@ export class Call {
         reject(new PhoneError({ code: 'call_failed', message, callId: this.id }));
       };
       const abort = () => fail('the call ended before any ICE candidate was gathered');
-      const timer = setTimeout(finish, timeoutMs);
+      const timer = setTimeout(() => {
+        capped = true;
+        finish();
+      }, timeoutMs);
       const hardTimer = setTimeout(
         () => fail('ICE gathering produced no candidate'),
         hardTimeoutMs
@@ -1602,6 +1663,23 @@ export class Call {
     const aborts = [...this.gatheringAborts];
     this.gatheringAborts.clear();
     aborts.forEach((abort) => abort());
+  }
+
+  // Whether the far end's description advertises trickle ICE (RFC 8840 § 4.1:
+  // a=ice-options carrying the "trickle" token).
+  private remoteAdvertisesTrickle(): boolean {
+    const sdp = this.peerConnection.remoteDescription?.sdp ?? '';
+    return /^a=ice-options:.*\btrickle\b/m.test(sdp);
+  }
+
+  // Whether a candidate belongs to the running restart's generation. None can
+  // before its offer is set, since that is what starts it gathering. After,
+  // the candidate's ufrag decides; a platform that reports none is trusted.
+  private isRestartGeneration(candidate: RTCIceCandidate): boolean {
+    if (this.restartUfrag === null) return false;
+    const ufrag =
+      candidate.usernameFragment ?? /\bufrag (\S+)/.exec(candidate.candidate ?? '')?.[1] ?? null;
+    return ufrag === null || !this.restartUfrag || ufrag === this.restartUfrag;
   }
 
   // Whether the local description carries at least one candidate. Read off the

@@ -1019,6 +1019,7 @@ export class DialStackPhone {
     if (!this.resume || this.suspendTimer || this.activeCalls.length === 0) return;
     transport.startQueueing();
     transport.preferUrl(this.resume.url);
+    transport.setResumePending(true);
     for (const call of this.activeCalls) call.suspend();
     // A little past the server's window: its call.ended frames arrive with the
     // resume, and this only covers a resume that never comes.
@@ -1056,6 +1057,7 @@ export class DialStackPhone {
     this.clearSuspendTimer();
     this.transport?.dropQueue();
     this.transport?.preferUrl(null);
+    this.transport?.setResumePending(false);
     for (const call of [...this.activeCalls]) {
       if (call.isReconnecting) call.endLocally('failed');
     }
@@ -1066,6 +1068,7 @@ export class DialStackPhone {
     if (this.hasSuspendedCalls()) return;
     this.clearSuspendTimer();
     this.transport?.preferUrl(null);
+    this.transport?.setResumePending(false);
   }
 
   private clearSuspendTimer(): void {

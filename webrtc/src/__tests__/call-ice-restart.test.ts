@@ -15,6 +15,11 @@ class FakeMediaStream {
 class FakeRTCPeerConnection {
   static last: FakeRTCPeerConnection;
   localDescription: { type: string; sdp: string } | null = null;
+  // The call was negotiated with a far end that advertises trickle, as ours do.
+  remoteDescription: { type: string; sdp: string } | null = {
+    type: 'answer',
+    sdp: 'a=ice-options:trickle\r\n',
+  };
   iceGatheringState = 'complete';
   iceConnectionState = 'connected';
   signalingState = 'stable';
@@ -52,7 +57,13 @@ class FakeRTCPeerConnection {
       return;
     }
     this.signalingState = 'have-local-offer';
-    this.localDescription = { type: d.type, sdp: d.sdp ?? '' };
+    this.localDescription = { type: d.type, sdp: (d.sdp ?? '') + this.offerCandidates };
+  }
+  // What the new generation has gathered by the time its offer is set.
+  offerCandidates = 'a=candidate:1 1 udp 1 10.0.0.2 9 typ host\r\n';
+  gatherState(state: string): void {
+    this.iceGatheringState = state;
+    for (const h of this.handlers.icegatheringstatechange ?? []) h();
   }
   async setRemoteDescription(d: { type: string; sdp?: string }): Promise<void> {
     if (this.failNextAnswer) {
@@ -66,8 +77,10 @@ class FakeRTCPeerConnection {
     this.iceConnectionState = state;
     for (const h of this.handlers.iceconnectionstatechange ?? []) h();
   }
-  gathered(candidate: string | null): void {
-    const evt = { candidate: candidate ? { candidate, sdpMid: '0', sdpMLineIndex: 0 } : null };
+  gathered(candidate: string | null, usernameFragment?: string): void {
+    const evt = {
+      candidate: candidate ? { candidate, sdpMid: '0', sdpMLineIndex: 0, usernameFragment } : null,
+    };
     for (const h of (this.handlers.icecandidate ?? []) as unknown as ((e: unknown) => void)[])
       h(evt);
   }
@@ -129,7 +142,7 @@ describe('ICE restart', () => {
         type: 'sdp.offer',
         req_id: 'req_1',
         call_id: 'call_1',
-        sdp: 'offer-1\r\na=ice-ufrag:gen1\r\n',
+        sdp: 'offer-1\r\na=ice-ufrag:gen1\r\na=candidate:1 1 udp 1 10.0.0.2 9 typ host\r\n',
       },
     ]);
 
@@ -209,10 +222,13 @@ describe('ICE restart', () => {
   it("keeps the restart's candidates out of the way until its offer has gone", async () => {
     const { call, sent } = makeCall();
     const pc = FakeRTCPeerConnection.last;
+    pc.iceGatheringState = 'gathering';
     call.restartIce();
+    await flush();
     // Gathered before the offer is sent: they are in the offer.
     pc.gathered('candidate:1 1 udp 1 10.0.0.2 9 typ host');
     pc.gathered(null);
+    pc.gatherState('complete');
     await flush();
 
     expect(sent.map((m) => m.type)).toEqual(['sdp.offer', 'ice.done']);
@@ -220,6 +236,115 @@ describe('ICE restart', () => {
     // After the offer, candidates trickle as usual.
     pc.gathered('candidate:2 1 udp 1 10.0.0.3 9 typ srflx');
     expect(sent[sent.length - 1]!.type).toBe('ice.candidate');
+  });
+
+  it('does not end the new generation on the end of candidates of the one it replaces', async () => {
+    let refreshed!: (s: RTCIceServer[]) => void;
+    const { call, sent, pc } = makeCall({
+      refreshIceServers: () => new Promise((r) => (refreshed = r)),
+    });
+    pc.iceGatheringState = 'gathering';
+    call.restartIce();
+    // The old generation (or setConfiguration) finishes while the TURN
+    // credentials are being fetched.
+    pc.gathered(null);
+    refreshed([]);
+    await flush();
+    pc.gathered('candidate:1 1 udp 1 10.0.0.2 9 typ host');
+    await flush();
+    expect(sent.map((m) => m.type)).toEqual(['sdp.offer']);
+
+    // The rest of the new generation still reaches the gateway, and only then
+    // the end of candidates.
+    pc.gathered('candidate:2 1 udp 1 203.0.113.9 9 typ srflx');
+    pc.gathered('candidate:3 1 udp 1 198.51.100.4 9 typ relay');
+    pc.gathered(null);
+    expect(sent.map((m) => m.type)).toEqual([
+      'sdp.offer',
+      'ice.candidate',
+      'ice.candidate',
+      'ice.done',
+    ]);
+  });
+
+  it("ignores the old generation's events delivered after the restart offer is set", async () => {
+    const { call, sent, pc } = makeCall();
+    pc.iceGatheringState = 'gathering';
+    call.restartIce();
+    await flush();
+
+    // Late from the generation being replaced: neither its end of candidates
+    // nor its candidates may reach the gateway as the new one's.
+    pc.gathered(null);
+    pc.gathered('candidate:9 1 udp 1 192.0.2.1 9 typ relay', 'gen0');
+    pc.gathered('candidate:1 1 udp 1 10.0.0.2 9 typ host', 'gen1');
+    await flush();
+    expect(sent.map((m) => m.type)).toEqual(['sdp.offer']);
+
+    pc.gathered('candidate:8 1 udp 1 192.0.2.1 9 typ relay', 'gen0');
+    pc.gathered(null);
+    expect(sent.map((m) => m.type)).toEqual(['sdp.offer', 'ice.done']);
+  });
+
+  it("holds the offer when gathering still reads the old generation's complete", async () => {
+    const { call, sent, pc } = makeCall();
+    pc.offerCandidates = '';
+    call.restartIce();
+    await flush();
+    jest.advanceTimersByTime(2_000);
+    await flush();
+    expect(offers(sent)).toHaveLength(0);
+
+    pc.localDescription!.sdp += 'a=candidate:1 1 udp 1 10.0.0.2 9 typ host\r\n';
+    pc.gathered('candidate:1 1 udp 1 10.0.0.2 9 typ host');
+    await flush();
+    expect(offers(sent)).toHaveLength(1);
+    expect(offers(sent)[0]!.sdp).toContain('a=candidate:');
+  });
+
+  it('waits for a complete set when the far end has not advertised trickle', async () => {
+    const { call, sent, pc } = makeCall();
+    pc.remoteDescription = { type: 'answer', sdp: '' };
+    pc.iceGatheringState = 'gathering';
+    call.restartIce();
+    await flush();
+    pc.gathered('candidate:1 1 udp 1 10.0.0.2 9 typ host', 'gen1');
+    await flush();
+    expect(offers(sent)).toHaveLength(0);
+
+    pc.gatherState('complete');
+    await flush();
+    expect(offers(sent)).toHaveLength(1);
+  });
+
+  it("holds the offer through the old generation's complete delivered late", async () => {
+    const { call, sent, pc } = makeCall();
+    pc.offerCandidates = '';
+    pc.iceGatheringState = 'gathering';
+    call.restartIce();
+    await flush();
+    pc.gatherState('complete');
+    await flush();
+    expect(offers(sent)).toHaveLength(0);
+
+    pc.localDescription!.sdp += 'a=candidate:1 1 udp 1 10.0.0.2 9 typ host\r\n';
+    pc.gathered('candidate:1 1 udp 1 10.0.0.2 9 typ host');
+    await flush();
+    expect(offers(sent)).toHaveLength(1);
+  });
+
+  it('fails a restart whose new generation never gathers a candidate', async () => {
+    const { call, sent, pc } = makeCall();
+    pc.offerCandidates = '';
+    pc.iceGatheringState = 'gathering';
+    call.restartIce();
+    await flush();
+    pc.gatherState('complete');
+    jest.advanceTimersByTime(15_000);
+    await flush();
+    expect(offers(sent)).toHaveLength(0);
+    // Rolled back for a retry rather than left half-done.
+    expect(pc.signalingState).toBe('stable');
   });
 
   it('starts over when the session resumes with a restart unanswered', async () => {
