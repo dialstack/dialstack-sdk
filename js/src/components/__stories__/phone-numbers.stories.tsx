@@ -13,7 +13,7 @@ const meta: Meta<typeof WebComponentStory> = {
 export default meta;
 type Story = StoryObj<typeof WebComponentStory>;
 
-export const Default: Story = {};
+export const Default: Story = { tags: ['vrt-cross-browser'] };
 export const DarkTheme: Story = { args: { theme: 'dark' } };
 export const Compact: Story = { args: { layoutVariant: 'compact' } };
 export const Empty: Story = { args: { empty: true } };

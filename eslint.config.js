@@ -145,6 +145,17 @@ export default tseslint.config(
       'react-hooks/set-state-in-effect': 'off',
     },
   },
+  {
+    // Visual regression tooling: Playwright specs and Node scripts, where the
+    // page callbacks run in the browser and everything else in Node.
+    files: ['vrt/**/*.{ts,mjs}'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.browser,
+      },
+    },
+  },
   // Only server gets includeTypes off, and only because its declaration build
   // inlines the browser package's type bodies — see packageBoundaries above.
   packageBoundaries('js'),

@@ -27,7 +27,7 @@ const meta: Meta<Props> = {
 export default meta;
 type Story = StoryObj<Props>;
 
-export const Default: Story = {};
+export const Default: Story = { tags: ['vrt-cross-browser'] };
 
 export const WithBackButton: Story = {
   args: {

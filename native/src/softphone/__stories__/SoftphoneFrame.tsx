@@ -31,7 +31,8 @@ export function SoftphoneFrame({
   const roomy = size.w >= HOST_MIN_WIDTH && size.h >= HOST_MIN_HEIGHT;
   const space = roomy ? 16 : 10;
   return (
-    <View style={{ gap: 6 }}>
+    // One visual-regression baseline per frame, so a diff names the state that moved.
+    <View testID={`vrt-cell:${label}`} style={{ gap: 6 }}>
       <Text style={{ fontSize: 11, fontWeight: '600', opacity: 0.6, letterSpacing: 0.5 }}>
         {label.toUpperCase()}
       </Text>

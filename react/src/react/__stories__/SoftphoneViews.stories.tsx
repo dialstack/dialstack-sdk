@@ -29,7 +29,11 @@ const SizeContext = React.createContext<Size>(BASELINE);
 const Cell: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => {
   const { w, h } = React.useContext(SizeContext);
   return (
-    <figure style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <figure
+      // One visual-regression baseline per cell, so a diff names the state that moved.
+      data-testid={`vrt-cell:${label}`}
+      style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}
+    >
       <figcaption style={{ font: '600 11px system-ui', letterSpacing: '0.04em', opacity: 0.6 }}>
         {label.toUpperCase()}
       </figcaption>
@@ -423,6 +427,7 @@ export default meta;
 type Story = StoryObj;
 
 export const AllStates: Story = {
+  tags: ['vrt-cross-browser'],
   render: () => (
     <Grid theme="light">
       <AllCells />
@@ -479,6 +484,10 @@ export const ShortHost: Story = {
 };
 
 export const AutoHeight: Story = {
+  // Out of visual regression: with no fixed height, a cell's tier depends on its
+  // measured height and its height on its tier, so it settles in either the
+  // roomy or the compact layout depending on timing.
+  tags: ['no-vrt'],
   render: () => (
     <Grid theme="light" size={AUTO}>
       <AllCells />

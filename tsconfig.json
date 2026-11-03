@@ -41,7 +41,8 @@
     "js/src/**/*",
     "react/src/**/*",
     "webrtc/src/**/*",
-    "server/src/**/*"
+    "server/src/**/*",
+    "vrt/**/*"
   ],
   "exclude": [
     "node_modules",

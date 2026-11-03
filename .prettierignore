@@ -1,3 +1,6 @@
 dist/
 node_modules/
 *.md
+vrt/test-results/
+vrt/playwright-report/
+vrt/.vrt-decisions.json

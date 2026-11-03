@@ -20,11 +20,23 @@ const meta: Meta<Props> = {
 export default meta;
 type Story = StoryObj<Props>;
 
+// A library click drops the node at the centre of the current viewport. Clicking
+// before xyflow's initial fitView runs places it in unfitted coordinates, and the
+// fit then frames it with Start, so the canvas lands somewhere different.
+async function waitForInitialFit(canvasElement: HTMLElement) {
+  await waitFor(() => {
+    const viewport = canvasElement.querySelector<HTMLElement>('.react-flow__viewport');
+    expect(viewport?.style.transform).toBeTruthy();
+    expect(viewport?.style.transform).not.toBe('translate(0px, 0px) scale(1)');
+  });
+}
+
 // ============================================================================
 // View mode stories
 // ============================================================================
 
 export const Default: Story = {
+  tags: ['vrt-cross-browser'],
   args: { dialPlanId: 'dp_01abc' },
 };
 
@@ -105,6 +117,7 @@ export const AddNodeFromLibrary: Story = {
       await waitFor(() => {
         expect(canvasElement.querySelector('.ds-dial-plan-node-library')).toBeInTheDocument();
       });
+      await waitForInitialFit(canvasElement);
     });
 
     await step('Click Schedule item in node library', async () => {
@@ -130,6 +143,7 @@ export const SelectNodeOpensConfigPanel: Story = {
       await waitFor(() => {
         expect(canvasElement.querySelector('.ds-dial-plan-node-library')).toBeInTheDocument();
       });
+      await waitForInitialFit(canvasElement);
     });
 
     await step('Add a Schedule node from the library', async () => {
@@ -153,6 +167,7 @@ export const EscClosesConfigPanel: Story = {
       await waitFor(() => {
         expect(canvasElement.querySelector('.ds-dial-plan-node-library')).toBeInTheDocument();
       });
+      await waitForInitialFit(canvasElement);
       const library = canvasElement.querySelector('.ds-dial-plan-node-library')!;
       const libraryScope = within(library as HTMLElement);
       await userEvent.click(libraryScope.getByText('Schedule'));
@@ -177,6 +192,9 @@ export const EscClosesConfigPanel: Story = {
 };
 
 export const AutoLayoutButton: Story = {
+  // Out of visual regression: in the pinned image the laid-out canvas lands at
+  // one of two viewport offsets from run to run, even with clock and ids seeded.
+  tags: ['no-vrt'],
   args: { mode: 'edit' },
   play: async ({ canvasElement, step }) => {
     const canvas = within(canvasElement);
@@ -216,6 +234,7 @@ export const DeleteNodeFromConfigPanel: Story = {
       await waitFor(() => {
         expect(canvasElement.querySelector('.ds-dial-plan-node-library')).toBeInTheDocument();
       });
+      await waitForInitialFit(canvasElement);
       const library = canvasElement.querySelector('.ds-dial-plan-node-library')!;
       const libraryScope = within(library as HTMLElement);
       await userEvent.click(libraryScope.getByText('Schedule'));
@@ -261,6 +280,7 @@ export const ExternalDialPhoneNumberSave: Story = {
       await waitFor(() => {
         expect(canvasElement.querySelector('.ds-dial-plan-node-library')).toBeInTheDocument();
       });
+      await waitForInitialFit(canvasElement);
       const library = canvasElement.querySelector('.ds-dial-plan-node-library')!;
       const libraryScope = within(library as HTMLElement);
       await userEvent.click(libraryScope.getByText('External Number'));

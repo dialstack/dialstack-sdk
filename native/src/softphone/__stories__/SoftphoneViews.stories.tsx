@@ -321,7 +321,10 @@ const Grid: React.FC<{ palette: Palette; size?: HostSize }> = ({ palette, size }
   </ScrollView>
 );
 
-export const AllStates: Story = { render: () => <Grid palette={lightPalette} /> };
+export const AllStates: Story = {
+  tags: ['vrt-cross-browser'],
+  render: () => <Grid palette={lightPalette} />,
+};
 
 export const AllStatesDark: Story = { render: () => <Grid palette={darkPalette} /> };
 
