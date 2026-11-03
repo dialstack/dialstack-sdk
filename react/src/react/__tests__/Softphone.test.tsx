@@ -1979,6 +1979,40 @@ describe('Softphone dial panel', () => {
       await act(async () => phone().emit('connected'));
       expect(phone().listDirectory).not.toHaveBeenCalled();
     });
+
+    describe('naming a call', () => {
+      const ring = () =>
+        act(async () => phone().emit('incoming', new FakeCall('inbound', '1001', null, 'me')));
+
+      it('names a call after the listed account user, on any of their extensions', async () => {
+        renderSoftphone();
+        phone().directory = [
+          { user: 'user_a', displayName: 'Ana Diaz', extensionNumbers: ['1000', '1001'] },
+        ];
+        await act(async () => phone().emit('connected'));
+        await ring();
+        expect(await screen.findByText('Ana Diaz')).toBeInTheDocument();
+      });
+
+      it("leaves the account's users out when the host's list replaced them", async () => {
+        renderSoftphone({ directory: [] });
+        await act(async () => phone().emit('connected'));
+        await ring();
+        expect(phone().listDirectory).not.toHaveBeenCalled();
+      });
+
+      it("matches a host contact written in the provider's country format", async () => {
+        renderSoftphone({
+          formatting: { defaultCountry: 'GB' },
+          directory: [{ id: 'uk', label: 'London office', destination: '020 7946 0018' }],
+        });
+        await act(async () => phone().emit('connected'));
+        await act(async () =>
+          phone().emit('incoming', new FakeCall('inbound', '+442079460018', null, 'me'))
+        );
+        expect(await screen.findByText('London office')).toBeInTheDocument();
+      });
+    });
   });
 
   it('leaves the transfer gating as it was: no panel while another call is ringing', () => {
@@ -1987,5 +2021,58 @@ describe('Softphone dial panel', () => {
     act(() => phone().emit('incoming', second));
     expect(screen.getByLabelText('Transfer')).toBeDisabled();
     expect(container.querySelector('.ds-dial-panel')).toBeNull();
+  });
+});
+
+describe('Softphone resolvePeer naming', () => {
+  const crm: Record<string, string> = {
+    '+14155552671': 'Alice (CRM)',
+    '+14155550002': 'Bob (CRM)',
+  };
+  const lookup = () =>
+    jest.fn((call: { direction: string; from: string; to: string }) => {
+      const name = crm[call.direction === 'inbound' ? call.from : call.to];
+      return Promise.resolve(name ? { name } : null);
+    });
+
+  it('retitles a call whose party changes in place, and never shows the previous name', async () => {
+    const resolvePeer = lookup();
+    renderSoftphone({ resolvePeer });
+    act(() => phone().emit('connected'));
+    const call = new FakeCall('inbound', '+14155552671', null, 'me');
+    act(() => phone().emit('incoming', call));
+    act(() => {
+      call.state = 'active';
+      call.emit('answered');
+    });
+    expect(await screen.findByText('Alice (CRM)')).toBeInTheDocument();
+
+    // A forward/transfer: same Call object and id, a new party, and the kind
+    // of call event that only re-renders (useCalls' refresh).
+    await act(async () => {
+      call.from = '+14155550002';
+      call.emit('resumed');
+    });
+    expect(await screen.findByText('Bob (CRM)')).toBeInTheDocument();
+    expect(screen.queryByText('Alice (CRM)')).not.toBeInTheDocument();
+    expect(resolvePeer).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not ask again across re-renders while the party is unchanged', async () => {
+    const resolvePeer = lookup();
+    renderSoftphone({ resolvePeer });
+    act(() => phone().emit('connected'));
+    const call = new FakeCall('inbound', '+14155552671', null, 'me');
+    act(() => phone().emit('incoming', call));
+    act(() => {
+      call.state = 'active';
+      call.emit('answered');
+    });
+    expect(await screen.findByText('Alice (CRM)')).toBeInTheDocument();
+    await act(async () => {
+      for (let i = 0; i < 5; i++) call.emit('resumed');
+    });
+    expect(screen.getByText('Alice (CRM)')).toBeInTheDocument();
+    expect(resolvePeer).toHaveBeenCalledTimes(1);
   });
 });

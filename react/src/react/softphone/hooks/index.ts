@@ -38,7 +38,7 @@ export type { UseLastError, SoftphoneError } from './useLastError';
 export { usePeerResolver } from './usePeerResolver';
 export type { PeerInfo, ResolvePeer } from './usePeerResolver';
 
-export { useAccountDirectory } from './useAccountDirectory';
+export { useAccountDirectoryEntries } from './useAccountDirectory';
 export { useDialBrowse } from './useDialBrowse';
 export type { UseDialBrowse } from './useDialBrowse';
 export { useDialPanel } from './useDialPanel';

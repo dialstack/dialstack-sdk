@@ -7,7 +7,7 @@ import {
 import { DirectoryContactView } from './DirectoryContactView';
 import type { SoftphoneViewChrome } from './types';
 
-export interface DialMatchesViewProps extends Pick<SoftphoneViewChrome, 't'> {
+export interface DialMatchesViewProps extends Pick<SoftphoneViewChrome, 't' | 'displayNumber'> {
   directory: readonly DirectoryContact[];
   /** What the number field holds. */
   value: string;
@@ -27,6 +27,7 @@ export const DialMatchesView: React.FC<DialMatchesViewProps> = ({
   picked,
   onPick,
   t,
+  displayNumber,
 }) => {
   // The pick as the directory has it now, so its presence keeps moving.
   const pickedNow = currentContact(directory, picked);
@@ -40,7 +41,7 @@ export const DialMatchesView: React.FC<DialMatchesViewProps> = ({
           aria-pressed={entry.id === picked?.id}
           onClick={() => onPick(entry)}
         >
-          <DirectoryContactView entry={entry} t={t} inline />
+          <DirectoryContactView entry={entry} t={t} displayNumber={displayNumber} inline />
         </button>
       ))}
     </div>

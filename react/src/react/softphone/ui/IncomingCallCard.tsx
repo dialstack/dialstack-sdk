@@ -21,12 +21,13 @@ export const IncomingCallCard: React.FC<{
   call: Call;
   compact?: boolean;
 }> = ({ call, compact = false }) => {
-  const { answerCall, actions, t, displayNumber, peerInfo } = useSoftphone();
+  const { answerCall, actions, t, displayNumber, peerInfo, peerName } = useSoftphone();
   const { name, number, avatar } = peerDisplay(
     call,
     peerInfo(call),
     displayNumber,
-    t('unknownCaller')
+    t('unknownCaller'),
+    peerName
   );
 
   return (

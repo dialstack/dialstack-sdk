@@ -14,6 +14,7 @@ export interface DialMatchesViewProps {
   palette: SoftphonePalette;
   styles: ReturnType<typeof makeStyles>;
   t: (key: keyof Locale['softphone']) => string;
+  displayNumber: (value: string) => string;
   directory: readonly DirectoryContact[];
   /** What the number field holds. */
   value: string;
@@ -31,6 +32,7 @@ export function DialMatchesView({
   palette,
   styles,
   t,
+  displayNumber,
   directory,
   value,
   picked,
@@ -62,7 +64,14 @@ export function DialMatchesView({
               selected && styles.directoryOptionSelected,
             ]}
           >
-            <DirectoryContactView palette={palette} styles={styles} t={t} entry={entry} inline />
+            <DirectoryContactView
+              palette={palette}
+              styles={styles}
+              t={t}
+              displayNumber={displayNumber}
+              entry={entry}
+              inline
+            />
           </Pressable>
         );
       })}

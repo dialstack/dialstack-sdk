@@ -31,7 +31,7 @@ export function DialPad({
   autoFocusDestination = false,
   compact = false,
 }: DialPadProps): React.JSX.Element {
-  const { connection, placeCall, emergency, t, palette, directory } = useSoftphone();
+  const { connection, placeCall, emergency, t, displayNumber, palette, directory } = useSoftphone();
   const { value: destination, picked, onType, pick } = useDialTarget();
   const pickOrCall = (entry: DirectoryContact) =>
     callOrPick(entry, {
@@ -45,6 +45,7 @@ export function DialPad({
     <DialPadView
       palette={palette}
       t={t}
+      displayNumber={displayNumber}
       connection={connection}
       destination={destination}
       onDestinationChange={onType}

@@ -146,7 +146,8 @@ export interface SoftphoneProviderProps {
    * off. Each user is dialled on their first extension; users without one are
    * left out. Presence is watched for the first 100 (the server's limit); the
    * rest are listed without a status. A `directory` entry whose `id` is a
-   * user's id replaces them in the list and keeps their presence.
+   * user's id replaces them in the list and keeps their presence. Listed
+   * users also name calls to and from their extensions.
    */
   accountDirectory?: boolean;
 

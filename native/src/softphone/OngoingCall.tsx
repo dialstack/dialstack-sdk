@@ -44,6 +44,7 @@ export function OngoingCall(): React.JSX.Element | null {
     palette,
     audio,
     directory,
+    peerName,
     connection,
     emergency,
   } = useSoftphone();
@@ -67,7 +68,7 @@ export function OngoingCall(): React.JSX.Element | null {
 
   const summarize = (c: Call): PeerSummary => ({
     id: c.id,
-    ...peerDisplay(c, peerInfo(c), displayNumber, t('unknownCaller')),
+    ...peerDisplay(c, peerInfo(c), displayNumber, t('unknownCaller'), peerName),
   });
 
   const inTransfer = consultCall !== null && transferOriginal !== null;
@@ -111,6 +112,7 @@ export function OngoingCall(): React.JSX.Element | null {
     <OngoingCallView
       palette={palette}
       t={t}
+      displayNumber={displayNumber}
       peer={summarize(call)}
       stateLabel={t(callStatusLabelKey(call))}
       duration={duration}

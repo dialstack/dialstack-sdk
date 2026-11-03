@@ -135,7 +135,10 @@ export function selectLayout(calls: Call[], activeCall: Call | null = null): Sof
 
 /**
  * How a call's remote party reads on screen. `name` is the title: the host's
- * `PeerInfo.name`, else the caller-id name, else the formatted number. `number`
+ * `PeerInfo.name`, else the caller-id name, else `nameOf(number)` (the
+ * provider's `peerName`, which matches the directory), else the formatted
+ * number. The server names only inbound callers, so the directory is what
+ * names an outbound call. `number`
  * is shown under it only when the title isn't already the number. `avatar` is
  * the host's, drawn above the title where the screen has room.
  */
@@ -152,10 +155,12 @@ export function peerDisplay(
     avatar?: PeerDisplay['avatar'];
   } | null,
   displayNumber: (value: string) => string,
-  unknownLabel: string
+  unknownLabel: string,
+  nameOf: (number: string) => string | null = () => null
 ): PeerDisplay {
-  const number = displayNumber(callPeerNumber(call));
-  const name = info?.name || callPeerName(call) || number || unknownLabel;
+  const raw = callPeerNumber(call);
+  const number = displayNumber(raw);
+  const name = info?.name || callPeerName(call) || nameOf(raw) || number || unknownLabel;
   return {
     name,
     number: name !== number && number ? number : null,
@@ -189,6 +194,52 @@ export function callPeerNumber(call: Call): string {
   return call.direction === 'inbound' ? call.from : call.to;
 }
 
+// Both sides go through sanitizeDestination because a contact's destination
+// is cleaned that way when it is dialled, so `(415) 555-2671` matches the
+// `+14155552671` the call carries.
+// Built once per directory array and country: call screens re-render every
+// second, and sanitizing means a libphonenumber parse per contact.
+const labelIndexes = new WeakMap<
+  readonly DirectoryContact[],
+  Map<CountryCode, Map<string, string>>
+>();
+
+function labelIndex(
+  directory: readonly DirectoryContact[],
+  country: CountryCode
+): Map<string, string> {
+  let byCountry = labelIndexes.get(directory);
+  if (!byCountry) {
+    byCountry = new Map();
+    labelIndexes.set(directory, byCountry);
+  }
+  let index = byCountry.get(country);
+  if (!index) {
+    index = new Map();
+    for (const c of directory) {
+      const key = sanitizeDestination(c.destination, country);
+      if (key && !index.has(key)) index.set(key, c.label);
+    }
+    byCountry.set(country, index);
+  }
+  return index;
+}
+
+/**
+ * The label of the contact whose destination is `peerNumber`. A contact
+ * written in national format (`020 7946 0018`) is read in `country`, the
+ * provider's `defaultCountry`, so it matches the E.164 number a call carries.
+ */
+export function directoryLabelFor(
+  peerNumber: string,
+  directory: readonly DirectoryContact[],
+  country: CountryCode = DIAL_COUNTRY
+): string | null {
+  if (directory.length === 0) return null;
+  const target = sanitizeDestination(peerNumber, country);
+  return (target && labelIndex(directory, country).get(target)) || null;
+}
+
 /** The remote party's display name, when the server supplied one (inbound only). */
 export function callPeerName(call: Call): string | null {
   return call.direction === 'inbound' ? call.fromName : null;
@@ -213,6 +264,9 @@ export function formatCallDuration(seconds: number): string {
  */
 export function formatDisplayNumber(value: string, defaultCountry: CountryCode = 'US'): string {
   if (!value) return '';
+  // A feature code (*97, #72) has no E.164 form, and libphonenumber reads the
+  // leading * or # as a dialing prefix and drops it.
+  if (/^[*#]/.test(value)) return value;
   try {
     const parsed: PhoneNumber | undefined = parsePhoneNumber(value, defaultCountry);
     if (parsed) {
@@ -515,14 +569,17 @@ export function matchDirectoryByNumber(
 
 /**
  * A contact's line under its name: the number (or its description, unless
- * `inline`, where the number is the point) and its status.
+ * `inline`, where the number is the point) and its status. The number goes
+ * through `displayNumber`; a description is the host's text and is left alone.
  */
 export function contactDetail(
   entry: DirectoryContact,
   inline: boolean,
-  t: (key: keyof Locale['softphone']) => string
+  t: (key: keyof Locale['softphone']) => string,
+  displayNumber: (value: string) => string = (v) => v
 ): string {
-  const lead = inline ? entry.destination : entry.description || entry.destination;
+  const number = displayNumber(entry.destination);
+  const lead = inline ? number : entry.description || number;
   return entry.presence ? `${lead} · ${t(presenceLabelKey(entry.presence))}` : lead;
 }
 
@@ -598,6 +655,20 @@ export function accountDirectoryContacts(
 }
 
 /**
+ * The account's users for naming calls: one entry per extension, since a call
+ * can come from or go to any of them, where the picker dials only the first.
+ */
+export function accountNameContacts(entries: readonly DirectoryEntry[]): DirectoryContact[] {
+  const out: DirectoryContact[] = [];
+  for (const e of entries) {
+    for (const destination of e.extensionNumbers) {
+      out.push({ id: e.user, label: e.displayName || destination, destination });
+    }
+  }
+  return out;
+}
+
+/**
  * The picker's list when the account directory is on: users first, then
  * the host's entries. A host entry whose `id` is a user's id takes
  * that user's place, so a host can relabel, group or tag them; it keeps
@@ -617,4 +688,25 @@ export function mergeDirectories(
     return h.presence || !a.presence ? h : { ...h, presence: a.presence };
   });
   return [...merged, ...host.filter((h) => overrides.has(h.id))];
+}
+
+/**
+ * What a call's number is matched against for its title. The first match
+ * wins, so the host's entries go first: a host contact names a number even
+ * when an account user has it too, whatever the picker's order. A host entry
+ * whose `id` is a user's id relabels that user, as in {@link mergeDirectories},
+ * on every extension they have.
+ */
+export function nameDirectoryOf(
+  host: readonly DirectoryContact[],
+  users: readonly DirectoryContact[]
+): readonly DirectoryContact[] {
+  if (users.length === 0) return host;
+  if (host.length === 0) return users;
+  const relabels = new Map(host.map((h) => [h.id, h.label]));
+  const renamed = users.map((u) => {
+    const label = relabels.get(u.id);
+    return label === undefined ? u : { ...u, label };
+  });
+  return [...host, ...renamed];
 }

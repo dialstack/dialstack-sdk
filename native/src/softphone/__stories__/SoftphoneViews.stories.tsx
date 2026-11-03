@@ -8,6 +8,7 @@ import { OngoingCallView } from '../views/OngoingCallView';
 import { HOST_SIZES, SoftphoneFrame, type HostSize } from './SoftphoneFrame';
 import { Chip, makeStyles } from '../primitives';
 import { useRoomyHost } from '../views/useRoomyHost';
+import { formatDisplayNumber } from '@dialstack/sdk-react/core';
 import {
   brandedDarkPalette,
   brandedLightPalette,
@@ -61,10 +62,13 @@ const SAVED_ADDRESS = {
   created_at: '2026-01-01T00:00:00Z',
 };
 
+const displayNumber = (value: string): string => formatDisplayNumber(value);
+
 const pad = (palette: Palette, over: Partial<React.ComponentProps<typeof DialPadView>> = {}) => (
   <DialPadView
     palette={palette}
     t={t}
+    displayNumber={displayNumber}
     connection="connected"
     destination=""
     onDestinationChange={noop}
@@ -113,6 +117,7 @@ const call = (
   <OngoingCallView
     palette={palette}
     t={t}
+    displayNumber={displayNumber}
     peer={PEER}
     stateLabel="In call"
     duration="2:17"

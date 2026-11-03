@@ -6,7 +6,7 @@ import { Glyph } from '../Glyph';
 import { DirectoryContactView } from './DirectoryContactView';
 import type { SoftphoneViewChrome } from './types';
 
-export interface DirectoryPickerViewProps extends Pick<SoftphoneViewChrome, 't'> {
+export interface DirectoryPickerViewProps extends Pick<SoftphoneViewChrome, 't' | 'displayNumber'> {
   destinations: readonly DirectoryContact[];
   /** Whether the number field currently holds this entry's destination. */
   isSelected: (destination: DirectoryContact) => boolean;
@@ -19,6 +19,7 @@ export const DirectoryPickerView: React.FC<DirectoryPickerViewProps> = ({
   isSelected,
   onPick,
   t,
+  displayNumber,
 }) => {
   const { query, setQuery, groups } = useDirectorySearch(destinations, t);
   const listId = useId();
@@ -72,7 +73,7 @@ export const DirectoryPickerView: React.FC<DirectoryPickerViewProps> = ({
                 aria-pressed={isSelected(entry)}
                 onClick={() => onPick(entry)}
               >
-                <DirectoryContactView entry={entry} t={t} />
+                <DirectoryContactView entry={entry} t={t} displayNumber={displayNumber} />
               </button>
             ))}
           </div>

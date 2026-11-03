@@ -20,12 +20,14 @@ export function DirectoryContactView({
   palette,
   styles,
   t,
+  displayNumber,
   entry,
   inline = false,
 }: {
   palette: SoftphonePalette;
   styles: ReturnType<typeof makeStyles>;
   t: (key: keyof Locale['softphone']) => string;
+  displayNumber: (value: string) => string;
   entry: DirectoryContact;
   inline?: boolean;
 }): React.JSX.Element {
@@ -46,7 +48,7 @@ export function DirectoryContactView({
   );
   const detail = (
     <Text style={[styles.directoryOptionDetail, inline && styles.dialMatchText]}>
-      {contactDetail(entry, inline, t)}
+      {contactDetail(entry, inline, t, displayNumber)}
     </Text>
   );
   if (inline) {

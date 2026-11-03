@@ -3,8 +3,12 @@ import type { Call } from '@dialstack/sdk-webrtc';
 
 import { usePeerResolver, type ResolvePeer } from '../usePeerResolver';
 
-const call = (id: string, from = '+15551230000'): Call =>
-  ({ id, direction: 'inbound', from, fromName: null, to: '1001' }) as unknown as Call;
+// Answers are kept per number, so each id gets its own number by default.
+const call = (id: string, from = `+1555123${String(id.charCodeAt(0)).padStart(4, '0')}`) =>
+  ({ id, direction: 'inbound', from, fromName: null, to: '1001' }) as {
+    from: string;
+    fromName: string | null;
+  } & Call;
 
 describe('usePeerResolver', () => {
   it('returns null for every call when no resolver is set', () => {
@@ -138,6 +142,51 @@ describe('usePeerResolver', () => {
 
     await act(async () => finishStale({ name: 'Stale' }));
     expect(result.current(a)).toEqual({ name: 'Fresh' });
+  });
+
+  it("asks again, and drops the old answer, when a call's number changes in place", async () => {
+    // A forward or transfer changes the party on the same call, and useCalls
+    // re-renders without a new array.
+    const a = call('a', '+15551230000');
+    const resolve = jest.fn<ReturnType<ResolvePeer>, [Call]>(async (c) =>
+      c.from === '+15551230000' ? { name: 'Alice' } : { name: 'Bob' }
+    );
+    const calls: Call[] = [a];
+    const { result, rerender } = renderHook(() => usePeerResolver(resolve, calls));
+    await waitFor(() => expect(result.current(a)).toEqual({ name: 'Alice' }));
+
+    a.from = '+15559870000';
+    expect(result.current(a)).toBeNull();
+    rerender();
+    await waitFor(() => expect(result.current(a)).toEqual({ name: 'Bob' }));
+    expect(resolve).toHaveBeenCalledTimes(2);
+  });
+
+  it('neither asks again nor hands out a new lookup while the number is unchanged', async () => {
+    const a = call('a');
+    const resolve = jest.fn<ReturnType<ResolvePeer>, [Call]>(async () => ({ name: 'Jordan Lee' }));
+    const calls: Call[] = [a];
+    const { result, rerender } = renderHook(() => usePeerResolver(resolve, calls));
+    await waitFor(() => expect(result.current(a)).toEqual({ name: 'Jordan Lee' }));
+
+    // A stable lookup is what keeps the views reading it from re-rendering.
+    const lookup = result.current;
+    a.fromName = 'LEE JORDAN';
+    rerender();
+    rerender();
+    expect(result.current).toBe(lookup);
+    expect(result.current(a)).toEqual({ name: 'Jordan Lee' });
+    expect(resolve).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks once for two calls with the same number, and answers both', async () => {
+    const a = call('a', '+15551230000');
+    const b = call('b', '+15551230000');
+    const resolve = jest.fn<ReturnType<ResolvePeer>, [Call]>(async () => ({ name: 'Jordan Lee' }));
+    const { result } = renderHook(() => usePeerResolver(resolve, [a, b]));
+    await waitFor(() => expect(result.current(b)).toEqual({ name: 'Jordan Lee' }));
+    expect(result.current(a)).toEqual({ name: 'Jordan Lee' });
+    expect(resolve).toHaveBeenCalledTimes(1);
   });
 
   it('forgets every answer when the resolver is removed', async () => {

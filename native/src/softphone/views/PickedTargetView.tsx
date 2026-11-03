@@ -14,19 +14,27 @@ export function PickedTargetView({
   palette,
   styles,
   t,
+  displayNumber,
   entry,
   onClear,
 }: {
   palette: SoftphonePalette;
   styles: ReturnType<typeof makeStyles>;
   t: (key: keyof Locale['softphone']) => string;
+  displayNumber: (value: string) => string;
   entry: DirectoryContact;
   onClear: () => void;
 }): React.JSX.Element {
   return (
     <View style={styles.dialPick}>
       <View style={styles.dialPickContact}>
-        <DirectoryContactView palette={palette} styles={styles} t={t} entry={entry} />
+        <DirectoryContactView
+          palette={palette}
+          styles={styles}
+          t={t}
+          displayNumber={displayNumber}
+          entry={entry}
+        />
       </View>
       <Pressable
         accessibilityRole="button"

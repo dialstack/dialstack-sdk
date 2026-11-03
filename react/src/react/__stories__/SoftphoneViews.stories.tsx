@@ -118,6 +118,7 @@ const dial = (over: Partial<React.ComponentProps<typeof DialPadView>> = {}) => (
     canCall={false}
     onCall={noop}
     t={t}
+    displayNumber={displayNumber}
     {...over}
   />
 );
@@ -230,6 +231,7 @@ const ongoing = (over: Partial<React.ComponentProps<typeof OngoingCallView>> = {
     onMergeOrSplit={noop}
     onHangup={noop}
     t={t}
+    displayNumber={displayNumber}
     {...over}
   />
 );

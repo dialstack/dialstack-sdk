@@ -24,6 +24,7 @@ function renderPad(over: Partial<React.ComponentProps<typeof DialPadView>> = {})
     <DialPadView
       palette={palette}
       t={t}
+      displayNumber={(v) => v}
       connection="connected"
       destination=""
       onDestinationChange={() => {}}

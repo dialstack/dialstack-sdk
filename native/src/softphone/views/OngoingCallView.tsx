@@ -27,6 +27,7 @@ export type OverlayPanel = 'keypad' | 'transfer' | 'addcall' | null;
 export interface OngoingCallViewProps {
   palette: SoftphonePalette;
   t: (key: keyof Locale['softphone']) => string;
+  displayNumber: (value: string) => string;
 
   peer: PeerSummary;
   stateLabel: string;
@@ -90,6 +91,7 @@ const NO_DIRECTORY: readonly DirectoryContact[] = [];
 export function OngoingCallView({
   palette,
   t,
+  displayNumber,
   peer,
   stateLabel,
   duration,
@@ -240,6 +242,7 @@ export function OngoingCallView({
           palette={palette}
           styles={styles}
           t={t}
+          displayNumber={displayNumber}
           title={t('transfer')}
           targetLabel={t('transferToLabel')}
           peerName={peer.name}
@@ -282,6 +285,7 @@ export function OngoingCallView({
           palette={palette}
           styles={styles}
           t={t}
+          displayNumber={displayNumber}
           title={t('addCall')}
           targetLabel={t('addCallToLabel')}
           peerName={peer.name}

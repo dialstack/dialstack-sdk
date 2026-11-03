@@ -10,7 +10,7 @@ import { DirectoryPickerView } from './DirectoryPickerView';
 import { KeypadView } from './KeypadView';
 import { DialMatchesView } from './DialMatchesView';
 
-export interface DialPadViewProps extends Omit<SoftphoneViewChrome, 'displayNumber'> {
+export interface DialPadViewProps extends SoftphoneViewChrome {
   connection: SoftphoneConnectionState;
   destination: string;
   onDestinationChange: (next: string) => void;
@@ -48,6 +48,7 @@ export const DialPadView: React.FC<DialPadViewProps> = ({
   onPick = () => {},
   scope = DEFAULT_SCOPE,
   t,
+  displayNumber,
 }) => {
   // Tags the host for the compact size tier when it is small.
   const { ref } = useRoomyHost<HTMLDivElement>();
@@ -69,11 +70,15 @@ export const DialPadView: React.FC<DialPadViewProps> = ({
                 isSelected={(entry) => entry.id === picked?.id}
                 onPick={pickAndClose}
                 t={t}
+                displayNumber={displayNumber}
               />
             </div>
             {destination && (
               <div className="ds-dial-panel-target">
-                {t('dialTarget')}: {picked ? `${picked.label} · ${destination}` : destination}
+                {t('dialTarget')}:{' '}
+                {picked
+                  ? `${picked.label} · ${displayNumber(destination)}`
+                  : displayNumber(destination)}
               </div>
             )}
           </div>
@@ -86,6 +91,7 @@ export const DialPadView: React.FC<DialPadViewProps> = ({
                 picked={picked}
                 onPick={onPick}
                 t={t}
+                displayNumber={displayNumber}
               />
             )}
             <div className="ds-display">

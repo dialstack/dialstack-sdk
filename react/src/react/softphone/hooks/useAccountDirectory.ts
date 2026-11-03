@@ -35,6 +35,8 @@ export type AccountDirectoryPhone = Pick<
 
 const NONE: readonly DirectoryContact[] = [];
 
+const NO_ENTRIES: readonly DirectoryEntry[] = [];
+
 /**
  * The other users in the signed-in user's account as directory contacts, with
  * live presence.
@@ -48,12 +50,17 @@ const NONE: readonly DirectoryContact[] = [];
  *
  * A failed fetch keeps the previous list (empty at first): the directory is a
  * convenience, and typing a destination still works.
+ *
+ * Returns the contacts with their statuses (`users`) and the fetched entries
+ * themselves (`entries`). The entries change only on a fetch, never on a
+ * presence update, so what is derived from them (call naming) is not rebuilt
+ * each time someone's status moves.
  */
-export function useAccountDirectory(
+export function useAccountDirectoryEntries(
   phone: AccountDirectoryPhone | null,
   connection: SoftphoneConnectionState,
   enabled: boolean
-): readonly DirectoryContact[] {
+): { users: readonly DirectoryContact[]; entries: readonly DirectoryEntry[] } {
   const [entries, setEntries] = useState<readonly DirectoryEntry[]>([]);
   const [presence, setPresence] = useState<Readonly<Record<string, PresenceStatus>>>({});
   const connected = connection === 'connected';
@@ -151,8 +158,12 @@ export function useAccountDirectory(
     };
   }, [phone, active, connected]);
 
-  return useMemo(
+  const users = useMemo(
     () => (active ? accountDirectoryContacts(entries, presence) : NONE),
     [active, entries, presence]
+  );
+  return useMemo(
+    () => ({ users, entries: active ? entries : NO_ENTRIES }),
+    [users, active, entries]
   );
 }

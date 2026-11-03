@@ -28,6 +28,9 @@ import {
   effectivePresence,
   accountDirectoryContacts,
   mergeDirectories,
+  nameDirectoryOf,
+  accountNameContacts,
+  directoryLabelFor,
   type DirectoryContact,
 } from '../view-model';
 import type { Call, CallDirection, CallState, DirectoryEntry } from '@dialstack/sdk-webrtc';
@@ -109,6 +112,14 @@ describe('contactDetail', () => {
 
   it('shows the number when inline', () => {
     expect(contactDetail({ ...sam, presence: 'on_call' }, true, t)).toBe('102 · On a call');
+  });
+
+  it('formats the number, never the description', () => {
+    const fmt = (v: string) => `fmt(${v})`;
+    const pstn = { id: 'p', label: 'Pat', destination: '+14155552671' };
+    expect(contactDetail(pstn, false, t, fmt)).toBe('fmt(+14155552671)');
+    expect(contactDetail(pstn, true, t, fmt)).toBe('fmt(+14155552671)');
+    expect(contactDetail(sam, false, t, fmt)).toBe('Sales');
   });
 });
 
@@ -269,6 +280,11 @@ describe('formatDisplayNumber', () => {
     expect(formatDisplayNumber('1001')).toBe('1001');
     expect(formatDisplayNumber('12')).toBe('12');
   });
+  it('leaves feature codes as typed, keeping the leading * or #', () => {
+    expect(formatDisplayNumber('*97')).toBe('*97');
+    expect(formatDisplayNumber('#72')).toBe('#72');
+    expect(formatDisplayNumber('*681')).toBe('*681');
+  });
 });
 
 describe('callStateLabelKey', () => {
@@ -420,6 +436,42 @@ describe('peerDisplay', () => {
   it('passes the host avatar through', () => {
     expect(peerDisplay(inbound(null), { avatar: { initials: 'JL' } }, fmt, '?')).toMatchObject({
       avatar: { initials: 'JL' },
+    });
+  });
+
+  describe('directory names', () => {
+    const outbound = (to: string) =>
+      ({ direction: 'outbound', from: '1001', fromName: null, to }) as unknown as Call;
+    const directory = [
+      { id: 'user_a', label: 'Sam Rivera', destination: '1002' },
+      { id: 'front', label: 'Front desk', destination: '(415) 555-2671' },
+    ];
+    const nameOf = (n: string) => directoryLabelFor(n, directory);
+
+    it('names an outbound call after the directory contact it dialled', () => {
+      expect(peerDisplay(outbound('1002'), null, fmt, '?', nameOf)).toMatchObject({
+        name: 'Sam Rivera',
+        number: 'fmt(1002)',
+      });
+    });
+
+    it('matches a contact written with display separators', () => {
+      expect(peerDisplay(outbound('+14155552671'), null, fmt, '?', nameOf)).toMatchObject({
+        name: 'Front desk',
+      });
+    });
+
+    it('ranks below the host name and the caller-id name', () => {
+      expect(peerDisplay(outbound('1002'), { name: 'Host' }, fmt, '?', nameOf).name).toBe('Host');
+      const named = { ...inbound('Caller ID'), from: '1002' } as unknown as Call;
+      expect(peerDisplay(named, null, fmt, '?', nameOf).name).toBe('Caller ID');
+    });
+
+    it('falls back to the number when no contact matches', () => {
+      expect(peerDisplay(outbound('1009'), null, fmt, '?', nameOf)).toMatchObject({
+        name: 'fmt(1009)',
+        number: null,
+      });
     });
   });
 });
@@ -701,5 +753,39 @@ describe('matchDirectoryByNumber', () => {
   it('matches feature codes as typed', () => {
     const vm: DirectoryContact = { id: 'vm', label: 'Voicemail', destination: '*97' };
     expect(matchDirectoryByNumber([vm, ana], '*9')).toEqual([vm]);
+  });
+});
+
+describe('nameDirectoryOf', () => {
+  it("lets the host's contact name a number an account user also has", () => {
+    const host = [{ id: 'front', label: 'Front desk', destination: '1000' }];
+    const users = [{ id: 'user_a', label: 'Ana Diaz', destination: '1000' }];
+    expect(directoryLabelFor('1000', nameDirectoryOf(host, users))).toBe('Front desk');
+  });
+
+  it("gives a host-relabelled user's label to all of that user's extensions", () => {
+    const host = [{ id: 'user_a', label: 'Ana (Sales)', destination: '1000' }];
+    const users = [
+      { id: 'user_a', label: 'Ana Diaz', destination: '1000' },
+      { id: 'user_a', label: 'Ana Diaz', destination: '1009' },
+    ];
+    expect(directoryLabelFor('1009', nameDirectoryOf(host, users))).toBe('Ana (Sales)');
+  });
+
+  it('names from the users when the host has no match', () => {
+    const users = [{ id: 'user_a', label: 'Ana Diaz', destination: '1000' }];
+    expect(directoryLabelFor('1000', nameDirectoryOf([], users))).toBe('Ana Diaz');
+  });
+});
+
+describe('accountNameContacts', () => {
+  it('names every extension a user has, not just the one the picker dials', () => {
+    const contacts = accountNameContacts([
+      { user: 'user_a', displayName: 'Ana Diaz', extensionNumbers: ['1000', '1009'] },
+      { user: 'user_b', displayName: 'No Extension', extensionNumbers: [] },
+    ]);
+    expect(directoryLabelFor('1009', contacts)).toBe('Ana Diaz');
+    expect(directoryLabelFor('1000', contacts)).toBe('Ana Diaz');
+    expect(contacts).toHaveLength(2);
   });
 });

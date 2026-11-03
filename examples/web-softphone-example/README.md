@@ -31,6 +31,10 @@ npm run dev
 Open <http://localhost:3000>, click **Connect**, then use the softphone to place
 and receive calls. The browser prompts for microphone access on the first call.
 
+In the drop-in softphone, a call is titled with the name `resolvePeer` returns for its number (see
+`app/sampleContacts.ts`, a stand-in for your own records), else the caller-id
+name or the matching directory contact, else the number.
+
 ## Configuration
 
 | Env var                  | Required | Purpose                                                                               |

@@ -16,6 +16,7 @@ export interface DialPanelViewProps {
   palette: SoftphonePalette;
   styles: ReturnType<typeof makeStyles>;
   t: (key: keyof Locale['softphone']) => string;
+  displayNumber: (value: string) => string;
   title: string;
   /** Who the panel acts on, shown under the title. */
   peerName: string;
@@ -50,6 +51,7 @@ export function DialPanelView({
   palette,
   styles,
   t,
+  displayNumber,
   title,
   peerName,
   directory,
@@ -121,6 +123,7 @@ export function DialPanelView({
             palette={palette}
             styles={styles}
             t={t}
+            displayNumber={displayNumber}
             entry={pickedNow}
             onClear={onClearPick}
           />
@@ -131,6 +134,7 @@ export function DialPanelView({
                 palette={palette}
                 styles={styles}
                 t={t}
+                displayNumber={displayNumber}
                 directory={directory}
                 value={value}
                 picked={null}
@@ -155,6 +159,7 @@ export function DialPanelView({
                 palette={palette}
                 styles={styles}
                 t={t}
+                displayNumber={displayNumber}
                 directory={directory}
                 isSelected={() => false}
                 onPick={onPick}
@@ -169,7 +174,7 @@ export function DialPanelView({
           act on, and the list doesn't show it, so it is spelled out. */}
       {showTarget && (
         <Text style={[styles.dialPanelTarget, styles.dialPanelActions]} numberOfLines={1}>
-          {t('dialTarget')}: {value}
+          {t('dialTarget')}: {displayNumber(value)}
         </Text>
       )}
 

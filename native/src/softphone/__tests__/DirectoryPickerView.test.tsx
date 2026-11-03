@@ -29,6 +29,7 @@ function renderPicker() {
       palette={palette}
       styles={makeStyles(palette)}
       t={t}
+      displayNumber={(v) => v}
       directory={directory}
       isSelected={() => false}
       onPick={() => {}}

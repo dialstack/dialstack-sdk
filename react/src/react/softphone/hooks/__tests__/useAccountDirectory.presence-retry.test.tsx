@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { DialStackPhone } from '@dialstack/sdk-webrtc';
 
-import { useAccountDirectory } from '../useAccountDirectory';
+import { useAccountDirectoryEntries } from '../useAccountDirectory';
 
 // The real phone over a scripted socket: only the server is faked. Its first
 // presence.subscribe answers the way the server does when one user's initial
@@ -97,10 +97,12 @@ async function connectedPhone(failingSubscribes: number) {
 const statusOf = (contacts: readonly { id: string; presence?: string }[], user: string) =>
   contacts.find((c) => c.id.includes(user))?.presence;
 
-describe('useAccountDirectory against a real phone, server reporting presence_unavailable', () => {
+describe('useAccountDirectoryEntries against a real phone, server reporting presence_unavailable', () => {
   it('re-subscribes so the user the server could not watch gets a status', async () => {
     const { phone, ws } = await connectedPhone(1);
-    const { result, unmount } = renderHook(() => useAccountDirectory(phone, 'connected', true));
+    const { result, unmount } = renderHook(
+      () => useAccountDirectoryEntries(phone, 'connected', true).users
+    );
 
     await waitFor(() => expect(statusOf(result.current, 'user_a')).toBe('available'));
     expect(statusOf(result.current, 'user_b')).toBeUndefined();
@@ -115,7 +117,9 @@ describe('useAccountDirectory against a real phone, server reporting presence_un
 
   it('gives up after its retries when the server keeps failing', async () => {
     const { phone, ws } = await connectedPhone(Infinity);
-    const { result, unmount } = renderHook(() => useAccountDirectory(phone, 'connected', true));
+    const { result, unmount } = renderHook(
+      () => useAccountDirectoryEntries(phone, 'connected', true).users
+    );
 
     // 1 + 3 retries, 1 s, 2 s then 4 s apart.
     await waitFor(() => expect(ws.subscribes()).toHaveLength(4), { timeout: 9000 });

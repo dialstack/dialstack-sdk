@@ -8,7 +8,7 @@ import { DirectoryPickerView } from './DirectoryPickerView';
 import { PickedTargetView } from './PickedTargetView';
 import type { SoftphoneViewChrome } from './types';
 
-export interface DialPanelViewProps extends Pick<SoftphoneViewChrome, 't'> {
+export interface DialPanelViewProps extends Pick<SoftphoneViewChrome, 't' | 'displayNumber'> {
   title: string;
   /** Who the panel acts on, shown under the title. */
   peerName: string;
@@ -53,6 +53,7 @@ export const DialPanelView: React.FC<DialPanelViewProps> = ({
   actions,
   onClose,
   t,
+  displayNumber,
 }) => {
   const { hasDirectory, pickedNow, showField, showList, showTarget, toggleDialing } = useDialPanel(
     directory,
@@ -91,7 +92,12 @@ export const DialPanelView: React.FC<DialPanelViewProps> = ({
 
         {!showList && <div className="ds-dial-panel-label">{targetLabel}</div>}
         {pickedNow ? (
-          <PickedTargetView entry={pickedNow} onClear={onClearPick} t={t} />
+          <PickedTargetView
+            entry={pickedNow}
+            onClear={onClearPick}
+            t={t}
+            displayNumber={displayNumber}
+          />
         ) : (
           <>
             {showField && hasDirectory && (
@@ -101,6 +107,7 @@ export const DialPanelView: React.FC<DialPanelViewProps> = ({
                 picked={null}
                 onPick={onPick}
                 t={t}
+                displayNumber={displayNumber}
               />
             )}
             {showField ? (
@@ -125,6 +132,7 @@ export const DialPanelView: React.FC<DialPanelViewProps> = ({
                 isSelected={() => false}
                 onPick={onPick}
                 t={t}
+                displayNumber={displayNumber}
               />
             )}
           </>
@@ -135,7 +143,7 @@ export const DialPanelView: React.FC<DialPanelViewProps> = ({
           act on, and the list doesn't show it, so it is spelled out. */}
       {showTarget && (
         <div className="ds-dial-panel-target">
-          {t('dialTarget')}: {value}
+          {t('dialTarget')}: {displayNumber(value)}
         </div>
       )}
 

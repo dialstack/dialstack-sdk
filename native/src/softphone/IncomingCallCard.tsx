@@ -21,12 +21,13 @@ export function IncomingCallCard({
   call: Call;
   compact?: boolean;
 }): React.JSX.Element {
-  const { answerCall, actions, displayNumber, t, palette, peerInfo } = useSoftphone();
+  const { answerCall, actions, displayNumber, t, palette, peerInfo, peerName } = useSoftphone();
   const { name, number, avatar } = peerDisplay(
     call,
     peerInfo(call),
     displayNumber,
-    t('unknownCaller')
+    t('unknownCaller'),
+    peerName
   );
 
   return (

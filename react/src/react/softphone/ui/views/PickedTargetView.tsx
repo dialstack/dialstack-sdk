@@ -7,11 +7,14 @@ import type { SoftphoneViewChrome } from './types';
 
 /** The contact a panel will act on, in place of the field or list it came from. */
 export const PickedTargetView: React.FC<
-  Pick<SoftphoneViewChrome, 't'> & { entry: DirectoryContact; onClear: () => void }
-> = ({ entry, onClear, t }) => (
+  Pick<SoftphoneViewChrome, 't' | 'displayNumber'> & {
+    entry: DirectoryContact;
+    onClear: () => void;
+  }
+> = ({ entry, onClear, t, displayNumber }) => (
   <div className="ds-dial-pick">
     <div className="ds-dial-pick-contact">
-      <DirectoryContactView entry={entry} t={t} />
+      <DirectoryContactView entry={entry} t={t} displayNumber={displayNumber} />
     </div>
     <button
       type="button"

@@ -8,6 +8,7 @@ import { SoftphoneProvider } from '@dialstack/sdk-react/softphone';
 import { BatteriesFlow } from './batteries/BatteriesFlow';
 import { ModularFlow } from './modular/ModularFlow';
 import { sampleDirectory } from './sampleDirectory';
+import { resolvePeer } from './sampleContacts';
 import styles from './page.module.css';
 
 type Session = { token: string; apiBaseUrl: string };
@@ -22,8 +23,10 @@ const Page: React.FC = () => {
   const [message, setMessage] = useState<string>('');
   const [flow, setFlow] = useState<Flow>('batteries');
   // Unchecked, the softphone lists the account's users with live presence;
-  // checked, the sample list replaces them. Flipping it never reconnects.
+  // checked, the sample list replaces them, unless `accountDirectory` is also
+  // set, which lists both. Flipping either never reconnects.
   const [offerDirectory, setOfferDirectory] = useState(false);
+  const [keepAccountUsers, setKeepAccountUsers] = useState(false);
 
   // Mint a short-lived WebRTC token from our own backend (/api/session), which
   // holds the sk_live_ key server-side. The browser only ever sees the minted
@@ -80,7 +83,9 @@ const Page: React.FC = () => {
               apiBaseUrl={session.apiBaseUrl}
               appearance={{ theme: 'light' }}
               onError={(e) => setMessage(`${e.code} — ${e.message}`)}
+              resolvePeer={resolvePeer}
               directory={offerDirectory ? sampleDirectory : undefined}
+              accountDirectory={keepAccountUsers || undefined}
             >
               <FlowToggle flow={flow} onChange={setFlow} />
               {flow === 'batteries' ? <BatteriesFlow /> : <ModularFlow />}
@@ -93,6 +98,15 @@ const Page: React.FC = () => {
               />
               Offer a sample directory
             </label>
+            <label className={styles.option}>
+              <input
+                type="checkbox"
+                checked={keepAccountUsers}
+                disabled={!offerDirectory}
+                onChange={(e) => setKeepAccountUsers(e.target.checked)}
+              />
+              Keep the account&apos;s users alongside it
+            </label>
             <button onClick={disconnect} className={styles.linkButton}>
               Disconnect
             </button>
@@ -103,11 +117,7 @@ const Page: React.FC = () => {
               Mint a session, then switch between the drop-in <code>&lt;Softphone /&gt;</code> and a
               layout hand-composed from the individual pieces.
             </p>
-            <button
-              onClick={connect}
-              disabled={status === 'connecting'}
-              className={styles.button}
-            >
+            <button onClick={connect} disabled={status === 'connecting'} className={styles.button}>
               Connect
             </button>
           </div>

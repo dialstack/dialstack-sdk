@@ -19,6 +19,7 @@ const KEYBOARD_ID = 'dialstack-softphone-dial-keyboard';
 export interface DialPadViewProps {
   palette: SoftphonePalette;
   t: (key: keyof Locale['softphone']) => string;
+  displayNumber: (value: string) => string;
   connection: ConnectionState;
   destination: string;
   onDestinationChange: (next: string) => void;
@@ -42,6 +43,7 @@ const NO_DIRECTORY: readonly DirectoryContact[] = [];
 export function DialPadView({
   palette,
   t,
+  displayNumber,
   connection,
   destination,
   onDestinationChange,
@@ -90,6 +92,7 @@ export function DialPadView({
               palette={palette}
               styles={styles}
               t={t}
+              displayNumber={displayNumber}
               directory={directory}
               isSelected={(entry) => entry.id === picked?.id}
               onPick={pickAndClose}
@@ -98,7 +101,10 @@ export function DialPadView({
           </View>
           {destination ? (
             <Text style={styles.dialPanelTarget} numberOfLines={1}>
-              {t('dialTarget')}: {picked ? `${picked.label} · ${destination}` : destination}
+              {t('dialTarget')}:{' '}
+              {picked
+                ? `${picked.label} · ${displayNumber(destination)}`
+                : displayNumber(destination)}
             </Text>
           ) : null}
         </View>
@@ -114,6 +120,7 @@ export function DialPadView({
               palette={palette}
               styles={styles}
               t={t}
+              displayNumber={displayNumber}
               directory={directory}
               value={destination}
               picked={picked}

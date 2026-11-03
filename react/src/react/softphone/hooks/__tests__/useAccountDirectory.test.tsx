@@ -7,7 +7,7 @@ import type {
 } from '@dialstack/sdk-webrtc';
 
 import {
-  useAccountDirectory,
+  useAccountDirectoryEntries,
   MAX_DIRECTORY_PRESENCE,
   type AccountDirectoryPhone,
 } from '../useAccountDirectory';
@@ -61,11 +61,12 @@ type Props = {
 };
 const render = (initialProps: Props) =>
   renderHook(
-    ({ phone, connection, enabled }: Props) => useAccountDirectory(phone, connection, enabled),
+    ({ phone, connection, enabled }: Props) =>
+      useAccountDirectoryEntries(phone, connection, enabled).users,
     { initialProps }
   );
 
-describe('useAccountDirectory', () => {
+describe('useAccountDirectoryEntries', () => {
   const directory = [
     entry('user_a', 'Ana Diaz', ['1001', '1009']),
     entry('user_b', 'No Extension'),
@@ -111,6 +112,16 @@ describe('useAccountDirectory', () => {
 
     f.update(presence('user_a', 'available', true));
     expect(result.current.map((c) => c.presence)).toEqual(['dnd', 'on_call']);
+  });
+
+  it('keeps the entries the same object across a presence update', async () => {
+    const f = fakePhone(directory);
+    const { result } = renderHook(() => useAccountDirectoryEntries(f.phone, 'connected', true));
+    await waitFor(() => expect(f.phone.subscribePresence).toHaveBeenCalled());
+    const before = result.current;
+    f.snapshot([presence('user_a', 'available')]);
+    expect(result.current.users).not.toBe(before.users);
+    expect(result.current.entries).toBe(before.entries);
   });
 
   it('ignores presence for users it does not watch', async () => {

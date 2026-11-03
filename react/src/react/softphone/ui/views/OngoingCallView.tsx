@@ -16,7 +16,7 @@ import {
   type SoftphoneViewChrome,
 } from './types';
 
-export interface OngoingCallViewProps extends Omit<SoftphoneViewChrome, 'displayNumber'> {
+export interface OngoingCallViewProps extends SoftphoneViewChrome {
   peer: PeerSummary;
   stateLabel: string;
   duration: string;
@@ -135,6 +135,7 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
   onHangup,
   scope = DEFAULT_SCOPE,
   t,
+  displayNumber,
 }) => {
   const inKeypadMode = isActive && overlay === 'keypad' && canSendDtmf && !reconnecting;
   const transferOpen = isActive && overlay === 'transfer' && canStartTransfer && !reconnecting;
@@ -283,6 +284,7 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
             }
             onClose={() => onToggleOverlay('transfer')}
             t={t}
+            displayNumber={displayNumber}
           />
         )}
 
@@ -311,6 +313,7 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
             }
             onClose={() => onToggleOverlay('addcall')}
             t={t}
+            displayNumber={displayNumber}
           />
         )}
 

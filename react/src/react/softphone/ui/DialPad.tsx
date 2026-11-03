@@ -26,8 +26,17 @@ export interface DialPadProps {
 }
 
 export const DialPad: React.FC<DialPadProps> = ({ autoFocusDestination = false }) => {
-  const { connection, placeCall, emergency, lastError, clearError, t, scope, directory } =
-    useSoftphone();
+  const {
+    connection,
+    placeCall,
+    emergency,
+    lastError,
+    clearError,
+    t,
+    displayNumber,
+    scope,
+    directory,
+  } = useSoftphone();
   const { value: destination, picked, onType, onPasteText, pick } = useDialTarget();
   const destinationRef = useRef<HTMLInputElement | null>(null);
 
@@ -60,6 +69,7 @@ export const DialPad: React.FC<DialPadProps> = ({ autoFocusDestination = false }
       onPick={pickOrCall}
       scope={scope}
       t={t}
+      displayNumber={displayNumber}
     />
   );
 };

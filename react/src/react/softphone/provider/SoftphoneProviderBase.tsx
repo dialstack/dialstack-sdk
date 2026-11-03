@@ -33,9 +33,10 @@ import {
   type ResolvePeer,
   type SoftphoneLayoutVariant,
   type DirectoryContact,
-  useAccountDirectory,
   mergeDirectories,
+  useAccountDirectoryEntries,
 } from '../hooks';
+import { accountNameContacts, directoryLabelFor, nameDirectoryOf } from '../core/view-model';
 import {
   createPaginatedList,
   type Call,
@@ -125,6 +126,11 @@ export interface SoftphoneContextBase {
    * has entries.
    */
   directory: readonly DirectoryContact[];
+  /**
+   * The name for a call's number, or null: the host's `directory` first, then
+   * the account's users when they are listed, matched in `defaultCountry`.
+   */
+  peerName: (number: string) => string | null;
 }
 
 const SoftphoneContext = createContext<SoftphoneContextBase | null>(null);
@@ -360,11 +366,22 @@ export function SoftphoneProviderBase<Extra extends object>({
   // users never show first and then get swapped out.
   const listUsers = accountDirectory ?? hostList === undefined;
   const hostDirectory = hostList ?? NO_DIRECTORY;
-  const accountUsers = useAccountDirectory(phone, connection, listUsers);
+  const { users: accountUsers, entries: accountEntries } = useAccountDirectoryEntries(
+    phone,
+    connection,
+    listUsers
+  );
   const directory = useMemo(
     () => mergeDirectories(accountUsers, hostDirectory),
     [accountUsers, hostDirectory]
   );
+  // From the entries, not `accountUsers`: those are rebuilt on every presence
+  // update, which would rebuild the number lookup each time.
+  const accountNames = useMemo(() => accountNameContacts(accountEntries), [accountEntries]);
+  const peerName = useMemo(() => {
+    const names = nameDirectoryOf(hostDirectory, accountNames);
+    return (n: string) => directoryLabelFor(n, names, defaultCountry);
+  }, [hostDirectory, accountNames, defaultCountry]);
   const incomingRinging = shouldRingIncoming(incomingCalls);
 
   // Clear a stale error banner only on the error→connected edge, not every render.
@@ -415,6 +432,7 @@ export function SoftphoneProviderBase<Extra extends object>({
       peerInfo,
       layoutVariant,
       directory,
+      peerName,
       ...extra,
     }),
     // t/displayNumber recompute from locale/defaultCountry each render; the
@@ -455,6 +473,7 @@ export function SoftphoneProviderBase<Extra extends object>({
       peerInfo,
       layoutVariant,
       directory,
+      peerName,
       locale,
       defaultCountry,
       extra,

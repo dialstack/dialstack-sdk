@@ -10,8 +10,8 @@ import type { SoftphoneViewChrome } from './types';
  * where the number is the point, so it shows over any description.
  */
 export const DirectoryContactView: React.FC<
-  Pick<SoftphoneViewChrome, 't'> & { entry: DirectoryContact; inline?: boolean }
-> = ({ entry, t, inline = false }) => {
+  Pick<SoftphoneViewChrome, 't' | 'displayNumber'> & { entry: DirectoryContact; inline?: boolean }
+> = ({ entry, t, displayNumber, inline = false }) => {
   const title = (
     <>
       {entry.presence && <PresenceBadge presence={entry.presence} />}
@@ -24,7 +24,9 @@ export const DirectoryContactView: React.FC<
     </>
   );
   const detail = (
-    <span className="ds-directory-option-detail">{contactDetail(entry, inline, t)}</span>
+    <span className="ds-directory-option-detail">
+      {contactDetail(entry, inline, t, displayNumber)}
+    </span>
   );
   if (inline) {
     return (

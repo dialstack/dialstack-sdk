@@ -20,6 +20,7 @@ describe('native PickedTargetView', () => {
         palette={palette}
         styles={makeStyles(palette)}
         t={t}
+        displayNumber={(v) => v}
         entry={{ id: 'ana', label: 'Ana Diaz', destination: '1001', presence: 'on_call' }}
         onClear={onClear}
       />

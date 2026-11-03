@@ -14,6 +14,7 @@ export interface DirectoryPickerViewProps {
   palette: SoftphonePalette;
   styles: ReturnType<typeof makeStyles>;
   t: (key: keyof Locale['softphone']) => string;
+  displayNumber: (value: string) => string;
   directory: readonly DirectoryContact[];
   /** Whether the number field currently holds this entry's destination. */
   isSelected: (entry: DirectoryContact) => boolean;
@@ -27,6 +28,7 @@ export function DirectoryPickerView({
   palette,
   styles,
   t,
+  displayNumber,
   directory,
   isSelected,
   onPick,
@@ -98,7 +100,13 @@ export function DirectoryPickerView({
                     selected && styles.directoryOptionSelected,
                   ]}
                 >
-                  <DirectoryContactView palette={palette} styles={styles} t={t} entry={entry} />
+                  <DirectoryContactView
+                    palette={palette}
+                    styles={styles}
+                    t={t}
+                    displayNumber={displayNumber}
+                    entry={entry}
+                  />
                 </Pressable>
               );
             })}

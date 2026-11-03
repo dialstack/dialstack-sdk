@@ -54,6 +54,7 @@ export const OngoingCall: React.FC = () => {
     lastError,
     clearError,
     directory,
+    peerName,
     connection,
     emergency,
   } = useSoftphone();
@@ -151,7 +152,7 @@ export const OngoingCall: React.FC = () => {
 
   const summarize = (c: Call): PeerSummary => ({
     id: c.id,
-    ...peerDisplay(c, peerInfo(c), displayNumber, t('unknownCaller')),
+    ...peerDisplay(c, peerInfo(c), displayNumber, t('unknownCaller'), peerName),
   });
 
   const overlay: OverlayPanel = showKeypad
@@ -239,6 +240,7 @@ export const OngoingCall: React.FC = () => {
       onHangup={isMerged ? hangupConference : actions.hangup}
       scope={scope}
       t={t}
+      displayNumber={displayNumber}
     />
   );
 };
