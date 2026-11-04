@@ -1,9 +1,13 @@
 import React, { useCallback, useEffect, useId, useState } from 'react';
 import { AsYouType, parsePhoneNumberFromString } from 'libphonenumber-js';
+import type { CallerIdChoice } from '@dialstack/sdk-js';
 import type { ConfigPanelProps } from '../registry-types';
 import { formatPhoneForDisplay } from '../format-phone';
+import { ResourceCombobox } from './ResourceCombobox';
 import { ConfigField } from './fields/ConfigField';
+import { SegmentedField } from './fields/SegmentedField';
 import { TimeoutField } from './fields/TimeoutField';
+import { useResourceGroups } from './hooks/useResourceGroups';
 
 const DEFAULT_INVALID_MESSAGE = 'Enter a valid phone number, for example (415) 555-1234.';
 
@@ -39,15 +43,59 @@ const dialable = (cleaned: string): string | null => {
 const cleanInput = (raw: string): string =>
   raw.startsWith('+') ? '+' + raw.slice(1).replace(/\D/g, '') : raw.replace(/\D/g, '');
 
+/**
+ * The account number to present, listed only once "Specific number" is picked
+ * so a plain forward never fetches the account's numbers. No "create new": a
+ * number is ordered, not made from here.
+ */
+const CallerIdNumberField = ({
+  value,
+  listResources,
+  onSelect,
+  locale,
+}: {
+  value: string;
+  listResources: ConfigPanelProps['listResources'];
+  onSelect: (id: string) => void;
+  locale: ConfigPanelProps['locale'];
+}) => {
+  const { groups, loading } = useResourceGroups(
+    [{ type: 'phone_number', labelKey: 'phoneNumbers', fallback: 'Phone Numbers' }],
+    listResources,
+    undefined,
+    locale
+  );
+  return (
+    <ConfigField label={locale?.configLabels.callerIdNumber ?? 'Number to show'}>
+      <ResourceCombobox
+        groups={groups}
+        value={value}
+        loading={loading}
+        placeholder={locale?.configLabels.searchPhoneNumbers ?? 'Search phone numbers...'}
+        onSelect={(id) => onSelect(id)}
+        selectLabel={locale?.combobox.select}
+        noResultsLabel={locale?.combobox.noResults}
+        loadingLabel={locale?.combobox.loading}
+      />
+    </ConfigField>
+  );
+};
+
 export const ExternalDialConfigPanel = ({
   nodeId,
   config,
   onConfigChange,
   onInvalidDraftChange,
+  listResources,
   locale,
 }: ConfigPanelProps) => {
   const e164 = (config.phone_number as string) ?? '';
   const timeout = (config.timeout as number) ?? 60;
+  const callerId = (config.caller_id as CallerIdChoice | undefined) ?? 'original';
+  const callerIdDid = (config.caller_id_did as string | undefined) ?? '';
+  // "Specific number" with nothing picked is a plan the API refuses, so it
+  // holds Save shut the same way a rejected phone entry does.
+  const callerIdIncomplete = callerId === 'did' && !callerIdDid;
 
   const [display, setDisplay] = useState(formatPhoneForDisplay(e164));
   const [error, setError] = useState<string | null>(null);
@@ -78,9 +126,9 @@ export const ExternalDialConfigPanel = ({
   // and Save writes the empty default the node was created with and reports
   // success — the destination is dead and nothing said so.
   useEffect(() => {
-    onInvalidDraftChange?.(error !== null);
+    onInvalidDraftChange?.(error !== null || callerIdIncomplete);
     return () => onInvalidDraftChange?.(false);
-  }, [error, onInvalidDraftChange]);
+  }, [error, callerIdIncomplete, onInvalidDraftChange]);
 
   const invalidMessage = locale?.configLabels.phoneNumberInvalid ?? DEFAULT_INVALID_MESSAGE;
 
@@ -203,6 +251,38 @@ export const ExternalDialConfigPanel = ({
           </p>
         )}
       </ConfigField>
+      <SegmentedField<CallerIdChoice>
+        label={locale?.configLabels.callerId ?? 'Caller ID'}
+        value={callerId}
+        options={[
+          { value: 'original', label: locale?.configLabels.callerIdOriginal ?? 'Original caller' },
+          {
+            value: 'called_number',
+            label: locale?.configLabels.callerIdCalledNumber ?? 'Number called',
+          },
+          { value: 'did', label: locale?.configLabels.callerIdSpecific ?? 'Specific number' },
+        ]}
+        // The default is stored as no choice at all, so a plan that never
+        // touched this keeps the config it had.
+        onChange={(next) =>
+          onConfigChange({
+            caller_id: next === 'original' ? undefined : next,
+            caller_id_did: undefined,
+          })
+        }
+        hint={
+          locale?.configLabels.callerIdHint ??
+          "Show the number that was called so the person you forward to knows it's coming from your office."
+        }
+      />
+      {callerId === 'did' && (
+        <CallerIdNumberField
+          value={callerIdDid}
+          listResources={listResources}
+          onSelect={(id) => onConfigChange({ caller_id_did: id })}
+          locale={locale}
+        />
+      )}
     </>
   );
 };

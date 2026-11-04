@@ -20,7 +20,8 @@ export type ResourceType =
   | 'queue'
   | 'voice_app'
   | 'shared_voicemail'
-  | 'audio_clip';
+  | 'audio_clip'
+  | 'phone_number';
 
 /**
  * Per-type filter options for `listResources`. Currently only voice apps

@@ -192,6 +192,7 @@ export type {
   InternalDialNodeConfig,
   RingAllUsersNodeConfig,
   ExternalDialNodeConfig,
+  CallerIdChoice,
   DialPlanNodeType,
   ScheduleNode,
   InternalDialNode,

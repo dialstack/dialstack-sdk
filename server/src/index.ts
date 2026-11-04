@@ -2459,10 +2459,22 @@ export interface RingAllUsersNodeConfig {
   next?: string;
 }
 
+/**
+ * Caller ID a call forwarded or transferred to an external number presents:
+ * `original` (default), `called_number` (the account number the call came in
+ * on), or `did` (the account number named by `caller_id_did`). A choice that
+ * cannot be honoured when the call is placed presents the original caller.
+ */
+export type CallerIdChoice = 'original' | 'called_number' | 'did';
+
 export interface ExternalDialNodeConfig {
   phone_number: string;
   timeout: number;
   next?: string;
+  /** Caller ID the forwarded call presents. Defaults to `original`. */
+  caller_id?: CallerIdChoice;
+  /** ID of the account phone number to present. Required when `caller_id` is `did`. */
+  caller_id_did?: string;
 }
 
 interface DialPlanNodeBase {
@@ -3120,6 +3132,13 @@ export interface TransferAction {
    */
   target: string;
   mode?: 'blind';
+  /**
+   * Caller ID the transfer presents when it leaves over the carrier. Defaults
+   * to `original`; ignored for an extension or `sip:` target.
+   */
+  caller_id?: CallerIdChoice;
+  /** ID of the account phone number to present. Required when `caller_id` is `did`. */
+  caller_id_did?: string;
 }
 
 /** Ends the call immediately; no later actions run. */

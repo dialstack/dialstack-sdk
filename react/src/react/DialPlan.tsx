@@ -40,6 +40,7 @@ import {
   type DialPlanLocale,
   type DialPlanMode,
   type DialPlanHandle,
+  type DIDItem,
 } from '@dialstack/sdk-js';
 import {
   transformDialPlanToGraph,
@@ -50,6 +51,7 @@ import {
 import { defaultRegistry, nodeDefinitions } from './dial-plan/default-registry';
 import { enrichNodeData, nodeDataAfterConfigChange } from './dial-plan/apply-config-change';
 import { readRef } from './dial-plan/config-refs';
+import { formatPhoneForDisplay } from './dial-plan/format-phone';
 import { DIAL_PLAN_EDGE_TYPE, hiddenExitIds } from './dial-plan/registry';
 import { SmartEdge } from './dial-plan/SmartEdge';
 import { StartNode } from './dial-plan/StartNode';
@@ -824,6 +826,24 @@ const DialPlanInner = React.forwardRef<DialPlanHandle, DialPlanProps>(function D
             return await dialstack.sharedVoicemailBoxes.list();
           case 'audio_clip':
             return await dialstack.audioClips.list();
+          case 'phone_number': {
+            // Same list a user picks an outbound caller ID from: only numbers
+            // the platform will present, since the API refuses any other.
+            // Every page: the filter runs client-side, so one page could hide
+            // the number a saved plan names.
+            const numbers = await dialstack.fetchAllPages<DIDItem>((opts) =>
+              dialstack.phoneNumbers.list(opts)
+            );
+            return numbers
+              .filter((n) => n.status === 'active' && n.outbound_enabled)
+              .sort((a, b) => a.phone_number.localeCompare(b.phone_number))
+              .map((n) => ({
+                id: n.id,
+                name: n.caller_id_name
+                  ? `${formatPhoneForDisplay(n.phone_number)} · ${n.caller_id_name}`
+                  : formatPhoneForDisplay(n.phone_number),
+              }));
+          }
           default:
             return [];
         }

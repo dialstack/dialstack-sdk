@@ -62,6 +62,7 @@ export const defaultDialPlanLocale: DialPlanLocale = {
     sharedVoicemails: 'Shared Voicemails',
     schedules: 'Schedules',
     audioClips: 'Audio Clips',
+    phoneNumbers: 'Phone Numbers',
   },
   configLabels: {
     timeout: 'Timeout (seconds)',
@@ -91,6 +92,14 @@ export const defaultDialPlanLocale: DialPlanLocale = {
     timeoutOverrideOff: 'Off',
     extensionEntry: 'Allow extension dialing',
     extensionEntryHint: 'When on, callers can key an extension instead of choosing an option.',
+    callerId: 'Caller ID',
+    callerIdOriginal: 'Original caller',
+    callerIdCalledNumber: 'Number called',
+    callerIdSpecific: 'Specific number',
+    callerIdHint:
+      "Show the number that was called so the person you forward to knows it's coming from your office.",
+    callerIdNumber: 'Number to show',
+    searchPhoneNumbers: 'Search phone numbers...',
   },
   voiceAppMode: {
     control: 'Control',

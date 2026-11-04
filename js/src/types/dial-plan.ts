@@ -75,7 +75,24 @@ export interface ExternalDialNodeConfig {
   timeout: number;
   /** Node ID to route to on timeout or busy */
   next?: string;
+  /** Caller ID the forwarded call presents. Defaults to `original`. */
+  caller_id?: CallerIdChoice;
+  /** ID of the account phone number to present. Required when `caller_id` is `did`, rejected otherwise. */
+  caller_id_did?: string;
 }
+
+/**
+ * Caller ID a call forwarded or transferred to an external number presents:
+ * - `original`: the original caller (default).
+ * - `called_number`: the account number the call came in on. A call that did
+ *   not arrive on one of the account's numbers presents the same caller ID as
+ *   `original`.
+ * - `did`: the account number named by `caller_id_did`.
+ *
+ * A number that is not active with outbound calling enabled when the call is
+ * placed is not presented; the call presents the original caller instead.
+ */
+export type CallerIdChoice = 'original' | 'called_number' | 'did';
 
 /**
  * Configuration for a ring-all-users node that rings every user in the account.
@@ -348,6 +365,8 @@ export interface DialPlanLocale {
     sharedVoicemails: string;
     schedules: string;
     audioClips: string;
+    /** Optional so a locale written against an earlier release still compiles. */
+    phoneNumbers?: string;
   };
   configLabels: {
     timeout: string;
@@ -393,6 +412,14 @@ export interface DialPlanLocale {
     timeoutOverrideOff?: string;
     extensionEntry?: string;
     extensionEntryHint?: string;
+    /** Labels for the External Number node's caller ID choice. */
+    callerId?: string;
+    callerIdOriginal?: string;
+    callerIdCalledNumber?: string;
+    callerIdSpecific?: string;
+    callerIdHint?: string;
+    callerIdNumber?: string;
+    searchPhoneNumbers?: string;
   };
   voiceAppMode: {
     control: string;

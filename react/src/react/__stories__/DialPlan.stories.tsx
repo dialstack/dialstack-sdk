@@ -318,6 +318,46 @@ export const ExternalDialPhoneNumberSave: Story = {
   },
 };
 
+export const ExternalDialCallerIdSpecificNumber: Story = {
+  args: { mode: 'edit' },
+  play: async ({ canvasElement, step }) => {
+    const canvas = within(canvasElement);
+    // The button, not its "Save" label: a span is never disabled, so asserting
+    // on the text would pass whatever the button's state.
+    const saveButton = () => canvas.getByText('Save').closest('button');
+    const panel = () =>
+      within(canvasElement.querySelector('.ds-dial-plan-config-panel') as HTMLElement);
+
+    await step('Add an External Number node with a destination', async () => {
+      await waitFor(() => {
+        expect(canvasElement.querySelector('.ds-dial-plan-node-library')).toBeInTheDocument();
+      });
+      const library = canvasElement.querySelector('.ds-dial-plan-node-library')!;
+      await userEvent.click(within(library as HTMLElement).getByText('External Number'));
+      await waitFor(() => expect(panel().getByRole('textbox')).toBeInTheDocument());
+      await userEvent.type(panel().getByRole('textbox'), '+14155551234');
+    });
+
+    await step('Caller ID defaults to the original caller', async () => {
+      expect(panel().getByRole('radio', { name: 'Original caller' })).toHaveAttribute(
+        'aria-checked',
+        'true'
+      );
+    });
+
+    await step('Specific number holds Save shut until a number is picked', async () => {
+      await userEvent.click(panel().getByRole('radio', { name: 'Specific number' }));
+      await waitFor(() => expect(saveButton()).toBeDisabled());
+    });
+
+    await step('Picking one of the account numbers enables Save', async () => {
+      await userEvent.click(panel().getByRole('button', { name: /select/i }));
+      await userEvent.click(await panel().findByText('(555) 111-2222'));
+      await waitFor(() => expect(saveButton()).not.toBeDisabled());
+    });
+  },
+};
+
 // ============================================================================
 // refreshResources: the host edited a target (e.g. renamed it in a modal)
 // ============================================================================

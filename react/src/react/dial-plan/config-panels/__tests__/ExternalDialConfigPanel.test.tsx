@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ExternalDialConfigPanel } from '../ExternalDialConfigPanel';
 import type { ConfigPanelProps } from '../../registry-types';
 
@@ -289,5 +289,67 @@ describe('ExternalDialConfigPanel', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('Entrez un numéro de téléphone valide.');
     expect(screen.getByLabelText('Effacer le numéro')).toBeInTheDocument();
+  });
+  describe('caller ID', () => {
+    it('defaults to the original caller and does not list numbers', () => {
+      const listResources = jest.fn().mockResolvedValue([]);
+      renderPanel({ listResources });
+
+      expect(screen.getByRole('radio', { name: 'Original caller' })).toHaveAttribute(
+        'aria-checked',
+        'true'
+      );
+      expect(listResources).not.toHaveBeenCalled();
+    });
+
+    it('stores the number-called choice and drops any picked number', () => {
+      const { onConfigChange } = renderPanel();
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Number called' }));
+
+      expect(onConfigChange).toHaveBeenCalledWith({
+        caller_id: 'called_number',
+        caller_id_did: undefined,
+      });
+    });
+
+    it('stores the original caller as no choice at all', () => {
+      const { onConfigChange } = renderPanel({
+        config: { phone_number: '', timeout: 60, caller_id: 'called_number' },
+      });
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Original caller' }));
+
+      expect(onConfigChange).toHaveBeenCalledWith({
+        caller_id: undefined,
+        caller_id_did: undefined,
+      });
+    });
+
+    it('holds Save shut until a specific number is picked', async () => {
+      const onInvalidDraftChange = jest.fn();
+      const listResources = jest.fn().mockResolvedValue([]);
+      const { rerender, onConfigChange } = renderPanel({
+        config: { phone_number: '', timeout: 60, caller_id: 'did' },
+        onInvalidDraftChange,
+        listResources,
+      });
+
+      expect(onInvalidDraftChange).toHaveBeenLastCalledWith(true);
+      expect(listResources).toHaveBeenCalledWith('phone_number', undefined);
+      expect(screen.getByText('Number to show')).toBeInTheDocument();
+      // Let the number list settle before rerendering.
+      await waitFor(() => expect(screen.queryByText(/loading/i)).not.toBeInTheDocument());
+
+      rerender(
+        <ExternalDialConfigPanel
+          config={{ phone_number: '', timeout: 60, caller_id: 'did', caller_id_did: 'did_1' }}
+          onConfigChange={onConfigChange}
+          onInvalidDraftChange={onInvalidDraftChange}
+          listResources={listResources}
+        />
+      );
+      expect(onInvalidDraftChange).toHaveBeenLastCalledWith(false);
+    });
   });
 });
