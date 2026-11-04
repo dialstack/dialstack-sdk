@@ -495,6 +495,12 @@ export type TosExpand = 'pricing';
 export interface TosAcceptParams {
   /** The version being accepted; must match the current one. */
   version: string;
+  /**
+   * The agreement being accepted, when it differs from the account's current
+   * one: the account moves onto it as the acceptance is recorded. Secret key
+   * only. Omit to accept the account's current agreement.
+   */
+  tos_variant?: TosVariant;
 }
 
 /**
@@ -3925,13 +3931,20 @@ export class DialStack {
     /**
      * Retrieve the account's subscription agreement and its acceptance state.
      * Pass `expand: ['pricing']` to include the pricing the customer is
-     * accepting.
+     * accepting, and `tos_variant` to preview a different agreement before
+     * moving the account onto it with `acceptTos`.
      */
     retrieveTos: (
       accountId: string,
-      options?: RequestOptions & { expand?: TosExpand[] }
+      options?: RequestOptions & { expand?: TosExpand[]; tos_variant?: TosVariant }
     ): Promise<Tos> => {
-      const path = `/v1/accounts/${accountId}/tos${expandQuery(options?.expand)}`;
+      const queryParams = new URLSearchParams();
+      appendExpand(queryParams, options?.expand);
+      if (options?.tos_variant) {
+        queryParams.set('tos_variant', options.tos_variant);
+      }
+      const query = queryParams.toString();
+      const path = `/v1/accounts/${accountId}/tos${query ? `?${query}` : ''}`;
       return this._request('GET', path, undefined, options);
     },
 
@@ -3944,6 +3957,11 @@ export class DialStack {
      * `version` must match the current agreement (409 otherwise), and the
      * account's pricing must already be set since the agreement embeds it (422
      * otherwise). Re-accepting the same version is idempotent.
+     *
+     * Pass `tos_variant` to move the account onto a different agreement in
+     * the same call. It is refused while a re-signature of the current
+     * agreement is pending (409 `tos_resign_pending`) and when your platform
+     * is not cleared to offer that agreement (422).
      */
     acceptTos: (
       accountId: string,

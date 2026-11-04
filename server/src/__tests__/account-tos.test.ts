@@ -49,6 +49,19 @@ describe('Account subscription agreement', () => {
       );
     });
 
+    it('previews another agreement alongside expand', async () => {
+      mockJSON(agreement);
+
+      await dialstack.accounts.retrieveTos('acct_123', {
+        expand: ['pricing'],
+        tos_variant: 'hipaa',
+      });
+
+      expect(requestedUrl()).toBe(
+        'https://api.dialstack.ai/v1/accounts/acct_123/tos?expand%5B%5D=pricing&tos_variant=hipaa'
+      );
+    });
+
     it('sends no query string when expand is omitted', async () => {
       mockJSON(agreement);
 
@@ -106,6 +119,23 @@ describe('Account subscription agreement', () => {
       expect(requestInit().method).toBe('POST');
       // Evidence is derived server-side from the request, never sent.
       expect(JSON.parse(requestInit().body as string)).toEqual({ version: '2026-01-15' });
+    });
+  });
+
+  describe('accounts.acceptTos switching agreements', () => {
+    it('sends tos_variant in the body', async () => {
+      mockJSON(agreement);
+
+      await dialstack.accounts.acceptTos('acct_123', {
+        version: '2026-07-01',
+        tos_variant: 'hipaa',
+      });
+
+      expect(requestInit().method).toBe('POST');
+      expect(JSON.parse(requestInit().body ?? '{}')).toEqual({
+        version: '2026-07-01',
+        tos_variant: 'hipaa',
+      });
     });
   });
 });
