@@ -1,4 +1,10 @@
-import { formatNationalUS, parsePhoneNumberList, parsePhoneNumberRows } from '../phone-list';
+import {
+  classifyPhoneNumberRows,
+  formatNationalUS,
+  parsePhoneNumberList,
+  parsePhoneNumberRows,
+  phoneNumberListType,
+} from '../phone-list';
 
 const e164s = (text: string) => parsePhoneNumberList(text).numbers.map((n) => n.e164);
 const reasons = (text: string) => parsePhoneNumberList(text).problems.map((p) => p.reason);
@@ -384,4 +390,30 @@ describe('parsePhoneNumberList — a typo is a bad number, not an ambiguous run'
       expect(reasons(input)).toEqual(['ambiguous']);
     }
   );
+});
+
+describe('toll-free in a port list', () => {
+  it('is refused by default, for the eligibility check', () => {
+    expect(classifyPhoneNumberRows(['(800) 555-1212'])).toEqual([
+      { status: 'problem', reason: 'toll_free' },
+    ]);
+  });
+
+  it('is accepted with allowTollFree, for a port order', () => {
+    expect(classifyPhoneNumberRows(['(800) 555-1212'], [], { allowTollFree: true })).toEqual([
+      { status: 'ok', e164: '+18005551212' },
+    ]);
+    // The cache is per option: the same value read without it is still refused.
+    expect(classifyPhoneNumberRows(['(800) 555-1212'])[0]).toEqual({
+      status: 'problem',
+      reason: 'toll_free',
+    });
+  });
+
+  it('tells a mixed list apart, since an order is one type', () => {
+    expect(phoneNumberListType([])).toBeNull();
+    expect(phoneNumberListType(['+17702126011'])).toBe('local');
+    expect(phoneNumberListType(['+18005551212', '+18885551212'])).toBe('toll_free');
+    expect(phoneNumberListType(['+18005551212', '+17702126011'])).toBe('mixed');
+  });
 });

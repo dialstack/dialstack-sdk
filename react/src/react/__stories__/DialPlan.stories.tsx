@@ -411,6 +411,17 @@ export const RefreshResourcesAfterRename: Story = {
       });
     });
 
+    // The initial fit frames the nodes as first measured, which is before or
+    // after the target's name resolves depending on timing, and React Flow
+    // keeps the handle positions it measured at that zoom, so both the zoom and
+    // the edges varied between runs. Fitting once the name is in, before the
+    // rename, puts the zoom in place first: the rename's re-measure then
+    // happens at it. Dropping focus keeps the button's focus ring out of the
+    // shot, which varied too.
+    const fit = canvas.getByRole('button', { name: 'Fit View' });
+    await userEvent.click(fit);
+    fit.blur();
+
     await step('Refreshing after a rename shows the new name', async () => {
       await userEvent.click(canvas.getByText('Rename target'));
       await waitFor(() => expect(canvas.getByText(/^Alice Renamed/)).toBeInTheDocument());

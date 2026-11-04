@@ -5,7 +5,9 @@ import { parsePhoneNumberFromString } from 'libphonenumber-js';
  *
  * - `invalid`       — a single number that is not a real US number
  * - `not_us`        — parses and is valid, but belongs to another country
- * - `toll_free`     — a US toll-free number, which cannot be ported
+ * - `toll_free`     — a US toll-free number, refused unless the caller passes
+ *                     `allowTollFree` (a port order takes them; the eligibility
+ *                     check cannot)
  * - `ambiguous`     — digits that do not divide cleanly into whole numbers
  * - `has_extension` — an extension is present, which we refuse to strip silently
  */
@@ -51,12 +53,23 @@ const SINGLE_NUMBER_LENGTHS = (digits: string): boolean =>
 
 type Classified = { ok: true; e164: string } | { ok: false; reason: ParseProblemReason };
 
+/** How a list is read. */
+export interface PhoneListOptions {
+  /**
+   * Accept US toll-free numbers. Off by default: the eligibility check cannot
+   * answer for them, while a port order can carry them (all toll-free, see
+   * {@link phoneNumberListType}).
+   */
+  allowTollFree?: boolean;
+}
+
 /**
- * Mirrors the server's `validateUSPhoneNumber`: valid, US, and not toll-free.
+ * Mirrors the server's `validateUSPhoneNumber`: valid and US, and not toll-free
+ * unless `allowTollFree`.
  * Returns null when the input is not a single parseable number at all, which is
  * the caller's signal to try splitting it into several.
  */
-function classifyOne(candidate: string): Classified | null {
+function classifyOne(candidate: string, allowTollFree = false): Classified | null {
   const parsed = parsePhoneNumberFromString(candidate, 'US');
   if (!parsed || !parsed.isValid()) return null;
   // Ask the parser rather than trusting the regex below: `7702126011x22` has no
@@ -66,7 +79,7 @@ function classifyOne(candidate: string): Classified | null {
   // the text, destroying the evidence too.
   if (parsed.ext) return { ok: false, reason: 'has_extension' };
   if (parsed.country !== 'US') return { ok: false, reason: 'not_us' };
-  if (parsed.getType() === 'TOLL_FREE') return { ok: false, reason: 'toll_free' };
+  if (!allowTollFree && parsed.getType() === 'TOLL_FREE') return { ok: false, reason: 'toll_free' };
   return { ok: true, e164: parsed.number };
 }
 
@@ -174,7 +187,10 @@ function tileDigits(digits: string, grouping: DigitGrouping): string[] | null {
 const NON_ASCII_DIGIT = /(?=\p{Nd})[^0-9]/u;
 
 /** Resolve one segment to numbers, or to the single reason it failed. */
-function parseSegment(segment: string): { numbers: string[] } | { reason: ParseProblemReason } {
+function parseSegment(
+  segment: string,
+  allowTollFree = false
+): { numbers: string[] } | { reason: ParseProblemReason } {
   // Spreadsheet pastes carry full-width digits. NFKC folds them to ASCII so the
   // digit run and the spacing analysis both see them; without it `\D` strips
   // them as if they were punctuation and the number vanishes out of a
@@ -187,7 +203,7 @@ function parseSegment(segment: string): { numbers: string[] } | { reason: ParseP
   // dropping a digit the reader can see is the one outcome forbidden here.
   if (NON_ASCII_DIGIT.test(text)) return { reason: 'invalid' };
 
-  const single = classifyOne(text);
+  const single = classifyOne(text, allowTollFree);
   if (single) {
     return single.ok ? { numbers: [single.e164] } : { reason: single.reason };
   }
@@ -208,7 +224,7 @@ function parseSegment(segment: string): { numbers: string[] } | { reason: ParseP
   // still yields all-or-nothing.
   const e164s: string[] = [];
   for (const chunk of tiled) {
-    const classified = classifyOne(chunk.length === 11 ? `+${chunk}` : chunk);
+    const classified = classifyOne(chunk.length === 11 ? `+${chunk}` : chunk, allowTollFree);
     if (!classified) return { reason: 'ambiguous' };
     if (!classified.ok) return { reason: classified.reason };
     e164s.push(classified.e164);
@@ -293,7 +309,7 @@ export interface ParsedRow {
  * whole list, which the caller can answer by looking at what came before it;
  * dropping it here would lose the writer's text.
  */
-export function parsePhoneNumberRows(text: string): ParsedRow[] {
+export function parsePhoneNumberRows(text: string, options: PhoneListOptions = {}): ParsedRow[] {
   const rows: ParsedRow[] = [];
 
   for (const line of text.replace(/\r\n?/g, '\n').split('\n')) {
@@ -301,7 +317,7 @@ export function parsePhoneNumberRows(text: string): ParsedRow[] {
       const raw = segment.trim();
       if (raw === '') continue;
 
-      const result = parseSegment(raw);
+      const result = parseSegment(raw, options.allowTollFree);
       if ('reason' in result) {
         rows.push({ value: raw, reason: result.reason });
         continue;
@@ -345,14 +361,15 @@ export type RowStatus =
  */
 const rowCache = new Map<string, ParsedRow[]>();
 
-function parseRowValue(value: string): ParsedRow[] {
-  const hit = rowCache.get(value);
+function parseRowValue(value: string, options: PhoneListOptions): ParsedRow[] {
+  const key = `${options.allowTollFree ? 1 : 0}:${value}`;
+  const hit = rowCache.get(key);
   if (hit) return hit;
 
-  const parsed = parsePhoneNumberRows(value);
+  const parsed = parsePhoneNumberRows(value, options);
   // Bounded so a long editing session cannot grow it without limit.
   if (rowCache.size > 500) rowCache.clear();
-  rowCache.set(value, parsed);
+  rowCache.set(key, parsed);
   return parsed;
 }
 
@@ -371,7 +388,8 @@ function parseRowValue(value: string): ParsedRow[] {
  */
 export function classifyPhoneNumberRows(
   values: readonly string[],
-  issues: readonly NumberIssue[] = []
+  issues: readonly NumberIssue[] = [],
+  options: PhoneListOptions = {}
 ): RowStatus[] {
   const issueFor = new Map(issues.map((i) => [i.e164, i.message]));
   const firstSeen = new Map<string, number>();
@@ -379,7 +397,7 @@ export function classifyPhoneNumberRows(
   return values.map((value, index): RowStatus => {
     if (value.trim() === '') return { status: 'empty' };
 
-    const parsed = parseRowValue(value);
+    const parsed = parseRowValue(value, options);
 
     // One row holds one number. Several here means the reader typed a separator
     // into the field by hand — a paste would have fanned out into rows.
@@ -406,9 +424,10 @@ export function classifyPhoneNumberRows(
 /** The numbers this list would submit, in order and de-duplicated. */
 export function readyPhoneNumbers(
   values: readonly string[],
-  issues: readonly NumberIssue[] = []
+  issues: readonly NumberIssue[] = [],
+  options: PhoneListOptions = {}
 ): string[] {
-  return classifyPhoneNumberRows(values, issues)
+  return classifyPhoneNumberRows(values, issues, options)
     .map((row) => (row.status === 'ok' ? row.e164 : null))
     .filter((e164): e164 is string => e164 !== null);
 }
@@ -433,12 +452,32 @@ export function readyPhoneNumbers(
 export function isPhoneNumberListReady(
   values: readonly string[],
   issues: readonly NumberIssue[],
-  maxNumbers: number
+  maxNumbers: number,
+  options: PhoneListOptions = {}
 ): boolean {
-  const rows = classifyPhoneNumberRows(values, issues);
+  const rows = classifyPhoneNumberRows(values, issues, options);
   if (rows.some((r) => r.status === 'problem' || r.status === 'server' || r.status === 'duplicate'))
     return false;
 
   const ready = rows.filter((r) => r.status === 'ok').length;
   return ready > 0 && ready <= maxNumbers;
+}
+
+/**
+ * Whether a list of numbers is all local, all toll-free, or a mix, or `null` for
+ * an empty list. A port order is one or the other: the carrier moves toll-free
+ * numbers between RespOrgs and local ones between carriers, so a mix has to be
+ * split into two orders.
+ */
+export function phoneNumberListType(
+  e164s: readonly string[]
+): 'local' | 'toll_free' | 'mixed' | null {
+  let type: 'local' | 'toll_free' | null = null;
+  for (const e164 of e164s) {
+    const t =
+      parsePhoneNumberFromString(e164, 'US')?.getType() === 'TOLL_FREE' ? 'toll_free' : 'local';
+    if (type !== null && t !== type) return 'mixed';
+    type = t;
+  }
+  return type;
 }

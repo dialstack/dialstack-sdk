@@ -17,7 +17,13 @@ import {
   parsePhoneNumberRows,
 } from '@dialstack/sdk-js/pure';
 import type { NumState, Dispatcher, TFn } from '../types';
-import { MAX_PHONE_NUMBERS_PER_ORDER, nonPortableMessages, REASON_KEY } from '../port-numbers';
+import {
+  MAX_PHONE_NUMBERS_PER_ORDER,
+  nonPortableMessages,
+  PORT_LIST_OPTIONS,
+  portListType,
+  REASON_KEY,
+} from '../port-numbers';
 import { formatPhone } from '../helpers';
 import { US_STATES } from '../../../../../constants/us-states';
 import { focTimeOptions, focZoneLabel, formatFocTime12h } from '@dialstack/sdk-js';
@@ -68,7 +74,10 @@ export const PortNumbersContent = ({
     inputsRef.current[target]?.focus();
   });
 
-  const rows = classifyPhoneNumberRows(values, state.portNumberIssues);
+  const rows = classifyPhoneNumberRows(values, state.portNumberIssues, PORT_LIST_OPTIONS);
+  // Toll-free and local numbers cannot share an order; the list says so rather
+  // than leaving the customer to find out on submit.
+  const mixed = portListType(values, state.portNumberIssues) === 'mixed';
   // readyCount and overCap drive the count line and the cap message; whether the
   // step may advance is the shared rule, not a local restatement of it.
   const readyCount = rows.filter((r) => r.status === 'ok').length;
@@ -81,7 +90,13 @@ export const PortNumbersContent = ({
     (r) => r.status === 'problem' || r.status === 'server' || r.status === 'duplicate'
   ).length;
   const canContinue =
-    isPhoneNumberListReady(values, state.portNumberIssues, MAX_PHONE_NUMBERS_PER_ORDER) &&
+    isPhoneNumberListReady(
+      values,
+      state.portNumberIssues,
+      MAX_PHONE_NUMBERS_PER_ORDER,
+      PORT_LIST_OPTIONS
+    ) &&
+    !mixed &&
     !state.portIsCheckingEligibility;
 
   const commit = (next: string[], ids?: number[], focusIndex?: number) => {
@@ -128,14 +143,15 @@ export const PortNumbersContent = ({
    * keep their text so they can be corrected rather than disappearing.
    */
   const insertList = (index: number, text: string, event: { preventDefault(): void }) => {
-    const parsed = parsePhoneNumberRows(text);
+    const parsed = parsePhoneNumberRows(text, PORT_LIST_OPTIONS);
     if (parsed.length === 0) return;
 
     // A single number pasted onto a row that already holds one is another
     // number, not a correction — letting the field insert it would run the two
     // together into one unreadable row. A row still being corrected keeps the
     // native paste, so completing a half-typed number still works.
-    const targetComplete = classifyPhoneNumberRows([values[index] ?? ''])[0]?.status === 'ok';
+    const targetComplete =
+      classifyPhoneNumberRows([values[index] ?? ''], [], PORT_LIST_OPTIONS)[0]?.status === 'ok';
     if (parsed.length <= 1 && !targetComplete) return;
 
     event.preventDefault();
@@ -275,6 +291,12 @@ export const PortNumbersContent = ({
         </div>
       )}
 
+      {mixed && (
+        <div className="inline-alert error">
+          {t('accountOnboarding.numbers.port.mixedNumberTypes')}
+        </div>
+      )}
+
       {state.portEligibilityError && (
         <div className="inline-alert error">{state.portEligibilityError}</div>
       )}
@@ -304,10 +326,16 @@ export const PortEligibilityContent = ({
   const result = state.portEligibilityResult;
   if (!result) return null;
   const hasPortable = result.portable_numbers.length > 0;
+  const tollFree = portListType(state.portPhoneValues, state.portNumberIssues) === 'toll_free';
   return (
     <>
       <h2 className="section-title">{t('accountOnboarding.numbers.port.eligibilityTitle')}</h2>
       <p className="section-subtitle">{t('accountOnboarding.numbers.port.eligibilitySubtitle')}</p>
+      {tollFree && (
+        <div className="inline-alert info" style={{ marginBottom: 'var(--ds-layout-spacing-md)' }}>
+          {t('accountOnboarding.numbers.port.tollFreeEligibilityNote')}
+        </div>
+      )}
       <table className="num-eligibility-table">
         <thead>
           <tr>
@@ -481,7 +509,10 @@ export const PortSubscriberContent = ({
   onNext: () => void;
 }) => {
   const e = state.portSubscriberErrors;
-  const textFields = [
+  // A toll-free number moves by RespOrg, so the losing-carrier account details
+  // a local order needs have nothing to authenticate against.
+  const tollFree = portListType(state.portPhoneValues, state.portNumberIssues) === 'toll_free';
+  const allTextFields = [
     {
       field: 'businessName',
       label: t('accountOnboarding.numbers.port.businessNameLabel'),
@@ -507,6 +538,9 @@ export const PortSubscriberContent = ({
       val: state.portSubscriberPin,
     },
   ];
+  const textFields = tollFree
+    ? allTextFields.filter((f) => f.field !== 'accountNumber' && f.field !== 'pin')
+    : allTextFields;
   const isMultiCarrier = state.portCarrierGroups.size > 1;
   const carrierNumbers =
     isMultiCarrier && state.portCurrentCarrier
@@ -515,27 +549,35 @@ export const PortSubscriberContent = ({
   return (
     <>
       <h2 className="section-title">{t('accountOnboarding.numbers.port.subscriberTitle')}</h2>
-      <p className="section-subtitle">{t('accountOnboarding.numbers.port.subscriberSubtitle')}</p>
+      <p className="section-subtitle">
+        {t(
+          tollFree
+            ? 'accountOnboarding.numbers.port.tollFreeSubscriberSubtitle'
+            : 'accountOnboarding.numbers.port.subscriberSubtitle'
+        )}
+      </p>
       {isMultiCarrier && state.portCurrentCarrier && (
         <div className="inline-alert info" style={{ marginBottom: 'var(--ds-layout-spacing-md)' }}>
           <strong>{state.portCurrentCarrier}</strong> — {carrierNumbers.map(formatPhone).join(', ')}
         </div>
       )}
       <div className="num-port-subscriber-form">
-        <div className="form-group">
-          <label className="form-label">{t('accountOnboarding.numbers.port.btnLabel')}</label>
-          <input
-            className={`form-input${e.btn ? ' error' : ''}`}
-            type="tel"
-            value={state.portSubscriberBtn}
-            placeholder={t('accountOnboarding.numbers.port.btnPlaceholder')}
-            onChange={(e2) => {
-              const fmt = new AsYouType('US');
-              dispatch({ type: 'port_set_subscriber_btn', value: fmt.input(e2.target.value) });
-            }}
-          />
-          {e.btn && <div className="form-error">{e.btn}</div>}
-        </div>
+        {!tollFree && (
+          <div className="form-group">
+            <label className="form-label">{t('accountOnboarding.numbers.port.btnLabel')}</label>
+            <input
+              className={`form-input${e.btn ? ' error' : ''}`}
+              type="tel"
+              value={state.portSubscriberBtn}
+              placeholder={t('accountOnboarding.numbers.port.btnPlaceholder')}
+              onChange={(e2) => {
+                const fmt = new AsYouType('US');
+                dispatch({ type: 'port_set_subscriber_btn', value: fmt.input(e2.target.value) });
+              }}
+            />
+            {e.btn && <div className="form-error">{e.btn}</div>}
+          </div>
+        )}
         {textFields.map(({ field, label, placeholder, val }) => (
           <div key={field} className="form-group">
             <label className="form-label">{label}</label>
@@ -553,7 +595,11 @@ export const PortSubscriberContent = ({
         ))}
         <hr className="section-divider" />
         <h4 className="section-heading" style={{ fontSize: 'var(--ds-font-size-base)' }}>
-          {t('accountOnboarding.numbers.port.addressHeading')}
+          {t(
+            tollFree
+              ? 'accountOnboarding.numbers.port.addressOptionalHeading'
+              : 'accountOnboarding.numbers.port.addressHeading'
+          )}
         </h4>
         <div className="num-port-address-grid">
           {[
@@ -697,6 +743,9 @@ export const PortFocDateContent = ({
   timeZone: string;
 }) => {
   const e = state.portFocErrors;
+  // A toll-free number moves at the carrier's fixed time, so there is no time to
+  // pick.
+  const tollFree = portListType(state.portPhoneValues, state.portNumberIssues) === 'toll_free';
   const today = new Date();
   let bizDays = 0;
   const minDate = new Date(today);
@@ -736,24 +785,30 @@ export const PortFocDateContent = ({
         />
         {e.date && <div className="form-error">{e.date}</div>}
       </div>
-      <div className="form-group">
-        <label className="form-label">
-          {t('accountOnboarding.numbers.port.focTimeLabel', { zone: focZoneLabel(timeZone) })}
-        </label>
-        <select
-          className={`form-select${e.time ? ' error' : ''}`}
-          value={state.portFocTime}
-          onChange={(e2) => dispatch({ type: 'port_set_foc_time', time: e2.target.value })}
-        >
-          <option value="">{t('accountOnboarding.numbers.port.focTimePlaceholder')}</option>
-          {timeOptions.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        {e.time && <div className="form-error">{e.time}</div>}
-      </div>
+      {tollFree ? (
+        <p className="num-port-summary-note">
+          {t('accountOnboarding.numbers.port.tollFreeFocNote')}
+        </p>
+      ) : (
+        <div className="form-group">
+          <label className="form-label">
+            {t('accountOnboarding.numbers.port.focTimeLabel', { zone: focZoneLabel(timeZone) })}
+          </label>
+          <select
+            className={`form-select${e.time ? ' error' : ''}`}
+            value={state.portFocTime}
+            onChange={(e2) => dispatch({ type: 'port_set_foc_time', time: e2.target.value })}
+          >
+            <option value="">{t('accountOnboarding.numbers.port.focTimePlaceholder')}</option>
+            {timeOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          {e.time && <div className="form-error">{e.time}</div>}
+        </div>
+      )}
       <div className="num-sub-footer">
         <button
           className="btn btn-secondary"
@@ -921,7 +976,14 @@ export const PortReviewContent = ({
         {
           heading: t('accountOnboarding.numbers.port.subscriberSection'),
           rows: [
-            { label: t('accountOnboarding.numbers.port.btnLabel'), value: state.portSubscriberBtn },
+            ...(portListType(state.portPhoneValues, state.portNumberIssues) === 'toll_free'
+              ? []
+              : [
+                  {
+                    label: t('accountOnboarding.numbers.port.btnLabel'),
+                    value: state.portSubscriberBtn,
+                  },
+                ]),
             {
               label: t('accountOnboarding.numbers.port.businessNameLabel'),
               value: state.portSubscriberBusinessName,

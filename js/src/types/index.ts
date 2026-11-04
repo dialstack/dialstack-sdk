@@ -98,6 +98,7 @@ export type {
 export type {
   PortOrderAddress,
   PortOrderSubscriber,
+  TollFreePortOrderSubscriber,
   PortCarrier,
   PortRejection,
   PortDocumentMeta,

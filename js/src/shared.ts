@@ -70,9 +70,16 @@ export {
   formatNationalUS,
   isPhoneNumberListReady,
   parsePhoneNumberRows,
+  phoneNumberListType,
   readyPhoneNumbers,
 } from './utils/phone-list';
-export type { NumberIssue, ParsedRow, ParseProblemReason, RowStatus } from './utils/phone-list';
+export type {
+  NumberIssue,
+  ParsedRow,
+  ParseProblemReason,
+  PhoneListOptions,
+  RowStatus,
+} from './utils/phone-list';
 export { describeNonPortable } from './utils/non-portable';
 export type { NonPortableMessages } from './utils/non-portable';
 

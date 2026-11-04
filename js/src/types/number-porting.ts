@@ -2,6 +2,8 @@
  * Number porting types for DialStack SDK
  */
 
+import type { PhoneNumberType } from './phone-number-ordering';
+
 export interface PortOrderAddress {
   house_number: string;
   street_name: string;
@@ -11,13 +13,29 @@ export interface PortOrderAddress {
   zip: string;
 }
 
+/** Who the numbers of a local order belong to. */
 export interface PortOrderSubscriber {
+  // NEXT MAJOR: make `btn` and `address` optional. A toll-free order's
+  // subscriber has neither (see TollFreePortOrderSubscriber), so on a read this
+  // type claims fields the API does not send; widening it now would break code
+  // that reads them as strings.
   btn: string;
   business_name: string;
   approver_name: string;
   account_number?: string | null;
   pin?: string | null;
   address: PortOrderAddress;
+}
+
+/**
+ * Who the numbers of a toll-free order belong to. A toll-free order takes no
+ * `btn`, `account_number` or `pin`, and its address is optional: printed on the
+ * letter of authorization when given.
+ */
+export interface TollFreePortOrderSubscriber {
+  business_name: string;
+  approver_name: string;
+  address?: PortOrderAddress;
 }
 
 export interface PortCarrier {
@@ -48,8 +66,19 @@ export interface ApprovePortOrderRequest {
   ip: string;
 }
 
+/**
+ * `validating` is a toll-free order the carrier is checking against the
+ * toll-free registry, before it is `submitted`. Local orders never enter it.
+ */
 export type PortOrderStatus =
-  'draft' | 'approved' | 'submitted' | 'exception' | 'foc' | 'complete' | 'cancelled';
+  | 'draft'
+  | 'approved'
+  | 'validating'
+  | 'submitted'
+  | 'exception'
+  | 'foc'
+  | 'complete'
+  | 'cancelled';
 
 export interface PortNumberEligibility {
   phone_number: string;
@@ -61,6 +90,10 @@ export interface PortNumberEligibility {
 
 export interface PortOrderDetails {
   phone_numbers: string[];
+  /**
+   * On a toll-free order (`number_type: 'toll_free'`), `btn` and `account_number`
+   * are absent, and `address` is absent unless one was given.
+   */
   subscriber?: PortOrderSubscriber | null;
   requested_foc_date?: string;
   requested_foc_time?: string | null;
@@ -82,6 +115,12 @@ export interface PortOrderDetails {
 export interface PortOrder {
   id: string;
   status: PortOrderStatus;
+  /**
+   * Derived from the numbers: an order is all local or all toll-free. Always set
+   * by the API; optional only so objects built by hand before it existed keep
+   * compiling.
+   */
+  number_type?: PhoneNumberType;
   details: PortOrderDetails;
   submitted_at: string | null;
   created_at: string;
@@ -90,7 +129,7 @@ export interface PortOrder {
 
 export interface CreatePortOrderRequest {
   phone_numbers: string[];
-  subscriber: PortOrderSubscriber;
+  subscriber: PortOrderSubscriber | TollFreePortOrderSubscriber;
   requested_foc_date: string;
   requested_foc_time?: string;
   /** IANA zone the date and time are read in. Defaults to `America/New_York`. */

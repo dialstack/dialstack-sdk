@@ -19,6 +19,9 @@ import type {
   PortableNumber,
   NonPortableNumber,
   PortEligibilityResult,
+  PortOrderSubscriber,
+  TollFreePortOrderSubscriber,
+  CreatePortOrderRequest,
 } from '../types/number-porting';
 
 describe('Number Porting Types', () => {
@@ -27,13 +30,14 @@ describe('Number Porting Types', () => {
       const statuses: PortOrderStatus[] = [
         'draft',
         'approved',
+        'validating',
         'submitted',
         'exception',
         'foc',
         'complete',
         'cancelled',
       ];
-      expect(statuses).toHaveLength(7);
+      expect(statuses).toHaveLength(8);
     });
   });
 
@@ -514,6 +518,33 @@ describe('Number Porting Instance Methods', () => {
         signature: 'Jane Smith',
       };
       expect(req.signature).toBe('Jane Smith');
+    });
+  });
+
+  describe('toll-free subscriber', () => {
+    it('is accepted by a create request without btn or address', () => {
+      const subscriber: TollFreePortOrderSubscriber = {
+        business_name: 'Acme',
+        approver_name: 'Jane Doe',
+      };
+      const request: CreatePortOrderRequest = {
+        phone_numbers: ['+18005551212'],
+        subscriber,
+        requested_foc_date: '2026-03-01',
+      };
+      expect(request.subscriber).not.toHaveProperty('btn');
+    });
+
+    it('leaves PortOrderSubscriber requiring btn and address', () => {
+      // NEXT MAJOR: btn and address become optional, since a toll-free order's
+      // subscriber has neither; this object then compiles without them.
+      const subscriber: PortOrderSubscriber = {
+        btn: '+12025551234',
+        business_name: 'Acme',
+        approver_name: 'Jane Doe',
+        address: { house_number: '1', street_name: 'Main', city: 'X', state: 'NC', zip: '27601' },
+      };
+      expect(typeof subscriber.btn).toBe('string');
     });
   });
 });

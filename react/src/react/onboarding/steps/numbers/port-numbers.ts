@@ -4,6 +4,8 @@ import {
   type NonPortableNumber,
   type NumberIssue,
   type ParseProblemReason,
+  phoneNumberListType,
+  readyPhoneNumbers,
 } from '@dialstack/sdk-js/pure';
 
 import type { TFn } from './types';
@@ -60,7 +62,41 @@ export function mapNonPortableToIssues(
 export const CONFLICT_KEY: Record<string, string> = {
   phone_number_limit_exceeded: 'accountOnboarding.numbers.port.accountLimit',
   phone_numbers_already_claimed: 'accountOnboarding.numbers.port.numbersUnavailable',
+  toll_free_not_enabled: 'accountOnboarding.numbers.port.tollFreeNotEnabled',
 };
+
+/** Port lists take toll-free numbers; an order is then all toll-free. */
+export const PORT_LIST_OPTIONS = { allowTollFree: true } as const;
+
+/**
+ * The type of the numbers a port list would submit. Toll-free numbers are ported
+ * without the losing-carrier details a local order needs.
+ */
+export function portListType(
+  values: readonly string[],
+  issues: readonly NumberIssue[]
+): ReturnType<typeof phoneNumberListType> {
+  return phoneNumberListType(readyPhoneNumbers(values, issues, PORT_LIST_OPTIONS));
+}
+
+/** Whether the customer has typed any part of the service address. */
+export function hasAddress(s: {
+  portSubscriberHouseNumber: string;
+  portSubscriberStreetName: string;
+  portSubscriberLine2: string;
+  portSubscriberCity: string;
+  portSubscriberState: string;
+  portSubscriberZip: string;
+}): boolean {
+  return [
+    s.portSubscriberHouseNumber,
+    s.portSubscriberStreetName,
+    s.portSubscriberLine2,
+    s.portSubscriberCity,
+    s.portSubscriberState,
+    s.portSubscriberZip,
+  ].some((v) => v.trim() !== '');
+}
 
 /** The `details` shape carried by `phone_numbers_already_claimed`. */
 interface AlreadyClaimedDetails {

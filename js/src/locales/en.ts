@@ -767,6 +767,15 @@ export const en = {
         reasonInvalid: 'Not a valid US phone number',
         reasonNotUs: 'Only US numbers can be ported',
         reasonTollFree: 'Toll-free numbers cannot be ported',
+        mixedNumberTypes:
+          'Toll-free and local numbers are ported in separate orders. Remove one kind and port it next.',
+        tollFreeNotEnabled: "Toll-free numbers aren't available for your account.",
+        tollFreeEligibilityNote:
+          'Toll-free numbers are checked against the toll-free registry after you submit the order.',
+        tollFreeSubscriberSubtitle:
+          'Enter the details exactly as your current toll-free provider has them.',
+        addressOptionalHeading: 'Service Address (optional)',
+        tollFreeFocNote: 'Toll-free numbers move at 11:30 AM Eastern on the port date.',
         reasonAmbiguous: 'Too many digits for one number — if this is several, put one per row',
         reasonHasExtension: 'Remove the extension',
         maxPerOrder:
@@ -890,6 +899,7 @@ export const en = {
         streetNameRequired: 'Street name is required.',
         focDateRequired: 'Port date is required.',
         focDateTooSoon: 'Port date must be at least 5 business days from today.',
+        focDateWeekend: 'Choose a weekday. Numbers are not ported on weekends.',
         focDateTooFar: 'Port date must be within 30 days.',
         focTimeRequired: 'Port time is required.',
         focTimeOutOfWindow: 'Choose a time between {start} and {end} {zone}.',

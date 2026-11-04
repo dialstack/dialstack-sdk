@@ -354,6 +354,8 @@ async function navigatePortFlowTo(
   // Fill FOC date
   const futureDate = new Date();
   futureDate.setDate(futureDate.getDate() + 10);
+  // A weekday: the port date step refuses weekends.
+  while ([0, 6].includes(futureDate.getDay())) futureDate.setDate(futureDate.getDate() + 1);
   const dateStr = futureDate.toISOString().split('T')[0]!;
   const dateInput = document.querySelector<HTMLInputElement>('input[type="date"]')!;
   fireEvent.change(dateInput, { target: { value: dateStr } });
@@ -1273,6 +1275,8 @@ describe('NumbersStep', () => {
       // Fill FOC
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + 10);
+      // A weekday: the port date step refuses weekends.
+      while ([0, 6].includes(futureDate.getDay())) futureDate.setDate(futureDate.getDate() + 1);
       const dateInput = document.querySelector<HTMLInputElement>('input[type="date"]')!;
       fireEvent.change(dateInput, { target: { value: futureDate.toISOString().split('T')[0] } });
       const timeSelect = document.querySelector<HTMLSelectElement>('select')!;
@@ -1968,6 +1972,8 @@ describe('NumbersStep', () => {
       // Fill FOC date
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + 10);
+      // A weekday: the port date step refuses weekends.
+      while ([0, 6].includes(futureDate.getDay())) futureDate.setDate(futureDate.getDate() + 1);
       const dateInput = document.querySelector<HTMLInputElement>('input[type="date"]')!;
       fireEvent.change(dateInput, { target: { value: futureDate.toISOString().split('T')[0] } });
       const timeSelect = document.querySelector<HTMLSelectElement>('select')!;

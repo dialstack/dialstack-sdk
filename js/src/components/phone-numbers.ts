@@ -373,6 +373,8 @@ export class PhoneNumbersComponent extends BaseComponent {
       const portStatusMap: Record<string, PhoneNumberStatus> = {
         draft: 'porting_draft',
         approved: 'porting_approved',
+        // Toll-free orders check the registry first; to the reader it is in progress.
+        validating: 'porting_submitted',
         submitted: 'porting_submitted',
         exception: 'porting_exception',
         foc: 'porting_foc',

@@ -35,6 +35,9 @@ import {
   CONFLICT_KEY,
   mapNonPortableToIssues,
   nonPortableMessages,
+  hasAddress,
+  PORT_LIST_OPTIONS,
+  portListType,
 } from './port-numbers';
 import { type NumState, type CardMode, numReducer, INITIAL_STATE, E911_POLL_MAX } from './types';
 import { getSidebarActiveKey, takesCallerIdAndListing, validateCallerIdName } from './helpers';
@@ -276,14 +279,45 @@ export const NumbersStep: React.FC = () => {
   const checkPortEligibility = useCallback(
     async (s: NumState) => {
       // The shared row classification applies the same rules the API does —
-      // valid, US, not toll-free — so the customer is never told a number is
-      // fine here only to have it rejected on submit.
-      const phoneNumbers = readyPhoneNumbers(s.portPhoneValues, s.portNumberIssues);
+      // valid and US — so the customer is never told a number is fine here only
+      // to have it rejected on submit.
+      const phoneNumbers = readyPhoneNumbers(
+        s.portPhoneValues,
+        s.portNumberIssues,
+        PORT_LIST_OPTIONS
+      );
 
       if (phoneNumbers.length === 0) {
         dispatch({
           type: 'port_check_eligibility_error',
           error: t('accountOnboarding.numbers.validation.phoneRequired'),
+        });
+        return;
+      }
+
+      const listType = portListType(s.portPhoneValues, s.portNumberIssues);
+      if (listType === 'mixed') {
+        dispatch({
+          type: 'port_check_eligibility_error',
+          error: t('accountOnboarding.numbers.port.mixedNumberTypes'),
+        });
+        return;
+      }
+      // The eligibility check asks the losing carrier, which cannot answer for a
+      // toll-free number: the carrier checks those against the toll-free
+      // registry after the order is submitted. So they go straight through, as
+      // one group with no carrier.
+      if (listType === 'toll_free') {
+        dispatch({
+          type: 'port_check_eligibility_success',
+          result: {
+            portable_numbers: phoneNumbers.map((phone_number) => ({
+              phone_number,
+              is_wireless: false,
+              account_number_required: false,
+            })),
+            non_portable_numbers: [],
+          },
         });
         return;
       }
@@ -313,26 +347,33 @@ export const NumbersStep: React.FC = () => {
   const validateSubscriber = useCallback(
     (s: NumState): boolean => {
       const errors: Record<string, string> = {};
-      if (!s.portSubscriberBtn.trim())
-        errors.btn = t('accountOnboarding.numbers.validation.btnRequired');
-      else {
-        const p = parsePhoneNumberFromString(s.portSubscriberBtn, 'US');
-        if (!p || !p.isValid()) errors.btn = t('accountOnboarding.numbers.validation.btnInvalid');
+      // A toll-free order has no BTN, and its address is optional: required only
+      // once the customer has started filling it in.
+      const tollFree = portListType(s.portPhoneValues, s.portNumberIssues) === 'toll_free';
+      if (!tollFree) {
+        if (!s.portSubscriberBtn.trim())
+          errors.btn = t('accountOnboarding.numbers.validation.btnRequired');
+        else {
+          const p = parsePhoneNumberFromString(s.portSubscriberBtn, 'US');
+          if (!p || !p.isValid()) errors.btn = t('accountOnboarding.numbers.validation.btnInvalid');
+        }
       }
       if (!s.portSubscriberBusinessName.trim())
         errors.businessName = t('accountOnboarding.numbers.validation.businessNameRequired');
       if (!s.portSubscriberApproverName.trim())
         errors.approverName = t('accountOnboarding.numbers.validation.approverNameRequired');
-      if (!s.portSubscriberHouseNumber.trim())
-        errors.houseNumber = t('accountOnboarding.numbers.validation.houseNumberRequired');
-      if (!s.portSubscriberStreetName.trim())
-        errors.streetName = t('accountOnboarding.numbers.validation.streetNameRequired');
-      if (!s.portSubscriberCity.trim())
-        errors.city = t('accountOnboarding.numbers.validation.cityRequired');
-      if (!s.portSubscriberState.trim())
-        errors.state = t('accountOnboarding.numbers.validation.stateRequired');
-      if (!s.portSubscriberZip.trim())
-        errors.zip = t('accountOnboarding.numbers.validation.zipRequired');
+      if (!tollFree || hasAddress(s)) {
+        if (!s.portSubscriberHouseNumber.trim())
+          errors.houseNumber = t('accountOnboarding.numbers.validation.houseNumberRequired');
+        if (!s.portSubscriberStreetName.trim())
+          errors.streetName = t('accountOnboarding.numbers.validation.streetNameRequired');
+        if (!s.portSubscriberCity.trim())
+          errors.city = t('accountOnboarding.numbers.validation.cityRequired');
+        if (!s.portSubscriberState.trim())
+          errors.state = t('accountOnboarding.numbers.validation.stateRequired');
+        if (!s.portSubscriberZip.trim())
+          errors.zip = t('accountOnboarding.numbers.validation.zipRequired');
+      }
       if (Object.keys(errors).length > 0) {
         dispatch({ type: 'port_set_subscriber_errors', errors });
         return false;
@@ -360,14 +401,21 @@ export const NumbersStep: React.FC = () => {
           if (d !== 0 && d !== 6) bizDays++;
         }
         if (focDate < check) errors.date = t('accountOnboarding.numbers.validation.focDateTooSoon');
+        // The carrier never ports on a weekend, and the API refuses one; a
+        // holiday is refused there too, with its own message.
+        const weekday = focDate.getDay();
+        if (weekday === 0 || weekday === 6)
+          errors.date = t('accountOnboarding.numbers.validation.focDateWeekend');
         const maxDate = new Date(today);
         maxDate.setDate(maxDate.getDate() + 30);
         if (focDate > maxDate)
           errors.date = t('accountOnboarding.numbers.validation.focDateTooFar');
       }
-      if (!s.portFocTime) {
+      // A toll-free number moves at the carrier's fixed time, so it takes none.
+      const tollFree = portListType(s.portPhoneValues, s.portNumberIssues) === 'toll_free';
+      if (!tollFree && !s.portFocTime) {
         errors.time = t('accountOnboarding.numbers.validation.focTimeRequired');
-      } else if (!isFocTimeInWindow(s.portFocDate, s.portFocTime, focTimeZone)) {
+      } else if (!tollFree && !isFocTimeInWindow(s.portFocDate, s.portFocTime, focTimeZone)) {
         // The window moves with the date in some zones, so a time picked before
         // the date changed can fall outside it.
         const { start, end } = focWindowIn(s.portFocDate, focTimeZone);
@@ -400,27 +448,42 @@ export const NumbersStep: React.FC = () => {
             : s.portEligibilityResult.portable_numbers.map((n) => n.phone_number);
 
         const btnParsed = parsePhoneNumberFromString(s.portSubscriberBtn, 'US');
-        const request: CreatePortOrderRequest = {
-          phone_numbers: portableNumbers,
-          subscriber: {
-            btn: btnParsed?.format('E.164') || s.portSubscriberBtn,
-            business_name: s.portSubscriberBusinessName.trim(),
-            approver_name: s.portSubscriberApproverName.trim(),
-            account_number: s.portSubscriberAccountNumber.trim() || undefined,
-            pin: s.portSubscriberPin.trim() || undefined,
-            address: {
-              house_number: s.portSubscriberHouseNumber.trim(),
-              street_name: s.portSubscriberStreetName.trim(),
-              line2: s.portSubscriberLine2.trim() || undefined,
-              city: s.portSubscriberCity.trim(),
-              state: s.portSubscriberState.trim(),
-              zip: s.portSubscriberZip.trim(),
-            },
-          },
-          requested_foc_date: s.portFocDate,
-          requested_foc_time: s.portFocTime || undefined,
-          requested_foc_timezone: focTimeZone,
+        const tollFree = portListType(s.portPhoneValues, s.portNumberIssues) === 'toll_free';
+        const address = {
+          house_number: s.portSubscriberHouseNumber.trim(),
+          street_name: s.portSubscriberStreetName.trim(),
+          line2: s.portSubscriberLine2.trim() || undefined,
+          city: s.portSubscriberCity.trim(),
+          state: s.portSubscriberState.trim(),
+          zip: s.portSubscriberZip.trim(),
         };
+        // A toll-free order carries no BTN, account number, PIN or time: the
+        // API refuses them, because the carrier does.
+        const request: CreatePortOrderRequest = tollFree
+          ? {
+              phone_numbers: portableNumbers,
+              subscriber: {
+                business_name: s.portSubscriberBusinessName.trim(),
+                approver_name: s.portSubscriberApproverName.trim(),
+                ...(hasAddress(s) ? { address } : {}),
+              },
+              requested_foc_date: s.portFocDate,
+              requested_foc_timezone: focTimeZone,
+            }
+          : {
+              phone_numbers: portableNumbers,
+              subscriber: {
+                btn: btnParsed?.format('E.164') || s.portSubscriberBtn,
+                business_name: s.portSubscriberBusinessName.trim(),
+                approver_name: s.portSubscriberApproverName.trim(),
+                account_number: s.portSubscriberAccountNumber.trim() || undefined,
+                pin: s.portSubscriberPin.trim() || undefined,
+                address,
+              },
+              requested_foc_date: s.portFocDate,
+              requested_foc_time: s.portFocTime || undefined,
+              requested_foc_timezone: focTimeZone,
+            };
         const order = await dialstack.portOrders.create(request);
         if (s.portBillFile) await dialstack.portOrders.uploadBillCopy(order.id, s.portBillFile);
         if (s.portCsrFile) await dialstack.portOrders.uploadCSR(order.id, s.portCsrFile);
