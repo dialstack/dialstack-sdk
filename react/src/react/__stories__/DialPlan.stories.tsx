@@ -192,9 +192,6 @@ export const EscClosesConfigPanel: Story = {
 };
 
 export const AutoLayoutButton: Story = {
-  // Out of visual regression: in the pinned image the laid-out canvas lands at
-  // one of two viewport offsets from run to run, even with clock and ids seeded.
-  tags: ['no-vrt'],
   args: { mode: 'edit' },
   play: async ({ canvasElement, step }) => {
     const canvas = within(canvasElement);
@@ -215,6 +212,17 @@ export const AutoLayoutButton: Story = {
       const library = canvasElement.querySelector('.ds-dial-plan-node-library')!;
       const libraryScope = within(library as HTMLElement);
       await userEvent.click(libraryScope.getByText('Internal Extension'));
+    });
+
+    // Auto Layout fits the view to the canvas as it is at the click. While the
+    // config panel is still opening, the canvas is still narrowing, and the fit
+    // lands off-centre by however far the panel got.
+    await step('Wait for the config panel to finish opening', async () => {
+      await waitFor(() => {
+        const wrapper = canvasElement.querySelector('.ds-dial-plan-config-panel-wrapper--open');
+        expect(wrapper).toBeInTheDocument();
+        expect(wrapper!.getAnimations()).toHaveLength(0);
+      });
     });
 
     await step('Click the Auto Layout button without crash', async () => {

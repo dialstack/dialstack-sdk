@@ -1268,6 +1268,12 @@ export const dialPlanStyles = `
   transition: width 0.2s ease;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .ds-dial-plan-config-panel-wrapper {
+    transition: none;
+  }
+}
+
 .ds-dial-plan-config-panel-wrapper--open {
   width: 260px;
 }
