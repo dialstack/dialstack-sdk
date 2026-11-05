@@ -332,6 +332,7 @@ export const ExternalDialCallerIdSpecificNumber: Story = {
       await waitFor(() => {
         expect(canvasElement.querySelector('.ds-dial-plan-node-library')).toBeInTheDocument();
       });
+      await waitForInitialFit(canvasElement);
       const library = canvasElement.querySelector('.ds-dial-plan-node-library')!;
       await userEvent.click(within(library as HTMLElement).getByText('External Number'));
       await waitFor(() => expect(panel().getByRole('textbox')).toBeInTheDocument());

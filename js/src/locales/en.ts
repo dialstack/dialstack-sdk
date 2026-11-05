@@ -770,8 +770,32 @@ export const en = {
         mixedNumberTypes:
           'Toll-free and local numbers are ported in separate orders. Remove one kind and port it next.',
         tollFreeNotEnabled: "Toll-free numbers aren't available for your account.",
-        tollFreeEligibilityNote:
-          'Toll-free numbers are checked against the toll-free registry after you submit the order.',
+        // Optional so that a locale written against an earlier release still
+        // compiles; onboarding falls back to English when a locale omits one.
+        ...({
+          unassigned:
+            "This toll-free number isn't in service with anyone, so there's nothing to port. You can order it instead.",
+          notChecked: "We couldn't check this number. Try again.",
+          tollFreeGroup: 'Toll-free provider {position}',
+          carrierGroup: 'Carrier {position}',
+          mixedCarrierOrder:
+            "These numbers are with more than one carrier. Port each carrier's numbers in a separate order.",
+          /**
+           * @deprecated No longer shown: toll-free numbers are checked before the
+           * order is submitted. Removed in the next major.
+           */
+          // NEXT MAJOR: delete; kept only so locales written against 3.9.0 compile.
+          tollFreeEligibilityNote:
+            'Toll-free numbers are checked against the toll-free registry after you submit the order.',
+        } as {
+          unassigned?: string;
+          notChecked?: string;
+          tollFreeGroup?: string;
+          carrierGroup?: string;
+          mixedCarrierOrder?: string;
+          /** @deprecated No longer shown. Removed in the next major. */
+          tollFreeEligibilityNote?: string;
+        }),
         tollFreeSubscriberSubtitle:
           'Enter the details exactly as your current toll-free provider has them.',
         addressOptionalHeading: 'Service Address (optional)',

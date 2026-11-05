@@ -21,6 +21,7 @@ describe('mapNonPortableToIssues', () => {
             state: 'SD',
           },
           { phone_number: '+12025550123', reason: 'unsupported_number' },
+          { phone_number: '+18338968545', reason: 'unassigned' },
           { phone_number: '+12025550124', reason: 'something_new' },
           { phone_number: '+12025550125' },
         ],
@@ -30,6 +31,7 @@ describe('mapNonPortableToIssues', () => {
       { e164: '+19075551234', message: 'unsupportedCarrierNamed {"carrier":"Example Telco"}' },
       { e164: '+16055551234', message: 'unsupportedAreaNamed {"area":"Alsen, SD"}' },
       { e164: '+12025550123', message: 'unsupportedNumber' },
+      { e164: '+18338968545', message: 'unassigned' },
       { e164: '+12025550124', message: 'notPortableUnknown' },
       { e164: '+12025550125', message: 'notPortableUnknown' },
     ]);
@@ -48,5 +50,19 @@ describe('mapNonPortableToIssues', () => {
         nonPortableMessages(t, false)
       )
     ).toEqual([{ e164: '+19075551234', message: 'unsupportedCarrier' }]);
+  });
+});
+
+describe('describeNonPortable', () => {
+  it('falls back to unknown for unassigned when a caller supplies no wording', () => {
+    const messages = {
+      unsupportedCarrier: () => 'carrier',
+      unsupportedArea: () => 'area',
+      unsupportedNumber: 'number',
+      unknown: 'unknown',
+    };
+    expect(
+      mapNonPortableToIssues([{ phone_number: '+18338968545', reason: 'unassigned' }], messages)
+    ).toEqual([{ e164: '+18338968545', message: 'unknown' }]);
   });
 });

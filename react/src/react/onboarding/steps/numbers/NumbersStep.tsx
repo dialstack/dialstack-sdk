@@ -18,6 +18,7 @@ import {
   type SearchAvailableNumbersOptions,
   type CreatePortOrderRequest,
   type DialPlan,
+  defaultLocale,
   isApiError,
   readyPhoneNumbers,
 } from '@dialstack/sdk-js/pure';
@@ -32,6 +33,7 @@ import numbersStyles from '../../styles/numbers-styles.css';
 
 import {
   conflictNumberIssues,
+  mixedCarrierNumberGroups,
   CONFLICT_KEY,
   mapNonPortableToIssues,
   nonPortableMessages,
@@ -123,10 +125,14 @@ export const NumbersStep: React.FC = () => {
 
   const t = useCallback(
     (key: string, params?: Record<string, string | number>): string => {
-      const parts = key.split('.');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let val: any = locale;
-      for (const p of parts) val = val?.[p];
+      const lookup = (root: unknown): unknown =>
+        key
+          .split('.')
+          .reduce<unknown>((v, p) => (v as Record<string, unknown> | undefined)?.[p], root);
+      // A custom locale may omit a key added after it was written; English
+      // stands in rather than the raw key.
+      let val = lookup(locale);
+      if (typeof val !== 'string') val = lookup(defaultLocale);
       if (typeof val !== 'string') return key;
       const merged = { platformName, ...params };
       return Object.entries(merged).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), val);
@@ -303,34 +309,23 @@ export const NumbersStep: React.FC = () => {
         });
         return;
       }
-      // The eligibility check asks the losing carrier, which cannot answer for a
-      // toll-free number: the carrier checks those against the toll-free
-      // registry after the order is submitted. So they go straight through, as
-      // one group with no carrier.
-      if (listType === 'toll_free') {
-        dispatch({
-          type: 'port_check_eligibility_success',
-          result: {
-            portable_numbers: phoneNumbers.map((phone_number) => ({
-              phone_number,
-              is_wireless: false,
-              account_number_required: false,
-            })),
-            non_portable_numbers: [],
-          },
-        });
-        return;
-      }
-
       dispatch({ type: 'port_check_eligibility_start' });
       try {
         const result = await dialstack.portOrders.checkEligibility(phoneNumbers);
         const nonPortable = result.non_portable_numbers ?? [];
-        if (nonPortable.length > 0) {
-          dispatch({
-            type: 'port_set_number_issues',
-            issues: mapNonPortableToIssues(nonPortable, nonPortableMessages(t)),
-          });
+        // A number in neither list went unanswered (the check ran out of time).
+        // It must stop the step like a refusal, or it would vanish from the port.
+        const answered = new Set(
+          [...(result.portable_numbers ?? []), ...nonPortable].map((n) => n.phone_number)
+        );
+        const issues = [
+          ...mapNonPortableToIssues(nonPortable, nonPortableMessages(t)),
+          ...phoneNumbers
+            .filter((e164) => !answered.has(e164))
+            .map((e164) => ({ e164, message: t('accountOnboarding.numbers.port.notChecked') })),
+        ];
+        if (issues.length > 0) {
+          dispatch({ type: 'port_set_number_issues', issues });
           // Stop here. Advancing would carry the portable subset forward and
           // quietly drop the rest.
           return;
@@ -514,6 +509,29 @@ export const NumbersStep: React.FC = () => {
         }
         void reloadSharedData().catch(() => {});
       } catch (err) {
+        // Numbers held by more than one carrier: split along the groups the API
+        // returned, as numbers with known carriers are split before submitting.
+        // Not inside a split already under way: regrouping would forget the
+        // orders it has already placed, so that refusal is only explained.
+        const numberGroups = s.portCarrierGroups.size <= 1 ? mixedCarrierNumberGroups(err) : null;
+        if (numberGroups) {
+          const tollFree = portListType(s.portPhoneValues, s.portNumberIssues) === 'toll_free';
+          const groups = new Map(
+            numberGroups.map((numbers, i) => [
+              t(
+                tollFree
+                  ? 'accountOnboarding.numbers.port.tollFreeGroup'
+                  : 'accountOnboarding.numbers.port.carrierGroup',
+                { position: i + 1 }
+              ),
+              numbers,
+            ])
+          );
+          dispatch({ type: 'port_set_carrier_groups', groups });
+          dispatch({ type: 'port_submit_error', error: null });
+          dispatch({ type: 'set_substep', subStep: 'port-carrier-select' });
+          return;
+        }
         // Numbers the conflict names are marked against their own rows, so the
         // customer is taken back to a list where the problem entries are already
         // flagged rather than to a message they have to reconcile by hand. The

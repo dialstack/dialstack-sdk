@@ -36,6 +36,7 @@ export function nonPortableMessages(t: TFn, nameCarrier = true): NonPortableMess
     unsupportedArea: (area) =>
       area ? t(`${key}.unsupportedAreaNamed`, { area }) : t(`${key}.unsupportedArea`),
     unsupportedNumber: t(`${key}.unsupportedNumber`),
+    unassigned: t(`${key}.unassigned`),
     unknown: t(`${key}.notPortableUnknown`),
   };
 }
@@ -63,6 +64,7 @@ export const CONFLICT_KEY: Record<string, string> = {
   phone_number_limit_exceeded: 'accountOnboarding.numbers.port.accountLimit',
   phone_numbers_already_claimed: 'accountOnboarding.numbers.port.numbersUnavailable',
   toll_free_not_enabled: 'accountOnboarding.numbers.port.tollFreeNotEnabled',
+  mixed_carrier: 'accountOnboarding.numbers.port.mixedCarrierOrder',
 };
 
 /** Port lists take toll-free numbers; an order is then all toll-free. */
@@ -98,10 +100,21 @@ export function hasAddress(s: {
   ].some((v) => v.trim() !== '');
 }
 
-/** The `details` shape carried by `phone_numbers_already_claimed`. */
-interface AlreadyClaimedDetails {
+/** The `details` shapes carried by `phone_numbers_already_claimed` and `mixed_carrier`. */
+interface ConflictDetails {
   already_on_account?: string[];
   in_service_elsewhere?: string[];
+  number_groups?: string[][];
+}
+
+/**
+ * The numbers a `mixed_carrier` refusal partitions by holder, or null for any
+ * other error. Onboarding splits the order along them.
+ */
+export function mixedCarrierNumberGroups(err: unknown): string[][] | null {
+  const e = err as { code?: string; details?: ConflictDetails } | null | undefined;
+  const groups = e?.code === 'mixed_carrier' ? e.details?.number_groups : undefined;
+  return groups && groups.length > 1 ? groups : null;
 }
 
 /**
@@ -117,7 +130,7 @@ interface AlreadyClaimedDetails {
  * unconditionally.
  */
 export function conflictNumberIssues(err: unknown, t: (key: string) => string): NumberIssue[] {
-  const details = (err as { details?: AlreadyClaimedDetails } | null | undefined)?.details;
+  const details = (err as { details?: ConflictDetails } | null | undefined)?.details;
   if (!details) return [];
   return [
     ...(details.already_on_account ?? []).map((e164) => ({

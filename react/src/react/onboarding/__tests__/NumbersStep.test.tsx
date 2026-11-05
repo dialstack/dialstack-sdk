@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { screen, waitFor, fireEvent } from '@testing-library/react';
+import { defaultLocale, type Locale } from '@dialstack/sdk-js';
 import { NumbersStep } from '../steps/numbers/NumbersStep';
 import {
   renderWithOnboarding,
@@ -1165,6 +1166,85 @@ describe('NumbersStep', () => {
       expect(document.querySelectorAll('.num-port-row-error')).toHaveLength(1);
     });
 
+    it('falls back to English for a message a custom locale predates', async () => {
+      // A full locale written against an earlier release has no notChecked.
+      const port = { ...defaultLocale.accountOnboarding.numbers.port };
+      delete port.notChecked;
+      const locale: Locale = {
+        ...defaultLocale,
+        accountOnboarding: {
+          ...defaultLocale.accountOnboarding,
+          numbers: { ...defaultLocale.accountOnboarding.numbers, port },
+        },
+      };
+      await renderWithOnboarding(<NumbersStep />, {
+        locale,
+        instanceOverrides: {
+          ...defaultLocationsNS(),
+          ...defaultPhoneNumberOrdersNS(),
+          ...defaultPortOrdersNS({
+            checkEligibility: jest
+              .fn()
+              .mockResolvedValue({ portable_numbers: [], non_portable_numbers: [] }),
+          }),
+          ...defaultAvailablePhoneNumbersNS(),
+        },
+      });
+
+      await navigateToPort();
+      enterPortNumbers('(212) 555-1001');
+      fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
+
+      await waitFor(() => {
+        expect(document.body.textContent).toContain("We couldn't check this number. Try again.");
+      });
+    });
+
+    it('stops on a number the check did not answer', async () => {
+      // A number in neither list would otherwise drop out of the port unseen.
+      await renderNumbers({
+        ...defaultPortOrdersNS({
+          checkEligibility: jest.fn().mockResolvedValue({
+            portable_numbers: [
+              {
+                phone_number: '+12125551001',
+                is_wireless: false,
+                account_number_required: false,
+              },
+            ],
+            non_portable_numbers: [],
+          }),
+        }),
+      });
+
+      await navigateToPort();
+      enterPortNumbers('(212) 555-1001\n(212) 555-1002');
+      fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
+
+      await waitFor(() => {
+        expect(document.body.textContent).toContain("We couldn't check this number. Try again.");
+      });
+      expect(screen.queryByRole('button', { name: /Continue with Portable/i })).toBeNull();
+      expect(document.querySelectorAll('.num-port-row-error')).toHaveLength(1);
+    });
+
+    it('checks toll-free numbers too', async () => {
+      const checkEligibility = jest.fn().mockResolvedValue({
+        portable_numbers: [],
+        non_portable_numbers: [{ phone_number: '+18338968545', reason: 'unassigned' }],
+      });
+      await renderNumbers({ ...defaultPortOrdersNS({ checkEligibility }) });
+
+      await navigateToPort();
+      enterPortNumbers('(833) 896-8545');
+      fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
+
+      await waitFor(() => {
+        expect(document.body.textContent).toContain("so there's nothing to port");
+      });
+      expect(checkEligibility).toHaveBeenCalledWith(['+18338968545']);
+    });
+
     it('clears a server-reported issue once the row is edited', async () => {
       // Otherwise the issue outlives the text it describes and permanently
       // disables the only control that would clear it.
@@ -1407,6 +1487,26 @@ describe('NumbersStep', () => {
       await waitFor(() => {
         expect(document.body.textContent).toContain('Network failure');
       });
+    });
+
+    it('splits the order along the groups of a mixed_carrier refusal', async () => {
+      const refusal = Object.assign(new Error('mixed'), {
+        code: 'mixed_carrier',
+        details: { number_groups: [['+12125551001'], ['+12125551002']] },
+      });
+      const result = await renderNumbers({
+        ...defaultPortOrdersNS({ create: jest.fn().mockRejectedValue(refusal) }),
+      });
+
+      await navigatePortFlowTo(result.instance, 'review');
+      fillByPlaceholder('Type your full legal name', 'John Doe');
+      fireEvent.click(screen.getByRole('button', { name: /Approve & Submit/i }));
+
+      await waitFor(() => {
+        expect(document.querySelectorAll('.num-carrier-group')).toHaveLength(2);
+      });
+      expect(document.body.textContent).toContain('Carrier 1');
+      expect(document.body.textContent).toContain('Carrier 2');
     });
 
     it('resets numbers sub-step to overview when navigating back', async () => {

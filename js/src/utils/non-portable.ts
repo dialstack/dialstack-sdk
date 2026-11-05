@@ -5,6 +5,11 @@ export interface NonPortableMessages {
   unsupportedCarrier: (carrier: string | undefined) => string;
   unsupportedArea: (area: string | undefined) => string;
   unsupportedNumber: string;
+  /**
+   * A toll-free number nobody holds, so there is nothing to port. Optional so
+   * existing implementations keep compiling; `unknown` stands in when absent.
+   */
+  unassigned?: string;
   /** A reason this version does not know yet, or none at all. */
   unknown: string;
 }
@@ -21,6 +26,8 @@ export function describeNonPortable(np: NonPortableNumber, messages: NonPortable
       return messages.unsupportedArea([np.city, np.state].filter(Boolean).join(', ') || undefined);
     case 'unsupported_number':
       return messages.unsupportedNumber;
+    case 'unassigned':
+      return messages.unassigned ?? messages.unknown;
     default:
       return messages.unknown;
   }

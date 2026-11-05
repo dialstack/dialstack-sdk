@@ -326,16 +326,10 @@ export const PortEligibilityContent = ({
   const result = state.portEligibilityResult;
   if (!result) return null;
   const hasPortable = result.portable_numbers.length > 0;
-  const tollFree = portListType(state.portPhoneValues, state.portNumberIssues) === 'toll_free';
   return (
     <>
       <h2 className="section-title">{t('accountOnboarding.numbers.port.eligibilityTitle')}</h2>
       <p className="section-subtitle">{t('accountOnboarding.numbers.port.eligibilitySubtitle')}</p>
-      {tollFree && (
-        <div className="inline-alert info" style={{ marginBottom: 'var(--ds-layout-spacing-md)' }}>
-          {t('accountOnboarding.numbers.port.tollFreeEligibilityNote')}
-        </div>
-      )}
       <table className="num-eligibility-table">
         <thead>
           <tr>

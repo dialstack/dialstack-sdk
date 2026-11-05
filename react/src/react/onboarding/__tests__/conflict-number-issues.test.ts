@@ -1,4 +1,4 @@
-import { conflictNumberIssues } from '../steps/numbers/port-numbers';
+import { conflictNumberIssues, mixedCarrierNumberGroups } from '../steps/numbers/port-numbers';
 
 /** Stands in for the locale lookup; returns the key so assertions read clearly. */
 const t = (key: string) => key;
@@ -59,5 +59,18 @@ describe('conflictNumberIssues', () => {
     const issues = conflictNumberIssues({ details: { in_service_elsewhere: ['+14045551212'] } }, t);
     expect(issues).toHaveLength(1);
     expect(issues[0]?.e164).toBe('+14045551212');
+  });
+});
+
+describe('mixedCarrierNumberGroups', () => {
+  it('returns the groups of a mixed_carrier refusal, and null otherwise', () => {
+    const groups = [['+18664990163'], ['+18338968545', '+18338968546']];
+    expect(
+      mixedCarrierNumberGroups({ code: 'mixed_carrier', details: { number_groups: groups } })
+    ).toEqual(groups);
+    expect(mixedCarrierNumberGroups({ code: 'mixed_carrier' })).toBeNull();
+    expect(
+      mixedCarrierNumberGroups({ code: 'phone_numbers_already_claimed', details: {} })
+    ).toBeNull();
   });
 });

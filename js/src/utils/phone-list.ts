@@ -6,8 +6,8 @@ import { parsePhoneNumberFromString } from 'libphonenumber-js';
  * - `invalid`       — a single number that is not a real US number
  * - `not_us`        — parses and is valid, but belongs to another country
  * - `toll_free`     — a US toll-free number, refused unless the caller passes
- *                     `allowTollFree` (a port order takes them; the eligibility
- *                     check cannot)
+ *                     `allowTollFree` (a port order and the eligibility check
+ *                     take them)
  * - `ambiguous`     — digits that do not divide cleanly into whole numbers
  * - `has_extension` — an extension is present, which we refuse to strip silently
  */
@@ -56,9 +56,8 @@ type Classified = { ok: true; e164: string } | { ok: false; reason: ParseProblem
 /** How a list is read. */
 export interface PhoneListOptions {
   /**
-   * Accept US toll-free numbers. Off by default: the eligibility check cannot
-   * answer for them, while a port order can carry them (all toll-free, see
-   * {@link phoneNumberListType}).
+   * Accept US toll-free numbers. Off by default; a port order can carry them
+   * (all toll-free, see {@link phoneNumberListType}).
    */
   allowTollFree?: boolean;
 }

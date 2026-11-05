@@ -21,6 +21,7 @@ import { OnboardingProgressStore } from '../progress-store';
 import { deriveOnboardingState } from '../derive';
 import {
   defaultLocale,
+  type Locale,
   type DialStackInstance,
   type AccountConfig,
   type OnboardingCollectionOptions,
@@ -592,6 +593,8 @@ export interface RenderOnboardingOptions extends Omit<RenderOptions, 'wrapper'> 
   pricing?: typeof mockEffectivePricing | null;
   /** Override shared data provided via OnboardingContext. */
   sharedData?: SharedDataOverrides;
+  /** A custom locale, as an integrator would pass one. */
+  locale?: Locale;
 }
 
 export interface RenderOnboardingResult extends RenderResult {
@@ -618,6 +621,7 @@ export async function renderWithOnboarding(
     accountConfig,
     pricing,
     sharedData,
+    locale,
     ...renderOptions
   } = options;
 
@@ -707,7 +711,7 @@ export async function renderWithOnboarding(
           extensions={extensions}
           locations={locations}
           reloadSharedData={reloadSharedData}
-          locale={defaultLocale}
+          locale={locale ?? defaultLocale}
           collectionOptions={collectionOptions}
         >
           <PortalActionsContext.Provider value={{ onSaveAndExit: () => {} }}>

@@ -138,6 +138,7 @@ export interface CreatePortOrderRequest {
 
 export interface PortableNumber {
   phone_number: string;
+  /** Absent for a toll-free number, which has no current carrier. */
   losing_carrier_name?: string;
   losing_carrier_spid?: string;
   is_wireless: boolean;
@@ -149,7 +150,11 @@ export interface PortableNumber {
  * still need a default branch.
  */
 export type NonPortabilityReason =
-  'unsupported_rate_center' | 'unsupported_carrier' | 'unsupported_number' | (string & {});
+  | 'unsupported_rate_center'
+  | 'unsupported_carrier'
+  | 'unsupported_number'
+  | 'unassigned'
+  | (string & {});
 
 export interface NonPortableNumber {
   phone_number: string;
