@@ -2401,20 +2401,31 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       this.reconnectTimeoutId = null;
     }
 
+    // Claim the stream before the first await: on() checks the controller to
+    // decide whether to connect, and off() aborts it to cancel. Set after the
+    // await, a second on() in the same tick opened a second stream, and an
+    // off() in between had nothing to abort and leaked one. Aborting the
+    // previous controller means no claim can orphan a live stream.
+    this.eventStreamController?.abort();
+    const controller = new AbortController();
+    this.eventStreamController = controller;
+    // Checked after every await: a connect that off() cancelled, or that a
+    // newer connect replaced, must not touch shared state or reconnect.
+    const superseded = () => this.eventStreamController !== controller;
+
     try {
       const clientSecret = await this.getClientSecret();
-      const url = `${this.apiUrl}/v1/events`;
+      if (superseded()) return;
 
-      this.eventStreamController = new AbortController();
-
-      const response = await fetch(url, {
+      const response = await fetch(`${this.apiUrl}/v1/events`, {
         headers: {
           Authorization: `Bearer ${clientSecret}`,
           Accept: 'text/event-stream',
           [CLIENT_HEADER]: this.clientInfo.header(),
         },
-        signal: this.eventStreamController.signal,
+        signal: controller.signal,
       });
+      if (superseded()) return;
 
       if (!response.ok) {
         // 401/403 means the client secret was rejected (expired or revoked),
@@ -2428,8 +2439,6 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         throw new Error(`SSE connection failed: ${response.status}`);
       }
 
-      // Reset reconnect + auth-failure counters on a successful connection
-      this.reconnectAttempts = 0;
       this.authStreamFailures = 0;
 
       const reader = response.body?.getReader();
@@ -2444,6 +2453,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       let done = false;
       while (!done) {
         const result = await reader.read();
+        if (superseded()) return;
         done = result.done;
         const value = result.value;
 
@@ -2460,11 +2470,19 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         buffer = events.pop() || ''; // Keep incomplete event in buffer
 
         for (const eventText of events) {
+          // The server sends `connected` the moment it accepts the stream, so
+          // only what follows (a heartbeat every 5s, or an event) shows the
+          // stream is healthy. Resetting the backoff on acceptance made a
+          // stream that was accepted and dropped right away reconnect every
+          // second forever.
+          if (!/^event: connected$/m.test(eventText)) {
+            this.reconnectAttempts = 0;
+          }
           this.parseAndEmitEvent(eventText);
         }
       }
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
+      if (superseded()) {
         // Intentional disconnect, don't reconnect
         return;
       }
