@@ -1942,7 +1942,7 @@ export type HardwareOrderPaymentStatus = 'unpaid' | 'submitted' | 'settled' | 'f
  * Whether every unit has actually shipped is read from the units'
  * `fulfilled_at`, not from this field.
  */
-export type HardwareOrderFulfillmentStatus = 'on_hold' | 'released' | 'rejected';
+export type HardwareOrderFulfillmentStatus = 'on_hold' | 'released' | 'rejected' | 'cancelled';
 
 /** One thing that was ordered, at the price charged for it. */
 export interface HardwareOrderLine {
@@ -2062,6 +2062,10 @@ export interface HardwareOrder {
    * DialStack declined its request; requesting again clears it.
    */
   rejection_reason: string | null;
+  /** Why the order was cancelled, when `cancelled`; otherwise null. */
+  cancel_reason: string | null;
+  /** When the order was cancelled, or null. */
+  cancelled_at: string | null;
   /**
    * What was ordered, and what it cost. A quantity of three is one line and
    * three units; a bundle is one line and one unit per component.

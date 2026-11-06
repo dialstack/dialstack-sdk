@@ -58,6 +58,9 @@ export interface HardwareOrder {
   shipping_cents: number | null;
   total_cents: number | null;
   rejection_reason: string | null;
+  /** Why the order was cancelled; null unless `fulfillment_status` is `cancelled`. */
+  cancel_reason: string | null;
+  cancelled_at: string | null;
   ship_to_recipient: string | null;
   ship_to_address: HardwareOrderAddress | null;
   /** The carrier service chosen from a shipping quote; cleared by any cart or destination change. */
