@@ -1,4 +1,4 @@
-import { RIG_URL } from './config';
+import { RIG_URL } from '@/config';
 
 export interface RigUser {
   id: string;
@@ -22,17 +22,26 @@ export async function listUsers(): Promise<RigUser[]> {
   return (await request<{ users: RigUser[] }>('GET', '/users')).users;
 }
 
-export async function getMobileNumber(userId: string): Promise<string | null> {
-  return (await request<{ number: string | null }>('GET', `/users/${userId}/mobile`)).number;
+/** The user's cell, and whether incoming calls ring it too. */
+export interface MobileProfile {
+  number: string | null;
+  inbound: boolean;
 }
 
-export async function setMobileNumber(userId: string, number: string): Promise<string | null> {
-  return (await request<{ number: string | null }>('POST', `/users/${userId}/mobile`, { number }))
-    .number;
+export function getMobileProfile(userId: string): Promise<MobileProfile> {
+  return request('GET', `/users/${userId}/mobile`);
 }
 
-export async function removeMobileNumber(userId: string): Promise<void> {
-  await request('DELETE', `/users/${userId}/mobile`);
+export function setMobileNumber(userId: string, number: string): Promise<MobileProfile> {
+  return request('POST', `/users/${userId}/mobile`, { number });
+}
+
+export function setInboundToCell(userId: string, inbound: boolean): Promise<MobileProfile> {
+  return request('POST', `/users/${userId}/mobile`, { inbound });
+}
+
+export function removeMobileNumber(userId: string): Promise<MobileProfile> {
+  return request('DELETE', `/users/${userId}/mobile`);
 }
 
 /**
@@ -45,6 +54,16 @@ export async function clickToCall(userId: string, to: string): Promise<void> {
 
 export type CallPhase = 'calling_you' | 'dialing' | 'connected' | 'ended' | 'not_answered';
 
+export type CallVerb = 'hangup' | 'hold' | 'unhold';
+
+/**
+ * Hold, resume or hang up the user's current call. Accepted at once; the
+ * result comes back on the call record, as `pending` clearing.
+ */
+export async function controlCall(userId: string, verb: CallVerb): Promise<void> {
+  await request('POST', `/users/${userId}/call/${verb}`);
+}
+
 /** The rig's view of the call placed from this app, advanced by DialStack webhooks. */
 export interface CallRecord {
   to: string;
@@ -53,12 +72,21 @@ export interface CallRecord {
   connectedAt?: string;
   status?: string;
   durationSeconds?: number;
+  /** The destination is on hold. */
+  held?: boolean;
+  /** A command sent and not yet confirmed. A hang-up stays pending until the call ends. */
+  pending?: CallVerb | null;
+  /** Why the last command failed, or "timeout" if it never reported. */
+  error?: string | null;
 }
 
+/** The call is over: it ended, or was never connected. */
+export const isFinished = (call: CallRecord) =>
+  call.phase === 'ended' || call.phase === 'not_answered';
+
 /**
- * Watches the user's call over a WebSocket. Read-only: the call itself is
- * controlled from the phone's own call screen, so nothing is ever sent back.
- * Reconnects while subscribed — the socket drops when the app backgrounds or
+ * Watches the user's call over a WebSocket; commands go out over HTTP
+ * (controlCall) and come back here as changes to the record. Reconnects while subscribed — the socket drops when the app backgrounds or
  * Wi-Fi blips — and the first message after a reconnect is the current state.
  */
 export function subscribeToCall(

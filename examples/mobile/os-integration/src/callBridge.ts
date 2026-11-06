@@ -2,9 +2,9 @@ import { NativeCallBridge, appLifecycle, createPhone } from '@dialstack/sdk-nati
 
 import { backgroundTimers } from '../modules/background-timers';
 
-import { API_BASE_URL, refreshSessionToken, sessionToken } from './config';
+import { API_BASE_URL, refreshSessionToken, sessionToken } from '@/config';
 import { expoCallKitTelecom } from './os/expoCallKitTelecomAdapter';
-import { storage } from './storage';
+import { storage } from '@/storage';
 
 /**
  * Composition root. Module scope on purpose: the app window and a push-woken

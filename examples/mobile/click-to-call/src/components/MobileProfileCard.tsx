@@ -1,6 +1,14 @@
 import { isAvailableAsync, showPhoneNumberHintAsync } from 'expo-phone-number-hint';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { formatForDisplay, toE164 } from '../phone';
 import { card, colors } from '../theme';
@@ -8,8 +16,11 @@ import { card, colors } from '../theme';
 interface Props {
   /** undefined while loading, null when the user has no mobile profile yet. */
   number: string | null | undefined;
+  /** Incoming calls ring this cell too, alongside the user's other devices. */
+  inbound: boolean;
   onSave: (e164: string) => Promise<void>;
   onRemove: () => Promise<void>;
+  onInboundChange: (on: boolean) => Promise<void>;
 }
 
 /**
@@ -19,7 +30,7 @@ interface Props {
  * system picker lists the SIM's numbers for the user to choose from. Either
  * way it is the user's pick, not proof they own it.
  */
-export function MobileProfileCard({ number, onSave, onRemove }: Props) {
+export function MobileProfileCard({ number, inbound, onSave, onRemove, onInboundChange }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
@@ -119,6 +130,19 @@ export function MobileProfileCard({ number, onSave, onRemove }: Props) {
         <>
           <Text style={styles.number}>{formatForDisplay(number)}</Text>
           <Text style={styles.help}>Calls ring this phone first.</Text>
+          <View style={styles.toggle}>
+            <View style={styles.toggleText}>
+              <Text style={styles.toggleLabel}>Also ring it for incoming calls</Text>
+              <Text style={styles.help}>
+                Rings with your other phones. Press a key to answer, so voicemail can’t.
+              </Text>
+            </View>
+            <Switch
+              value={inbound}
+              onValueChange={(on) => void run(() => onInboundChange(on))}
+              disabled={busy}
+            />
+          </View>
           <View style={styles.actions}>
             <Pressable style={styles.secondary} onPress={() => void run(onRemove)} disabled={busy}>
               <Text style={[styles.secondaryText, { color: colors.danger }]}>Remove</Text>
@@ -139,6 +163,9 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, fontWeight: '600', color: colors.muted, textTransform: 'uppercase' },
   number: { fontSize: 22, fontWeight: '600', color: colors.text },
   help: { fontSize: 14, color: colors.muted },
+  toggle: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  toggleText: { flex: 1, gap: 2 },
+  toggleLabel: { fontSize: 15, fontWeight: '600', color: colors.text },
   input: {
     borderColor: colors.border,
     borderWidth: 1,

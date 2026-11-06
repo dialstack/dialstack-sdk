@@ -7,6 +7,8 @@ export const colors = {
   primary: '#2563eb',
   primaryText: '#ffffff',
   danger: '#b42318',
+  key: '#eef1f5',
+  success: '#16a34a',
 };
 
 /** The surface every card in the app sits on. */
