@@ -15,6 +15,7 @@ import {
   mockUsers,
   type RenderOnboardingOptions,
 } from '../__test-helpers__/onboarding';
+import * as extensionNumber from '../extension-number';
 
 /**
  * Query helper: labels lack htmlFor so getByLabelText won't work.
@@ -74,7 +75,7 @@ describe('TeamMembers', () => {
   function usersNS(overrides: Record<string, unknown> = {}) {
     return {
       users: {
-        create: jest.fn().mockImplementation(async (data: { name: string; email: string }) => ({
+        create: jest.fn().mockImplementation(async (data: { name: string; email?: string }) => ({
           id: 'user_new',
           name: data.name,
           email: data.email,
@@ -137,7 +138,9 @@ describe('TeamMembers', () => {
     const { container, instance } = await renderTM();
 
     fireEvent.change(getFieldByLabel(container, 'Full name'), { target: { value: 'Bob' } });
-    fireEvent.change(getFieldByLabel(container, 'Email'), { target: { value: 'bob@example.com' } });
+    fireEvent.change(getFieldByLabel(container, 'Email (optional)'), {
+      target: { value: 'bob@example.com' },
+    });
 
     clickAddUser();
 
@@ -198,7 +201,9 @@ describe('TeamMembers', () => {
 
     fireEvent.change(getFieldByLabel(container, 'Extension'), { target: { value: '2000' } });
     fireEvent.change(getFieldByLabel(container, 'Full name'), { target: { value: 'Bob' } });
-    fireEvent.change(getFieldByLabel(container, 'Email'), { target: { value: 'bob@example.com' } });
+    fireEvent.change(getFieldByLabel(container, 'Email (optional)'), {
+      target: { value: 'bob@example.com' },
+    });
 
     clickAddUser();
 
@@ -224,7 +229,9 @@ describe('TeamMembers', () => {
     });
 
     fireEvent.change(getFieldByLabel(container, 'Full name'), { target: { value: 'Bob' } });
-    fireEvent.change(getFieldByLabel(container, 'Email'), { target: { value: 'bob@example.com' } });
+    fireEvent.change(getFieldByLabel(container, 'Email (optional)'), {
+      target: { value: 'bob@example.com' },
+    });
 
     clickAddUser();
 
@@ -243,7 +250,9 @@ describe('TeamMembers', () => {
     });
 
     fireEvent.change(getFieldByLabel(container, 'Full name'), { target: { value: 'Bob' } });
-    fireEvent.change(getFieldByLabel(container, 'Email'), { target: { value: 'bob@example.com' } });
+    fireEvent.change(getFieldByLabel(container, 'Email (optional)'), {
+      target: { value: 'bob@example.com' },
+    });
     clickAddUser();
 
     await waitFor(() => {
@@ -251,7 +260,7 @@ describe('TeamMembers', () => {
     });
 
     fireEvent.change(getFieldByLabel(container, 'Full name'), { target: { value: 'Charlie' } });
-    fireEvent.change(getFieldByLabel(container, 'Email'), {
+    fireEvent.change(getFieldByLabel(container, 'Email (optional)'), {
       target: { value: 'charlie@example.com' },
     });
     clickAddUser();
@@ -319,7 +328,7 @@ describe('TeamMembers', () => {
     });
 
     fireEvent.change(getFieldByLabel(container, 'Full name'), { target: { value: 'Duplicate' } });
-    fireEvent.change(getFieldByLabel(container, 'Email'), {
+    fireEvent.change(getFieldByLabel(container, 'Email (optional)'), {
       target: { value: 'alice@example.com' },
     });
 
@@ -356,7 +365,9 @@ describe('TeamMembers', () => {
     });
 
     fireEvent.change(getFieldByLabel(container, 'Full name'), { target: { value: 'Bob' } });
-    fireEvent.change(getFieldByLabel(container, 'Email'), { target: { value: 'bob@example.com' } });
+    fireEvent.change(getFieldByLabel(container, 'Email (optional)'), {
+      target: { value: 'bob@example.com' },
+    });
 
     clickAddUser();
 
@@ -378,7 +389,9 @@ describe('TeamMembers', () => {
     });
 
     fireEvent.change(getFieldByLabel(container, 'Full name'), { target: { value: 'Bob' } });
-    fireEvent.change(getFieldByLabel(container, 'Email'), { target: { value: 'bob@example.com' } });
+    fireEvent.change(getFieldByLabel(container, 'Email (optional)'), {
+      target: { value: 'bob@example.com' },
+    });
 
     clickAddUser();
 
@@ -388,18 +401,65 @@ describe('TeamMembers', () => {
     expect(screen.queryByText('A user with this email already exists.')).toBeNull();
   });
 
-  it('asks for an extension instead of creating the user when none is entered', async () => {
-    const createUserMock = jest.fn();
-    const { container } = await renderTM({ ...usersNS({ create: createUserMock }) });
+  it('assigns the next free extension when none is entered', async () => {
+    const { container, instance } = await renderTM();
 
     fireEvent.change(getFieldByLabel(container, 'Full name'), { target: { value: 'Bob' } });
-    fireEvent.change(getFieldByLabel(container, 'Email'), { target: { value: 'bob@example.com' } });
     fireEvent.change(getFieldByLabel(container, 'Extension'), { target: { value: '' } });
 
     clickAddUser();
 
     await waitFor(() => {
-      expect(screen.getByText('Extension is required')).toBeTruthy();
+      expect(instance.extensions.create).toHaveBeenCalledWith(
+        expect.objectContaining({ number: '1000' })
+      );
+    });
+  });
+
+  it('says no extension is free when the field is blank and the range is full', async () => {
+    const suggest = jest.spyOn(extensionNumber, 'suggestUserExtension').mockReturnValue(null);
+    const createUserMock = jest.fn();
+    const { container } = await renderTM({ ...usersNS({ create: createUserMock }) });
+
+    fireEvent.change(getFieldByLabel(container, 'Full name'), { target: { value: 'Bob' } });
+
+    clickAddUser();
+
+    await waitFor(() => {
+      expect(screen.getByText('No free extension is left. Enter one to continue.')).toBeTruthy();
+    });
+    expect(createUserMock).not.toHaveBeenCalled();
+    suggest.mockRestore();
+  });
+
+  it('adds a user without an email', async () => {
+    const { container, instance } = await renderTM();
+
+    fireEvent.change(getFieldByLabel(container, 'Full name'), { target: { value: 'Front Desk' } });
+
+    clickAddUser();
+
+    await waitFor(() => {
+      expect(instance.users.create).toHaveBeenCalledWith({ name: 'Front Desk' });
+    });
+    await waitFor(() => {
+      expect(instance.extensions.create).toHaveBeenCalled();
+    });
+  });
+
+  it('rejects a malformed email instead of creating the user', async () => {
+    const createUserMock = jest.fn();
+    const { container } = await renderTM({ ...usersNS({ create: createUserMock }) });
+
+    fireEvent.change(getFieldByLabel(container, 'Full name'), { target: { value: 'Bob' } });
+    fireEvent.change(getFieldByLabel(container, 'Email (optional)'), {
+      target: { value: 'bob@example' },
+    });
+
+    clickAddUser();
+
+    await waitFor(() => {
+      expect(screen.getByText('Enter a valid email address')).toBeTruthy();
     });
     expect(createUserMock).not.toHaveBeenCalled();
   });
@@ -522,7 +582,7 @@ describe('TeamMembers', () => {
       // resolves it on the reload.
       const adminList = jest.fn().mockResolvedValue([owner]);
       const { users } = createStatefulUserMocks([]);
-      users.create.mockImplementation(async (data: { name: string; email: string }) => {
+      users.create.mockImplementation(async (data: { name: string; email?: string }) => {
         const u = {
           id: 'user_jane',
           ...data,
@@ -583,7 +643,7 @@ describe('TeamMembers', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Give phone access' }));
 
-      expect((getFieldByLabel(container, 'Email') as HTMLInputElement).value).toBe(
+      expect((getFieldByLabel(container, 'Email (optional)') as HTMLInputElement).value).toBe(
         'jane@example.com'
       );
       expect(document.activeElement).toBe(getFieldByLabel(container, 'Full name'));
@@ -606,7 +666,7 @@ describe('TeamMembers', () => {
       // hit "already exists".
       const adminList = jest.fn().mockResolvedValue([owner]);
       const ns = usersNS({ del: jest.fn().mockRejectedValue(new Error('network')) });
-      ns.users.create.mockImplementation(async (data: { name: string; email: string }) => {
+      ns.users.create.mockImplementation(async (data: { name: string; email?: string }) => {
         const u = { id: 'user_jane', ...data, created_at: '', updated_at: '' };
         adminList.mockResolvedValue([{ ...owner, user: u.id }]);
         (ns.users.list as jest.Mock).mockResolvedValue([u]);

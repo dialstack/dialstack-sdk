@@ -130,6 +130,10 @@ export interface Account {
   id: string;
   name?: string | null;
   email?: string | null;
+  // NEXT MAJOR: delete `phone`.
+  /**
+   * @deprecated No longer collected during onboarding or required for it. Removed in the next major.
+   */
   phone?: string | null;
   primary_contact_name?: string | null;
   config: AccountConfig;
@@ -179,6 +183,10 @@ export interface Account {
 export interface UpdateAccountRequest {
   name?: string;
   email?: string;
+  // NEXT MAJOR: delete `phone`.
+  /**
+   * @deprecated No longer collected during onboarding or required for it. Removed in the next major.
+   */
   phone?: string;
   primary_contact_name?: string;
   config?: AccountConfig;

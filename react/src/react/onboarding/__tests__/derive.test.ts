@@ -13,7 +13,6 @@ function mkAccount(overrides: Partial<Account> = {}): Account {
     id: 'acct_x',
     name: 'Acme',
     email: 'admin@acme.test',
-    phone: '+14165551234',
     primary_contact_name: 'Pat',
     config: { timezone: 'America/Toronto' },
     onboarding_complete: false,
@@ -435,10 +434,19 @@ describe('deriveOnboardingState', () => {
   it('treats missing required business fields as incomplete', () => {
     const { completed } = deriveOnboardingState({
       ...emptySnapshot,
-      account: mkAccount({ phone: null }),
+      account: mkAccount({ primary_contact_name: null }),
       locations: [mkLocation()],
     });
     expect(completed.account.has('business-details')).toBe(false);
+  });
+
+  it('does not require an account phone for business details', () => {
+    const { completed } = deriveOnboardingState({
+      ...emptySnapshot,
+      account: mkAccount({ phone: '' }),
+      locations: [mkLocation()],
+    });
+    expect(completed.account.has('business-details')).toBe(true);
   });
 
   it('treats a location missing postal_code as incomplete', () => {

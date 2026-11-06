@@ -1,32 +1,16 @@
 /**
  * BusinessDetails sub-step of the Account onboarding step.
- * Collects: company name, email, phone, primary contact, timezone, location (address).
+ * Collects: company name, email, primary contact, timezone, location (address).
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { AsYouType, parsePhoneNumberFromString } from 'libphonenumber-js';
 import type { OnboardingLocation, ResolvedAddress } from '@dialstack/sdk-js';
 import { US_TIMEZONES } from '../../../../constants/us-timezones';
 import { useOnboarding } from '../../OnboardingContext';
 import { StepNavigation } from '../../StepNavigation';
 import { ErrorAlert } from '../../components/ErrorAlert';
 import { AddressSearch, type ManualAddress, type AddressMode } from './AddressSearch';
-
-/**
- * Catches obvious address typos so the error lands in the field slot rather than
- * the card-level banner. Deliberately loose: the API's own check is authoritative,
- * and a client rule stricter than the server would reject addresses the server
- * would happily accept — a worse failure than relaying its message.
- */
-function looksLikeEmailAddress(value: string): boolean {
-  if (/\s/.test(value)) return false;
-  const parts = value.split('@');
-  if (parts.length !== 2) return false;
-  const [local, domain] = parts;
-  return (
-    !!local && !!domain && domain.includes('.') && !domain.startsWith('.') && !domain.endsWith('.')
-  );
-}
+import { looksLikeEmailAddress } from '../../email';
 
 export interface BusinessDetailsProps {
   onAdvance: () => void;
@@ -36,7 +20,6 @@ export interface BusinessDetailsProps {
 interface ValidationErrors {
   name?: string;
   email?: string;
-  phone?: string;
   primaryContact?: string;
   locationName?: string;
   address?: string;
@@ -58,7 +41,6 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
 
   const [accountName, setAccountName] = useState('');
   const [accountEmail, setAccountEmail] = useState('');
-  const [accountPhone, setAccountPhone] = useState('');
   const [primaryContact, setPrimaryContact] = useState('');
   const [timezone, setTimezone] = useState('');
   const [locationName, setLocationName] = useState('');
@@ -79,15 +61,15 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
     if (hydrated) return;
     /* eslint-disable react-hooks/set-state-in-effect -- one-time hydration from async context data on mount */
     if (account) {
-      const phoneRaw = account.phone ?? '';
-      const phoneParsed = phoneRaw ? parsePhoneNumberFromString(phoneRaw, 'US') : null;
       setAccountName(account.name ?? '');
       setAccountEmail(account.email ?? '');
-      setAccountPhone(phoneParsed ? phoneParsed.formatNational() : phoneRaw);
       setPrimaryContact(account.primary_contact_name ?? '');
       setTimezone(account.config?.timezone ?? accountConfig?.timezone ?? '');
     }
-    const location = locations[0];
+    // Locations list newest first, so locations[0] is the main location only
+    // while it is the account's sole location.
+    const mainLocationId = account?.main_location ?? account?.main_location_id;
+    const location = locations.find((l) => l.id === mainLocationId) ?? locations[0];
     if (location) {
       setExistingLocation(location);
       setLocationName(location.name);
@@ -106,19 +88,6 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
     /* eslint-enable react-hooks/set-state-in-effect */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const handlePhoneInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = e.target.value.replace(/\D/g, '');
-    const formatted = digits ? new AsYouType('US').input(digits) : '';
-    setAccountPhone(formatted);
-  }, []);
-
-  const handlePhoneBlur = useCallback(() => {
-    const parsed = parsePhoneNumberFromString(accountPhone, 'US');
-    if (parsed?.isValid()) {
-      setAccountPhone(parsed.formatNational());
-    }
-  }, [accountPhone]);
 
   const handleAddressResolved = useCallback(
     (resolved: ResolvedAddress, manual: ManualAddress, tz?: string) => {
@@ -152,13 +121,6 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
       errors.email = t.details.emailInvalid;
     }
 
-    if (!accountPhone.trim()) {
-      errors.phone = t.details.phoneRequired;
-    } else {
-      const parsed = parsePhoneNumberFromString(accountPhone, 'US');
-      if (!parsed?.isValid()) errors.phone = t.details.phoneInvalid;
-    }
-
     if (!primaryContact.trim()) errors.primaryContact = t.details.primaryContactRequired;
     if (!locationName.trim()) errors.locationName = t.location.nameRequired;
 
@@ -189,13 +151,9 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
     setValidationErrors({});
 
     try {
-      const parsed = parsePhoneNumberFromString(accountPhone, 'US');
-      if (!parsed?.isValid()) return;
-
       await dialstack.account.update({
         email: accountEmail.trim(),
         name: accountName.trim(),
-        phone: parsed.number,
         primary_contact_name: primaryContact.trim(),
         ...(timezone ? { config: { timezone } } : {}),
       });
@@ -260,7 +218,6 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
     isSaving,
     accountName,
     accountEmail,
-    accountPhone,
     primaryContact,
     locationName,
     timezone,
@@ -323,18 +280,6 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
               onChange={(e) => setAccountEmail(e.target.value)}
             />
             {validationErrors.email && <div className="form-error">{validationErrors.email}</div>}
-          </div>
-          <div className="form-group">
-            <label className="form-label">{t.details.phoneLabel}</label>
-            <input
-              className={`form-input${validationErrors.phone ? ' error' : ''}`}
-              type="tel"
-              value={accountPhone}
-              placeholder={t.details.phonePlaceholder}
-              onChange={handlePhoneInput}
-              onBlur={handlePhoneBlur}
-            />
-            {validationErrors.phone && <div className="form-error">{validationErrors.phone}</div>}
           </div>
         </div>
 

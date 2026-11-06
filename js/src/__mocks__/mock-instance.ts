@@ -176,7 +176,7 @@ export function createMockInstance(
     account_mode: 'live',
     name: 'Acme Corp',
     email: 'admin@acme.com',
-    phone: '+12018401234',
+    phone: '',
     primary_contact_name: 'Jane Doe',
     config: { timezone: 'America/New_York', extension_length: 4 },
     onboarding_complete: false,

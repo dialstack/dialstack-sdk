@@ -46,7 +46,6 @@ export function deriveOnboardingState(snapshot: OnboardingDataSnapshot): Derived
   const hasBusinessDetails =
     !!account?.name &&
     !!account?.email &&
-    !!account?.phone &&
     !!account?.primary_contact_name &&
     !!account?.config?.timezone &&
     locations.some(

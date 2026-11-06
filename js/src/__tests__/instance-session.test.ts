@@ -78,6 +78,35 @@ describe('DialStackInstanceImplClass session behavior', () => {
     expect(headers.get('Content-Type')).toBe('application/json');
   });
 
+  it('still forwards the deprecated phone on account update', async () => {
+    const { DialStackInstanceImplClass } = await import('../core/instance');
+    const instance = new DialStackInstanceImplClass({
+      publishableKey: 'pk_test_xxx',
+      fetchClientSecret: async () => ({
+        clientSecret: 'cs_test_secret',
+        accountId: 'acct_01h00000000000000000000000',
+      }),
+    });
+
+    await instance.startSession();
+
+    mockFetch.mockResolvedValueOnce(
+      mockJsonResponse({
+        id: 'acct_01h00000000000000000000000',
+        phone: '',
+        config: {},
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+      })
+    );
+
+    await instance.account.update({ phone: '+12125550100' });
+
+    const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+    // NEXT MAJOR: `phone` is removed from UpdateAccountRequest and Account; delete this test.
+    expect(JSON.parse(options.body as string)).toEqual({ phone: '+12125550100' });
+  });
+
   it('throws a clear error when accountId is missing for account-scoped methods', async () => {
     const { DialStackInstanceImplClass } = await import('../core/instance');
     const instance = new DialStackInstanceImplClass({

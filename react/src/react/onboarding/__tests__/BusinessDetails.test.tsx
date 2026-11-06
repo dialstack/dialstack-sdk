@@ -110,14 +110,10 @@ describe('BusinessDetails', () => {
     expect(nameInput.value).toBe('Acme Corp');
   });
 
-  it('renders with pre-populated phone from API', async () => {
-    const { container } = await renderBD();
+  it('does not ask for a phone number', async () => {
+    await renderBD();
 
-    const phoneInput = getFieldByLabel(
-      container,
-      'Primary Contact Phone Number'
-    ) as HTMLInputElement;
-    expect(phoneInput.value).toBe('(212) 555-0100');
+    expect(screen.queryByText('Primary Contact Phone Number')).toBeNull();
   });
 
   it('renders with pre-populated primary contact from API', async () => {
@@ -130,6 +126,19 @@ describe('BusinessDetails', () => {
   it('pre-populates location name from existing location data', async () => {
     const { container } = await renderBD({
       ...locationsNS({ list: jest.fn().mockResolvedValue([mockLocation]) }),
+    });
+
+    const nameInput = getFieldByLabel(container, 'Location Name') as HTMLInputElement;
+    expect(nameInput.value).toBe('Main Office');
+  });
+
+  it("edits the account's main location even when it is not listed first", async () => {
+    const branch = { ...mockLocation, id: 'loc_02branch', name: 'Branch Office' };
+    const { container } = await renderBD({
+      ...accountNS({
+        retrieve: jest.fn().mockResolvedValue({ ...mockAccount, main_location: mockLocation.id }),
+      }),
+      ...locationsNS({ list: jest.fn().mockResolvedValue([branch, mockLocation]) }),
     });
 
     const nameInput = getFieldByLabel(container, 'Location Name') as HTMLInputElement;
@@ -172,18 +181,6 @@ describe('BusinessDetails', () => {
     });
   });
 
-  it('validates phone number required', async () => {
-    await renderBD({
-      ...accountNS({ retrieve: jest.fn().mockResolvedValue({ ...mockAccount, phone: null }) }),
-    });
-
-    clickNext();
-
-    await waitFor(() => {
-      expect(screen.getByText('Primary contact phone number is required')).toBeTruthy();
-    });
-  });
-
   it('validates primary contact required', async () => {
     await renderBD({
       ...accountNS({
@@ -195,18 +192,6 @@ describe('BusinessDetails', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Primary contact is required')).toBeTruthy();
-    });
-  });
-
-  it('validates phone number format', async () => {
-    await renderBD({
-      ...accountNS({ retrieve: jest.fn().mockResolvedValue({ ...mockAccount, phone: '123' }) }),
-    });
-
-    clickNext();
-
-    await waitFor(() => {
-      expect(screen.getByText('Enter a valid US phone number')).toBeTruthy();
     });
   });
 
@@ -280,8 +265,8 @@ describe('BusinessDetails', () => {
       const call = (instance.account.update as jest.Mock).mock.calls[0]?.[0];
       expect(call.name).toBe('Acme Corp');
       expect(call.email).toBe('existing@example.com');
-      expect(call.phone).toBe('+12125550100');
       expect(call.primary_contact_name).toBe('Jane Doe');
+      expect(call).not.toHaveProperty('phone');
     });
   });
 
@@ -714,24 +699,5 @@ describe('BusinessDetails', () => {
     await waitFor(() => {
       expect(screen.getByText('Network error')).toBeTruthy();
     });
-  });
-
-  // ==========================================================================
-  // Phone formatting
-  // ==========================================================================
-
-  it('formats phone number on input', async () => {
-    const { container } = await renderBD({
-      ...accountNS({ retrieve: jest.fn().mockResolvedValue({ ...mockAccount, phone: null }) }),
-    });
-
-    const phoneInput = getFieldByLabel(
-      container,
-      'Primary Contact Phone Number'
-    ) as HTMLInputElement;
-    fireEvent.change(phoneInput, { target: { value: '2125550100' } });
-
-    // The component strips non-digits and formats via AsYouType
-    expect(phoneInput.value).not.toBe('');
   });
 });

@@ -1551,55 +1551,22 @@ export const ComprehensiveValidation: Story = {
       });
     });
 
-    await step(
-      'Fix company name, clear phone -> Next -> "Primary contact phone number is required"',
-      async () => {
-        const nameInput = canvasElement.querySelector(
-          'input[placeholder="Acme Corp"]'
-        ) as HTMLInputElement;
-        await userEvent.type(nameInput, 'Fixed Corp');
+    await step('Fix company name, clear primary contact -> error', async () => {
+      const nameInput = canvasElement.querySelector(
+        'input[placeholder="Acme Corp"]'
+      ) as HTMLInputElement;
+      await userEvent.type(nameInput, 'Fixed Corp');
 
-        // The contact email is an ordinary editable field — it is the account's
-        // contact address, not the owner's identity. Left populated here so this
-        // case exercises the other required fields.
-        const emailInput = canvasElement.querySelector(
-          'input[value="admin@acme.com"]'
-        ) as HTMLInputElement;
-        expect(emailInput.readOnly).toBe(false);
+      // The contact email is an ordinary editable field — it is the account's
+      // contact address, not the owner's identity. Left populated here so this
+      // case exercises the other required fields.
+      const emailInput = canvasElement.querySelector(
+        'input[value="admin@acme.com"]'
+      ) as HTMLInputElement;
+      expect(emailInput.readOnly).toBe(false);
 
-        const phoneInput = canvasElement.querySelector('input[type="tel"]') as HTMLInputElement;
-        await userEvent.clear(phoneInput);
-
-        await clickButton(canvas, canvasElement, /Next →/, { last: true });
-
-        await waitFor(() => {
-          expect(canvas.getByText('Primary contact phone number is required')).toBeInTheDocument();
-        });
-
-        // Company name error should be gone
-        const formErrors = canvasElement.querySelectorAll('.form-error');
-        const companyError = Array.from(formErrors).find((el) =>
-          el.textContent?.includes('Company name is required')
-        );
-        expect(companyError).toBeUndefined();
-      }
-    );
-
-    await step('Enter invalid phone format -> "Enter a valid US phone number"', async () => {
-      const phoneInput = canvasElement.querySelector('input[type="tel"]') as HTMLInputElement;
-      await userEvent.type(phoneInput, '123');
-
-      await clickButton(canvas, canvasElement, /Next →/, { last: true });
-
-      await waitFor(() => {
-        expect(canvas.getByText('Enter a valid US phone number')).toBeInTheDocument();
-      });
-    });
-
-    await step('Fix phone, clear primary contact -> error', async () => {
-      const phoneInput = canvasElement.querySelector('input[type="tel"]') as HTMLInputElement;
-      await userEvent.clear(phoneInput);
-      await userEvent.type(phoneInput, '2018401234');
+      // The account phone is not collected.
+      expect(canvasElement.querySelector('input[type="tel"]')).toBeNull();
 
       const contactInput = canvasElement.querySelector(
         'input[value="Jane Doe"]'
@@ -1611,6 +1578,13 @@ export const ComprehensiveValidation: Story = {
       await waitFor(() => {
         expect(canvas.getByText('Primary contact is required')).toBeInTheDocument();
       });
+
+      // Company name error should be gone
+      const formErrors = canvasElement.querySelectorAll('.form-error');
+      const companyError = Array.from(formErrors).find((el) =>
+        el.textContent?.includes('Company name is required')
+      );
+      expect(companyError).toBeUndefined();
     });
 
     // ---- Account - Team Members Validation ----
@@ -2458,6 +2432,26 @@ export const TeamMemberAddDelete: Story = {
       // Original users should still be present
       expect(canvas.getByText('Alice Smith')).toBeInTheDocument();
       expect(canvas.getByText('Bob Jones')).toBeInTheDocument();
+    });
+
+    await step('Add a shared seat with no email', async () => {
+      const nameInput = canvasElement.querySelector(
+        'input[placeholder="John Doe"]'
+      ) as HTMLInputElement;
+      await userEvent.type(nameInput, 'Front Desk');
+
+      const addUserBtn = Array.from(canvasElement.querySelectorAll('button')).find((b) =>
+        b.textContent?.includes('Add User')
+      );
+      await userEvent.click(addUserBtn!);
+
+      await waitFor(
+        () => {
+          expect(canvas.getByText('Front Desk')).toBeInTheDocument();
+        },
+        { timeout: DATA_TIMEOUT }
+      );
+      expect(canvasElement.querySelector('.inline-alert.error')).toBeNull();
     });
   },
 };

@@ -39,7 +39,7 @@ export const mockAccount = {
   account_mode: 'live' as const,
   email: 'existing@example.com',
   name: 'Acme Corp',
-  phone: '(212) 555-0100',
+  phone: '',
   primary_contact_name: 'Jane Doe',
   default_button_template: null,
   config: {
@@ -431,7 +431,7 @@ export function createMockInstance(overrides?: MockInstanceOverrides): DialStack
       users: { list: jest.fn().mockResolvedValue([]) },
     },
     users: {
-      create: jest.fn().mockImplementation(async (data: { name: string; email: string }) => ({
+      create: jest.fn().mockImplementation(async (data: { name: string; email?: string }) => ({
         id: 'user_new',
         name: data.name,
         email: data.email,
@@ -514,7 +514,7 @@ export function createStatefulUserMocks(initialUsers: OnboardingUser[] = [...moc
   const usersList: OnboardingUser[] = [...initialUsers];
   return {
     users: {
-      create: jest.fn().mockImplementation(async (data: { name: string; email: string }) => {
+      create: jest.fn().mockImplementation(async (data: { name: string; email?: string }) => {
         const user: OnboardingUser = {
           id: 'user_' + Math.random().toString(36).slice(2, 10),
           name: data.name,

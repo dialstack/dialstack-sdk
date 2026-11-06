@@ -7,8 +7,10 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import type { AdminUser, Extension } from '@dialstack/sdk-js';
+import { defaultLocale } from '@dialstack/sdk-js/pure';
 import { useOnboarding } from '../../OnboardingContext';
 import { suggestUserExtension } from '../../extension-number';
+import { looksLikeEmailAddress } from '../../email';
 import { StepNavigation } from '../../StepNavigation';
 import { UserIcon, TrashIcon } from '../../components/icons';
 import { ErrorAlert } from '../../components/ErrorAlert';
@@ -76,7 +78,7 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
   const addSeat = useCallback(
     async (name: string, email: string, extNumber: string): Promise<boolean> => {
       try {
-        const user = await dialstack.users.create({ name, email });
+        const user = await dialstack.users.create(email ? { name, email } : { name });
 
         try {
           await dialstack.extensions.create({
@@ -119,25 +121,43 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
       setUserError(t.users.nameRequired);
       return;
     }
-    if (!newUserEmail.trim() || !newUserEmail.includes('@')) {
-      setUserError(locale.accountOnboarding.account.details.emailRequired);
+    // Email is optional, as in the admin portal: a seat like "Front Desk" has none.
+    const email = newUserEmail.trim();
+    if (email && !looksLikeEmailAddress(email)) {
+      setUserError(t.details.emailInvalid);
       return;
     }
-    const extNumber = newUserExtension.trim();
+    // A blank extension gets the next free one, as the admin portal assigns it.
+    const extNumber =
+      newUserExtension.trim() || getNextExtensionNumber(contextExtensions, extensionLength);
+    // Blank only when the field was empty and no free extension is left.
     if (!extNumber) {
-      setUserError(t.users.extensionRequired);
+      setUserError(
+        t.users.noFreeExtension ??
+          defaultLocale.accountOnboarding.account.users.noFreeExtension ??
+          t.users.extensionRequired
+      );
       return;
     }
 
     setIsAddingUser(true);
-    const added = await addSeat(newUserName.trim(), newUserEmail.trim(), extNumber);
+    const added = await addSeat(newUserName.trim(), email, extNumber);
     if (added) {
       setNewUserName('');
       setNewUserEmail('');
       // newUserExtension will update via the effect below
     }
     setIsAddingUser(false);
-  }, [busy, newUserName, newUserEmail, newUserExtension, addSeat, t, locale]);
+  }, [
+    busy,
+    newUserName,
+    newUserEmail,
+    newUserExtension,
+    contextExtensions,
+    extensionLength,
+    addSeat,
+    t,
+  ]);
 
   const handleGivePhoneAccess = useCallback(
     async (admin: AdminUser) => {
@@ -223,7 +243,10 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
             />
           </div>
           <div className="form-group">
-            <label className="form-label">{t.users.emailLabel}</label>
+            <label className="form-label">
+              {t.users.emailLabel}{' '}
+              {t.users.optional ?? defaultLocale.accountOnboarding.account.users.optional}
+            </label>
             <input
               className="form-input"
               type="email"

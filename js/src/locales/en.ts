@@ -556,9 +556,14 @@ export const en = {
         emailPlaceholder: 'admin@company.com',
         emailRequired: 'Primary contact email is required',
         emailInvalid: 'Enter a valid email address',
+        // NEXT MAJOR: delete the four phone* keys; kept only so existing locales compile.
+        /** @deprecated No longer shown: onboarding does not ask for a phone. Removed in the next major. */
         phoneLabel: 'Primary Contact Phone Number',
+        /** @deprecated No longer shown: onboarding does not ask for a phone. Removed in the next major. */
         phonePlaceholder: '(555) 123-4567',
+        /** @deprecated No longer shown: onboarding does not ask for a phone. Removed in the next major. */
         phoneRequired: 'Primary contact phone number is required',
+        /** @deprecated No longer shown: onboarding does not ask for a phone. Removed in the next major. */
         phoneInvalid: 'Enter a valid US phone number',
         primaryContactLabel: 'Primary Contact',
         primaryContactPlaceholder: 'Jane Doe',
@@ -592,6 +597,15 @@ export const en = {
         noPhoneService: 'No phone service',
         givePhoneAccess: 'Give phone access',
         givingPhoneAccess: 'Adding…',
+        // Optional so that a locale written against an earlier release still
+        // compiles; onboarding falls back to English when a locale omits one.
+        ...({
+          optional: '(optional)',
+          noFreeExtension: 'No free extension is left. Enter one to continue.',
+        } as {
+          optional?: string;
+          noFreeExtension?: string;
+        }),
       },
       location: {
         heading: 'Business Location',
