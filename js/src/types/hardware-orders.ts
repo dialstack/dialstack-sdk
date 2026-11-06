@@ -56,6 +56,18 @@ export interface HardwareOrder {
   /** The order exceeded the platform's threshold, so the platform approves too. */
   requires_platform_approval: boolean;
   approvals: HardwareOrderApproval[];
+  /**
+   * The parts accepted on temporary backorder and where the order stands
+   * against the distributor's shipments; null when nothing was accepted and
+   * nothing is pending.
+   */
+  backorder?: {
+    parts: string[];
+    acknowledged_at: string | null;
+    acknowledged_by: 'platform' | 'super_admin' | null;
+    state: 'none' | 'backordered' | 'partially_shipped';
+    pending_count: number;
+  } | null;
   goods_cents: number | null;
   shipping_cents: number | null;
   total_cents: number | null;
@@ -117,7 +129,14 @@ export interface HardwareShippingQuote {
   options: HardwareShippingOption[];
   /** The cart the quote was priced for; it cannot be chosen from once the order differs. */
   items: HardwareOrderLineInput[];
+  /** Parts flagged on temporary backorder. `backordered_qty` is the distributor's figure capped at the line quantity, not a count of late units. */
   backordered_lines: { hardware_catalog: string; backordered_qty: number }[];
+  /**
+   * The statement to accept to place those parts anyway, rendered as it will be
+   * recorded: show `text` verbatim and send `version` as
+   * `backorder_terms_version`. Null when nothing is held.
+   */
+  backorder_terms?: { version: string; text: string } | null;
   ship_to_address: HardwareOrderAddress;
   expires_at: string;
   created_at: string;

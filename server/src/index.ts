@@ -1919,9 +1919,12 @@ export interface HardwareOrderItem {
   fulfilled_at: string | null;
   /**
    * Whether this unit is done: a phone or DECT unit once its serial is
-   * captured, an accessory (which never gets one) once the order has shipped.
+   * captured, an accessory (which never gets one) once a shipment from the
+   * distributor accounts for it.
    */
   fulfilled: boolean;
+  /** The order is on backorder and no shipment has accounted for this unit yet. */
+  pending: boolean;
   hardware_catalog: HardwareCatalogItem;
   created_at: string;
   updated_at: string;
@@ -2023,6 +2026,8 @@ export interface HardwareOrder {
    * again after DialStack declines the request.
    */
   requested_at: string | null;
+  /** The acceptance of parts on temporary backorder; null when none was given. */
+  backorder: HardwareOrderBackorder | null;
   /**
    * When the debit was handed to the network. Null while `payment_status` is
    * `unpaid`, set for every other state. Not an authorization — ACH has none.
@@ -2115,10 +2120,13 @@ export type HardwareOrderExpand =
  *   draft.
  * - `catalog_item_not_priced` — a line was unpriced or withdrawn from the
  *   catalog since the draft was built. Remove or replace it.
- * - `hardware_line_backordered` — the distributor is holding part of the
- *   order and gives no restock date. The shipping quote the service was chosen
- *   from lists the held lines in `backordered_lines`. Remove or reduce them and
- *   choose from a new quote; the draft survives.
+ * - `hardware_line_backordered` — the chosen shipping quote flags parts on
+ *   temporary backorder (`backordered_lines`) and checkout did not accept them.
+ *   The body also carries `backorder_terms_version` and `backorder_terms_text`,
+ *   the statement to accept. Retry with `accept_backorder`, or remove the parts;
+ *   the draft survives.
+ * - `backorder_quote_changed` — the backorder was accepted against a quote the
+ *   order no longer uses. Review the current quote and accept again.
  * - `hardware_order_already_debited` — a debit already exists; the order is no
  *   longer checkout-able.
  * - `checkout_resume_window_elapsed` — placed more than 12 hours ago without a
@@ -2146,6 +2154,7 @@ export interface HardwareOrderCheckoutConflictResponse {
     | 'payment_method_pending_verification'
     | 'catalog_item_not_priced'
     | 'hardware_line_backordered'
+    | 'backorder_quote_changed'
     | 'hardware_order_already_debited'
     | 'checkout_resume_window_elapsed'
     | 'debit_parameters_changed'
@@ -2165,6 +2174,36 @@ export interface HardwareOrderPlaceParams {
    * to one location, so file one order per site.
    */
   location?: string;
+  /**
+   * Checkout only. Accepts the parts the chosen shipping quote flags as on
+   * temporary backorder (typically 3–5 extra days). Requires
+   * `backorder_terms_version` and `shipping_quote_id`.
+   */
+  accept_backorder?: boolean;
+  /** Version of the statement shown, as the quote's `backorder_terms` gave it. */
+  backorder_terms_version?: string;
+  /** The shipping quote whose flagged parts were accepted; must be the order's current one. */
+  shipping_quote_id?: string;
+}
+
+/**
+ * An order's backorder: the parts accepted on temporary backorder, and where
+ * the order stands against the distributor's shipments.
+ */
+export interface HardwareOrderBackorder {
+  /** Catalog item IDs accepted as backordered; empty when nobody accepted one. */
+  parts: string[];
+  /** Null on an order that was only found part-shipped. */
+  acknowledged_at: string | null;
+  /** `platform` at checkout, `super_admin` when accepted at release. */
+  acknowledged_by: 'platform' | 'super_admin' | null;
+  /**
+   * `backordered` while nothing has shipped, `partially_shipped` once part of
+   * it has, `none` once everything shipped or the distributor closed the order.
+   */
+  state: 'none' | 'backordered' | 'partially_shipped';
+  /** Units no shipment has accounted for yet. */
+  pending_count: number;
 }
 
 export interface HardwareOrderParams {
@@ -2239,6 +2278,12 @@ export interface ShippingQuote {
    * order holds exactly these quantities.
    */
   items: Array<{ hardware_catalog: string; quantity: number }>;
+  /**
+   * The statement to accept to place the parts this quote flags as on
+   * temporary backorder, rendered as it will be recorded: show `text` verbatim
+   * and send `version` as `backorder_terms_version`. Null when nothing is held.
+   */
+  backorder_terms?: { version: string; text: string } | null;
   /**
    * The destination this quote was priced for. It can be chosen from only
    * while the order still ships here.
