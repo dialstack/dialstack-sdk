@@ -1917,6 +1917,11 @@ export interface HardwareOrderItem {
    */
   device: string | Device | null;
   fulfilled_at: string | null;
+  /**
+   * Whether this unit is done: a phone or DECT unit once its serial is
+   * captured, an accessory (which never gets one) once the order has shipped.
+   */
+  fulfilled: boolean;
   hardware_catalog: HardwareCatalogItem;
   created_at: string;
   updated_at: string;
@@ -2028,6 +2033,11 @@ export interface HardwareOrder {
    * `settled` and `reversed`; a reversal keeps it.
    */
   payment_settled_at: string | null;
+  /**
+   * When the distributor first reported a tracking number. Null until then.
+   * The order is fulfilled once every item's `fulfilled` is true.
+   */
+  shipped_at: string | null;
   /** What the items cost, in USD cents, at the prices they were sold at. */
   goods_cents: number;
   /**

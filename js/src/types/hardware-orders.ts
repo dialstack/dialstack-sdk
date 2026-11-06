@@ -48,6 +48,8 @@ export interface HardwareOrder {
   payment_status: string;
   fulfillment_status: string;
   placed_at: string | null;
+  /** When the distributor first reported a tracking number; null until then. */
+  shipped_at: string | null;
   /** When the draft was submitted for approval; null when it is not pending. */
   approval_requested_at: string | null;
   built_by: 'customer' | 'platform' | null;
