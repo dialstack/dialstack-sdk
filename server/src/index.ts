@@ -1395,7 +1395,8 @@ export type ButtonCompatibilityReason =
   | 'vendor_does_not_support_type'
   | 'position_out_of_range_for_model'
   | 'device_has_no_owning_user'
-  | 'displaced_by_own_line';
+  | 'displaced_by_own_line'
+  | 'requires_expansion_module';
 
 /** Programmable-key compatibility for a device's effective button set. */
 export interface ButtonCompatibilitySummary {
@@ -1405,6 +1406,8 @@ export interface ButtonCompatibilitySummary {
     kind: 'deskphone' | 'dect_base' | 'dect_handset';
     /** Highest programmable key position known for this device model. */
     max_position: number;
+    /** Highest position a sidecar can hold; absent when the model takes none. */
+    max_expansion_position?: number;
   };
   supported_count: number;
   unsupported: Array<{

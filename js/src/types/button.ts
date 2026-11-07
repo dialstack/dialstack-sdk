@@ -71,7 +71,8 @@ export type ButtonCompatibilityReason =
   | 'vendor_does_not_support_type'
   | 'position_out_of_range_for_model'
   | 'device_has_no_owning_user'
-  | 'displaced_by_own_line';
+  | 'displaced_by_own_line'
+  | 'requires_expansion_module';
 
 export interface ButtonCompatibilityVerdict {
   supported: boolean;
@@ -84,6 +85,8 @@ export interface ButtonCompatibilitySummary {
     model: string;
     kind: 'deskphone' | 'dect_base' | 'dect_handset';
     max_position: number;
+    /** Highest position a sidecar can hold; absent when the model takes none. */
+    max_expansion_position?: number;
   };
   supported_count: number;
   unsupported: Array<{

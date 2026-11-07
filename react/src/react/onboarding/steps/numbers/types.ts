@@ -171,7 +171,11 @@ export const E911_POLL_MAX = 5;
 export function makeFocDate(): string {
   const d = new Date();
   d.setDate(d.getDate() + 14);
-  return d.toISOString().split('T')[0]!;
+  // Carriers never port on a weekend and validation refuses one.
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+  // Local date: validation parses it back as local midnight.
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 export const INITIAL_STATE: NumState = {
