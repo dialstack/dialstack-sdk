@@ -39,10 +39,13 @@ export interface DeviceZeroTouchEscalation {
 export interface DeviceZeroTouchContact {
   /** ISO 8601 timestamp */
   contacted_at: string;
-  /** HTTP status the manufacturer's service answered the phone with */
-  status_code: number;
-  /** Path the phone requested */
-  path: string;
+  /**
+   * HTTP status the manufacturer's service answered the phone with; `null`
+   * when the manufacturer records only the contact time (Poly)
+   */
+  status_code: number | null;
+  /** Path the phone requested; `null` when only the time is recorded (Poly) */
+  path: string | null;
 }
 
 /**

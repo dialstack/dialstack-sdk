@@ -71,7 +71,7 @@ export interface DeviceReadinessInput {
 }
 
 /** Manufacturers whose zero-touch service sends a new phone to the platform. */
-const ZERO_TOUCH_VENDORS: ReadonlySet<string> = new Set(['snom', 'yealink']);
+const ZERO_TOUCH_VENDORS: ReadonlySet<string> = new Set(['snom', 'yealink', 'polycom']);
 
 /** A configuration prerequisite the device is still missing. */
 export type DeviceReadinessPrerequisite =

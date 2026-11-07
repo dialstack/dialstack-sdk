@@ -208,12 +208,13 @@ describe('deviceReadiness', () => {
     it('leads with the contact step for a zero-touch vendor, with or without a read', () => {
       expect(deviceReadiness(snom()).steps).toEqual(withContact);
       expect(deviceReadiness(snom({ vendor: 'yealink' })).steps).toEqual(withContact);
+      expect(deviceReadiness(snom({ vendor: 'polycom' })).steps).toEqual(withContact);
       expect(deviceReadiness(snom()).currentStep).toBe('contacted');
     });
 
     it('adds no step for other vendors, open escalations, or DECT handsets', () => {
       const plain = ['provisioned', 'online', 'ready_to_call', 'first_call'];
-      expect(deviceReadiness(snom({ vendor: 'polycom' })).steps).toEqual(plain);
+      expect(deviceReadiness(snom({ vendor: 'grandstream' })).steps).toEqual(plain);
       expect(deviceReadiness(snom({ zero_touch_escalation: { reason: 'other' } })).steps).toEqual(
         plain
       );
@@ -222,6 +223,16 @@ describe('deviceReadiness', () => {
           zeroTouch: zeroTouch(),
         }).steps
       ).toEqual(['online', 'ready_to_call', 'first_call']);
+    });
+
+    it('marks contacted from a time-only contact (Poly)', () => {
+      const r = deviceReadiness(snom({ vendor: 'polycom' }), {
+        zeroTouch: zeroTouch({
+          vendor: 'polycom',
+          last_contacts: [{ contacted_at: '2026-11-06T10:00:00Z', status_code: null, path: null }],
+        }),
+      });
+      expect(r.contacted).toBe(true);
     });
 
     it('marks contacted from a read with a contact', () => {
