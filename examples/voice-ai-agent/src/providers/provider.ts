@@ -19,6 +19,7 @@
 // `close` fires when the upstream connection terminates. Providers that let
 // the agent ask for a human (ElevenLabs, via a client tool) emit `transfer`;
 // the session then issues a DialStack `transfer` action on the call.
+// Telnyx also emits `transcript` turns and accepts text turns (`sendText`).
 
 import { EventEmitter } from 'node:events';
 
@@ -34,8 +35,17 @@ export interface CallInfo {
 export interface VoiceProviderEvents {
   audio: (ulaw: Uint8Array) => void;
   interrupt: () => void;
-  /** `done` reports whether DialStack accepted the transfer, so the agent can tell the caller. */
-  transfer: (done: (err?: Error) => void) => void;
+  /**
+   * The agent's `transfer_to_human` tool call, with its arguments. `done`
+   * reports whether DialStack accepted the transfer, so the agent can tell the caller.
+   */
+  transfer: (args: Record<string, unknown>, done: (err?: Error) => void) => void;
+  /**
+   * A finished turn: what the caller said, or what the agent said. Only the
+   * Telnyx provider emits it. Turns come in arrival order, not conversation
+   * order: a caller's transcription can land after the agent's reply to it.
+   */
+  transcript: (role: 'caller' | 'agent', text: string) => void;
   close: (reason?: string) => void;
   error: (err: Error) => void;
 }
@@ -46,6 +56,12 @@ export interface VoiceProvider extends EventEmitter {
 
   /** Forward a caller audio chunk (μ-law 8 kHz). */
   sendAudio(ulaw: Uint8Array): void;
+
+  /**
+   * Add a user text turn the agent answers as it would a spoken one. Only the
+   * Telnyx provider implements it.
+   */
+  sendText?(text: string): void;
 
   /** Tear down the upstream connection. */
   close(): void;

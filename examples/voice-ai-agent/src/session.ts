@@ -22,6 +22,7 @@ import type {
   MediaStreamAudioEvent,
   MediaStreamBeginEvent,
 } from '@dialstack/sdk-server';
+import { resolveTransferTarget } from './transfer-target.js';
 
 const FRAME_MS = 20;
 const FRAME_BYTES_8K = 160; // 20 ms of μ-law @ 8 kHz
@@ -56,15 +57,18 @@ export function runSession({ stream, makeProvider, transfer }: SessionOptions): 
 
     provider.on('audio', (ulaw) => enqueueProviderAudio(ulaw));
     provider.on('interrupt', () => flushProviderAudio());
-    provider.on('transfer', (done) => {
+    provider.on('transfer', (args, done) => {
       // The transfer replaces the running attach; DialStack then closes this
       // media socket, which ends the session.
-      const target = process.env.TRANSFER_TARGET;
-      if (!target) {
-        log.warn('agent asked for a transfer but TRANSFER_TARGET is not set');
-        done(new Error('TRANSFER_TARGET is not set'));
+      const resolved = resolveTransferTarget(args, process.env);
+      if ('error' in resolved) {
+        // Only the extension: the other arguments are model-written from what
+        // the caller said, which stays out of the logs (see LOG_TRANSCRIPTS).
+        log.warn({ extension: args.extension, reason: resolved.error.message }, 'transfer refused');
+        done(resolved.error);
         return;
       }
+      const { target } = resolved;
       log.info({ target }, 'transferring the caller');
       transfer(begin.call_id, call.accountId, target).then(
         () => done(),

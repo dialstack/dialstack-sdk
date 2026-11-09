@@ -19,6 +19,7 @@ import { mulawToPcm16, pcm16ToMulaw } from '../audio/mulaw.js';
 import { downsample16kTo8k, pcm16ToBuffer, upsample8kTo16k } from '../audio/resample.js';
 import { logger } from '../logger.js';
 import type { CallInfo, VoiceProvider } from './provider.js';
+import { agentTransferError, parseToolArgs } from '../transfer-target.js';
 
 export interface ElevenLabsOptions {
   apiKey: string;
@@ -223,7 +224,13 @@ export class ElevenLabsProvider extends EventEmitter implements VoiceProvider {
         // A client tool named `transfer_to_human` on the agent hands the call
         // to DialStack's `transfer` action. Other client tools aren't handled.
         const call = msg.client_tool_call as
-          { tool_name?: string; tool_call_id?: string; expects_response?: boolean } | undefined;
+          | {
+              tool_name?: string;
+              tool_call_id?: string;
+              parameters?: unknown;
+              expects_response?: boolean;
+            }
+          | undefined;
         const reply = (result: string, isError: boolean): void => {
           if (call?.expects_response === false || !call?.tool_call_id) return;
           this.ws?.send(
@@ -242,12 +249,9 @@ export class ElevenLabsProvider extends EventEmitter implements VoiceProvider {
         }
         // Answer only once DialStack has accepted the transfer, so a rejected
         // one doesn't leave the agent promising a hand-off that won't happen.
-        this.emit('transfer', (err?: Error) =>
+        this.emit('transfer', parseToolArgs(call.parameters), (err?: Error) =>
           err
-            ? reply(
-                'The transfer could not be placed. Apologise and keep helping the caller.',
-                true
-              )
+            ? reply(agentTransferError(err), true)
             : reply('Transferring the caller.', false)
         );
         return;

@@ -12,15 +12,21 @@ interface CallerDetails {
   toNumber: string;
 }
 
-const pending = new Map<string, CallerDetails>();
+// Each entry owns its expiry, so remembering a call again (attaching its
+// agent a second time) is never cut short by the earlier entry's timer.
+const pending = new Map<string, { details: CallerDetails; expiry: NodeJS.Timeout }>();
 
 export function rememberCall(callId: string, details: CallerDetails): void {
-  pending.set(callId, details);
-  setTimeout(() => pending.delete(callId), TTL_MS).unref();
+  clearTimeout(pending.get(callId)?.expiry);
+  const expiry = setTimeout(() => pending.delete(callId), TTL_MS);
+  expiry.unref?.();
+  pending.set(callId, { details, expiry });
 }
 
 export function takeCall(callId: string): CallerDetails | undefined {
-  const details = pending.get(callId);
+  const entry = pending.get(callId);
+  if (!entry) return undefined;
+  clearTimeout(entry.expiry);
   pending.delete(callId);
-  return details;
+  return entry.details;
 }

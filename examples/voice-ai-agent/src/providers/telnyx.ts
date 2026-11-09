@@ -14,6 +14,9 @@
 //     makes the session drop agent audio still queued for the caller.
 //   • The caller's numbers go in the first `session.update` as dynamic
 //     variables; a client-side tool named `transfer_to_human` emits `transfer`.
+//   • Each finished turn is emitted as `transcript` (the caller's from its
+//     transcription, the agent's assembled from its deltas), and `sendText`
+//     adds a user text turn, which the assistant answers like a spoken one.
 //
 // Reference:
 //   https://developers.telnyx.com/api-reference/websockets/talk-to-an-ai-assistant-over-websocket
@@ -24,6 +27,7 @@ import { mulawToPcm16, pcm16ToMulaw } from '../audio/mulaw.js';
 import { bufferToPcm16, Downsampler8k, pcm16ToBuffer } from '../audio/resample.js';
 import { logger } from '../logger.js';
 import type { CallInfo, VoiceProvider } from './provider.js';
+import { agentTransferError, parseToolArgs } from '../transfer-target.js';
 
 export interface TelnyxOptions {
   apiKey: string;
@@ -51,6 +55,8 @@ export class TelnyxProvider extends EventEmitter implements VoiceProvider {
   private interruptedResponseId?: string;
   // A delta can end mid-sample; carry the odd byte so later samples stay aligned.
   private pendingByte?: Buffer;
+  // The agent's words for the response in progress, from its transcript deltas.
+  private agentText = '';
   private sessionResolve?: () => void;
   private sessionReject?: (err: Error) => void;
 
@@ -104,7 +110,7 @@ export class TelnyxProvider extends EventEmitter implements VoiceProvider {
                 },
               },
             },
-          }),
+          })
         );
       });
       ws.once('error', reject);
@@ -115,11 +121,33 @@ export class TelnyxProvider extends EventEmitter implements VoiceProvider {
     // Hold audio until session.created; the server rejects it before then.
     if (this.ws?.readyState !== WebSocket.OPEN || this.outputRate === undefined) return;
     const pcm = pcm16ToBuffer(mulawToPcm16(ulaw));
-    this.ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: pcm.toString('base64') }));
+    this.ws.send(
+      JSON.stringify({ type: 'input_audio_buffer.append', audio: pcm.toString('base64') })
+    );
+  }
+
+  /**
+   * Add a user text turn and ask the assistant to answer it. Dropped before
+   * session.created, so it can't overtake the session.update.
+   */
+  sendText(text: string): void {
+    if (this.ws?.readyState !== WebSocket.OPEN || this.outputRate === undefined) return;
+    this.ws.send(
+      JSON.stringify({
+        type: 'conversation.item.create',
+        item: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] },
+      })
+    );
+    this.ws.send(JSON.stringify({ type: 'response.create' }));
   }
 
   close(): void {
     this.ws?.close();
+  }
+
+  private turn(role: 'caller' | 'agent', text: string): void {
+    const t = text.trim();
+    if (t) this.emit('transcript', role, t);
   }
 
   private handleMessage(text: string): void {
@@ -144,7 +172,7 @@ export class TelnyxProvider extends EventEmitter implements VoiceProvider {
         this.downsampler = new Downsampler8k(rate);
         this.log.info(
           { conversationId: session?.conversation_id, outputRate: rate },
-          'assistant ready',
+          'assistant ready'
         );
         this.sessionResolve?.();
         this.sessionResolve = this.sessionReject = undefined;
@@ -155,10 +183,17 @@ export class TelnyxProvider extends EventEmitter implements VoiceProvider {
         const response = msg.response as { id?: string } | undefined;
         this.currentResponseId = response?.id;
         this.pendingByte = undefined;
+        this.agentText = '';
         return;
       }
 
       case 'response.done':
+        // A late done for an interrupted response must not end the current one.
+        if ((msg.response as { id?: string } | undefined)?.id !== this.currentResponseId) return;
+        // A cancelled response (barge-in) is reported as far as it was
+        // generated, which can run ahead of what the caller actually heard.
+        this.turn('agent', this.agentText);
+        this.agentText = '';
         this.currentResponseId = undefined;
         return;
 
@@ -198,9 +233,15 @@ export class TelnyxProvider extends EventEmitter implements VoiceProvider {
       }
 
       case 'conversation.item.input_audio_transcription.completed':
-      case 'response.output_audio_transcript.delta':
         // Gated behind LOG_TRANSCRIPTS=true — these bodies carry PII.
         if (process.env.LOG_TRANSCRIPTS === 'true') this.log.debug({ msg }, type);
+        if (typeof msg.transcript === 'string') this.turn('caller', msg.transcript);
+        return;
+
+      case 'response.output_audio_transcript.delta':
+        if (process.env.LOG_TRANSCRIPTS === 'true') this.log.debug({ msg }, type);
+        if (msg.response_id !== this.currentResponseId) return;
+        if (typeof msg.delta === 'string') this.agentText += msg.delta;
         return;
 
       default:
@@ -208,14 +249,14 @@ export class TelnyxProvider extends EventEmitter implements VoiceProvider {
     }
   }
 
-  private handleFunctionCall(item: { call_id?: string; name?: string }): void {
+  private handleFunctionCall(item: { call_id?: string; name?: string; arguments?: unknown }): void {
     const reply = (output: string): void => {
       if (!item.call_id) return;
       this.ws?.send(
         JSON.stringify({
           type: 'conversation.item.create',
           item: { type: 'function_call_output', call_id: item.call_id, output },
-        }),
+        })
       );
     };
     if (item.name !== TRANSFER_TOOL) {
@@ -225,14 +266,14 @@ export class TelnyxProvider extends EventEmitter implements VoiceProvider {
     }
     // Answer only once DialStack has accepted the transfer, so a rejected
     // one doesn't leave the assistant promising a hand-off that won't happen.
-    this.emit('transfer', (err?: Error) =>
+    this.emit('transfer', parseToolArgs(item.arguments), (err?: Error) =>
       reply(
         JSON.stringify(
           err
-            ? { error: 'The transfer could not be placed. Apologise and keep helping the caller.' }
-            : { result: 'Transferring the caller.' },
-        ),
-      ),
+            ? { error: agentTransferError(err) }
+            : { result: 'Transferring the caller.' }
+        )
+      )
     );
   }
 

@@ -82,13 +82,14 @@ Then call the DID assigned to your Voice App. You should hear the agent answer; 
 
 All settings come from environment variables — see [`.env.example`](./.env.example) for the full list with comments. The non-obvious ones:
 
-| Var                         | Notes                                                                                                                                                                                                               |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PUBLIC_URL`                | The HTTPS URL where this server is reachable from the public internet. The webhook handler derives the `wss://.../media` URL from this.                                                                             |
-| `VOICE_APP_WEBHOOK_SECRET`  | The HMAC secret DialStack uses to sign webhook payloads. Set when you create the Voice App.                                                                                                                         |
-| `GOOGLE_GENAI_USE_VERTEXAI` | `true` to route Gemini through Vertex AI (requires `GOOGLE_CLOUD_PROJECT` and ADC). Unset or `false` uses the AI Studio API and `GEMINI_API_KEY`.                                                                   |
-| `TRANSFER_TARGET`           | Where to transfer the caller when an ElevenLabs agent or Telnyx assistant calls its `transfer_to_human` client tool: an extension, an E.164 number or a `sip:` URI. Unset, the tool call is answered with an error. |
-| `LOG_TRANSCRIPTS`           | Set to `true` to log caller and agent transcript text at debug level. **Off by default** — transcripts contain PII (names, account numbers, addresses). Only enable in controlled environments.                     |
+| Var                         | Notes                                                                                                                                                                                                                                                                                                     |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PUBLIC_URL`                | The HTTPS URL where this server is reachable from the public internet. The webhook handler derives the `wss://.../media` URL from this.                                                                                                                                                                   |
+| `VOICE_APP_WEBHOOK_SECRET`  | The HMAC secret DialStack uses to sign webhook payloads. Set when you create the Voice App.                                                                                                                                                                                                               |
+| `GOOGLE_GENAI_USE_VERTEXAI` | `true` to route Gemini through Vertex AI (requires `GOOGLE_CLOUD_PROJECT` and ADC). Unset or `false` uses the AI Studio API and `GEMINI_API_KEY`.                                                                                                                                                         |
+| `TRANSFER_TARGET`           | Where to transfer the caller when an ElevenLabs agent or Telnyx assistant calls its `transfer_to_human` client tool: an extension, an E.164 number or a `sip:` URI. Unset, the tool call is answered with an error.                                                                                       |
+| `TRANSFER_EXTENSIONS`       | Extensions the agent may name in the tool's optional `extension` argument, as `ext:Name` pairs (`1001:Sales,1002:Support`). A named extension that isn't listed is refused, and the agent is told the listed ones by name so it can ask the caller again; with no `extension`, `TRANSFER_TARGET` is used. |
+| `LOG_TRANSCRIPTS`           | Set to `true` to log caller and agent transcript text at debug level. **Off by default** — transcripts contain PII (names, account numbers, addresses). Only enable in controlled environments.                                                                                                           |
 
 ## Layout
 
@@ -118,7 +119,7 @@ src/
 - Set both audio formats on the agent to **μ-law 8000 Hz**: the input format (`asr.user_input_audio_format`) and the output format (`tts.agent_output_audio_format`). Neither is a per-conversation override, so the example sends no override and needs none enabled. It reads the formats from `conversation_initiation_metadata`: `ulaw_8000` is passed through, `pcm_16000` is transcoded, and any other format fails the call with an error log.
 - On an `interruption` event, ElevenLabs has already abandoned the agent's response, so the example drops the audio still queued for the caller and ignores late audio events of that response (lower `event_id`). If echo on the caller's line triggers interruptions, tune the agent's turn settings in ElevenLabs.
 - The caller's and called numbers are sent as the dynamic variables `caller_number` and `called_number`. Reference them in the agent's prompt or first message as `{{caller_number}}`.
-- To let the agent hand the caller to a person, add a **client tool** named `transfer_to_human` to the agent. When the agent calls it, the example issues a DialStack `transfer` action to `TRANSFER_TARGET`. It does not use ElevenLabs' own transfer tools, which act on calls ElevenLabs carries itself.
+- To let the agent hand the caller to a person, add a **client tool** named `transfer_to_human` to the agent. When the agent calls it, the example issues a DialStack `transfer` action to `TRANSFER_TARGET`, or to the `extension` the agent names if it is in `TRANSFER_EXTENSIONS`. It does not use ElevenLabs' own transfer tools, which act on calls ElevenLabs carries itself.
 - The connection uses a signed URL fetched with `ELEVENLABS_API_KEY`. A `401` from `get-signed-url` means a bad key or one without `convai_write`, a `404` a bad `ELEVENLABS_AGENT_ID`.
 
 ### Gemini Live
@@ -141,7 +142,7 @@ src/
 - Barge-in: `input_audio_buffer.speech_started` drops any agent audio still queued for the caller. (Gemini's interruption signal also fires on echo, so it is only logged.)
 - Greeting, prompt, voice and tools are all configured on the assistant in Telnyx; the example sends no instructions.
 - The caller's and called numbers are sent in the first `session.update` as the dynamic variables `caller_number` and `called_number`. Reference them in the assistant's instructions or greeting as `{{caller_number}}`.
-- To let the assistant hand the caller to a person, add a **client-side tool** named `transfer_to_human` to the assistant. When the assistant calls it, the example issues a DialStack `transfer` action to `TRANSFER_TARGET`.
+- To let the assistant hand the caller to a person, add a **client-side tool** named `transfer_to_human` to the assistant. When the assistant calls it, the example issues a DialStack `transfer` action to `TRANSFER_TARGET`, or to the `extension` the assistant names if it is in `TRANSFER_EXTENSIONS`.
 
 ## Audio plumbing notes
 
