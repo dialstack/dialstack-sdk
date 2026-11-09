@@ -5,6 +5,113 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.10.0](https://github.com/dialstack/dialstack-sdk/compare/v3.9.0...v3.10.0) (2026-11-09)
+
+### Features
+
+- **webrtc:** Calls stay up through a dropped signalling socket. While the
+  phone resumes its session, `call.isReconnecting` is true and the call emits
+  `reconnecting`, then `reconnected`. Mute and hang-up take effect locally at
+  once and reach the server on the resume; hold, resume and transfer throw
+  `transport_closed` until the call is back. The softphone shows
+  "Reconnecting…" and disables those buttons meanwhile.
+- **webrtc:** Calls restart ICE by themselves when the network changes under
+  them (ICE failed, stuck disconnected, or media down after a resume).
+  `call.restartIce()` is public for hosts that learn of a network change
+  first.
+- **webrtc:** `rebindEmergencyAddress(id, { anchor })` binds an emergency
+  address on the open connection, keeping calls in progress up, and resolves
+  with the verdict. Pass `anchor: true` when the user has just confirmed or
+  created the address, to confirm it for the current network. The softphone
+  now binds this way and never drops a call to bind E911.
+  `reconnectWithEmergency` is deprecated.
+- **react/softphone:** Outbound calls are named after the directory contact
+  they dialled. When the host's `directory` replaces the account's users,
+  calls are still named after those users, fetched names-only on the first
+  call nothing else names; `useAccountNames` exposes that lookup.
+  `accountDirectory: false` keeps the account out of call naming.
+- **react/softphone:** Numbers in the directory, dial matches and call views
+  are formatted through `displayNumber`; the view props interfaces
+  (`DialPadViewProps`, `DialPanelViewProps`, `DialMatchesViewProps`,
+  `DirectoryPickerViewProps`, `OngoingCallViewProps`) take it.
+- **react/onboarding:** Toll-free numbers can be ported in the onboarding
+  portal. Portability is checked before porting, a toll-free order is split by
+  provider automatically, and an order whose numbers span carriers is refused
+  with the numbers to move to a separate order marked.
+  `CreatePortOrderRequest.subscriber` accepts a `TollFreePortOrderSubscriber`,
+  and `NonPortableNumber` reasons gain `unassigned`. New locale keys are
+  optional, so a custom locale written for 3.9.0 still compiles.
+- **react/onboarding:** Team members: email is optional, and a blank
+  extension is assigned automatically.
+- **react/onboarding:** Business details no longer ask for a phone number.
+  The account `phone` field is deprecated: it reads `""` and the API ignores
+  it on write.
+- **react/dial-plan:** The External Number node can choose the caller ID a
+  forwarded call presents: the original caller, the number the call came in
+  on, or a specific account number (`caller_id`, `caller_id_did`,
+  `CallerIdChoice`). Voice-app transfers take the same choice.
+- Hardware ordering for an account: `hardwareOrders.create`, `update`, `del`
+  and `shippingQuotes.create` / `retrieve` draft an order, and
+  `hardwareCatalog.list()` lists what the account can order, with bundle
+  `components`.
+- Hardware orders carry `shipped_at`, and each unit `fulfilled`. An order can
+  be `cancelled`, with `cancel_reason` and `cancelled_at`. A quote carries
+  `backorder_terms`, the statement to show and accept when parts are on
+  temporary backorder.
+- Hardware order lines carry `sell_unit_price_cents` and `sell_amount_cents`;
+  `unit_price_cents` and `amount_cents` are deprecated.
+- `devices.retrieveZeroTouch(id)` reads a deskphone's or DECT base's live
+  zero-touch status from its manufacturer, and passing it to
+  `deviceReadiness` adds the `redirectEnabled` and `contacted` steps. Poly
+  deskphones are covered; their contacts carry a `null` `status_code` and
+  `path`.
+- A materialized button can be `requires_expansion_module`, and models report
+  `max_expansion_position`, for buttons placed past the phone's own keys onto
+  a sidecar.
+- **server:** `acceptTos` takes `tos_variant` to move an account onto a
+  different agreement as it signs, and `retrieveTos` takes it to preview that
+  agreement.
+- **server:** `testHelpers.calls.create` accepts `scenario.transfer_to`, to
+  simulate the answering user blind-transferring the caller.
+
+### Bug Fixes
+
+- **webrtc:** ICE restarts stay in order and no longer latch, generations are
+  told apart by ufrag, and a restart's offer waits out a late completion from
+  the previous generation. Session resume works within the window after a
+  long outage, with its retry backoff capped at 2 s.
+- **webrtc:** Gathering waits for a complete candidate set unless the far end
+  trickles.
+- **webrtc:** Re-INVITE handling follows RFC 3261, 6026, 6141 and 8839:
+  target refresh, CANCEL on timeout, glare back-off, and ending the call on a
+  481 or 408.
+- **webrtc:** The far end putting the call on hold no longer emits `held`;
+  the call stays `active`, and `held` reports only a local hold.
+- **webrtc:** A mute the server lost is resent, and a hang-up made during a
+  drop is delivered. Sockets close with code 1000.
+- **webrtc:** A denied E911 submit is rejected, and a rebind whose send throws
+  settles.
+- **react/softphone:** Call naming: `resolvePeer` is asked again when a call's
+  remote number changes; a host label names every extension of that user; a
+  host contact can name a number an account user also has; directory names
+  match in the provider's `defaultCountry`; a failed account-names fetch is
+  retried, and refetched after a reconnect, while a call is still unnamed.
+- **react/softphone:** Feature codes show their leading `*` or `#`.
+- **react/onboarding:** The requested port date defaults to a weekday, and a
+  weekend date is refused.
+- **react/onboarding:** Business details edit the account's main location.
+- **react/onboarding:** Adding a team member says no extension is free instead
+  of "Extension is required".
+- **react/dial-plan:** The config panel opens without motion when reduced
+  motion is preferred.
+- An instance opens one event stream, and a resume no longer races a replaced
+  connection.
+
+### Performance
+
+- **react/softphone:** Directory labels are indexed once per directory rather
+  than on every render.
+
 ## [3.9.0](https://github.com/dialstack/dialstack-sdk/compare/v3.8.0...v3.9.0) (2026-11-02)
 
 ### Features
