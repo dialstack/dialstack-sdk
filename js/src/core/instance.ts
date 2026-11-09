@@ -92,6 +92,7 @@ export type { RoutingTargetType } from '../types';
 export { ROUTING_TARGET_TYPE_ORDER } from '../types';
 import type { DialPlan as DialPlanData } from '../types/dial-plan';
 import { CLIENT_HEADER, ClientInfo } from './client-info';
+import { appendSentimentFilters } from '../utils/call-filters';
 import { PACKAGE_VERSION } from '../version';
 import type { AIAgent, UpdateAIAgentRequest } from '../types/ai-agent';
 import type {
@@ -182,6 +183,31 @@ async function extractApiError(
     // Not JSON — fall through to the raw text.
     return { message: `${fallback} ${text}` };
   }
+}
+
+/** One value as `name`, several as `name[]`. */
+function appendOneOrMany(query: URLSearchParams, name: string, value?: string | string[]) {
+  if (Array.isArray(value)) {
+    for (const v of value) query.append(`${name}[]`, v);
+  } else if (value) {
+    query.set(name, value);
+  }
+}
+
+/** `GET /v1/calls` filters. */
+function appendCallFilters(query: URLSearchParams, params?: CallListParams) {
+  if (params?.user_id) query.set('user_id', params.user_id);
+  if (params?.did) query.set('did', params.did);
+  if (params?.direction) query.set('direction', params.direction);
+  appendOneOrMany(query, 'status', params?.status);
+  if (params?.remote_number) query.set('remote_number', params.remote_number);
+  if (params?.connected !== undefined) query.set('connected', String(params.connected));
+  appendOneOrMany(query, 'from_number', params?.from_number);
+  appendOneOrMany(query, 'to_number', params?.to_number);
+  if (params?.search) query.set('search', params.search);
+  if (params?.from_date) query.set('from_date', params.from_date);
+  if (params?.to_date) query.set('to_date', params.to_date);
+  appendSentimentFilters(query, params);
 }
 
 const DEFAULT_API_URL = 'https://api.dialstack.ai';
@@ -575,15 +601,7 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       const query = new URLSearchParams();
       if (params?.limit) query.set('limit', String(params.limit));
       if (params?.page) query.set('page', params.page);
-      if (params?.user_id) query.set('user_id', params.user_id);
-      if (params?.did) query.set('did', params.did);
-      if (params?.direction) query.set('direction', params.direction);
-      if (params?.status) query.set('status', params.status);
-      if (params?.from_number) query.set('from_number', params.from_number);
-      if (params?.to_number) query.set('to_number', params.to_number);
-      if (params?.search) query.set('search', params.search);
-      if (params?.from_date) query.set('from_date', params.from_date);
-      if (params?.to_date) query.set('to_date', params.to_date);
+      appendCallFilters(query, params);
       for (const field of params?.expand ?? []) query.append('expand[]', field);
 
       const queryString = query.toString();

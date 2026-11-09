@@ -35,3 +35,10 @@ export const DarkTheme: Story = {
 export const Empty: Story = {
   args: { _empty: true },
 };
+
+// A host can preset sentiment conditions, e.g. a dashboard linking to the
+// inbound calls whose other party read negative. They show as a count on the
+// Sentiment button.
+export const PresetSentimentFilter: Story = {
+  args: { filters: { direction: 'inbound', remote_sentiment: 'negative' } },
+};

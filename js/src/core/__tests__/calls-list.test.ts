@@ -38,6 +38,24 @@ describe('calls.list', () => {
     });
   });
 
+  it('sends sentiment labels flat and each range bound as its own bracket pair', async () => {
+    const { instance, paths } = recordingInstance();
+    await instance.calls.list({
+      remote_sentiment: 'negative',
+      remote_sentiment_score: { gte: -1, lte: -0.5 },
+      local_sentiment_magnitude: { gt: 0.2 },
+      sentiment_score: {},
+    });
+
+    const query = new URLSearchParams(paths[0]?.split('?')[1]);
+    expect(Object.fromEntries(query)).toEqual({
+      remote_sentiment: 'negative',
+      'remote_sentiment_score[gte]': '-1',
+      'remote_sentiment_score[lte]': '-0.5',
+      'local_sentiment_magnitude[gt]': '0.2',
+    });
+  });
+
   // The endpoint pages by an opaque token only; a bare starting_after id is
   // ignored and returns the first page again.
   it('pages with the token from a page URL', async () => {
@@ -47,8 +65,6 @@ describe('calls.list', () => {
   });
 });
 
-// These endpoints page the same way, so a bare cursor would silently return the
-// first page again and a page-until-done loop would never finish.
 describe('button-template list methods', () => {
   it.each([
     [
@@ -78,5 +94,36 @@ describe('button-template list methods', () => {
     expect(query.get('page')).toBe('tok');
     expect(query.has('starting_after')).toBe(false);
     expect(query.has('ending_before')).toBe(false);
+  });
+});
+
+describe('calls: party and connection filters', () => {
+  it('sends several statuses as status[] and the party filters flat', async () => {
+    const { instance, paths } = recordingInstance();
+    await instance.calls.list({
+      direction: 'inbound',
+      status: ['no-answer', 'voicemail'],
+      remote_number: '+14155550142',
+      connected: false,
+    });
+
+    const query = new URLSearchParams(paths[0]?.split('?')[1]);
+    expect(query.getAll('status[]')).toEqual(['no-answer', 'voicemail']);
+    expect(query.get('status')).toBeNull();
+    expect(query.get('remote_number')).toBe('+14155550142');
+    expect(query.get('connected')).toBe('false');
+  });
+
+  it('sends several numbers as from_number[] and one as to_number', async () => {
+    const { instance, paths } = recordingInstance();
+    await instance.calls.list({
+      from_number: ['+14155550142', '+14155550143'],
+      to_number: '+14155550144',
+    });
+
+    const query = new URLSearchParams(paths[0]?.split('?')[1]);
+    expect(query.getAll('from_number[]')).toEqual(['+14155550142', '+14155550143']);
+    expect(query.get('from_number')).toBeNull();
+    expect(query.get('to_number')).toBe('+14155550144');
   });
 });

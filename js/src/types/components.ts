@@ -114,6 +114,14 @@ export interface CallLogDisplayOptions {
   showQuality?: boolean;
 
   /**
+   * Show the sentiment column: the call's overall sentiment, with each side's
+   * in its tooltip. Shown whenever the toolbar's sentiment filter is, so a
+   * filtered list shows what it was filtered on.
+   * @default true
+   */
+  showSentiment?: boolean;
+
+  /**
    * Show the search and filter toolbar above the table. When hidden, the list
    * covers all history unless a date range is set.
    * @default true
@@ -128,24 +136,74 @@ export interface CallLogDisplayOptions {
 export type CallLogDatePreset = '7d' | '30d' | '90d' | 'all' | 'custom';
 
 /**
+ * Bounds on a numeric field. Each bound is optional and they combine, so
+ * `{ gte: -1, lt: -0.5 }` is a half-open interval.
+ */
+export interface RangeFilter {
+  gt?: number;
+  gte?: number;
+  lt?: number;
+  lte?: number;
+}
+
+/**
+ * Sentiment conditions accepted by `GET /v1/calls`.
+ *
+ * `sentiment` reads the call's overall verdict, `local_*` your user's side and
+ * `remote_*` the other party's. Every condition requires the field it reads, so
+ * a `remote_*` filter excludes calls with no reading for the other party.
+ * Conditions combine with each other and with the other filters.
+ */
+export interface SentimentFilters {
+  sentiment?: SentimentLabel;
+  /** Overall score, -1.0 to +1.0 */
+  sentiment_score?: RangeFilter;
+  /** Overall magnitude, 0.0 to 1.0 */
+  sentiment_magnitude?: RangeFilter;
+  local_sentiment?: SentimentLabel;
+  local_sentiment_score?: RangeFilter;
+  local_sentiment_magnitude?: RangeFilter;
+  remote_sentiment?: SentimentLabel;
+  remote_sentiment_score?: RangeFilter;
+  remote_sentiment_magnitude?: RangeFilter;
+}
+
+/**
  * Filters applied by the CallLogs toolbar, also settable by the host.
  */
-export interface CallLogFilters {
+export interface CallLogFilters extends SentimentFilters {
   /** Free-text match on either party's name or number */
   search?: string;
   direction?: 'inbound' | 'outbound' | 'internal';
   status?: 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
   /**
+   * Only calls with this external party, in any spelling. The toolbar has no
+   * control for it: a host sets it to show one caller's calls.
+   */
+  remote_number?: string;
+  /**
+   * Whether a party connected. Host-set like `remote_number`; with
+   * `status: 'completed'` and `false` it lists callers who hung up in a menu
+   * or a queue.
+   */
+  connected?: boolean;
+  /**
    * Date window.
    * @default '30d' while the toolbar is shown, otherwise 'all'
    */
   datePreset?: Exclude<CallLogDatePreset, 'custom'>;
+  /**
+   * A custom window picked in the toolbar, as inclusive ISO 8601 bounds (the
+   * start of the first day and the end of the last, in the viewer's time
+   * zone). Set, it replaces `datePreset`; either bound may be open.
+   */
+  dateRange?: { start?: string; end?: string };
 }
 
 /**
  * Query parameters for `calls.list`. Mirrors `GET /v1/calls`.
  */
-export interface CallListParams {
+export interface CallListParams extends SentimentFilters {
   limit?: number;
   /**
    * Opaque cursor for another page, taken from the `page` parameter of a
@@ -157,11 +215,22 @@ export interface CallListParams {
   /** The phone number (DID) associated with the call, by its id */
   did?: string;
   direction?: 'inbound' | 'outbound' | 'internal';
-  status?: 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
-  /** Exact match on the caller's number */
-  from_number?: string;
-  /** Exact match on the dialed number or the routed destination */
-  to_number?: string;
+  /** One status, or any of several */
+  status?: CallStatus | CallStatus[];
+  /**
+   * Only calls with this external party (the caller on an inbound call, the
+   * number dialed on an outbound one), in any spelling.
+   */
+  remote_number?: string;
+  /**
+   * Whether a party connected. A call the platform answered only for a menu,
+   * a greeting, hold music or a voicemail is completed but not connected.
+   */
+  connected?: boolean;
+  /** The caller's number, or any of several, in any spelling */
+  from_number?: string | string[];
+  /** The dialed number or the routed destination, or any of several */
+  to_number?: string | string[];
   /** Free-text match on either party's name or number */
   search?: string;
   /** ISO 8601; calls started on or after */
@@ -170,6 +239,9 @@ export interface CallListParams {
   to_date?: string;
   expand?: Array<'did'>;
 }
+
+/** A call's final status. */
+export type CallStatus = 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
 
 /**
  * Display options for CallHistory component

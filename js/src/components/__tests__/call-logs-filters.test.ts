@@ -53,10 +53,23 @@ const lastParams = (list: jest.Mock) => list.mock.calls[list.mock.calls.length -
 const daysAgo = (iso: string) => (Date.now() - Date.parse(iso)) / (24 * 60 * 60 * 1000);
 
 function select(el: CallLogsEl, id: string, value: string) {
+  if (id === 'filter-date') {
+    pickDate(el, value);
+    return;
+  }
   const s = el.shadowRoot.getElementById(id) as HTMLSelectElement;
   s.value = value;
   s.dispatchEvent(new Event('change'));
 }
+
+// The date filter is a button opening a panel of presets and a custom range.
+function pickDate(el: CallLogsEl, preset: string) {
+  (el.shadowRoot.getElementById('filter-date') as HTMLButtonElement).click();
+  (el.shadowRoot.querySelector(`[data-preset="${preset}"]`) as HTMLButtonElement).click();
+}
+
+const dateShown = (el: CallLogsEl) =>
+  el.shadowRoot.getElementById('filter-date')?.textContent?.trim();
 
 afterEach(() => {
   document.body.innerHTML = '';
@@ -73,7 +86,7 @@ describe('CallLogsComponent filters', () => {
     expect(params.expand).toEqual(['did']);
     expect(daysAgo(params.from_date)).toBeCloseTo(30, 1);
     expect(params.search).toBeUndefined();
-    expect(el.shadowRoot.getElementById('filter-date')).toHaveProperty('value', '30d');
+    expect(dateShown(el)).toBe('Last 30 days');
   });
 
   it('covers all history when the toolbar is hidden, since nothing could widen it', async () => {
@@ -130,7 +143,7 @@ describe('CallLogsComponent filters', () => {
     await flush();
 
     expect(lastParams(list).from_date).toBe('2026-01-01T00:00:00Z');
-    expect(el.shadowRoot.getElementById('filter-date')).toHaveProperty('value', 'custom');
+    expect(dateShown(el)).not.toMatch(/^Last|^All time/);
   });
 
   it('pages through the typed list method with the token from next_page_url', async () => {
@@ -177,7 +190,7 @@ describe('CallLogsComponent filters', () => {
     el.setDateRange({ start: '2026-01-01T00:00:00Z' });
     await flush();
     expect(list).not.toHaveBeenCalled();
-    expect(el.shadowRoot.getElementById('filter-date')).toHaveProperty('value', '7d');
+    expect(dateShown(el)).toBe('Last 7 days');
   });
 
   it('debounces search and reports the change to the host', async () => {
@@ -271,7 +284,7 @@ describe('CallLogsComponent filters', () => {
       from_date: '2026-01-01T00:00:00Z',
       to_date: '2026-02-01T00:00:00Z',
     });
-    expect(el.shadowRoot.getElementById('filter-date')).toHaveProperty('value', 'custom');
+    expect(dateShown(el)).not.toMatch(/^Last|^All time/);
 
     select(el, 'filter-date', '7d');
     await flush();
@@ -324,5 +337,127 @@ describe('CallLogsComponent filters', () => {
     el.setFilters({ search: 'smith' });
     await flush();
     expect(list).not.toHaveBeenCalled();
+  });
+});
+
+describe('CallLogsComponent date range picker', () => {
+  it('applies a custom range as whole local days and reports it', async () => {
+    const { el, list } = setup();
+    const onChange = jest.fn();
+    (el as unknown as { setOnFiltersChange: (cb: unknown) => void }).setOnFiltersChange(onChange);
+    document.body.appendChild(el);
+    await flush();
+
+    (el.shadowRoot.getElementById('filter-date') as HTMLButtonElement).click();
+    const from = el.shadowRoot.getElementById('date-from') as HTMLInputElement;
+    const to = el.shadowRoot.getElementById('date-to') as HTMLInputElement;
+    from.value = '2026-11-01';
+    from.dispatchEvent(new Event('input', { bubbles: true }));
+    to.value = '2026-11-03';
+    to.dispatchEvent(new Event('input', { bubbles: true }));
+    (el.shadowRoot.getElementById('date-apply') as HTMLButtonElement).click();
+    await flush();
+
+    const start = new Date('2026-11-01T00:00:00').toISOString();
+    const end = new Date('2026-11-03T23:59:59.999').toISOString();
+    expect(lastParams(list)).toMatchObject({ from_date: start, to_date: end });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ dateRange: { start, end } })
+    );
+    expect(onChange.mock.calls.at(-1)[0].datePreset).toBeUndefined();
+    expect(dateShown(el)).toBe('Nov 1 – Nov 3');
+    expect(el.shadowRoot.getElementById('filter-date')!.classList.contains('is-active')).toBe(true);
+  });
+
+  it('refuses a start after the end, and leaves the list alone', async () => {
+    const { el, list } = setup();
+    document.body.appendChild(el);
+    await flush();
+    const calls = list.mock.calls.length;
+
+    (el.shadowRoot.getElementById('filter-date') as HTMLButtonElement).click();
+    const from = el.shadowRoot.getElementById('date-from') as HTMLInputElement;
+    const to = el.shadowRoot.getElementById('date-to') as HTMLInputElement;
+    from.value = '2026-11-05';
+    from.dispatchEvent(new Event('input', { bubbles: true }));
+    to.value = '2026-11-01';
+    to.dispatchEvent(new Event('input', { bubbles: true }));
+    (el.shadowRoot.getElementById('date-apply') as HTMLButtonElement).click();
+    await flush();
+
+    expect(el.shadowRoot.querySelector('[part="date-error"]')).not.toBeNull();
+    expect(list.mock.calls.length).toBe(calls);
+
+    // Corrected, the range applies: the old error does not stick.
+    const toFixed = el.shadowRoot.getElementById('date-to') as HTMLInputElement;
+    toFixed.value = '2026-11-08';
+    toFixed.dispatchEvent(new Event('input', { bubbles: true }));
+    (el.shadowRoot.getElementById('date-apply') as HTMLButtonElement).click();
+    await flush();
+    expect(el.shadowRoot.querySelector('[part="date-error"]')).toBeNull();
+    expect(list.mock.calls.length).toBe(calls + 1);
+  });
+
+  it('keeps focus on the date button after a preset reloads the list', async () => {
+    const { el } = setup();
+    document.body.appendChild(el);
+    await flush();
+    pickDate(el, '7d');
+    await flush();
+    expect(el.shadowRoot.activeElement?.id).toBe('filter-date');
+  });
+
+  it('drops a host window when the host sets filters without one', async () => {
+    const { el, list } = setup();
+    document.body.appendChild(el);
+    await flush();
+    const set = (el as unknown as { setFilters: (f: unknown) => void }).setFilters.bind(el);
+    set({ dateRange: { start: '2026-11-01T04:00:00.000Z', end: '2026-11-04T04:59:59.999Z' } });
+    await flush();
+    expect(lastParams(list).to_date).toBe('2026-11-04T04:59:59.999Z');
+    set({ direction: 'inbound' });
+    await flush();
+    expect(lastParams(list).to_date).toBeUndefined();
+  });
+
+  it('closes on an outside press without replacing the control pressed', async () => {
+    const { el } = setup();
+    document.body.appendChild(el);
+    await flush();
+    (el.shadowRoot.getElementById('filter-date') as HTMLButtonElement).click();
+    const direction = el.shadowRoot.getElementById('filter-direction') as HTMLSelectElement;
+    direction.dispatchEvent(new Event('pointerdown', { bubbles: true, composed: true }));
+    expect(el.shadowRoot.getElementById('date-apply')).toBeNull();
+    expect(el.shadowRoot.getElementById('filter-date')?.getAttribute('aria-expanded')).toBe(
+      'false'
+    );
+    // The same element, still in the shadow root, so its click still lands.
+    expect(el.shadowRoot.getElementById('filter-direction')).toBe(direction);
+  });
+
+  it('closes an open panel when the host sets filters', async () => {
+    const { el } = setup();
+    document.body.appendChild(el);
+    await flush();
+    (el.shadowRoot.getElementById('filter-date') as HTMLButtonElement).click();
+    expect(el.shadowRoot.getElementById('date-apply')).not.toBeNull();
+    (el as unknown as { setFilters: (f: unknown) => void }).setFilters({ direction: 'inbound' });
+    expect(el.shadowRoot.getElementById('date-apply')).toBeNull();
+  });
+
+  it('a preset replaces a custom range', async () => {
+    const { el, list } = setup();
+    document.body.appendChild(el);
+    await flush();
+    (el as unknown as { setFilters: (f: unknown) => void }).setFilters({
+      dateRange: { start: '2026-11-01T04:00:00.000Z', end: '2026-11-04T04:59:59.999Z' },
+    });
+    await flush();
+    expect(lastParams(list).to_date).toBe('2026-11-04T04:59:59.999Z');
+
+    pickDate(el, '90d');
+    await flush();
+    expect(lastParams(list).to_date).toBeUndefined();
+    expect(daysAgo(lastParams(list).from_date)).toBeCloseTo(90, 1);
   });
 });

@@ -13,7 +13,17 @@ import type {
   CallLogFilters,
   CallLogRowRenderer,
   CallLogsClasses,
+  RangeFilter,
+  SentimentFilters,
+  SentimentLabel,
 } from '../types';
+import {
+  SENTIMENT_LABEL_KEYS,
+  SENTIMENT_RANGE_KEYS,
+  countSentimentConditions,
+  pickSentimentFilters,
+  sameSentimentFilters,
+} from '../utils/call-filters';
 
 const SEARCH_INPUT_ID = 'ds-call-logs-search';
 
@@ -25,6 +35,64 @@ const DATE_PRESET_DAYS: Record<'7d' | '30d' | '90d', number> = { '7d': 7, '30d':
 
 const DIRECTIONS = ['inbound', 'outbound', 'internal'] as const;
 const STATUSES = ['completed', 'no-answer', 'busy', 'failed', 'voicemail'] as const;
+
+// The API's quality tiers, so a call the quality summary counts as poor is the
+// one this badge marks poor.
+const MOS_GOOD = 4.0;
+const MOS_FAIR = 3.5;
+
+const SENTIMENT_LABELS = ['positive', 'neutral', 'negative'] as const;
+
+/**
+ * One section of the sentiment panel per side of the reading. The panel edits
+ * inclusive bounds only; `gt`/`lt` remain available to hosts and integrators.
+ */
+const SENTIMENT_SIDES = [
+  {
+    side: 'overall',
+    label: 'sentiment',
+    score: 'sentiment_score',
+    magnitude: 'sentiment_magnitude',
+  },
+  {
+    side: 'local',
+    label: 'local_sentiment',
+    score: 'local_sentiment_score',
+    magnitude: 'local_sentiment_magnitude',
+  },
+  {
+    side: 'remote',
+    label: 'remote_sentiment',
+    score: 'remote_sentiment_score',
+    magnitude: 'remote_sentiment_magnitude',
+  },
+] as const satisfies ReadonlyArray<{
+  side: string;
+  label: keyof SentimentFilters;
+  score: keyof SentimentFilters;
+  magnitude: keyof SentimentFilters;
+}>;
+
+const SCORE_BOUNDS = { min: -1, max: 1 };
+const MAGNITUDE_BOUNDS = { min: 0, max: 1 };
+
+const SENTIMENT_BUTTON_ID = 'filter-sentiment';
+const SENTIMENT_PANEL_ID = 'sentiment-panel';
+const DATE_BUTTON_ID = 'filter-date';
+const DATE_PANEL_ID = 'date-panel';
+const DATE_PRESETS: Exclude<CallLogDatePreset, 'custom'>[] = ['7d', '30d', '90d', 'all'];
+
+/** `YYYY-MM-DD` of a timestamp in the viewer's time zone, as a date input wants it. */
+function localDay(iso: string | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** Draft panel values, keyed by input id, as typed. */
+type SentimentDraft = Record<string, string>;
 
 /**
  * Where an entry sits in its conversation. `none` is a conversation of one
@@ -57,6 +125,15 @@ export class CallLogsComponent extends BaseComponent {
   // What the search field shows, ahead of the debounced filters.search.
   private searchText: string = '';
   private searchDebounce: ReturnType<typeof setTimeout> | null = null;
+  // The sentiment panel edits a draft; nothing reloads until Apply.
+  private sentimentOpen: boolean = false;
+  private dateOpen: boolean = false;
+  private dateDraft: { from: string; to: string } = { from: '', to: '' };
+  private dateError: string | null = null;
+  private sentimentDraft: SentimentDraft = {};
+  private sentimentError: string | null = null;
+  // Kept across re-renders, which rebuild the <details>.
+  private sentimentAdvancedOpen: boolean = false;
   // Responses can land out of order while filters change under them; only the
   // latest request may update the table.
   private requestSeq: number = 0;
@@ -82,6 +159,7 @@ export class CallLogsComponent extends BaseComponent {
     showDuration: true,
     showStatus: true,
     showQuality: true,
+    showSentiment: true,
     showFilters: true,
   };
 
@@ -279,8 +357,11 @@ export class CallLogsComponent extends BaseComponent {
       search: this.filters.search,
       direction: this.filters.direction,
       status: this.filters.status,
+      remote_number: this.filters.remote_number,
+      connected: this.filters.connected,
       from_date: fromDate,
       to_date: toDate,
+      ...pickSentimentFilters(this.filters),
     };
   }
 
@@ -337,12 +418,22 @@ export class CallLogsComponent extends BaseComponent {
    * clearing it would only narrow an empty list.
    */
   private hasActiveFilters(): boolean {
-    const { search, direction, status, datePreset } = this.filters;
+    const { search, direction, status, datePreset, dateRange, remote_number, connected } =
+      this.filters;
     const dateActive =
       datePreset !== undefined &&
       (this.hostDateRange !== undefined ||
         (datePreset !== this.defaultDatePreset() && datePreset !== 'all'));
-    return Boolean(search || direction || status || dateActive);
+    return Boolean(
+      search ||
+      direction ||
+      status ||
+      remote_number ||
+      connected !== undefined ||
+      dateActive ||
+      dateRange !== undefined ||
+      countSentimentConditions(this.filters) > 0
+    );
   }
 
   /**
@@ -350,14 +441,24 @@ export class CallLogsComponent extends BaseComponent {
    */
   private applyFilters(patch: CallLogFilters): void {
     this.filters = { ...this.filters, ...patch };
-    // Choosing a preset replaces a host-set custom range.
-    if ('datePreset' in patch) this.dateRange = undefined;
+    // A preset and a custom range replace each other, and either replaces a
+    // host-set range.
+    if (patch.datePreset) {
+      this.dateRange = undefined;
+      delete this.filters.dateRange;
+    }
+    if (patch.dateRange) {
+      this.dateRange = patch.dateRange;
+      delete this.filters.datePreset;
+    }
     this._onFiltersChange?.({ ...this.filters });
     this.loadData();
   }
 
   private clearFilters(): void {
     this.cancelSearchDebounce();
+    this.closeSentimentPanel();
+    this.closeDatePanel();
     this.filters = {};
     this.searchText = '';
     this.dateRange = this.hostDateRange;
@@ -370,7 +471,236 @@ export class CallLogsComponent extends BaseComponent {
     this.searchDebounce = null;
   }
 
+  // ============================================================================
+  // Sentiment panel
+  // ============================================================================
+
+  private openSentimentPanel(): void {
+    if (this.dateOpen) this.closeDatePanel();
+    this.sentimentDraft = this.draftFromFilters();
+    this.sentimentError = null;
+    this.sentimentOpen = true;
+    // Ranges stay tucked away unless one is already set, so a host-preset
+    // range is never hidden.
+    this.sentimentAdvancedOpen = Object.entries(this.sentimentDraft).some(
+      ([id, v]) => !id.endsWith('-label') && v !== ''
+    );
+    document.addEventListener('pointerdown', this.onDocumentPointerDown, true);
+    this.render();
+    const overall = this.sentimentDraft['sentiment-overall-label'] || 'any';
+    this.shadowRoot?.getElementById(`sentiment-overall-label-${overall}`)?.focus();
+  }
+
+  private closeSentimentPanel(returnFocus = false): void {
+    if (!this.sentimentOpen) return;
+    this.sentimentOpen = false;
+    this.sentimentError = null;
+    document.removeEventListener('pointerdown', this.onDocumentPointerDown, true);
+    this.render();
+    if (returnFocus) this.shadowRoot?.getElementById(SENTIMENT_BUTTON_ID)?.focus();
+  }
+
+  // A press anywhere outside the panel and its button dismisses it, draft
+  // discarded, as a native popover would.
+  private onDocumentPointerDown = (e: Event): void => {
+    const root = this.shadowRoot;
+    if (!root) return;
+    const path = e.composedPath();
+    const inside = (...ids: string[]) =>
+      ids.some((id) => {
+        const el = root.getElementById(id);
+        return !!el && path.includes(el);
+      });
+    // Dismissed by removing the panel alone, not by a render: this runs on
+    // pointerdown, and replacing the toolbar and table here would take the
+    // control under the pointer away before its click, so a press on a select
+    // or a call row would do nothing.
+    if (this.sentimentOpen && !inside(SENTIMENT_PANEL_ID, SENTIMENT_BUTTON_ID)) {
+      this.sentimentOpen = false;
+      this.sentimentError = null;
+      this.dismissPanel(SENTIMENT_PANEL_ID, SENTIMENT_BUTTON_ID);
+    }
+    if (this.dateOpen && !inside(DATE_PANEL_ID, DATE_BUTTON_ID)) {
+      this.dateOpen = false;
+      this.dateError = null;
+      this.dismissPanel(DATE_PANEL_ID, DATE_BUTTON_ID);
+    }
+    if (!this.sentimentOpen && !this.dateOpen) {
+      document.removeEventListener('pointerdown', this.onDocumentPointerDown, true);
+    }
+  };
+
+  private dismissPanel(panelId: string, buttonId: string): void {
+    const root = this.shadowRoot;
+    root?.getElementById(panelId)?.remove();
+    root?.getElementById(buttonId)?.setAttribute('aria-expanded', 'false');
+  }
+
+  // ============================================================================
+  // Date panel
+  // ============================================================================
+
+  private openDatePanel(): void {
+    if (this.sentimentOpen) this.closeSentimentPanel();
+    const range = this.effectiveDatePreset() === 'custom' ? this.dateRange : undefined;
+    this.dateDraft = { from: localDay(range?.start), to: localDay(range?.end) };
+    this.dateError = null;
+    this.dateOpen = true;
+    document.addEventListener('pointerdown', this.onDocumentPointerDown, true);
+    this.render();
+    this.shadowRoot?.querySelector<HTMLElement>(`#${DATE_PANEL_ID} [aria-checked="true"]`)?.focus();
+  }
+
+  private closeDatePanel(returnFocus = false): void {
+    if (!this.dateOpen) return;
+    this.dateOpen = false;
+    this.dateError = null;
+    if (!this.sentimentOpen) {
+      document.removeEventListener('pointerdown', this.onDocumentPointerDown, true);
+    }
+    this.render();
+    if (returnFocus) this.shadowRoot?.getElementById(DATE_BUTTON_ID)?.focus();
+  }
+
+  private pickDatePreset(preset: Exclude<CallLogDatePreset, 'custom'>): void {
+    this.dateOpen = false;
+    this.dateError = null;
+    document.removeEventListener('pointerdown', this.onDocumentPointerDown, true);
+    this.applyFilters({ datePreset: preset, dateRange: undefined });
+    this.shadowRoot?.getElementById(DATE_BUTTON_ID)?.focus();
+  }
+
+  /** Whole days in the viewer's time zone: the start of the first, the end of the last. */
+  private applyDateRange(): void {
+    const { from, to } = this.dateDraft;
+    this.dateError = null;
+    if (!from && !to) {
+      this.dateError = this.t('callLogs.filters.datePanel.empty');
+    } else if (from && to && from > to) {
+      this.dateError = this.t('callLogs.filters.datePanel.invalid');
+    }
+    if (this.dateError) {
+      this.render();
+      this.shadowRoot?.getElementById('date-apply')?.focus();
+      return;
+    }
+    const range: { start?: string; end?: string } = {};
+    if (from) range.start = new Date(`${from}T00:00:00`).toISOString();
+    if (to) range.end = new Date(`${to}T23:59:59.999`).toISOString();
+    this.dateOpen = false;
+    document.removeEventListener('pointerdown', this.onDocumentPointerDown, true);
+    this.applyFilters({ datePreset: undefined, dateRange: range });
+    this.shadowRoot?.getElementById(DATE_BUTTON_ID)?.focus();
+  }
+
+  /** What the date button says: the preset's name, or the custom days. */
+  private dateButtonLabel(): string {
+    const preset = this.effectiveDatePreset();
+    if (preset !== 'custom') return this.t(`callLogs.filters.dates.${preset}`);
+    const fmt = new Intl.DateTimeFormat(this.formatting.dateLocale || 'en-US', {
+      month: 'short',
+      day: 'numeric',
+    });
+    const start = this.dateRange?.start ? fmt.format(new Date(this.dateRange.start)) : '';
+    const end = this.dateRange?.end ? fmt.format(new Date(this.dateRange.end)) : '';
+    if (start && end) return start === end ? start : `${start} – ${end}`;
+    if (start) return this.t('callLogs.filters.datePanel.rangeFrom', { date: start });
+    if (end) return this.t('callLogs.filters.datePanel.rangeUntil', { date: end });
+    return this.t('callLogs.filters.dates.custom');
+  }
+
+  private draftFromFilters(): SentimentDraft {
+    const draft: SentimentDraft = {};
+    const fmt = (n: number | undefined) => (typeof n === 'number' ? String(n) : '');
+    for (const s of SENTIMENT_SIDES) {
+      draft[`sentiment-${s.side}-label`] = this.filters[s.label] ?? '';
+      for (const field of ['score', 'magnitude'] as const) {
+        const range = this.filters[s[field]] as RangeFilter | undefined;
+        // An exclusive bound a host set shows as its inclusive neighbour; it is
+        // only rewritten if the user applies the panel.
+        draft[`sentiment-${s.side}-${field}-min`] = fmt(range?.gte ?? range?.gt);
+        draft[`sentiment-${s.side}-${field}-max`] = fmt(range?.lte ?? range?.lt);
+      }
+    }
+    return draft;
+  }
+
+  /**
+   * The draft as filters, or an error message when a bound is out of range or
+   * a minimum exceeds its maximum.
+   */
+  private filtersFromDraft(): { filters: SentimentFilters } | { error: string } {
+    const filters: SentimentFilters = {};
+    const parse = (id: string): number | undefined | null => {
+      const raw = (this.sentimentDraft[id] ?? '').trim();
+      if (raw === '') return undefined;
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : null;
+    };
+    for (const s of SENTIMENT_SIDES) {
+      const label = this.sentimentDraft[`sentiment-${s.side}-label`];
+      if (label) filters[s.label] = label as SentimentLabel;
+      for (const field of ['score', 'magnitude'] as const) {
+        const bounds = field === 'score' ? SCORE_BOUNDS : MAGNITUDE_BOUNDS;
+        const min = parse(`sentiment-${s.side}-${field}-min`);
+        const max = parse(`sentiment-${s.side}-${field}-max`);
+        const outside = (v: number | undefined) =>
+          v !== undefined && (v < bounds.min || v > bounds.max);
+        if (min === null || max === null || outside(min) || outside(max)) {
+          return { error: this.t('callLogs.filters.sentiment.outOfBounds') };
+        }
+        if (min !== undefined && max !== undefined && min > max) {
+          return { error: this.t('callLogs.filters.sentiment.invalidRange') };
+        }
+        if (min === undefined && max === undefined) continue;
+        const range: RangeFilter = {};
+        if (min !== undefined) range.gte = min;
+        if (max !== undefined) range.lte = max;
+        filters[s[field]] = range;
+      }
+    }
+    return { filters };
+  }
+
+  /** Every sentiment key, unset unless the panel set it, so Apply replaces them all. */
+  private sentimentPatch(next: SentimentFilters): CallLogFilters {
+    const patch: CallLogFilters = {};
+    for (const key of SENTIMENT_LABEL_KEYS) patch[key] = next[key];
+    for (const key of SENTIMENT_RANGE_KEYS) patch[key] = next[key];
+    return patch;
+  }
+
+  private applySentimentPanel(): void {
+    const result = this.filtersFromDraft();
+    if ('error' in result) {
+      this.sentimentError = result.error;
+      this.render();
+      this.shadowRoot?.getElementById('sentiment-apply')?.focus();
+      return;
+    }
+    this.sentimentOpen = false;
+    this.sentimentError = null;
+    document.removeEventListener('pointerdown', this.onDocumentPointerDown, true);
+    this.applyFilters(this.sentimentPatch(result.filters));
+    this.shadowRoot?.getElementById(SENTIMENT_BUTTON_ID)?.focus();
+  }
+
+  private clearSentimentPanel(): void {
+    this.sentimentOpen = false;
+    this.sentimentError = null;
+    document.removeEventListener('pointerdown', this.onDocumentPointerDown, true);
+    if (countSentimentConditions(this.filters) > 0) {
+      this.applyFilters(this.sentimentPatch({}));
+    } else {
+      this.render();
+    }
+    this.shadowRoot?.getElementById(SENTIMENT_BUTTON_ID)?.focus();
+  }
+
   protected override cleanup(): void {
+    document.removeEventListener('pointerdown', this.onDocumentPointerDown, true);
+    this.sentimentOpen = false;
+    this.dateOpen = false;
     // A debounce firing after removal would report a filter change for a list
     // that is gone; a host syncing filters to the URL would navigate back to it.
     this.cancelSearchDebounce();
@@ -610,12 +940,61 @@ export class CallLogsComponent extends BaseComponent {
   }
 
   /**
-   * Get color class for MOS quality score
+   * The sides the sentiment filter has conditions on, in panel order. The
+   * column shows these, so a list narrowed on the caller's side shows the
+   * caller's side, not an overall reading that may disagree with it.
    */
+  private filteredSentimentSides(): Array<(typeof SENTIMENT_SIDES)[number]['side']> {
+    return SENTIMENT_SIDES.filter(
+      (s) =>
+        this.filters[s.label] !== undefined ||
+        this.filters[s.score] !== undefined ||
+        this.filters[s.magnitude] !== undefined
+    ).map((s) => s.side);
+  }
+
+  /** "Sentiment" unfiltered or on several sides, "Remote sentiment" on one. */
+  private sentimentHeader(): string {
+    const sides = this.filteredSentimentSides();
+    if (sides.length !== 1) return this.t('callLogs.columns.sentiment');
+    return this.t('callLogs.columns.sentimentSide', {
+      side: this.t(`callLogs.filters.sentiment.sides.${sides[0]}`),
+    });
+  }
+
+  /**
+   * The reading the list is filtered on: overall when unfiltered, else each
+   * filtered side (prefixed with its name when there are several). The
+   * tooltip always has all three.
+   */
+  private formatSentimentCell(call: CallLog): string {
+    const s = call.sentiment;
+    if (!s) {
+      return `<span class="badge badge-sentiment-unavailable" part="badge badge-sentiment" title="${this.escapeHtml(this.t('callLogs.sentiment.unavailableTooltip'))}">${this.t('callLogs.sentiment.unavailable')}</span>`;
+    }
+    const label = (l: string) => this.t(`callLogs.filters.sentiment.labels.${l}`);
+    const sideName = (side: string) => this.t(`callLogs.filters.sentiment.sides.${side}`);
+    const reading = (side: string): string | undefined =>
+      side === 'overall' ? s.overall : side === 'local' ? s.local?.sentiment : s.remote?.sentiment;
+    const tooltip = (['overall', 'local', 'remote'] as const)
+      .filter((side) => reading(side))
+      .map((side) => `${sideName(side)}: ${label(reading(side) ?? '')}`)
+      .join(', ');
+    const filtered = this.filteredSentimentSides();
+    const sides = filtered.length > 0 ? filtered : (['overall'] as const);
+    const badges = sides.map((side) => {
+      const value = reading(side);
+      const text = value ? label(value) : this.t('callLogs.sentiment.unavailable');
+      const prefix = sides.length > 1 ? `${sideName(side)}: ` : '';
+      return `<span class="badge badge-sentiment-${value ?? 'unavailable'}" part="badge badge-sentiment">${this.escapeHtml(prefix + text)}</span>`;
+    });
+    return `<span class="sentiment-cell" title="${this.escapeHtml(tooltip)}">${badges.join('')}</span>`;
+  }
+
   private getMosClass(mos: number | null | undefined): string {
     if (mos == null) return 'badge-quality-unavailable';
-    if (mos >= 4.0) return 'badge-quality-good';
-    if (mos >= 3.0) return 'badge-quality-fair';
+    if (mos >= MOS_GOOD) return 'badge-quality-good';
+    if (mos >= MOS_FAIR) return 'badge-quality-fair';
     return 'badge-quality-poor';
   }
 
@@ -624,8 +1003,8 @@ export class CallLogsComponent extends BaseComponent {
    */
   private getMosTooltip(mos: number | null | undefined): string {
     if (mos == null) return this.t('callLogs.quality.unavailableTooltip');
-    if (mos >= 4.0) return this.t('callLogs.quality.good');
-    if (mos >= 3.0) return this.t('callLogs.quality.fair');
+    if (mos >= MOS_GOOD) return this.t('callLogs.quality.good');
+    if (mos >= MOS_FAIR) return this.t('callLogs.quality.fair');
     return this.t('callLogs.quality.poor');
   }
 
@@ -704,6 +1083,9 @@ export class CallLogsComponent extends BaseComponent {
     const focused = this.shadowRoot.activeElement;
     const searchWasFocused = focused instanceof HTMLInputElement && focused.id === SEARCH_INPUT_ID;
     const caret = searchWasFocused ? focused.selectionStart : null;
+    // Applying a panel returns focus to its button, and the reload that
+    // follows must not drop it.
+    const buttonToRefocus = [SENTIMENT_BUTTON_ID, DATE_BUTTON_ID].find((id) => focused?.id === id);
 
     const styles = this.applyAppearanceStyles();
 
@@ -769,6 +1151,359 @@ export class CallLogsComponent extends BaseComponent {
           cursor: pointer;
         }
 
+        /* Selects draw the same chevron as the Sentiment button rather than
+           the browser's arrow, which differs from one browser to the next. */
+        .select-field {
+          position: relative;
+          display: inline-flex;
+          flex: 0 1 auto;
+        }
+
+        .select-field select {
+          appearance: none;
+          -webkit-appearance: none;
+          width: 100%;
+          padding-inline-end: calc(var(--ds-spacing-md) + 1.1em + 2 * var(--ds-spacing-xs));
+        }
+
+        .select-field .filter-chevron {
+          position: absolute;
+          inset-inline-end: var(--ds-spacing-md);
+          top: 50%;
+          transform: translateY(-50%);
+          margin: 0;
+          pointer-events: none;
+        }
+
+        .sentiment-filter,
+        .date-filter {
+          position: relative;
+          flex: 0 1 auto;
+        }
+
+        .date-panel {
+          position: absolute;
+          top: calc(100% + var(--ds-spacing-xs));
+          left: 0;
+          z-index: 10;
+          box-sizing: border-box;
+          width: max-content;
+          max-width: min(320px, calc(100vw - 2 * var(--ds-spacing-md)));
+          padding: var(--ds-spacing-sm);
+          background: var(--ds-color-background);
+          border: 1px solid var(--ds-color-border);
+          border-radius: var(--ds-border-radius);
+          box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+        }
+
+        .date-presets {
+          display: grid;
+        }
+
+        .date-preset {
+          padding: var(--ds-spacing-xs) var(--ds-spacing-sm);
+          font: inherit;
+          text-align: start;
+          color: var(--ds-color-text);
+          background: none;
+          border: 0;
+          border-radius: var(--ds-border-radius);
+          cursor: pointer;
+        }
+
+        .date-preset:hover,
+        .date-preset:focus-visible {
+          background: var(--ds-color-surface-subtle);
+          outline: none;
+        }
+
+        .date-preset[aria-checked='true'] {
+          font-weight: var(--ds-font-weight-medium);
+          color: var(--ds-color-primary);
+        }
+
+        .date-custom {
+          display: grid;
+          grid-template-columns: auto 1fr;
+          align-items: center;
+          gap: var(--ds-spacing-xs) var(--ds-spacing-sm);
+          margin: var(--ds-spacing-sm) 0 0;
+          padding: var(--ds-spacing-sm) var(--ds-spacing-sm) 0;
+          border: 0;
+          border-top: 1px solid var(--ds-color-border);
+        }
+
+        .date-custom legend {
+          float: left;
+          grid-column: 1 / -1;
+          padding: 0;
+          font-size: var(--ds-font-size-small);
+          color: var(--ds-color-text-secondary);
+        }
+
+        .date-actions {
+          margin-top: var(--ds-spacing-sm);
+        }
+
+        .filter-button {
+          display: inline-flex;
+          align-items: center;
+          gap: var(--ds-spacing-xs);
+        }
+
+        .filter-select.is-active,
+        .search-input.is-active {
+          border-color: var(--ds-color-primary);
+        }
+
+        /* The chevron the selects draw too, so every filter reads as one. */
+        .filter-chevron {
+          display: inline-flex;
+          width: 1.1em;
+          height: 1.1em;
+          margin-inline-start: var(--ds-spacing-xs);
+          color: var(--ds-color-text-secondary);
+        }
+
+        .filter-chevron svg {
+          width: 100%;
+          height: 100%;
+        }
+
+        .filter-count {
+          display: inline-block;
+          min-width: 1.25em;
+          padding: 0 var(--ds-spacing-xs);
+          border-radius: var(--ds-border-radius-large);
+          background: var(--ds-color-primary);
+          color: var(--ds-color-background);
+          font-size: var(--ds-font-size-small);
+          font-weight: var(--ds-font-weight-medium);
+          text-align: center;
+        }
+
+        .sentiment-panel {
+          position: absolute;
+          top: calc(100% + var(--ds-spacing-xs));
+          right: 0;
+          z-index: 10;
+          box-sizing: border-box;
+          width: max-content;
+          max-width: min(440px, calc(100vw - 2 * var(--ds-spacing-md)));
+          padding: var(--ds-spacing-md);
+          background: var(--ds-color-background);
+          border: 1px solid var(--ds-color-border);
+          border-radius: var(--ds-border-radius);
+          box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+        }
+
+        .sentiment-rows {
+          display: grid;
+          gap: var(--ds-spacing-sm);
+        }
+
+        .sentiment-row {
+          display: grid;
+          grid-template-columns: 5.5em 1fr;
+          align-items: center;
+          gap: var(--ds-spacing-sm);
+          margin: 0;
+          padding: 0;
+          border: none;
+          min-width: 0;
+        }
+
+        /* A legend will not sit in a grid cell; float lets it. */
+        .sentiment-side-name {
+          float: left;
+          padding: 0;
+          color: var(--ds-color-text-secondary);
+          font-size: var(--ds-font-size-small);
+        }
+
+        .seg {
+          display: flex;
+          border: 1px solid var(--ds-color-border);
+          border-radius: var(--ds-border-radius);
+          overflow: hidden;
+        }
+
+        .seg-input {
+          position: absolute;
+          opacity: 0;
+          width: 1px;
+          height: 1px;
+          pointer-events: none;
+        }
+
+        .seg-option {
+          flex: 1 1 0;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.35em;
+          padding: var(--ds-spacing-xs) var(--ds-spacing-sm);
+          font-size: var(--ds-font-size-small);
+          color: var(--ds-color-text-secondary);
+          cursor: pointer;
+          user-select: none;
+          white-space: nowrap;
+        }
+
+        .seg-option + .seg-input + .seg-option {
+          border-left: 1px solid var(--ds-color-border);
+        }
+
+        .seg-input:checked + .seg-option {
+          background: var(--ds-color-primary);
+          color: var(--ds-color-background);
+        }
+
+        .seg-input:focus-visible + .seg-option {
+          outline: 2px solid var(--ds-color-primary);
+          outline-offset: -2px;
+        }
+
+        .seg-dot {
+          width: 0.5em;
+          height: 0.5em;
+          border-radius: 50%;
+        }
+
+        .seg-dot-positive {
+          background: var(--ds-color-success);
+        }
+
+        .seg-dot-neutral {
+          background: var(--ds-color-text-secondary);
+        }
+
+        .seg-dot-negative {
+          background: var(--ds-color-danger);
+        }
+
+        .seg-input:checked + .seg-option .seg-dot {
+          box-shadow: 0 0 0 1px var(--ds-color-background);
+        }
+
+        .sentiment-advanced {
+          margin-top: var(--ds-spacing-md);
+          padding-top: var(--ds-spacing-sm);
+          border-top: 1px solid var(--ds-color-border);
+        }
+
+        .sentiment-advanced summary {
+          cursor: pointer;
+          font-size: var(--ds-font-size-small);
+          color: var(--ds-color-text-secondary);
+        }
+
+        .sentiment-hint {
+          margin: var(--ds-spacing-sm) 0;
+          font-size: var(--ds-font-size-small);
+          color: var(--ds-color-text-secondary);
+        }
+
+        .range-grid {
+          display: grid;
+          gap: var(--ds-spacing-xs);
+        }
+
+        .range-grid-row {
+          display: grid;
+          grid-template-columns: 5.5em 1fr 1fr;
+          align-items: center;
+          gap: var(--ds-spacing-sm);
+        }
+
+        .range-grid-head {
+          font-size: var(--ds-font-size-small);
+          color: var(--ds-color-text-secondary);
+        }
+
+        .range-bounds {
+          opacity: 0.75;
+        }
+
+        .range-side {
+          font-size: var(--ds-font-size-small);
+          color: var(--ds-color-text-secondary);
+        }
+
+        .range-cell {
+          display: flex;
+          align-items: center;
+          gap: var(--ds-spacing-xs);
+        }
+
+        .range-input {
+          box-sizing: border-box;
+          width: 4.5em;
+          height: var(--ds-control-height);
+          padding: var(--ds-spacing-xs) var(--ds-spacing-sm);
+          font-family: var(--ds-font-family);
+          font-size: var(--ds-font-size-base);
+          color: var(--ds-color-text);
+          background: var(--ds-color-input-background);
+          border: 1px solid var(--ds-color-border);
+          border-radius: var(--ds-border-radius);
+          outline: none;
+        }
+
+        .range-sep {
+          color: var(--ds-color-text-secondary);
+        }
+
+        .sentiment-error {
+          margin: 0 0 var(--ds-spacing-sm);
+          color: var(--ds-color-danger);
+          font-size: var(--ds-font-size-small);
+        }
+
+        .sentiment-actions {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: var(--ds-spacing-sm);
+          margin-top: var(--ds-spacing-md);
+        }
+
+        .link-btn {
+          padding: 0;
+          font-family: var(--ds-font-family);
+          font-size: var(--ds-font-size-small);
+          color: var(--ds-color-text-secondary);
+          background: none;
+          border: none;
+          text-decoration: underline;
+          cursor: pointer;
+        }
+
+        .link-btn:focus-visible {
+          outline: 2px solid var(--ds-color-primary);
+          outline-offset: 2px;
+        }
+
+        .panel-btn {
+          padding: var(--ds-spacing-sm) var(--ds-spacing-md);
+          font-family: var(--ds-font-family);
+          font-size: var(--ds-font-size-base);
+          color: var(--ds-color-text);
+          background: transparent;
+          border: 1px solid var(--ds-color-border);
+          border-radius: var(--ds-border-radius);
+          cursor: pointer;
+          outline: none;
+        }
+
+        .panel-btn.primary {
+          color: var(--ds-color-background);
+          background: var(--ds-color-primary);
+          border-color: var(--ds-color-primary);
+        }
+
+        .range-input:focus-visible,
+        .panel-btn:focus-visible,
         .search-input:focus-visible,
         .filter-select:focus-visible,
         .clear-filters-btn:focus-visible {
@@ -925,6 +1660,28 @@ export class CallLogsComponent extends BaseComponent {
           color: var(--ds-color-danger);
         }
 
+        .sentiment-cell {
+          display: inline-flex;
+          flex-wrap: wrap;
+          gap: var(--ds-spacing-xs);
+        }
+
+        .badge-sentiment-positive {
+          background: color-mix(in srgb, var(--ds-color-success) 10%, transparent);
+          color: var(--ds-color-success);
+        }
+
+        .badge-sentiment-neutral,
+        .badge-sentiment-unavailable {
+          background: var(--ds-color-surface-subtle);
+          color: var(--ds-color-text-secondary);
+        }
+
+        .badge-sentiment-negative {
+          background: color-mix(in srgb, var(--ds-color-danger) 10%, transparent);
+          color: var(--ds-color-danger);
+        }
+
         .badge-quality-unavailable {
           background: var(--ds-color-surface-subtle);
           color: var(--ds-color-text-secondary);
@@ -961,6 +1718,8 @@ export class CallLogsComponent extends BaseComponent {
         const pos = caret ?? input.value.length;
         input.setSelectionRange(pos, pos);
       }
+    } else if (buttonToRefocus) {
+      this.shadowRoot.getElementById(buttonToRefocus)?.focus();
     }
   }
 
@@ -968,7 +1727,6 @@ export class CallLogsComponent extends BaseComponent {
     const option = (value: string, label: string, selected: boolean) =>
       `<option value="${value}"${selected ? ' selected' : ''}>${this.escapeHtml(label)}</option>`;
     const placeholder = this.escapeHtml(this.t('callLogs.filters.searchPlaceholder'));
-    const preset = this.effectiveDatePreset();
 
     const directions = [
       option('', this.t('callLogs.filters.allDirections'), !this.filters.direction),
@@ -980,18 +1738,17 @@ export class CallLogsComponent extends BaseComponent {
       option('', this.t('callLogs.filters.allStatuses'), !this.filters.status),
       ...STATUSES.map((st) => option(st, this.formatStatus(st), this.filters.status === st)),
     ].join('');
-    const presets: CallLogDatePreset[] = ['7d', '30d', '90d', 'all'];
-    if (preset === 'custom') presets.push('custom');
-    const dates = presets
-      .map((p) => option(p, this.t(`callLogs.filters.dates.${p}`), preset === p))
-      .join('');
+    // Every filter away from its default is marked the way Sentiment is, so a
+    // narrowed list says so at a glance.
+    const active = (on: boolean) => (on ? ' is-active' : '');
+    const chevron = this.getIcon('chevronDown');
 
     return `
       <div class="toolbar" part="toolbar" role="search">
         <input
           id="${SEARCH_INPUT_ID}"
           type="search"
-          class="search-input"
+          class="search-input${active(this.searchText.trim() !== '')}"
           part="search-input"
           placeholder="${placeholder}"
           aria-label="${placeholder}"
@@ -999,9 +1756,186 @@ export class CallLogsComponent extends BaseComponent {
           maxlength="100"
           value="${this.escapeHtml(this.searchText)}"
         />
-        <select id="filter-direction" class="filter-select" part="filter-select filter-direction" aria-label="${this.t('callLogs.columns.direction')}">${directions}</select>
-        <select id="filter-status" class="filter-select" part="filter-select filter-status" aria-label="${this.t('callLogs.columns.status')}">${statuses}</select>
-        <select id="filter-date" class="filter-select" part="filter-select filter-date" aria-label="${this.t('callLogs.filters.dateRange')}">${dates}</select>
+        <span class="select-field"><select id="filter-direction" class="filter-select${active(!!this.filters.direction)}" part="filter-select filter-direction" aria-label="${this.t('callLogs.columns.direction')}">${directions}</select><span class="filter-chevron" part="filter-chevron" aria-hidden="true">${chevron}</span></span>
+        <span class="select-field"><select id="filter-status" class="filter-select${active(!!this.filters.status)}" part="filter-select filter-status" aria-label="${this.t('callLogs.columns.status')}">${statuses}</select><span class="filter-chevron" part="filter-chevron" aria-hidden="true">${chevron}</span></span>
+${this.renderDateFilter()}
+        ${this.displayOptions.showSentiment ? this.renderSentimentFilter() : ''}
+      </div>
+    `;
+  }
+
+  private renderDateFilter(): string {
+    const preset = this.effectiveDatePreset();
+    const active = preset !== this.defaultDatePreset();
+    const label = this.escapeHtml(this.dateButtonLabel());
+    const name = this.escapeHtml(this.t('callLogs.filters.dateRange'));
+    return `
+      <div class="date-filter" part="date-filter">
+        <button
+          type="button"
+          id="${DATE_BUTTON_ID}"
+          class="filter-select filter-button${active ? ' is-active' : ''}"
+          part="filter-select filter-date"
+          aria-haspopup="dialog"
+          aria-expanded="${this.dateOpen}"
+          aria-controls="${DATE_PANEL_ID}"
+          aria-label="${name}: ${label}"
+        >${label}<span class="filter-chevron" part="filter-chevron" aria-hidden="true">${this.getIcon('chevronDown')}</span></button>
+        ${this.dateOpen ? this.renderDatePanel(preset) : ''}
+      </div>
+    `;
+  }
+
+  private renderDatePanel(preset: CallLogDatePreset): string {
+    const t = (key: string) => this.escapeHtml(this.t(`callLogs.filters.datePanel.${key}`));
+    const presets = DATE_PRESETS.map(
+      (p) =>
+        `<button type="button" role="menuitemradio" class="date-preset" part="date-preset" data-preset="${p}" aria-checked="${preset === p}">${this.escapeHtml(this.t(`callLogs.filters.dates.${p}`))}</button>`
+    ).join('');
+    const error = this.dateError
+      ? `<p class="sentiment-error" part="date-error" role="alert">${this.escapeHtml(this.dateError)}</p>`
+      : '';
+    return `
+      <div id="${DATE_PANEL_ID}" class="date-panel" part="date-panel" role="dialog" aria-label="${t('title')}">
+        <div class="date-presets" role="menu">${presets}</div>
+        <fieldset class="date-custom" part="date-custom">
+          <legend>${t('custom')}</legend>
+          <label for="date-from">${t('from')}</label>
+          <input type="date" id="date-from" class="filter-select" value="${this.escapeHtml(this.dateDraft.from)}" />
+          <label for="date-to">${t('to')}</label>
+          <input type="date" id="date-to" class="filter-select" value="${this.escapeHtml(this.dateDraft.to)}" />
+        </fieldset>
+        ${error}
+        <div class="sentiment-actions date-actions">
+          <span></span>
+          <button type="button" id="date-apply" class="panel-btn primary" part="date-apply-button">${t('apply')}</button>
+        </div>
+      </div>
+    `;
+  }
+
+  private renderSentimentFilter(): string {
+    const count = countSentimentConditions(this.filters);
+    const buttonLabel = this.escapeHtml(this.t('callLogs.filters.sentiment.button'));
+    const countLabel = count
+      ? this.escapeHtml(this.t('callLogs.filters.sentiment.activeCount', { count }))
+      : '';
+    const badge = count
+      ? `<span class="filter-count" part="filter-count" aria-hidden="true">${count}</span>`
+      : '';
+    return `
+      <div class="sentiment-filter" part="sentiment-filter">
+        <button
+          type="button"
+          id="${SENTIMENT_BUTTON_ID}"
+          class="filter-select filter-button${count ? ' is-active' : ''}"
+          part="filter-select filter-sentiment"
+          aria-haspopup="dialog"
+          aria-expanded="${this.sentimentOpen}"
+          aria-controls="${SENTIMENT_PANEL_ID}"
+          ${countLabel ? `aria-label="${buttonLabel}, ${countLabel}"` : ''}
+        >${buttonLabel}${badge}<span class="filter-chevron" part="filter-chevron" aria-hidden="true">${this.getIcon('chevronDown')}</span></button>
+        ${this.sentimentOpen ? this.renderSentimentPanel() : ''}
+      </div>
+    `;
+  }
+
+  /**
+   * The panel leads with what most people filter on, a label per side, as one
+   * segmented row each. Score and magnitude ranges are a refinement few need,
+   * so they sit in a disclosure that opens by itself only when one is set.
+   */
+  private renderSentimentPanel(): string {
+    const t = (key: string) => this.escapeHtml(this.t(`callLogs.filters.sentiment.${key}`));
+    const value = (id: string) => this.escapeHtml(this.sentimentDraft[id] ?? '');
+
+    const labelRows = SENTIMENT_SIDES.map((s) => {
+      const name = `sentiment-${s.side}-label`;
+      const current = this.sentimentDraft[name] ?? '';
+      const sideName = t(`sides.${s.side}`);
+      const choices = ['', ...SENTIMENT_LABELS].map((l) => {
+        const id = `${name}-${l || 'any'}`;
+        const text = l ? t(`labels.${l}`) : t('any');
+        const dot = l ? `<span class="seg-dot seg-dot-${l}" aria-hidden="true"></span>` : '';
+        return `
+          <input type="radio" class="seg-input" id="${id}" name="${name}" value="${l}"${current === l ? ' checked' : ''} />
+          <label class="seg-option" part="sentiment-choice" for="${id}">${dot}${text}</label>`;
+      });
+      return `
+        <fieldset class="sentiment-row" part="sentiment-side">
+          <legend class="sentiment-side-name">${sideName}</legend>
+          <div class="seg" part="sentiment-segmented">${choices.join('')}</div>
+        </fieldset>`;
+    }).join('');
+
+    const numberInput = (
+      id: string,
+      label: string,
+      bounds: { min: number; max: number },
+      placeholder: string
+    ) => `
+      <input
+        id="${id}"
+        type="number"
+        class="range-input"
+        part="sentiment-range-input"
+        inputmode="decimal"
+        step="0.1"
+        min="${bounds.min}"
+        max="${bounds.max}"
+        placeholder="${placeholder}"
+        aria-label="${label}"
+        value="${value(id)}"
+      />`;
+    const rangeCell = (side: string, field: 'score' | 'magnitude') => {
+      const bounds = field === 'score' ? SCORE_BOUNDS : MAGNITUDE_BOUNDS;
+      const base = `sentiment-${side}-${field}`;
+      const label = `${t(`sides.${side}`)} ${t(field)}`;
+      return `
+        <div class="range-cell">
+          ${numberInput(`${base}-min`, `${label} ${t('min')}`, bounds, t('min'))}
+          <span class="range-sep" aria-hidden="true">–</span>
+          ${numberInput(`${base}-max`, `${label} ${t('max')}`, bounds, t('max'))}
+        </div>`;
+    };
+    const rangeRows = SENTIMENT_SIDES.map(
+      (s) => `
+        <div class="range-grid-row" role="group" aria-label="${t(`sides.${s.side}`)}">
+          <span class="range-side">${t(`sides.${s.side}`)}</span>
+          ${rangeCell(s.side, 'score')}
+          ${rangeCell(s.side, 'magnitude')}
+        </div>`
+    ).join('');
+
+    const error = this.sentimentError
+      ? `<p class="sentiment-error" part="sentiment-error" role="alert">${this.escapeHtml(this.sentimentError)}</p>`
+      : '';
+    return `
+      <div
+        id="${SENTIMENT_PANEL_ID}"
+        class="sentiment-panel"
+        part="sentiment-panel"
+        role="dialog"
+        aria-label="${t('title')}"
+      >
+        <div class="sentiment-rows">${labelRows}</div>
+        <details id="sentiment-advanced" class="sentiment-advanced" part="sentiment-advanced"${this.sentimentAdvancedOpen ? ' open' : ''}>
+          <summary>${t('advanced')}</summary>
+          <p class="sentiment-hint">${t('advancedHint')}</p>
+          <div class="range-grid">
+            <div class="range-grid-row range-grid-head" aria-hidden="true">
+              <span></span>
+              <span>${t('score')} <span class="range-bounds">${t('scoreBounds')}</span></span>
+              <span>${t('magnitude')} <span class="range-bounds">${t('magnitudeBounds')}</span></span>
+            </div>
+            ${rangeRows}
+          </div>
+        </details>
+        ${error}
+        <div class="sentiment-actions">
+          <button type="button" id="sentiment-clear" class="link-btn" part="sentiment-clear-button">${t('clear')}</button>
+          <button type="button" id="sentiment-apply" class="panel-btn primary" part="sentiment-apply-button">${t('apply')}</button>
+        </div>
       </div>
     `;
   }
@@ -1157,8 +2091,16 @@ export class CallLogsComponent extends BaseComponent {
   }
 
   private renderTable(): string {
-    const { showDate, showDirection, showFrom, showTo, showDuration, showStatus, showQuality } =
-      this.displayOptions;
+    const {
+      showDate,
+      showDirection,
+      showFrom,
+      showTo,
+      showDuration,
+      showStatus,
+      showQuality,
+      showSentiment,
+    } = this.displayOptions;
 
     const rows = this.orderByConversation(this.callLogs)
       .map(({ call, group }) => {
@@ -1199,6 +2141,7 @@ export class CallLogsComponent extends BaseComponent {
             ${showDuration ? `<td part="cell cell-duration">${this.formatDuration(call.duration_seconds || 0)}</td>` : ''}
             ${showStatus ? `<td part="cell cell-status"><span class="badge ${this.getStatusClass(call.status)}" part="badge badge-status">${this.formatStatus(call.status)}</span></td>` : ''}
             ${showQuality ? `<td part="cell cell-quality"><span class="badge ${this.getMosClass(mos)}" part="badge badge-quality" title="${this.getMosTooltip(mos)}">${this.formatMos(mos)}</span></td>` : ''}
+            ${showSentiment ? `<td part="cell cell-sentiment">${this.formatSentimentCell(call)}</td>` : ''}
           </tr>
         `;
       })
@@ -1216,6 +2159,7 @@ export class CallLogsComponent extends BaseComponent {
               ${showDuration ? `<th role="columnheader" scope="col" part="header-cell">${this.t('callLogs.columns.duration')}</th>` : ''}
               ${showStatus ? `<th role="columnheader" scope="col" part="header-cell">${this.t('callLogs.columns.status')}</th>` : ''}
               ${showQuality ? `<th role="columnheader" scope="col" part="header-cell">${this.t('callLogs.columns.quality')}</th>` : ''}
+              ${showSentiment ? `<th role="columnheader" scope="col" part="header-cell">${this.escapeHtml(this.sentimentHeader())}</th>` : ''}
             </tr>
           </thead>
           <tbody part="table-body">
@@ -1275,14 +2219,76 @@ export class CallLogsComponent extends BaseComponent {
       const value = (e.target as HTMLSelectElement).value as CallLogFilters['status'] | '';
       this.applyFilters({ status: value || undefined });
     });
-    this.shadowRoot.getElementById('filter-date')?.addEventListener('change', (e) => {
-      const value = (e.target as HTMLSelectElement).value as CallLogDatePreset;
-      if (value === 'custom') return;
-      this.applyFilters({ datePreset: value });
+    this.shadowRoot.getElementById(DATE_BUTTON_ID)?.addEventListener('click', () => {
+      if (this.dateOpen) this.closeDatePanel(true);
+      else this.openDatePanel();
     });
+    const datePanel = this.shadowRoot.getElementById(DATE_PANEL_ID);
+    if (datePanel) {
+      datePanel
+        .querySelectorAll<HTMLButtonElement>('[data-preset]')
+        .forEach((b) =>
+          b.addEventListener('click', () =>
+            this.pickDatePreset(b.dataset.preset as Exclude<CallLogDatePreset, 'custom'>)
+          )
+        );
+      datePanel.addEventListener('input', (e) => {
+        const target = e.target as HTMLInputElement;
+        if (target.id === 'date-from') this.dateDraft.from = target.value;
+        if (target.id === 'date-to') this.dateDraft.to = target.value;
+      });
+      datePanel.addEventListener('keydown', (e) => {
+        const key = (e as KeyboardEvent).key;
+        if (key === 'Escape') {
+          e.preventDefault();
+          this.closeDatePanel(true);
+        } else if (key === 'Enter' && (e.target as HTMLInputElement).type === 'date') {
+          e.preventDefault();
+          this.applyDateRange();
+        }
+      });
+      this.shadowRoot
+        .getElementById('date-apply')
+        ?.addEventListener('click', () => this.applyDateRange());
+    }
     this.shadowRoot
       .getElementById('clear-filters-btn')
       ?.addEventListener('click', () => this.clearFilters());
+
+    this.shadowRoot.getElementById(SENTIMENT_BUTTON_ID)?.addEventListener('click', () => {
+      if (this.sentimentOpen) this.closeSentimentPanel(true);
+      else this.openSentimentPanel();
+    });
+    const panel = this.shadowRoot.getElementById(SENTIMENT_PANEL_ID);
+    if (panel) {
+      const record = (e: Event) => {
+        const target = e.target as HTMLInputElement | HTMLSelectElement;
+        // A label is a radio group, keyed by its name; a range input by its id.
+        const key = target.type === 'radio' ? target.name : target.id;
+        if (key) this.sentimentDraft[key] = target.value;
+      };
+      panel.addEventListener('input', record);
+      panel.addEventListener('change', record);
+      this.shadowRoot.getElementById('sentiment-advanced')?.addEventListener('toggle', (e) => {
+        this.sentimentAdvancedOpen = (e.target as HTMLDetailsElement).open;
+      });
+      panel.addEventListener('keydown', (e) => {
+        const key = (e as KeyboardEvent).key;
+        if (key === 'Escape') {
+          e.preventDefault();
+          this.closeSentimentPanel(true);
+        } else if (key === 'Enter' && (e.target as HTMLInputElement).type === 'number') {
+          e.preventDefault();
+          this.applySentimentPanel();
+        }
+      });
+      this.shadowRoot
+        .getElementById('sentiment-apply')
+        ?.addEventListener('click', () => this.applySentimentPanel());
+      this.shadowRoot
+        .getElementById('sentiment-clear')
+        ?.addEventListener('click', () => this.clearSentimentPanel());
+    }
 
     // Row click handlers
     const rows = this.shadowRoot.querySelectorAll('tbody tr[data-call-id]');
@@ -1358,13 +2364,29 @@ export class CallLogsComponent extends BaseComponent {
   setFilters(filters: CallLogFilters): void {
     // A no-op for the filters already applied, so a host that feeds
     // onFiltersChange back in does not reload the list.
-    const keys: Array<keyof CallLogFilters> = ['search', 'direction', 'status', 'datePreset'];
-    if (keys.every((k) => (filters[k] || undefined) === (this.filters[k] || undefined))) return;
+    const keys = ['search', 'direction', 'status', 'datePreset', 'remote_number'] as const;
+    if (
+      keys.every((k) => (filters[k] || undefined) === (this.filters[k] || undefined)) &&
+      filters.connected === this.filters.connected &&
+      filters.dateRange?.start === this.filters.dateRange?.start &&
+      filters.dateRange?.end === this.filters.dateRange?.end &&
+      sameSentimentFilters(filters, this.filters)
+    )
+      return;
 
     this.cancelSearchDebounce();
+    // Closed with a render, not just flagged: a reload over rows on screen
+    // does not re-render until it settles, and an open panel left live until
+    // then could apply its stale draft over the filters set here.
+    this.closeSentimentPanel();
+    this.closeDatePanel();
     this.filters = { ...filters };
     this.searchText = filters.search ?? '';
-    if (filters.datePreset) this.dateRange = undefined;
+    // With neither, the window falls back to the host's, as Clear filters
+    // does: keeping the last one would filter on a window nothing shows.
+    if (filters.dateRange) this.dateRange = filters.dateRange;
+    else if (filters.datePreset) this.dateRange = undefined;
+    else this.dateRange = this.hostDateRange;
     if (this.isInitialized) this.loadData();
   }
 

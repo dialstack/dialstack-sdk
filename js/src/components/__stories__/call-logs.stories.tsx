@@ -42,7 +42,66 @@ export const Filters: Story = {
     const shadow = () => canvasElement.querySelector('dialstack-call-logs')?.shadowRoot ?? null;
     await waitFor(() => expect(shadow()?.querySelector('table')).toBeTruthy());
     expect(shadow()?.querySelector('[part="search-input"]')).toBeTruthy();
-    const date = shadow()?.getElementById('filter-date') as HTMLSelectElement | null;
-    expect(date?.value).toBe('30d');
+    // The date filter is a button that opens a panel, so it names the window.
+    const date = shadow()?.getElementById('filter-date');
+    expect(date?.textContent).toContain('Last 30 days');
+  },
+};
+
+const callLogsShadow = (canvasElement: HTMLElement) =>
+  canvasElement.querySelector('dialstack-call-logs')?.shadowRoot ?? null;
+
+// The Sentiment button opens a panel with one section per side of the reading:
+// a label, then score and magnitude bounds.
+export const SentimentFilterPanel: Story = {
+  play: async ({ canvasElement }) => {
+    const shadow = () => callLogsShadow(canvasElement);
+    await waitFor(() => expect(shadow()?.querySelector('table')).toBeTruthy());
+    const button = shadow()?.getElementById('filter-sentiment') as HTMLButtonElement;
+    expect(button.getAttribute('aria-haspopup')).toBe('dialog');
+    button.click();
+
+    const panel = await waitFor(() => {
+      const el = shadow()?.getElementById('sentiment-panel');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    expect(panel.getAttribute('role')).toBe('dialog');
+    expect(panel.querySelectorAll('fieldset')).toHaveLength(3);
+    // Opening re-renders the toolbar, so read the button afresh.
+    expect(shadow()?.getElementById('filter-sentiment')?.getAttribute('aria-expanded')).toBe(
+      'true'
+    );
+
+    (shadow()?.getElementById('sentiment-remote-label-negative') as HTMLInputElement).click();
+    // Score and magnitude are tucked away until asked for.
+    const advanced = shadow()?.getElementById('sentiment-advanced') as HTMLDetailsElement;
+    expect(advanced.open).toBe(false);
+    (advanced.querySelector('summary') as HTMLElement).click();
+    await waitFor(() => expect(advanced.open).toBe(true));
+    const max = shadow()?.getElementById('sentiment-remote-score-max') as HTMLInputElement;
+    max.value = '-0.5';
+    max.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(max.value).toBe('-0.5');
+  },
+};
+
+// Applied sentiment conditions show as a count on the button and stay
+// clearable with the other filters.
+export const SentimentFilterApplied: Story = {
+  play: async ({ canvasElement }) => {
+    const shadow = () => callLogsShadow(canvasElement);
+    await waitFor(() => expect(shadow()?.querySelector('table')).toBeTruthy());
+    (shadow()?.getElementById('filter-sentiment') as HTMLButtonElement).click();
+    await waitFor(() => expect(shadow()?.getElementById('sentiment-panel')).toBeTruthy());
+
+    (shadow()?.getElementById('sentiment-overall-label-negative') as HTMLInputElement).click();
+    (shadow()?.getElementById('sentiment-apply') as HTMLButtonElement).click();
+
+    await waitFor(() => {
+      expect(shadow()?.getElementById('sentiment-panel')).toBeNull();
+      expect(shadow()?.querySelector('[part="filter-count"]')?.textContent).toBe('1');
+    });
+    await waitFor(() => expect(shadow()?.querySelector('table')).toBeTruthy());
   },
 };

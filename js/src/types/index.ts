@@ -50,6 +50,9 @@ export type {
   CallLogFilters,
   CallLogDatePreset,
   CallListParams,
+  RangeFilter,
+  SentimentFilters,
+  CallStatus,
   // Behavior options
   VoicemailBehaviorOptions,
   // Row renderers
