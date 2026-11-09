@@ -16,6 +16,7 @@ const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : us
 /**
  * Observes the target and keeps `ds-host-small` (the compact tier, see
  * styles.ts) on it while it is under the host minimum or the variant pins compact.
+ * Only a height imposed on the host counts against the minimum; see measure().
  */
 function useTier(
   target: () => HTMLElement | null | undefined,
@@ -34,7 +35,18 @@ function useTier(
     if (!el || typeof ResizeObserver === 'undefined') return;
     const measure = () => {
       const { width, height } = el.getBoundingClientRect();
-      const fits = isRoomyLayout(variant, width >= HOST_MIN_WIDTH && height >= HOST_MIN_HEIGHT);
+      // A host whose height follows its content is never too short: that height
+      // is the tier's own output (about 420px compact, 610px full on a call), so
+      // judging it against the minimum made both tiers stable, and which one
+      // showed depended on the screens that came before. Size containment lays
+      // the host out as if it were empty, so a height it keeps is imposed from
+      // outside. Hiding the content instead would blur a focused field.
+      const contain = el.style.contain;
+      el.style.contain = 'size';
+      const emptyHeight = el.getBoundingClientRect().height;
+      el.style.contain = contain;
+      const tallEnough = emptyHeight < height || height >= HOST_MIN_HEIGHT;
+      const fits = isRoomyLayout(variant, width >= HOST_MIN_WIDTH && tallEnough);
       el.classList.toggle('ds-host-small', !fits);
       setRoomy(fits);
     };

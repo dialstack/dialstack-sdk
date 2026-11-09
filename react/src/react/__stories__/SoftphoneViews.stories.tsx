@@ -484,10 +484,6 @@ export const ShortHost: Story = {
 };
 
 export const AutoHeight: Story = {
-  // Out of visual regression: with no fixed height, a cell's tier depends on its
-  // measured height and its height on its tier, so it settles in either the
-  // roomy or the compact layout depending on timing.
-  tags: ['no-vrt'],
   render: () => (
     <Grid theme="light" size={AUTO}>
       <AllCells />

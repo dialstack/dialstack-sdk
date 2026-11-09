@@ -682,6 +682,13 @@ export const ValidationErrors: Story = {
         expect(canvas.getByText('Company name is required')).toBeInTheDocument();
       });
       expect(canvas.getByText('Primary contact is required')).toBeInTheDocument();
+      // The errors slide open, and each one moves the Next button down; clicking
+      // it again mid-animation scrolls the form to wherever the button was then.
+      // The animations run on real time while waitFor runs on the test's clock,
+      // so waiting for them would race; finish them instead.
+      canvasElement.querySelectorAll('.form-error').forEach((error) => {
+        error.getAnimations().forEach((animation) => animation.finish());
+      });
     });
 
     await step('Fix company name -> its error clears on next attempt', async () => {

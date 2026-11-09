@@ -31,6 +31,24 @@ async function waitForInitialFit(canvasElement: HTMLElement) {
   });
 }
 
+// xyflow learns the canvas size from ResizeObservers, which report on a rendering
+// step rather than when the layout changes, and fitView frames whatever size it
+// last heard. Observers report together, in creation order, so once this one has
+// seen the canvas's current width, xyflow's (created at mount) have too.
+async function waitForCanvasSizeReported(canvasElement: HTMLElement) {
+  const pane = canvasElement.querySelector<HTMLElement>('.react-flow')!;
+  let reported = -1;
+  const observer = new ResizeObserver(([entry]) => {
+    reported = entry.contentRect.width;
+  });
+  observer.observe(pane);
+  try {
+    await waitFor(() => expect(reported).toBe(pane.getBoundingClientRect().width));
+  } finally {
+    observer.disconnect();
+  }
+}
+
 // ============================================================================
 // View mode stories
 // ============================================================================
@@ -223,6 +241,7 @@ export const AutoLayoutButton: Story = {
         expect(wrapper).toBeInTheDocument();
         expect(wrapper!.getAnimations()).toHaveLength(0);
       });
+      await waitForCanvasSizeReported(canvasElement);
     });
 
     await step('Click the Auto Layout button without crash', async () => {
