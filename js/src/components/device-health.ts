@@ -1,5 +1,6 @@
 /**
- * Devices offline: desk phones with a user and DECT bases that have been
+ * Device health, titled "Devices offline" while that is all it shows: desk
+ * phones with a user and DECT bases that have been
  * online before, which are not registered now, longest offline first.
  */
 
@@ -31,8 +32,8 @@ export function byOfflineSince(a: Device, b: Device): number {
 /** How often the device list is re-read. */
 const DEVICES_READ_MS = 5 * 60 * 1000;
 
-export class DevicesOfflineComponent extends PollingCard {
-  protected readonly tagForEvents = 'dialstack-devices-offline';
+export class DeviceHealthComponent extends PollingCard {
+  protected readonly tagForEvents = 'dialstack-device-health';
   private devices: OfflineDevice[] = [];
   private userNames = new Map<string, string>();
   private onDeviceSelect?: (event: { deviceId: string }) => void;
@@ -87,27 +88,27 @@ export class DevicesOfflineComponent extends PollingCard {
   protected render(): void {
     const body =
       this.devices.length === 0
-        ? `<p class="muted">${this.escapeHtml(this.t('callActivity.devicesOffline.none'))}</p>`
+        ? `<p class="muted">${this.escapeHtml(this.t('callActivity.deviceHealth.none'))}</p>`
         : `<ul class="list">${this.devices.map((d) => this.renderRow(d)).join('')}</ul>`;
     this.renderCard(
-      this.t('callActivity.devicesOffline.title'),
-      this.t('callActivity.devicesOffline.description'),
+      this.t('callActivity.deviceHealth.title'),
+      this.t('callActivity.deviceHealth.description'),
       body
     );
   }
 
   private renderRow({ device, name, users }: OfflineDevice): string {
     const since = device.offline_since
-      ? this.t('callActivity.devicesOffline.offlineSince', {
+      ? this.t('callActivity.deviceHealth.offlineSince', {
           duration: formatSince(new Date(device.offline_since), this.now, {
-            days: (n) => this.t('callActivity.devicesOffline.days', { count: n }),
-            hours: (n) => this.t('callActivity.devicesOffline.hours', { count: n }),
-            minutes: (n) => this.t('callActivity.devicesOffline.minutes', { count: n }),
+            days: (n) => this.t('callActivity.days', { count: n }),
+            hours: (n) => this.t('callActivity.hours', { count: n }),
+            minutes: (n) => this.t('callActivity.minutes', { count: n }),
           }),
         })
-      : this.t('callActivity.devicesOffline.neverConnected');
+      : this.t('callActivity.deviceHealth.neverConnected');
     const who =
-      users.length > 0 ? users.join(', ') : this.t('callActivity.devicesOffline.unassigned');
+      users.length > 0 ? users.join(', ') : this.t('callActivity.deviceHealth.unassigned');
     const detail = [device.model, who].filter(Boolean).join(' · ');
     const title = this.onDeviceSelect
       ? `<button type="button" class="link name" data-device="${this.escapeHtml(device.id)}">${this.escapeHtml(name)}</button>`
@@ -144,6 +145,6 @@ export class DevicesOfflineComponent extends PollingCard {
   }
 }
 
-if (typeof window !== 'undefined' && !customElements.get('dialstack-devices-offline')) {
-  customElements.define('dialstack-devices-offline', DevicesOfflineComponent);
+if (typeof window !== 'undefined' && !customElements.get('dialstack-device-health')) {
+  customElements.define('dialstack-device-health', DeviceHealthComponent);
 }

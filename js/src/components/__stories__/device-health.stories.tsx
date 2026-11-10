@@ -1,4 +1,4 @@
-import '../../components/devices-offline';
+import '../../components/device-health';
 import type { Meta, StoryObj } from '@storybook/react';
 import { withCallActivityData } from '../../__mocks__/call-activity-mock';
 import type { DialStackInstanceImpl } from '../../types/core';
@@ -8,10 +8,10 @@ const withData = (i: DialStackInstanceImpl) => withCallActivityData(i);
 const withNoData = (i: DialStackInstanceImpl) => withCallActivityData(i, true);
 
 const meta: Meta<typeof WebComponentStory> = {
-  title: 'Web Components/Call Activity/Devices offline',
+  title: 'Web Components/Call Activity/Device health',
   component: WebComponentStory,
   args: {
-    tagName: 'devices-offline',
+    tagName: 'device-health',
     extendInstance: withData,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setup: (el: any) => {

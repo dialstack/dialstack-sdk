@@ -853,10 +853,10 @@ export interface AccountSessionCreateParams {
     agreement_acceptance?: ComponentConfig;
     dial_plan?: ComponentConfig;
     ai_agent?: ComponentConfig;
-    /** The call activity components: To call back, Call analytics, Devices offline. */
+    /** The call activity components: To call back, Call analytics, Device health. */
     to_call_back?: ComponentConfig;
     call_analytics?: ComponentConfig;
-    devices_offline?: ComponentConfig;
+    device_health?: ComponentConfig;
     [key: string]: ComponentConfig | undefined;
   };
 }

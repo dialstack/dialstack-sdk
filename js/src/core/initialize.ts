@@ -14,7 +14,7 @@ import '../components/phone-numbers';
 import '../components/ai-agent';
 import '../components/to-call-back';
 import '../components/call-analytics';
-import '../components/devices-offline';
+import '../components/device-health';
 
 // Re-export everything from the pure module
 // The only difference is that importing this module registers components as a side effect

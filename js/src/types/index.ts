@@ -212,7 +212,7 @@ export type {
   CallOutcome,
   ToCallBackElement,
   CallAnalyticsElement,
-  DevicesOfflineElement,
+  DeviceHealthElement,
 } from './call-activity';
 
 // Dial plan types

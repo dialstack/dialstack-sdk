@@ -3,11 +3,7 @@
  */
 
 import type { Locale } from '../locales';
-import type {
-  ToCallBackElement,
-  CallAnalyticsElement,
-  DevicesOfflineElement,
-} from './call-activity';
+import type { ToCallBackElement, CallAnalyticsElement, DeviceHealthElement } from './call-activity';
 import type {
   ComponentIcons,
   LayoutVariant,
@@ -938,7 +934,7 @@ export type ComponentTagName =
   | 'ai-agent'
   | 'to-call-back'
   | 'call-analytics'
-  | 'devices-offline';
+  | 'device-health';
 
 /**
  * Web Component element types mapped by tag name
@@ -952,5 +948,5 @@ export interface ComponentElement {
   'ai-agent': AIAgentElement;
   'to-call-back': ToCallBackElement;
   'call-analytics': CallAnalyticsElement;
-  'devices-offline': DevicesOfflineElement;
+  'device-health': DeviceHealthElement;
 }

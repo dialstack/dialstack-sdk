@@ -191,6 +191,6 @@ export async function registerComponents(): Promise<void> {
     import('../components/ai-agent'),
     import('../components/to-call-back'),
     import('../components/call-analytics'),
-    import('../components/devices-offline'),
+    import('../components/device-health'),
   ]);
 }

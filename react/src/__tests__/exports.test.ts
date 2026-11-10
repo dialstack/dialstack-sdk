@@ -42,7 +42,7 @@ describe('the shared root entry', () => {
     ['AIAgent'],
     ['ToCallBack'],
     ['CallAnalytics'],
-    ['DevicesOffline'],
+    ['DeviceHealth'],
     ['DialPlan'],
     ['Softphone'],
     ['SoftphoneProvider'],
@@ -82,7 +82,7 @@ describe('the per-component entries', () => {
     ['phone-number-ordering', PhoneNumberOrdering, 'PhoneNumberOrdering'],
     ['call-activity', CallActivity, 'ToCallBack'],
     ['call-activity', CallActivity, 'CallAnalytics'],
-    ['call-activity', CallActivity, 'DevicesOffline'],
+    ['call-activity', CallActivity, 'DeviceHealth'],
   ])('./%s exports %s', (_subpath, mod, name) => {
     expect((mod as Record<string, unknown>)[name]).toBeDefined();
   });

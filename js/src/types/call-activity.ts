@@ -118,7 +118,7 @@ export interface CallAnalyticsElement extends PollingCardElement {
   setOnViewQuality: (callback: ((range: { from: string; to: string }) => void) | undefined) => void;
 }
 
-/** `<dialstack-devices-offline>`: desk phones and DECT bases that are not registered. */
-export interface DevicesOfflineElement extends PollingCardElement {
+/** `<dialstack-device-health>`: desk phones and DECT bases that are not registered. */
+export interface DeviceHealthElement extends PollingCardElement {
   setOnDeviceSelect: (callback: ((event: { deviceId: string }) => void) | undefined) => void;
 }

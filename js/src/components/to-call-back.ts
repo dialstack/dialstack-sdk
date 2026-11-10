@@ -214,9 +214,9 @@ export class ToCallBackComponent extends PollingCard {
     const barLeft = pct(Math.min(positionAt(since, this.now), at[0] ?? 1));
     const selectable = this.onCallerSelect ? `tabindex="0" role="button"` : '';
     const waited = formatSince(new Date(since), this.now, {
-      days: (n) => this.t('callActivity.devicesOffline.days', { count: n }),
-      hours: (n) => this.t('callActivity.devicesOffline.hours', { count: n }),
-      minutes: (n) => this.t('callActivity.devicesOffline.minutes', { count: n }),
+      days: (n) => this.t('callActivity.days', { count: n }),
+      hours: (n) => this.t('callActivity.hours', { count: n }),
+      minutes: (n) => this.t('callActivity.minutes', { count: n }),
     });
 
     return `

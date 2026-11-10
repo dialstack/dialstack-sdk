@@ -1,6 +1,6 @@
 /**
  * React wrappers for the call activity Web Components: To call back,
- * Call analytics and Devices offline.
+ * Call analytics and Device health.
  */
 
 import React from 'react';
@@ -114,14 +114,14 @@ export const CallAnalytics: React.FC<CallAnalyticsProps> = (props) => {
   return <div ref={containerRef} className={props.className} style={props.style} />;
 };
 
-export interface DevicesOfflineProps extends CallActivityComponentProps {
+export interface DeviceHealthProps extends CallActivityComponentProps {
   onDeviceSelect?: (event: { deviceId: string }) => void;
 }
 
 /** Desk phones and DECT bases that are not connected. Within a DialstackComponentsProvider. */
-export const DevicesOffline: React.FC<DevicesOfflineProps> = (props) => {
+export const DeviceHealth: React.FC<DeviceHealthProps> = (props) => {
   const { dialstack } = useDialstackComponents();
-  const { containerRef, componentInstance } = useCreateComponent(dialstack, 'devices-offline');
+  const { containerRef, componentInstance } = useCreateComponent(dialstack, 'device-health');
   useCommonProps(componentInstance, props);
   useUpdateHandlerWithSetter(componentInstance, props.onDeviceSelect, (c, v) =>
     c.setOnDeviceSelect(v)
