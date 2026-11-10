@@ -29,6 +29,7 @@
       "@dialstack/sdk-js/pure": ["./js/src/pure.ts"],
       "@dialstack/sdk-webrtc": ["./webrtc/src/index.ts"],
       "@dialstack/sdk-react/core": ["./react/src/react/softphone/core/index.ts"],
+      "@dialstack/sdk-react/softphone": ["./react/src/softphone.ts"],
       "#storybook-fixtures/types": ["./js/src/__storybook__/types.ts"],
       "#storybook-fixtures/mock-instance": ["./js/src/__mocks__/mock-instance.ts"]
     },
@@ -42,7 +43,8 @@
     "react/src/**/*",
     "webrtc/src/**/*",
     "server/src/**/*",
-    "vrt/**/*"
+    "vrt/**/*",
+    "e2e/**/*"
   ],
   "exclude": [
     "node_modules",

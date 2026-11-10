@@ -4,3 +4,6 @@ node_modules/
 vrt/test-results/
 vrt/playwright-report/
 vrt/.vrt-decisions.json
+e2e/test-results/
+e2e/playwright-report/
+e2e/.cache/

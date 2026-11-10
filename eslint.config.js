@@ -78,7 +78,13 @@ export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ['src/**/*.{ts,tsx}', 'js/src/**/*.{ts,tsx}', 'react/src/**/*.{ts,tsx}', 'webrtc/src/**/*.{ts,tsx}', 'server/src/**/*.{ts,tsx}'],
+    files: [
+      'src/**/*.{ts,tsx}',
+      'js/src/**/*.{ts,tsx}',
+      'react/src/**/*.{ts,tsx}',
+      'webrtc/src/**/*.{ts,tsx}',
+      'server/src/**/*.{ts,tsx}',
+    ],
     plugins: {
       react: fixupPluginRules(reactPlugin),
       'react-hooks': fixupPluginRules(reactHooksPlugin),
@@ -156,6 +162,17 @@ export default tseslint.config(
       },
     },
   },
+  {
+    // Softphone end-to-end suite against dev: Playwright specs and fixtures in
+    // Node, with page callbacks and the harness app in the browser.
+    files: ['e2e/**/*.{ts,tsx}'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.browser,
+      },
+    },
+  },
   // Only server gets includeTypes off, and only because its declaration build
   // inlines the browser package's type bodies — see packageBoundaries above.
   packageBoundaries('js'),
@@ -163,6 +180,14 @@ export default tseslint.config(
   packageBoundaries('webrtc'),
   packageBoundaries('server', { inlinesDeclarations: true }),
   {
-    ignores: ['dist/**', 'node_modules/**', '*.config.js', '*/dist/**'],
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      '*.config.js',
+      '*/dist/**',
+      'e2e/playwright-report/**',
+      'e2e/test-results/**',
+      'e2e/.cache/**',
+    ],
   }
 );
