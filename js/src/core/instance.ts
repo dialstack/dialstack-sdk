@@ -17,7 +17,13 @@ import type {
   RingingCallEvent,
   CallListParams,
   CallLog,
+  CallSummary,
+  CallSummaryParams,
+  RemoteNumber,
+  RemoteNumberListParams,
   Transcript,
+  VoicemailSummary,
+  VoicemailSummaryParams,
   VoicemailTranscript,
   Extension,
   ExtensionListResponse,
@@ -93,6 +99,12 @@ export { ROUTING_TARGET_TYPE_ORDER } from '../types';
 import type { DialPlan as DialPlanData } from '../types/dial-plan';
 import { CLIENT_HEADER, ClientInfo } from './client-info';
 import { appendSentimentFilters } from '../utils/call-filters';
+import type {
+  QualitySummary,
+  QualitySummaryParams,
+  VoicemailItem,
+  VoicemailListParams,
+} from '../types/call-activity';
 import { PACKAGE_VERSION } from '../version';
 import type { AIAgent, UpdateAIAgentRequest } from '../types/ai-agent';
 import type {
@@ -194,8 +206,8 @@ function appendOneOrMany(query: URLSearchParams, name: string, value?: string | 
   }
 }
 
-/** `GET /v1/calls` filters. */
-function appendCallFilters(query: URLSearchParams, params?: CallListParams) {
+/** The filters `GET /v1/calls` and `GET /v1/calls/summary` share. */
+function appendCallFilters(query: URLSearchParams, params?: CallSummaryParams | CallListParams) {
   if (params?.user_id) query.set('user_id', params.user_id);
   if (params?.did) query.set('did', params.did);
   if (params?.direction) query.set('direction', params.direction);
@@ -208,6 +220,31 @@ function appendCallFilters(query: URLSearchParams, params?: CallListParams) {
   if (params?.from_date) query.set('from_date', params.from_date);
   if (params?.to_date) query.set('to_date', params.to_date);
   appendSentimentFilters(query, params);
+}
+
+/** The remote-number list's range filters, as `last_call_at[gte]=…`. */
+function appendRangeFilters(query: URLSearchParams, params: RemoteNumberListParams) {
+  const ranges: Array<[string, Record<string, string | number | undefined> | undefined]> = [
+    ['last_call_at', params.last_call_at as Record<string, string | undefined> | undefined],
+    [
+      'last_connected_at',
+      params.last_connected_at as Record<string, string | undefined> | undefined,
+    ],
+    [
+      'unconnected_inbound_count',
+      params.unconnected_inbound_count as Record<string, number | undefined> | undefined,
+    ],
+    [
+      'unconnected_inbound_last_at',
+      params.unconnected_inbound_last_at as Record<string, string | undefined> | undefined,
+    ],
+  ];
+  for (const [key, range] of ranges) {
+    for (const op of ['gt', 'gte', 'lt', 'lte']) {
+      const v = range?.[op];
+      if (v !== undefined) query.set(`${key}[${op}]`, String(v));
+    }
+  }
 }
 
 const DEFAULT_API_URL = 'https://api.dialstack.ai';
@@ -615,6 +652,21 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       }
       return response.json();
     },
+    summary: async (params: CallSummaryParams): Promise<CallSummary> => {
+      const query = new URLSearchParams();
+      appendCallFilters(query, params);
+      if (params.granularity) query.set('granularity', params.granularity);
+      if (params.time_zone) query.set('time_zone', params.time_zone);
+      const response = await this.fetchApi(`/v1/calls/summary?${query.toString()}`);
+      if (!response.ok) {
+        const { message, code, details } = await extractApiError(
+          response,
+          `Failed to summarize calls: ${response.status}`
+        );
+        throw new ApiError(message, response.status, code, details);
+      }
+      return response.json();
+    },
     transcripts: {
       retrieve: async (callId: string): Promise<Transcript> => {
         const response = await this.fetchApi(`/v1/calls/${callId}/transcript`);
@@ -630,7 +682,79 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
     },
   };
 
+  remoteNumbers = {
+    list: async (params: RemoteNumberListParams): Promise<PaginatedResponse<RemoteNumber>> => {
+      const query = new URLSearchParams();
+      if (params.limit) query.set('limit', String(params.limit));
+      if (params.page) query.set('page', params.page);
+      appendRangeFilters(query, params);
+      for (const field of params.expand ?? []) query.append('expand[]', field);
+      const response = await this.fetchApi(`/v1/remote-numbers?${query.toString()}`);
+      if (!response.ok) {
+        const { message, code, details } = await extractApiError(
+          response,
+          `Failed to list remote numbers: ${response.status}`
+        );
+        throw new ApiError(message, response.status, code, details);
+      }
+      return response.json();
+    },
+    retrieve: async (
+      phoneNumber: string,
+      params?: { expand?: Array<'last_call'> }
+    ): Promise<RemoteNumber> => {
+      const query = new URLSearchParams();
+      for (const field of params?.expand ?? []) query.append('expand[]', field);
+      const qs = query.toString();
+      const path = `/v1/remote-numbers/${encodeURIComponent(phoneNumber)}`;
+      const response = await this.fetchApi(qs ? `${path}?${qs}` : path);
+      if (!response.ok) {
+        const { message, code, details } = await extractApiError(
+          response,
+          `Failed to get remote number: ${response.status}`
+        );
+        throw new ApiError(message, response.status, code, details);
+      }
+      return response.json();
+    },
+  };
+
   voicemails = {
+    list: async (params?: VoicemailListParams): Promise<PaginatedResponse<VoicemailItem>> => {
+      const query = new URLSearchParams();
+      if (params?.owner) query.set('owner', params.owner);
+      if (params?.is_read !== undefined) query.set('is_read', String(params.is_read));
+      if (params?.from_date) query.set('from_date', params.from_date);
+      if (params?.to_date) query.set('to_date', params.to_date);
+      if (params?.limit) query.set('limit', String(params.limit));
+      if (params?.page) query.set('page', params.page);
+      const qs = query.toString();
+      const response = await this.fetchApi(qs ? `/v1/voicemails?${qs}` : '/v1/voicemails');
+      if (!response.ok) {
+        const { message, code, details } = await extractApiError(
+          response,
+          `Failed to list voicemails: ${response.status}`
+        );
+        throw new ApiError(message, response.status, code, details);
+      }
+      return response.json();
+    },
+    summary: async (params: VoicemailSummaryParams): Promise<VoicemailSummary> => {
+      const query = new URLSearchParams();
+      if (params.owner) query.set('owner', params.owner);
+      if (params.is_read !== undefined) query.set('is_read', String(params.is_read));
+      query.set('from_date', params.from_date);
+      query.set('to_date', params.to_date);
+      const response = await this.fetchApi(`/v1/voicemails/summary?${query.toString()}`);
+      if (!response.ok) {
+        const { message, code, details } = await extractApiError(
+          response,
+          `Failed to summarize voicemails: ${response.status}`
+        );
+        throw new ApiError(message, response.status, code, details);
+      }
+      return response.json();
+    },
     retrieveTranscript: async (voicemailId: string): Promise<VoicemailTranscript> => {
       const response = await this.fetchApi(`/v1/voicemails/${voicemailId}/transcript`);
       if (!response.ok) {
@@ -650,6 +774,17 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         throw new Error(`Failed to mark voicemail as read: ${response.status} ${errorText}`);
       }
     },
+    markAsUnread: async (voicemailId: string): Promise<void> => {
+      const response = await this.fetchApi(`/v1/voicemails/${voicemailId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_read: false }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to mark voicemail as unread: ${response.status} ${errorText}`);
+      }
+    },
     delete: async (voicemailId: string): Promise<void> => {
       const response = await this.fetchApi(`/v1/voicemails/${voicemailId}`, {
         method: 'DELETE',
@@ -658,6 +793,25 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         const errorText = await response.text();
         throw new Error(`Failed to delete voicemail: ${response.status} ${errorText}`);
       }
+    },
+  };
+
+  quality = {
+    summary: async (params: QualitySummaryParams): Promise<QualitySummary> => {
+      const query = new URLSearchParams({
+        from: params.from,
+        to: params.to,
+        granularity: params.granularity,
+      });
+      const response = await this.fetchApi(`/v1/quality/summary?${query.toString()}`);
+      if (!response.ok) {
+        const { message, code, details } = await extractApiError(
+          response,
+          `Failed to get the quality summary: ${response.status}`
+        );
+        throw new ApiError(message, response.status, code, details);
+      }
+      return response.json();
     },
   };
 
@@ -1460,6 +1614,9 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       }
       if (options?.type) {
         params.set('type', options.type);
+      }
+      if (options?.registration_status) {
+        params.set('registration_status', options.registration_status);
       }
       for (const e of options?.expand ?? []) {
         params.append('expand[]', e);

@@ -4,9 +4,12 @@
 
 import { parsePhoneNumber, type CountryCode, type PhoneNumber } from 'libphonenumber-js';
 import { BaseComponent } from './base-component';
+import { attachCopyButtons, renderCopyNumber } from './copy-number';
+import { formatWhen } from '../utils/call-activity';
 import {
   type VoicemailDisplayOptions,
   type VoicemailBehaviorOptions,
+  type VoicemailListOptions,
   type VoicemailRowRenderer,
   type VoicemailsClasses,
   type CallLog,
@@ -24,6 +27,20 @@ import {
  */
 const MIXED_MAGNITUDE = 0.5;
 
+const TRANSCRIPT_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>`;
+
+const MAIL_OPEN_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.2 8.4c.5.38.8.97.8 1.6v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 .8-1.6l8-6a2 2 0 0 1 2.4 0l8 6Z"/><path d="m22 10-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 10"/></svg>`;
+
+/** Pages an `oldest` list reads before it stops; the newest pages come first. */
+const MAX_PAGES = 10;
+
+const DAY_MS = 86_400_000;
+
+/** Local midnight `days` days ago. */
+function daysAgo(days: number, now: Date): Date {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
+}
+
 /**
  * Voicemail data structure from API
  */
@@ -35,6 +52,8 @@ interface Voicemail {
   duration_seconds: number;
   is_read: boolean;
   audio_url: string;
+  /** The mailbox: a user id or a shared voicemail box id */
+  owner?: string;
   format?: string;
   transcription?: string;
   summary?: string;
@@ -59,7 +78,12 @@ interface VoicemailsResponse {
  * Voicemails component displays user-specific voicemails with iOS-style UI
  */
 export class VoicemailsComponent extends BaseComponent {
-  private userId: string | null = null;
+  /**
+   * The mailbox listed: a user or shared voicemail box id, `null` for every
+   * mailbox, `undefined` until the host says (nothing is read before then, so
+   * a host about to pick a user never reads every mailbox first).
+   */
+  private mailbox: string | null | undefined = undefined;
   private isLoading: boolean = false;
   private isLoadingMore: boolean = false;
   private error: string | null = null;
@@ -73,8 +97,11 @@ export class VoicemailsComponent extends BaseComponent {
   private showDeleteConfirm: boolean = false;
   private pendingDeleteId: string | null = null;
 
-  // Audio playback state
+  // Audio playback state. The element is the component's, never in the
+  // shadow DOM: a render rebuilds the markup, and a message playing must
+  // survive it (opening a transcript, marking another message read, Undo).
   private audioElement: HTMLAudioElement | null = null;
+  private playingId: string | null = null;
   private isPlaying: boolean = false;
   private currentTime: number = 0;
   private duration: number = 0;
@@ -84,6 +111,8 @@ export class VoicemailsComponent extends BaseComponent {
   private transcriptCache: Map<string, { status: TranscriptStatus; text: string | null }> =
     new Map();
   private loadingTranscript: Set<string> = new Set();
+  /** The card variant: messages whose transcript is open under them. */
+  private openTranscripts = new Set<string>();
 
   // Display options
   private displayOptions: Required<VoicemailDisplayOptions> = {
@@ -93,6 +122,9 @@ export class VoicemailsComponent extends BaseComponent {
     showDeleteButton: true,
     showProgressBar: true,
     showTimestamp: true,
+    variant: 'plain',
+    showMailbox: false,
+    showMarkAsReadButton: false,
   };
 
   // Behavior options
@@ -101,7 +133,22 @@ export class VoicemailsComponent extends BaseComponent {
     confirmBeforeDelete: true,
     markAsReadOnPlay: true,
     allowSeeking: true,
+    undoMarkAsReadMs: 6_000,
   };
+
+  private listOptions: VoicemailListOptions = {};
+
+  // Polling: a cheap count read, and the list again only when it changes.
+  private pollMs: number | null = null;
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private lastSignature: string | null = null;
+
+  // Mark as read with Undo: still listed, with an Undo, until the timer fires.
+  private justRead = new Map<string, ReturnType<typeof setTimeout>>();
+  private markReadFailed = new Set<string>();
+
+  // Mailbox names, for showMailbox: users (with extension) and shared boxes.
+  private mailboxNames = new Map<string, string>();
 
   // Custom row renderer
   private customRowRenderer?: VoicemailRowRenderer;
@@ -120,10 +167,11 @@ export class VoicemailsComponent extends BaseComponent {
   protected initialize(): void {
     if (this.isInitialized) return;
     this.render();
-    if (this.userId) {
+    if (this.mailbox !== undefined) {
       this.loadData();
     }
     this.isInitialized = true;
+    this.restartPolling();
   }
 
   /**
@@ -132,6 +180,20 @@ export class VoicemailsComponent extends BaseComponent {
   protected override cleanup(): void {
     this.stopAudio();
     this.hideConfirmModal();
+    if (this.pollTimer) clearInterval(this.pollTimer);
+    this.pollTimer = null;
+    for (const timer of this.justRead.values()) clearTimeout(timer);
+    this.justRead.clear();
+  }
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    if (this.isInitialized && !this.pollTimer) this.restartPolling();
+  }
+
+  /** The user a call back is placed from: the mailbox, when it is a user's. */
+  private get callerUserId(): string | null {
+    return this.mailbox?.startsWith('user_') ? this.mailbox : null;
   }
 
   // ============================================================================
@@ -229,37 +291,69 @@ export class VoicemailsComponent extends BaseComponent {
   // Data Loading
   // ============================================================================
 
+  /** The list's query, as `GET /v1/voicemails` takes it. */
+  private listQuery(): URLSearchParams {
+    const oldestFirst = this.listOptions.order === 'oldest';
+    const params = new URLSearchParams({ limit: oldestFirst ? '100' : '20' });
+    if (this.mailbox) params.set('owner', this.mailbox);
+    if (this.listOptions.unreadOnly) params.set('is_read', 'false');
+    const since = this.windowStart(new Date());
+    if (since) params.set('from_date', since.toISOString());
+    return params;
+  }
+
+  private windowStart(now: Date): Date | null {
+    const days = this.listOptions.receivedWithinDays;
+    return days === undefined ? null : daysAgo(days, now);
+  }
+
   /**
-   * Load voicemails from API (initial load)
+   * Load voicemails from API. `quiet` (a poll) keeps the list on screen while
+   * it reads, instead of a spinner.
    */
-  private async loadData(): Promise<void> {
+  private async loadData(quiet = false): Promise<void> {
     if (!this.instance) {
       this.error = this.t('common.error');
       this.render();
       return;
     }
 
-    if (!this.userId) {
+    if (this.mailbox === undefined) {
       this.error = this.t('voicemails.noUserId');
       this.render();
       return;
     }
 
-    this._onLoaderStart?.({ elementTagName: 'dialstack-voicemails' });
-    this.isLoading = true;
-    this.error = null;
-    this.voicemails = [];
-    this.nextPageUrl = null;
-    this.transcriptCache.clear();
-    this.loadingTranscript.clear();
-    this.render();
+    if (!quiet) {
+      this._onLoaderStart?.({ elementTagName: 'dialstack-voicemails' });
+      this.isLoading = true;
+      this.error = null;
+      this.voicemails = [];
+      this.nextPageUrl = null;
+      this.transcriptCache.clear();
+      this.loadingTranscript.clear();
+      this.render();
+    }
 
     try {
-      const params = new URLSearchParams({ limit: '20', owner: this.userId });
-      const data = await this.fetchComponentData<VoicemailsResponse>(`/v1/voicemails?${params}`);
-      this.voicemails = data.data || [];
-      this.nextPageUrl = data.next_page_url;
-
+      const [loaded] = await Promise.all([
+        this.readList(),
+        this.displayOptions.showMailbox && this.mailboxNames.size === 0
+          ? this.loadMailboxNames()
+          : Promise.resolve(),
+      ]);
+      // A message marked read moments ago keeps its row, and its Undo, until
+      // the undo time is up, though the list no longer has it as unread.
+      const kept = this.voicemails.filter(
+        (vm) => this.justRead.has(vm.id) && !loaded.data.some((l) => l.id === vm.id)
+      );
+      let list = [...loaded.data, ...kept];
+      if (this.listOptions.order === 'oldest') {
+        list = list.sort((x, y) => Date.parse(x.created_at) - Date.parse(y.created_at));
+      }
+      this.voicemails = list;
+      this.nextPageUrl = loaded.nextPageUrl;
+      if (this.expandedId && !list.some((vm) => vm.id === this.expandedId)) this.expandedId = null;
       this.error = null;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : this.t('voicemails.loading');
@@ -271,6 +365,92 @@ export class VoicemailsComponent extends BaseComponent {
       this.isLoading = false;
       this.render();
     }
+  }
+
+  /**
+   * One page, or with `order: 'oldest'` every page (up to MAX_PAGES): the API
+   * lists newest first, and the oldest are the ones shown first.
+   */
+  private async readList(): Promise<{ data: Voicemail[]; nextPageUrl: string | null }> {
+    let url: string | null = `/v1/voicemails?${this.listQuery()}`;
+    if (this.listOptions.order !== 'oldest') {
+      const page = await this.fetchComponentData<VoicemailsResponse>(url);
+      return { data: page.data || [], nextPageUrl: page.next_page_url };
+    }
+    const data: Voicemail[] = [];
+    for (let i = 0; i < MAX_PAGES && url; i++) {
+      const page: VoicemailsResponse = await this.fetchComponentData<VoicemailsResponse>(url);
+      data.push(...(page.data || []));
+      url = page.next_page_url;
+    }
+    return { data, nextPageUrl: null };
+  }
+
+  /** Users (with their extension) and shared boxes; a failure leaves names out. */
+  private async loadMailboxNames(): Promise<void> {
+    if (!this.instance) return;
+    const [users, boxes] = await Promise.all([
+      this.instance.users.list({ limit: 100, expand: ['extensions'] }).catch(() => []),
+      this.instance.sharedVoicemailBoxes.list({ limit: 100 }).catch(() => []),
+    ]);
+    for (const u of users) {
+      const ext = (u as { extensions?: { data?: Array<{ number?: string }> } }).extensions
+        ?.data?.[0]?.number;
+      this.mailboxNames.set(u.id, ext ? `${u.name ?? ''} (${ext})` : (u.name ?? ''));
+    }
+    for (const b of boxes) {
+      this.mailboxNames.set(
+        b.id,
+        b.extension_number ? `${b.name} (${b.extension_number})` : b.name
+      );
+    }
+  }
+
+  // ============================================================================
+  // Polling
+  // ============================================================================
+
+  private restartPolling(): void {
+    if (this.pollTimer) clearInterval(this.pollTimer);
+    this.pollTimer = this.pollMs ? setInterval(() => void this.poll(), this.pollMs) : null;
+  }
+
+  /**
+   * Reads the count of what the list shows, and the list again only when it
+   * changed. A message playing is never cut off: the list waits for it.
+   */
+  private async poll(): Promise<void> {
+    if (!this.instance || this.mailbox === undefined || this.isLoading || this.isPlaying) return;
+    const now = new Date();
+    // The summary needs a window of at most 90 days.
+    const from = this.windowStart(now) ?? new Date(now.getTime() - 90 * DAY_MS);
+    try {
+      const summary = await this.instance.voicemails.summary({
+        owner: this.mailbox ?? undefined,
+        is_read: this.listOptions.unreadOnly ? false : undefined,
+        from_date: from.toISOString(),
+        to_date: now.toISOString(),
+      });
+      const signature = JSON.stringify([summary.total, summary.breakdown]);
+      if (signature === this.lastSignature && !this.error) return;
+      await this.loadData(true);
+      if (!this.error) this.lastSignature = signature;
+    } catch {
+      // A failed count read is tried again on the next poll.
+    }
+  }
+
+  /**
+   * How often to check for new messages, in milliseconds; `null` turns it off.
+   */
+  setPollInterval(ms: number | null): void {
+    this.pollMs = ms;
+    if (this.isInitialized) this.restartPolling();
+  }
+
+  /** Read the list again now. */
+  refresh(): void {
+    if (this.isInitialized && this.mailbox !== undefined) void this.loadData(true);
   }
 
   /**
@@ -358,7 +538,8 @@ export class VoicemailsComponent extends BaseComponent {
    * Fetch transcript for a voicemail
    */
   private async fetchTranscript(voicemailId: string): Promise<void> {
-    if (!this.instance || !this.userId || this.loadingTranscript.has(voicemailId)) return;
+    if (!this.instance || this.mailbox === undefined || this.loadingTranscript.has(voicemailId))
+      return;
 
     this.loadingTranscript.add(voicemailId);
     this.updateTranscriptUI();
@@ -378,17 +559,30 @@ export class VoicemailsComponent extends BaseComponent {
    * Update transcript UI without full re-render
    */
   private updateTranscriptUI(): void {
-    if (!this.shadowRoot || !this.expandedId) return;
-    const transcriptSection = this.shadowRoot.querySelector('.transcript-section');
-    if (transcriptSection) {
-      transcriptSection.innerHTML = this.renderTranscriptContent(this.expandedId);
+    if (!this.shadowRoot) return;
+    for (const section of this.shadowRoot.querySelectorAll<HTMLElement>('[data-transcript-for]')) {
+      section.innerHTML = this.renderTranscriptContent(
+        section.dataset.transcriptFor ?? '',
+        section.hasAttribute('data-compact')
+      );
     }
+  }
+
+  /** The card variant's transcript toggle. */
+  private toggleTranscript(voicemailId: string): void {
+    if (this.openTranscripts.has(voicemailId)) {
+      this.openTranscripts.delete(voicemailId);
+    } else {
+      this.openTranscripts.add(voicemailId);
+      if (!this.transcriptCache.has(voicemailId)) void this.fetchTranscript(voicemailId);
+    }
+    this.render();
   }
 
   /**
    * Render transcript content based on loading/cache state
    */
-  private renderTranscriptContent(voicemailId: string): string {
+  private renderTranscriptContent(voicemailId: string, compact = false): string {
     if (this.loadingTranscript.has(voicemailId)) {
       return `
         <div class="transcript-loading" part="transcript-loading">
@@ -404,12 +598,16 @@ export class VoicemailsComponent extends BaseComponent {
     }
 
     if (cached.status === 'completed' && cached.text) {
+      // Under a card row the text stands alone: the toggle already says what it is.
+      if (compact) {
+        return `<div class="transcript-text" part="transcript-text">${this.escapeHtml(cached.text)}</div>`;
+      }
       return `
         <div class="transcript-header" part="transcript-header">
           ${this.getIcon('document')}
           ${this.t('voicemails.transcript')}
         </div>
-        <div class="transcript-text" part="transcript-text">${cached.text}</div>
+        <div class="transcript-text" part="transcript-text">${this.escapeHtml(cached.text)}</div>
       `;
     }
 
@@ -442,6 +640,7 @@ export class VoicemailsComponent extends BaseComponent {
       this.audioElement.currentTime = 0;
       this.audioElement = null;
     }
+    this.playingId = null;
     if (this.progressInterval) {
       clearInterval(this.progressInterval);
       this.progressInterval = null;
@@ -455,12 +654,14 @@ export class VoicemailsComponent extends BaseComponent {
    * Toggle play/pause
    */
   private togglePlayPause(voicemailId: string): void {
-    if (!this.shadowRoot) return;
+    const vm = this.voicemails.find((v) => v.id === voicemailId);
+    if (!vm) return;
 
-    const audio = this.shadowRoot.querySelector(
-      `audio[data-id="${voicemailId}"]`
-    ) as HTMLAudioElement;
-    if (!audio) return;
+    let audio = this.playingId === voicemailId ? this.audioElement : null;
+    if (!audio) {
+      audio = new Audio(vm.audio_url);
+      audio.preload = 'auto';
+    }
 
     if (this.isPlaying && this.audioElement === audio) {
       audio.pause();
@@ -478,7 +679,8 @@ export class VoicemailsComponent extends BaseComponent {
       }
 
       this.audioElement = audio;
-      audio.play();
+      this.playingId = voicemailId;
+      void audio.play()?.catch(() => {});
       this.isPlaying = true;
       this._onVoicemailPlay?.({ voicemailId });
       if (this.behaviorOptions.markAsReadOnPlay) {
@@ -510,12 +712,17 @@ export class VoicemailsComponent extends BaseComponent {
    * Update progress bar UI without full re-render
    */
   private updateProgressUI(): void {
-    if (!this.shadowRoot || !this.expandedId) return;
+    // The playing message's controls, wherever they are: the open message in
+    // the list, or its row in the card.
+    const player = this.playingId
+      ? this.shadowRoot?.querySelector<HTMLElement>(`[data-player="${this.playingId}"]`)
+      : null;
+    if (!player) return;
 
-    const progressFill = this.shadowRoot.querySelector('.progress-fill') as HTMLElement;
-    const progressHandle = this.shadowRoot.querySelector('.progress-handle') as HTMLElement;
-    const timeCurrent = this.shadowRoot.querySelector('.time-current');
-    const timeRemaining = this.shadowRoot.querySelector('.time-remaining');
+    const progressFill = player.querySelector<HTMLElement>('.progress-fill');
+    const progressHandle = player.querySelector<HTMLElement>('.progress-handle');
+    const timeCurrent = player.querySelector('.time-current');
+    const timeRemaining = player.querySelector('.time-remaining');
 
     if (this.duration > 0) {
       const percent = (this.currentTime / this.duration) * 100;
@@ -533,52 +740,58 @@ export class VoicemailsComponent extends BaseComponent {
     }
   }
 
-  /**
-   * Update play button UI without full re-render
-   */
+  /** Every play button shows play or pause for its own message. */
   private updatePlayButtonUI(): void {
-    if (!this.shadowRoot || !this.expandedId) return;
-
-    const playBtn = this.shadowRoot.querySelector('.play-btn');
-    if (playBtn) {
-      playBtn.innerHTML = this.isPlaying ? this.getIcon('pause') : this.getIcon('play');
+    for (const btn of this.shadowRoot?.querySelectorAll<HTMLElement>('[data-action="play"]') ??
+      []) {
+      const playing = this.isPlaying && this.playingId === btn.dataset.id;
+      btn.innerHTML = playing ? this.getIcon('pause') : this.getIcon('play');
+      const label = this.t(playing ? 'common.pause' : 'common.play');
+      btn.setAttribute('aria-label', label);
+      btn.setAttribute('title', label);
     }
   }
 
+  /** The fraction of a progress bar under the pointer. */
+  private barFraction(bar: HTMLElement, clientX: number): number {
+    const rect = bar.getBoundingClientRect();
+    return rect.width > 0 ? Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)) : 0;
+  }
+
   /**
-   * Handle progress bar seek
+   * A click on a message's progress bar seeks it, starting it first when it
+   * is not the one playing.
    */
-  private handleSeek(event: MouseEvent): void {
-    if (!this.audioElement || !this.shadowRoot) return;
-
-    const progressBar = this.shadowRoot.querySelector('.progress-bar') as HTMLElement;
-    if (!progressBar) return;
-
-    const rect = progressBar.getBoundingClientRect();
-    const percent = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
-    const newTime = percent * this.audioElement.duration;
-
-    this.audioElement.currentTime = newTime;
-    this.currentTime = newTime;
-    this.updateProgressUI();
+  private handleSeek(event: MouseEvent, row: HTMLElement): void {
+    const id = row.closest<HTMLElement>('[data-player]')?.dataset.player;
+    const bar = row.querySelector<HTMLElement>('.progress-bar');
+    if (!id || !bar) return;
+    const fraction = this.barFraction(bar, event.clientX);
+    if (this.playingId !== id) this.togglePlayPause(id);
+    const audio = this.audioElement;
+    if (!audio) return;
+    const apply = () => {
+      if (!Number.isFinite(audio.duration)) return;
+      audio.currentTime = fraction * audio.duration;
+      this.currentTime = audio.currentTime;
+      this.updateProgressUI();
+    };
+    if (Number.isFinite(audio.duration)) apply();
+    else audio.addEventListener('loadedmetadata', apply, { once: true });
   }
 
   /**
    * Start dragging the progress handle
    */
-  private startDrag(_event: MouseEvent): void {
-    if (!this.audioElement || !this.shadowRoot) return;
-
-    const progressBar = this.shadowRoot.querySelector('.progress-bar') as HTMLElement;
-    if (!progressBar) return;
+  private startDrag(handle: HTMLElement): void {
+    const bar = handle.closest<HTMLElement>('.progress-bar');
+    const audio = this.audioElement;
+    if (!audio || !bar) return;
 
     const onMouseMove = (e: MouseEvent) => {
-      const rect = progressBar.getBoundingClientRect();
-      const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      const newTime = percent * this.audioElement!.duration;
-
-      this.audioElement!.currentTime = newTime;
-      this.currentTime = newTime;
+      if (!Number.isFinite(audio.duration)) return;
+      audio.currentTime = this.barFraction(bar, e.clientX) * audio.duration;
+      this.currentTime = audio.currentTime;
       this.updateProgressUI();
     };
 
@@ -662,7 +875,7 @@ export class VoicemailsComponent extends BaseComponent {
    * Delete voicemail (actual deletion)
    */
   private async deleteVoicemail(voicemailId: string): Promise<void> {
-    if (!this.instance || !this.userId) return;
+    if (!this.instance || this.mailbox === undefined) return;
 
     try {
       await this.instance.voicemails.delete(voicemailId);
@@ -684,10 +897,11 @@ export class VoicemailsComponent extends BaseComponent {
    * Initiate a call to a phone number
    */
   private async initiateCall(phoneNumber: string): Promise<void> {
-    if (!this.instance || !this.userId) return;
+    const userId = this.callerUserId;
+    if (!this.instance || !userId) return;
 
     try {
-      await this.instance.calls.create({ userId: this.userId, dialString: phoneNumber });
+      await this.instance.calls.create({ userId, dialString: phoneNumber });
       // Fire callback after successful initiation
       this._onCallBack?.({ phoneNumber });
     } catch (err) {
@@ -699,7 +913,7 @@ export class VoicemailsComponent extends BaseComponent {
    * Mark voicemail as read
    */
   private async markAsRead(voicemailId: string): Promise<void> {
-    if (!this.instance || !this.userId) return;
+    if (!this.instance || this.mailbox === undefined) return;
 
     const voicemail = this.voicemails.find((vm) => vm.id === voicemailId);
     if (!voicemail || voicemail.is_read) return;
@@ -722,6 +936,57 @@ export class VoicemailsComponent extends BaseComponent {
     } catch (err) {
       console.error('Failed to mark voicemail as read:', err);
     }
+  }
+
+  /**
+   * The Mark as read button: read at once, with an Undo for undoMarkAsReadMs.
+   * In an unread-only list the message leaves when the undo time is up.
+   */
+  private async markReadWithUndo(voicemailId: string): Promise<void> {
+    if (!this.instance) return;
+    const voicemail = this.voicemails.find((vm) => vm.id === voicemailId);
+    if (!voicemail) return;
+    this.markReadFailed.delete(voicemailId);
+    // Its controls are about to give way to the Undo row.
+    if (this.playingId === voicemailId) this.stopAudio();
+    if (this.expandedId === voicemailId) this.expandedId = null;
+    try {
+      await this.instance.voicemails.markAsRead(voicemailId);
+    } catch {
+      this.markReadFailed.add(voicemailId);
+      this.render();
+      return;
+    }
+    voicemail.is_read = true;
+    this.justRead.set(
+      voicemailId,
+      setTimeout(() => {
+        this.justRead.delete(voicemailId);
+        if (this.listOptions.unreadOnly) {
+          this.voicemails = this.voicemails.filter((vm) => vm.id !== voicemailId);
+        }
+        this.render();
+      }, this.behaviorOptions.undoMarkAsReadMs)
+    );
+    this.render();
+  }
+
+  private async undoMarkRead(voicemailId: string): Promise<void> {
+    if (!this.instance) return;
+    const timer = this.justRead.get(voicemailId);
+    if (timer) clearTimeout(timer);
+    this.justRead.delete(voicemailId);
+    const voicemail = this.voicemails.find((vm) => vm.id === voicemailId);
+    try {
+      await this.instance.voicemails.markAsUnread(voicemailId);
+      if (voicemail) voicemail.is_read = false;
+    } catch {
+      // Stays read; the next read shows it as it is.
+      if (this.listOptions.unreadOnly) {
+        this.voicemails = this.voicemails.filter((vm) => vm.id !== voicemailId);
+      }
+    }
+    this.render();
   }
 
   // ============================================================================
@@ -867,6 +1132,91 @@ export class VoicemailsComponent extends BaseComponent {
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
+
+        /* Card variant: a framed list with a header, for a dashboard */
+        .container.card {
+          border: 1px solid var(--ds-color-border);
+          border-radius: var(--ds-border-radius-large);
+          padding: var(--ds-layout-spacing-lg);
+        }
+        .card-header { margin-bottom: var(--ds-layout-spacing-md); }
+        .card-title { margin: 0; font-size: var(--ds-font-size-large); font-weight: var(--ds-font-weight-bold); }
+        .card-description { margin: 2px 0 0; color: var(--ds-color-text-secondary); font-size: var(--ds-font-size-small); }
+        .container.card .loading,
+        .container.card .empty { background: none; padding: var(--ds-spacing-md) 0; text-align: left; color: var(--ds-color-text-secondary); }
+
+        .mailbox {
+          font-size: var(--ds-font-size-small);
+          color: var(--ds-color-text-secondary);
+          grid-column: 1 / -1;
+          grid-row: 3;
+        }
+        /* With a mailbox line, the summary goes under it. */
+        .row-content.has-mailbox .summary-preview { grid-row: 4; }
+        .row-end { display: inline-flex; align-items: center; gap: var(--ds-spacing-xs); }
+        .mark-read-btn {
+          background: none; border: 0; padding: 4px;
+          border-radius: var(--ds-border-radius);
+          color: var(--ds-color-text-secondary); cursor: pointer; display: inline-flex;
+        }
+        .mark-read-btn:hover { color: var(--ds-color-text); background: var(--ds-color-surface-subtle); }
+        .mark-read-btn svg { width: 16px; height: 16px; }
+        .voicemail-item.read-undo {
+          display: flex; align-items: center; gap: var(--ds-spacing-sm);
+          padding: var(--ds-spacing-md);
+          color: var(--ds-color-text-secondary); font-size: var(--ds-font-size-small);
+        }
+        .undo-btn {
+          background: none; border: 0; padding: 0; font: inherit;
+          color: var(--ds-color-primary); cursor: pointer;
+        }
+        .undo-btn:hover { text-decoration: underline; }
+        .mark-read-failed {
+          margin: 0 var(--ds-spacing-md) var(--ds-spacing-sm);
+          color: var(--ds-color-danger); font-size: var(--ds-font-size-small);
+        }
+
+        /* Card variant rows: everything at a glance, a player on the row */
+        .voicemail-item.card-row {
+          display: flex; flex-direction: column; gap: 4px;
+          padding: var(--ds-spacing-md) 0;
+          border-top: 1px solid var(--ds-color-border-subtle);
+          cursor: default;
+        }
+        .voicemail-item.card-row:first-child { border-top: 0; padding-top: 0; }
+        .voicemail-item.card-row:hover,
+        .voicemail-item.card-row:focus-within { background: none; }
+        .card-row-transcript .transcript-text { font-style: normal; margin: 0; padding: 0; }
+        .card-row-transcript .transcript-loading,
+        .card-row-transcript .transcript-pending,
+        .card-row-transcript .transcript-unavailable { padding: 0; color: var(--ds-color-text-secondary); }
+        .card-row-top { display: flex; justify-content: space-between; align-items: baseline; gap: var(--ds-spacing-sm); }
+        .card-row .caller-name { font-weight: var(--ds-font-weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .card-row .caller-name.unknown { color: var(--ds-color-text-secondary); }
+        .card-row .timestamp { font-size: var(--ds-font-size-small); color: var(--ds-color-text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .card-row-number { display: flex; align-items: center; gap: 2px; }
+        .card-row-meta { margin: 0; font-size: var(--ds-font-size-small); color: var(--ds-color-text-secondary); }
+        .card-row-summary { margin: 0; }
+        .card-row-controls { display: flex; align-items: center; gap: var(--ds-spacing-sm); }
+        .card-row-controls .play-btn { width: 32px; height: 32px; }
+        .card-row-controls .play-btn svg { width: 16px; height: 16px; }
+        .card-row-controls .progress-row { flex: 1; min-width: 0; margin: 0; cursor: pointer; }
+        .card-row-controls .progress-row.no-seek { cursor: default; }
+        .card-row-controls .progress-bar { position: relative; }
+        .card-row-controls .progress-bar::before { content: ''; position: absolute; inset: -8px 0; }
+        .card-row-controls .time-remaining { min-width: 3.25em; text-align: right; font-variant-numeric: tabular-nums; font-size: var(--ds-font-size-small); color: var(--ds-color-text-secondary); }
+        .card-row-transcript {
+          background: var(--ds-color-surface-subtle); border-radius: var(--ds-border-radius);
+          padding: var(--ds-spacing-sm); max-height: 12rem; overflow-y: auto; white-space: pre-wrap;
+        }
+        .icon-button {
+          background: none; border: 0; padding: 4px; border-radius: var(--ds-border-radius);
+          color: var(--ds-color-text-secondary); cursor: pointer; display: inline-flex;
+        }
+        .icon-button:hover { color: var(--ds-color-text); background: var(--ds-color-surface-subtle); }
+        .icon-button svg { width: 16px; height: 16px; }
+        .icon-button.copy svg { width: 14px; height: 14px; }
+        .num { font-variant-numeric: tabular-nums; }
 
         /* No-seek progress bar */
         .progress-row.no-seek .progress-bar {
@@ -1132,6 +1482,12 @@ export class VoicemailsComponent extends BaseComponent {
           color: white;
         }
 
+        .action-btn.mark-read {
+          background: var(--ds-color-surface-subtle);
+          color: var(--ds-color-text);
+        }
+        .action-btn.mark-read svg { width: 16px; height: 16px; }
+
         .action-btn.delete {
           background: var(--ds-color-danger);
           color: white;
@@ -1355,7 +1711,8 @@ export class VoicemailsComponent extends BaseComponent {
         }
       </style>
 
-      <div class="container ${this.getClassNames()}" part="container" role="region" aria-label="${this.t('voicemails.title')}">
+      <div class="container ${this.displayOptions.variant === 'card' ? 'card' : ''} ${this.getClassNames()}" part="container${this.displayOptions.variant === 'card' ? ' card' : ''}" role="region" aria-label="${this.escapeHtml(this.listTitle())}">
+        ${this.displayOptions.variant === 'card' ? this.renderCardHeader() : ''}
         ${this.renderContent()}
       </div>
 
@@ -1389,6 +1746,103 @@ export class VoicemailsComponent extends BaseComponent {
   }
 
   /**
+   * A message in the card variant: everything at a glance and a player on
+   * the row, so a dashboard needs no tap to read or play it.
+   */
+  private renderCardRow(vm: Voicemail): string {
+    const id = this.escapeHtml(vm.id);
+    const playing = this.isPlaying && this.playingId === vm.id;
+    const loaded = this.playingId === vm.id;
+    const at = loaded ? this.currentTime : 0;
+    const length = loaded && this.duration > 0 ? this.duration : vm.duration_seconds;
+    const percent = length > 0 ? (at / length) * 100 : 0;
+    const when = formatWhen(
+      new Date(vm.created_at),
+      new Date(),
+      this.formatting.dateLocale || 'en-US',
+      (time) => this.t('voicemails.yesterdayAt', { time })
+    );
+    const mailbox =
+      this.displayOptions.showMailbox && vm.owner
+        ? this.mailboxNames.get(vm.owner) || this.t('voicemails.unknownMailbox')
+        : '';
+    const transcriptOpen = this.openTranscripts.has(vm.id);
+    const transcriptLabel = this.t(
+      transcriptOpen ? 'voicemails.hideTranscript' : 'voicemails.showTranscript'
+    );
+    const markLabel = this.t('voicemails.markAsRead');
+    const playLabel = this.t(playing ? 'common.pause' : 'common.play');
+    const itemClasses = [
+      'voicemail-item',
+      'card-row',
+      this.classes.item,
+      !vm.is_read && this.classes.itemUnread,
+    ]
+      .filter(Boolean)
+      .join(' ');
+    return `
+      <div class="${itemClasses}" part="voicemail-item" data-id="${id}" role="listitem">
+        <div class="card-row-top">
+          <span class="caller-name ${vm.from_name ? '' : 'unknown'}" part="caller-name">${this.escapeHtml(vm.from_name || this.t('voicemails.unknownCaller'))}</span>
+          ${this.displayOptions.showTimestamp ? `<span class="timestamp" part="timestamp">${this.escapeHtml(when)}</span>` : ''}
+        </div>
+        ${vm.from_number ? `<div class="card-row-number">${renderCopyNumber(vm.from_number, this.copyLabels())}</div>` : ''}
+        ${mailbox ? `<p class="card-row-meta" part="mailbox">${this.escapeHtml(mailbox)}</p>` : ''}
+        ${vm.summary ? `<p class="card-row-summary" part="summary-text">${this.escapeHtml(vm.summary)}</p>` : ''}
+        <div class="card-row-controls ${this.classes.player || ''}" part="controls-row" data-player="${id}">
+          <button type="button" class="play-btn" part="play-button" data-action="play" data-id="${id}" aria-label="${this.escapeHtml(playLabel)}" title="${this.escapeHtml(playLabel)}">${this.getIcon(playing ? 'pause' : 'play')}</button>
+          ${
+            this.displayOptions.showProgressBar
+              ? `<div class="progress-row ${this.behaviorOptions.allowSeeking ? '' : 'no-seek'}" part="progress-row" role="slider" aria-label="${this.t('voicemails.progress')}" aria-valuemin="0" aria-valuemax="${Math.round(length)}" aria-valuenow="${Math.round(at)}">
+            <div class="progress-bar" part="progress-bar"><div class="progress-fill" part="progress-fill" style="width: ${percent}%"></div></div>
+          </div>`
+              : ''
+          }
+          <span class="time-remaining" part="time-remaining">${loaded ? `-${this.formatTime(length - at)}` : this.formatTime(length)}</span>
+          ${
+            this.displayOptions.showTranscription
+              ? `<button type="button" class="icon-button" part="transcript-button" data-action="toggle-transcript" data-id="${id}" aria-expanded="${transcriptOpen}" aria-label="${this.escapeHtml(transcriptLabel)}" title="${this.escapeHtml(transcriptLabel)}">${TRANSCRIPT_ICON}</button>`
+              : ''
+          }
+          ${
+            this.displayOptions.showMarkAsReadButton && !vm.is_read
+              ? `<button type="button" class="icon-button" part="mark-read-button" data-action="mark-read" data-id="${id}" aria-label="${this.escapeHtml(markLabel)}" title="${this.escapeHtml(markLabel)}">${MAIL_OPEN_ICON}</button>`
+              : ''
+          }
+        </div>
+        ${transcriptOpen ? `<div class="card-row-transcript" part="transcript-section" data-transcript-for="${id}" data-compact>${this.renderTranscriptContent(vm.id, true)}</div>` : ''}
+        ${this.markReadFailed.has(vm.id) ? `<p class="mark-read-failed" part="mark-read-failed" role="alert">${this.t('voicemails.markAsReadFailed')}</p>` : ''}
+      </div>`;
+  }
+
+  private copyLabels() {
+    return {
+      copy: (number: string) => this.t('voicemails.copyNumber', { number }),
+      copied: this.t('voicemails.copied'),
+    };
+  }
+
+  /** What the list shows, as its title: unread or all, one mailbox or every. */
+  private listTitle(): string {
+    return this.t(this.listOptions.unreadOnly ? 'voicemails.titleUnread' : 'voicemails.title');
+  }
+
+  /** The card variant's header: the title, and which messages, in what order. */
+  private renderCardHeader(): string {
+    const days = this.listOptions.receivedWithinDays;
+    const order = this.listOptions.order === 'oldest' ? 'Oldest' : 'Newest';
+    const description =
+      days === undefined
+        ? this.t(`voicemails.description${order}`)
+        : this.t(`voicemails.descriptionWithin${order}`, { count: days });
+    return `
+      <div class="card-header" part="card-header">
+        <h2 class="card-title" part="card-title">${this.escapeHtml(this.listTitle())}</h2>
+        <p class="card-description" part="card-description">${this.escapeHtml(description)}</p>
+      </div>`;
+  }
+
+  /**
    * Render content based on state
    */
   private renderContent(): string {
@@ -1413,7 +1867,7 @@ export class VoicemailsComponent extends BaseComponent {
       `;
     }
 
-    if (!this.userId) {
+    if (this.mailbox === undefined) {
       return `
         <div class="empty ${this.classes.empty || ''}" part="empty" role="status">
           <slot name="empty">
@@ -1427,7 +1881,7 @@ export class VoicemailsComponent extends BaseComponent {
       return `
         <div class="empty ${this.classes.empty || ''}" part="empty" role="status">
           <slot name="empty">
-            <p>${this.t('voicemails.empty')}</p>
+            <p>${this.t(this.listOptions.unreadOnly ? 'voicemails.emptyUnread' : 'voicemails.empty')}</p>
           </slot>
         </div>
       `;
@@ -1447,8 +1901,27 @@ export class VoicemailsComponent extends BaseComponent {
         const callerName = this.escapeHtml(vm.from_name || 'Unknown');
         const phoneFormatted = this.escapeHtml(this.formatPhoneNumber(vm.from_number));
 
+        if (this.justRead.has(vm.id)) {
+          return `
+          <div class="voicemail-item read-undo ${this.classes.item || ''}" part="voicemail-item voicemail-item-undo" data-id="${vm.id}" role="listitem">
+            <span class="undo-text" part="undo-text" role="status">${this.t('voicemails.markedRead')}</span>
+            <button type="button" class="undo-btn" part="undo-button" data-action="undo-read" data-id="${vm.id}">${this.t('voicemails.undo')}</button>
+          </div>`;
+        }
+
+        if (this.displayOptions.variant === 'card') return this.renderCardRow(vm);
+
         // Use custom row renderer if provided
         const customRow = this.customRowRenderer ? this.customRowRenderer(vm) : null;
+        const mailbox =
+          this.displayOptions.showMailbox && vm.owner
+            ? this.mailboxNames.get(vm.owner) || this.t('voicemails.unknownMailbox')
+            : '';
+        const markLabel = this.t('voicemails.markAsRead');
+        const markButton =
+          this.displayOptions.showMarkAsReadButton && isUnread
+            ? `<button type="button" class="mark-read-btn" part="mark-read-button" data-action="mark-read" data-id="${vm.id}" aria-label="${this.escapeHtml(markLabel)}" title="${this.escapeHtml(markLabel)}">${MAIL_OPEN_ICON}</button>`
+            : '';
 
         // Build item classes
         const itemClasses = ['voicemail-item'];
@@ -1471,17 +1944,22 @@ export class VoicemailsComponent extends BaseComponent {
                   ? customRow
                   : `
                 <span class="unread-dot ${isUnread ? '' : 'hidden'}" part="unread-indicator" aria-hidden="true"></span>
-                <div class="row-content" part="row-content">
+                <div class="row-content ${mailbox ? 'has-mailbox' : ''}" part="row-content">
                   <span class="caller-name ${isUnread ? 'unread' : ''}" part="caller-name">${callerName}</span>
                   <span class="phone-number-collapsed" part="phone-number">${phoneFormatted}</span>
+                  ${mailbox ? `<span class="mailbox" part="mailbox">${this.escapeHtml(mailbox)}</span>` : ''}
                   ${vm.summary ? `<span class="summary-preview" part="summary-preview">${this.escapeHtml(vm.summary)}</span>` : ''}
                   ${this.displayOptions.showTimestamp ? `<span class="timestamp" part="timestamp">${this.formatDateShort(vm.created_at)}</span>` : ''}
                   ${this.displayOptions.showDuration ? `<span class="duration" part="duration">${this.formatTime(vm.duration_seconds)}</span>` : ''}
                 </div>
-                <span class="chevron" part="chevron" aria-hidden="true">${this.getIcon('chevronRight')}</span>
+                <span class="row-end" part="row-end">
+                  ${markButton}
+                  <span class="chevron" part="chevron" aria-hidden="true">${this.getIcon('chevronRight')}</span>
+                </span>
               `
               }
             </div>
+            ${this.markReadFailed.has(vm.id) ? `<p class="mark-read-failed" part="mark-read-failed" role="alert">${this.t('voicemails.markAsReadFailed')}</p>` : ''}
             ${isExpanded ? this.renderExpandedDetail(vm) : ''}
           </div>
         `;
@@ -1550,17 +2028,15 @@ export class VoicemailsComponent extends BaseComponent {
   private renderExpandedDetail(vm: Voicemail): string {
     const callerName = this.escapeHtml(vm.from_name || 'Unknown');
     const phoneFormatted = this.escapeHtml(this.formatPhoneNumber(vm.from_number));
-    const isCurrentlyPlaying =
-      this.isPlaying && this.audioElement?.getAttribute('data-id') === vm.id;
-    const progressPercent = this.duration > 0 ? (this.currentTime / this.duration) * 100 : 0;
+    const isCurrentlyPlaying = this.isPlaying && this.playingId === vm.id;
+    const isLoaded = this.playingId === vm.id;
+    const at = isLoaded ? this.currentTime : 0;
+    const length = isLoaded ? this.duration : 0;
+    const progressPercent = length > 0 ? (at / length) * 100 : 0;
     const canSeek = this.behaviorOptions.allowSeeking;
 
     return `
-      <div class="voicemail-detail" part="voicemail-detail" data-detail-id="${vm.id}">
-        <audio data-id="${vm.id}" preload="auto">
-          <source src="${vm.audio_url}" type="audio/${vm.format || 'wav'}">
-        </audio>
-
+      <div class="voicemail-detail" part="voicemail-detail" data-detail-id="${vm.id}" data-player="${vm.id}">
         <!-- Row 1: Caller ID -->
         <div class="detail-caller" part="detail-caller">${callerName}</div>
 
@@ -1578,14 +2054,14 @@ export class VoicemailsComponent extends BaseComponent {
              role="slider"
              aria-label="${this.t('voicemails.progress')}"
              aria-valuemin="0"
-             aria-valuemax="${this.duration || vm.duration_seconds}"
-             aria-valuenow="${this.currentTime}">
-          <span class="time-current" part="time-current">${this.formatTime(this.currentTime)}</span>
+             aria-valuemax="${length || vm.duration_seconds}"
+             aria-valuenow="${at}">
+          <span class="time-current" part="time-current">${this.formatTime(at)}</span>
           <div class="progress-bar" part="progress-bar" data-action="${canSeek ? 'seek' : ''}">
             <div class="progress-fill" part="progress-fill" style="width: ${progressPercent}%"></div>
             ${canSeek ? `<div class="progress-handle" part="progress-handle" style="left: ${progressPercent}%"></div>` : ''}
           </div>
-          <span class="time-remaining" part="time-remaining">-${this.formatTime(this.duration - this.currentTime || vm.duration_seconds)}</span>
+          <span class="time-remaining" part="time-remaining">-${this.formatTime(length - at || vm.duration_seconds)}</span>
         </div>
         `
             : ''
@@ -1601,7 +2077,20 @@ export class VoicemailsComponent extends BaseComponent {
           </button>
           <div class="action-buttons ${this.classes.actions || ''}" part="action-buttons">
             ${
-              this.displayOptions.showCallbackButton
+              this.displayOptions.showMarkAsReadButton && !vm.is_read
+                ? `
+            <button class="action-btn mark-read" part="mark-read-button"
+                    data-action="mark-read"
+                    data-id="${vm.id}"
+                    aria-label="${this.t('voicemails.markAsRead')}">
+              ${MAIL_OPEN_ICON}
+              ${this.t('voicemails.markAsRead')}
+            </button>
+            `
+                : ''
+            }
+            ${
+              this.displayOptions.showCallbackButton && this.callerUserId
                 ? `
             <button class="action-btn call" part="callback-button"
                     data-action="call"
@@ -1659,7 +2148,7 @@ export class VoicemailsComponent extends BaseComponent {
           ${
             this.displayOptions.showTranscription
               ? `
-          <div class="transcript-section" part="transcript-section">
+          <div class="transcript-section" part="transcript-section" data-transcript-for="${this.escapeHtml(vm.id)}">
             ${this.renderTranscriptContent(vm.id)}
           </div>
           `
@@ -1701,6 +2190,8 @@ export class VoicemailsComponent extends BaseComponent {
         )
           return;
 
+        // A card row shows everything already; it does not open.
+        if (item.classList.contains('card-row')) return;
         const id = item.getAttribute('data-id');
         // Only expand, don't collapse when clicking on already expanded item
         if (id && this.expandedId !== id) this.toggleExpand(id);
@@ -1709,6 +2200,7 @@ export class VoicemailsComponent extends BaseComponent {
       // Keyboard handler
       item.addEventListener('keydown', (e) => {
         const key = (e as KeyboardEvent).key;
+        if (item.classList.contains('card-row')) return;
         if (key === 'Enter' || key === ' ') {
           const id = item.getAttribute('data-id');
           if (id && this.expandedId !== id) {
@@ -1734,7 +2226,8 @@ export class VoicemailsComponent extends BaseComponent {
     progressRows.forEach((row) => {
       row.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.handleSeek(e as MouseEvent);
+        if (row.classList.contains('no-seek')) return;
+        this.handleSeek(e as MouseEvent, row as HTMLElement);
       });
     });
 
@@ -1744,7 +2237,7 @@ export class VoicemailsComponent extends BaseComponent {
       handle.addEventListener('mousedown', (e) => {
         e.stopPropagation();
         e.preventDefault();
-        this.startDrag(e as MouseEvent);
+        this.startDrag(handle as HTMLElement);
       });
     });
 
@@ -1759,6 +2252,31 @@ export class VoicemailsComponent extends BaseComponent {
         }
       });
     });
+
+    // The card variant's transcript toggle, and its copy buttons
+    for (const btn of this.shadowRoot.querySelectorAll<HTMLElement>(
+      '[data-action="toggle-transcript"]'
+    )) {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleTranscript(btn.dataset.id ?? '');
+      });
+    }
+    attachCopyButtons(this.shadowRoot, this.copyLabels());
+
+    // Mark as read, and its Undo
+    for (const btn of this.shadowRoot.querySelectorAll<HTMLElement>('[data-action="mark-read"]')) {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        void this.markReadWithUndo(btn.dataset.id ?? '');
+      });
+    }
+    for (const btn of this.shadowRoot.querySelectorAll<HTMLElement>('[data-action="undo-read"]')) {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        void this.undoMarkRead(btn.dataset.id ?? '');
+      });
+    }
 
     // Call button
     const callBtns = this.shadowRoot.querySelectorAll('[data-action="call"]');
@@ -1803,13 +2321,34 @@ export class VoicemailsComponent extends BaseComponent {
   }
 
   /**
-   * Set user ID and reload data (for React integration)
+   * The mailbox to list: a user id or a shared voicemail box id, or `null` for
+   * every mailbox in the account.
    */
-  setUserId(userId: string): void {
-    this.userId = userId;
+  setMailbox(owner: string | null): void {
+    if (owner === this.mailbox) return;
+    this.mailbox = owner;
+    this.lastSignature = null;
     if (this.isInitialized) {
       this.loadData();
     }
+  }
+
+  /**
+   * @deprecated Use `setMailbox`, which also takes a shared voicemail box or
+   * every mailbox. Removed in the next major version.
+   */
+  // NEXT MAJOR: delete; setMailbox covers it.
+  setUserId(userId: string): void {
+    this.setMailbox(userId);
+  }
+
+  /** Which voicemails to list, and in what order (partial override). */
+  setListOptions(options: VoicemailListOptions): void {
+    const next = this.mergeIfChanged(this.listOptions, options);
+    if (!next) return;
+    this.listOptions = next;
+    this.lastSignature = null;
+    if (this.isInitialized && this.mailbox !== undefined) this.loadData();
   }
 }
 

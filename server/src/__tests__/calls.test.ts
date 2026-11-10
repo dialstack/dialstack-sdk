@@ -95,12 +95,157 @@ describe('Calls', () => {
       });
     });
 
+    it('sends sentiment labels flat and ranges as one bracket pair per bound', async () => {
+      mockEmptyList('/v1/calls');
+
+      await dialstack.calls.list(
+        {
+          direction: 'inbound',
+          remote_sentiment: 'negative',
+          remote_sentiment_score: { gte: -1, lt: -0.5 },
+          sentiment_magnitude: { gt: 0.6 },
+          local_sentiment_score: {},
+        },
+        acct
+      );
+
+      expect(Object.fromEntries(new URL(requestedUrl()).searchParams)).toEqual({
+        direction: 'inbound',
+        remote_sentiment: 'negative',
+        'remote_sentiment_score[gte]': '-1',
+        'remote_sentiment_score[lt]': '-0.5',
+        'sentiment_magnitude[gt]': '0.6',
+      });
+    });
+
     it('sends a bare path with no params', async () => {
       mockEmptyList('/v1/calls');
 
       await dialstack.calls.list(undefined, acct);
 
       expect(requestedUrl()).toBe('https://api.dialstack.ai/v1/calls');
+    });
+  });
+
+  describe('calls.summary', () => {
+    it('sends the list filters and the required window, and returns the summary', async () => {
+      const summary = {
+        object: 'call_summary',
+        total_calls: 3,
+        breakdown: [{ direction: 'inbound', status: 'no-answer', count: 3 }],
+        sentiment: {
+          overall: [],
+          local: [],
+          remote: [{ direction: 'inbound', sentiment: 'negative', count: 1 }],
+        },
+      };
+      mockJSON(summary);
+
+      const result = await dialstack.calls.summary(
+        {
+          from_date: '2026-11-06T00:00:00Z',
+          to_date: '2026-11-06T12:00:00Z',
+          direction: 'inbound',
+          remote_sentiment_score: { lte: -0.5 },
+        },
+        acct
+      );
+
+      const url = new URL(requestedUrl());
+      expect(url.pathname).toBe('/v1/calls/summary');
+      expect(Object.fromEntries(url.searchParams)).toEqual({
+        direction: 'inbound',
+        from_date: '2026-11-06T00:00:00Z',
+        to_date: '2026-11-06T12:00:00Z',
+        'remote_sentiment_score[lte]': '-0.5',
+      });
+      expect(requestInit().method).toBe('GET');
+      expect(result).toEqual(summary);
+    });
+  });
+
+  describe('calls: party, connection and buckets', () => {
+    it('sends status[], remote_number, connected, granularity and time_zone', async () => {
+      mockJSON({
+        object: 'call_summary',
+        total_calls: 0,
+        breakdown: [],
+        sentiment: { overall: [], local: [], remote: [] },
+      });
+
+      await dialstack.calls.summary(
+        {
+          from_date: '2026-11-06T05:00:00Z',
+          to_date: '2026-11-06T19:00:00Z',
+          status: ['no-answer', 'voicemail'],
+          remote_number: '+14155550142',
+          connected: false,
+          granularity: 'hour',
+          time_zone: 'America/Toronto',
+        },
+        acct
+      );
+
+      const url = new URL(requestedUrl());
+      expect(url.searchParams.getAll('status[]')).toEqual(['no-answer', 'voicemail']);
+      expect(url.searchParams.get('remote_number')).toBe('+14155550142');
+      expect(url.searchParams.get('connected')).toBe('false');
+      expect(url.searchParams.get('granularity')).toBe('hour');
+      expect(url.searchParams.get('time_zone')).toBe('America/Toronto');
+    });
+
+    it('sends several numbers as to_number[]', async () => {
+      mockJSON({
+        object: 'call_summary',
+        total_calls: 0,
+        breakdown: [],
+        sentiment: { overall: [], local: [], remote: [] },
+      });
+
+      await dialstack.calls.summary(
+        {
+          from_date: '2026-11-06T05:00:00Z',
+          to_date: '2026-11-06T19:00:00Z',
+          to_number: ['+14155550142', '+14155550143'],
+        },
+        acct
+      );
+
+      const url = new URL(requestedUrl());
+      expect(url.searchParams.getAll('to_number[]')).toEqual(['+14155550142', '+14155550143']);
+      expect(url.searchParams.get('to_number')).toBeNull();
+    });
+  });
+
+  describe('remoteNumbers', () => {
+    it('lists with range filters in bracket form', async () => {
+      mockJSON({
+        object: 'list',
+        url: '/v1/remote-numbers',
+        next_page_url: null,
+        previous_page_url: null,
+        data: [],
+      });
+
+      await dialstack.remoteNumbers.list(
+        { unconnected_inbound_count: { gte: 1 }, last_call_at: { gte: '2026-11-06T05:00:00Z' } },
+        acct
+      );
+
+      const url = new URL(requestedUrl());
+      expect(url.pathname).toBe('/v1/remote-numbers');
+      expect(Object.fromEntries(url.searchParams)).toEqual({
+        'unconnected_inbound_count[gte]': '1',
+        'last_call_at[gte]': '2026-11-06T05:00:00Z',
+      });
+    });
+
+    it('retrieves by number with the plus encoded', async () => {
+      mockJSON({ object: 'remote_number', phone_number: '+14155550142' });
+
+      await dialstack.remoteNumbers.retrieve('+14155550142', acct);
+
+      expect(requestedUrl()).toBe('https://api.dialstack.ai/v1/remote-numbers/%2B14155550142');
     });
   });
 

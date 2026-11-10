@@ -556,6 +556,10 @@ export abstract class BaseComponent extends getHTMLElementBase() {
     const colorDanger = vars.colorDanger || '#e5484d';
     const colorSuccess = vars.colorSuccess || '#30a46c';
     const colorWarning = vars.colorWarning || '#f5a623';
+    const colorChart1 = vars.colorChart1 || '#ef4444';
+    const colorChart2 = vars.colorChart2 || '#fbbf24';
+    const colorChart3 = vars.colorChart3 || '#0ea5e9';
+    const colorChart4 = vars.colorChart4 || '#94a3b8';
     const colorSurfaceSubtle =
       vars.colorSurfaceSubtle || (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)');
     const colorBorder = vars.colorBorder || (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)');
@@ -646,6 +650,10 @@ export abstract class BaseComponent extends getHTMLElementBase() {
         --ds-color-danger: ${colorDanger};
         --ds-color-success: ${colorSuccess};
         --ds-color-warning: ${colorWarning};
+        --ds-color-chart-1: ${colorChart1};
+        --ds-color-chart-2: ${colorChart2};
+        --ds-color-chart-3: ${colorChart3};
+        --ds-color-chart-4: ${colorChart4};
 
         /* Colors - Surface */
         --ds-color-surface-subtle: ${colorSurfaceSubtle};

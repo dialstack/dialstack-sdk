@@ -45,9 +45,9 @@ describe('server surface excludes deprecated and undocumented aliases', () => {
     expect(interfaceBody('CallListParams')).toContain('did?: string');
   });
 
-  /** The body of a top-level `export interface Foo { ... }` declaration. */
+  /** The body of a top-level `export interface Foo [extends Bar] { ... }` declaration. */
   function interfaceBody(name: string): string {
-    const start = source.indexOf(`export interface ${name} {`);
+    const start = source.search(new RegExp(`export interface ${name} (extends [\\w, ]+ )?\\{`));
     if (start === -1) throw new Error(`${name} is not declared in the server module`);
     const end = source.indexOf('\n}', start);
     return source.slice(start, end);

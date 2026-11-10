@@ -13,6 +13,7 @@ import type {
   CallLogFilters,
   CallLogRowRenderer,
   CallLogsClasses,
+  CallStatus,
   RangeFilter,
   SentimentFilters,
   SentimentLabel,
@@ -34,7 +35,17 @@ const SEARCH_DEBOUNCE_MS = 300;
 const DATE_PRESET_DAYS: Record<'7d' | '30d' | '90d', number> = { '7d': 7, '30d': 30, '90d': 90 };
 
 const DIRECTIONS = ['inbound', 'outbound', 'internal'] as const;
+function statusList(status: CallLogFilters['status']): string[] {
+  return (Array.isArray(status) ? status : status ? [status] : []).slice().sort();
+}
+
+function sameStatuses(a: CallLogFilters['status'], b: CallLogFilters['status']): boolean {
+  return statusList(a).join(',') === statusList(b).join(',');
+}
+
 const STATUSES = ['completed', 'no-answer', 'busy', 'failed', 'voicemail'] as const;
+/** The status select's value for a host-preset set of several statuses. */
+const MULTIPLE_STATUSES = '__several';
 
 // The API's quality tiers, so a call the quality summary counts as poor is the
 // one this badge marks poor.
@@ -1734,9 +1745,19 @@ export class CallLogsComponent extends BaseComponent {
         option(d, this.t(`callLogs.directions.${d}`), this.filters.direction === d)
       ),
     ].join('');
+    const preset = this.filters.status;
+    const several = Array.isArray(preset) && preset.length > 1 ? preset : null;
+    const single = Array.isArray(preset) ? (several ? undefined : preset[0]) : preset;
     const statuses = [
-      option('', this.t('callLogs.filters.allStatuses'), !this.filters.status),
-      ...STATUSES.map((st) => option(st, this.formatStatus(st), this.filters.status === st)),
+      option(
+        '',
+        this.t('callLogs.filters.allStatuses'),
+        !preset || (Array.isArray(preset) && preset.length === 0)
+      ),
+      ...(several
+        ? [option(MULTIPLE_STATUSES, several.map((st) => this.formatStatus(st)).join(', '), true)]
+        : []),
+      ...STATUSES.map((st) => option(st, this.formatStatus(st), single === st)),
     ].join('');
     // Every filter away from its default is marked the way Sentiment is, so a
     // narrowed list says so at a glance.
@@ -2216,8 +2237,9 @@ ${this.renderDateFilter()}
       this.applyFilters({ direction: value || undefined });
     });
     this.shadowRoot.getElementById('filter-status')?.addEventListener('change', (e) => {
-      const value = (e.target as HTMLSelectElement).value as CallLogFilters['status'] | '';
-      this.applyFilters({ status: value || undefined });
+      const value = (e.target as HTMLSelectElement).value;
+      if (value === MULTIPLE_STATUSES) return;
+      this.applyFilters({ status: (value as CallStatus) || undefined });
     });
     this.shadowRoot.getElementById(DATE_BUTTON_ID)?.addEventListener('click', () => {
       if (this.dateOpen) this.closeDatePanel(true);
@@ -2364,9 +2386,10 @@ ${this.renderDateFilter()}
   setFilters(filters: CallLogFilters): void {
     // A no-op for the filters already applied, so a host that feeds
     // onFiltersChange back in does not reload the list.
-    const keys = ['search', 'direction', 'status', 'datePreset', 'remote_number'] as const;
+    const keys = ['search', 'direction', 'datePreset', 'remote_number'] as const;
     if (
       keys.every((k) => (filters[k] || undefined) === (this.filters[k] || undefined)) &&
+      sameStatuses(filters.status, this.filters.status) &&
       filters.connected === this.filters.connected &&
       filters.dateRange?.start === this.filters.dateRange?.start &&
       filters.dateRange?.end === this.filters.dateRange?.end &&

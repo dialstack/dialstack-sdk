@@ -4,6 +4,11 @@
 
 import type { Locale } from '../locales';
 import type {
+  ToCallBackElement,
+  CallAnalyticsElement,
+  DevicesOfflineElement,
+} from './call-activity';
+import type {
   ComponentIcons,
   LayoutVariant,
   BaseComponentClasses,
@@ -65,6 +70,51 @@ export interface VoicemailDisplayOptions {
    * @default true
    */
   showTimestamp?: boolean;
+
+  /**
+   * `card` frames the list as a card with a title and a description of what
+   * it lists, for a dashboard; `plain` is the bare list.
+   * @default 'plain'
+   */
+  variant?: 'plain' | 'card';
+
+  /**
+   * Show which mailbox each message was left in (the user or shared
+   * voicemail box), for a list of every mailbox.
+   * @default false
+   */
+  showMailbox?: boolean;
+
+  /**
+   * Show a Mark as read button on each unread message. Marking takes effect at
+   * once and can be undone for a few seconds (`undoMarkAsReadMs`).
+   * @default false
+   */
+  showMarkAsReadButton?: boolean;
+}
+
+/**
+ * Which voicemails the Voicemails component lists, and in what order.
+ */
+export interface VoicemailListOptions {
+  /**
+   * List unread messages only.
+   * @default false
+   */
+  unreadOnly?: boolean;
+
+  /**
+   * `oldest` puts the message that has waited longest first, and reads every
+   * page up front; `newest` pages with Load more.
+   * @default 'newest'
+   */
+  order?: 'newest' | 'oldest';
+
+  /**
+   * List only messages received in the last this many days, counted from local
+   * midnight; omit for every message.
+   */
+  receivedWithinDays?: number;
 }
 
 /**
@@ -147,7 +197,7 @@ export interface RangeFilter {
 }
 
 /**
- * Sentiment conditions accepted by `GET /v1/calls`.
+ * Sentiment conditions accepted by `GET /v1/calls` and `GET /v1/calls/summary`.
  *
  * `sentiment` reads the call's overall verdict, `local_*` your user's side and
  * `remote_*` the other party's. Every condition requires the field it reads, so
@@ -175,7 +225,12 @@ export interface CallLogFilters extends SentimentFilters {
   /** Free-text match on either party's name or number */
   search?: string;
   direction?: 'inbound' | 'outbound' | 'internal';
-  status?: 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
+  /**
+   * One status, or any of several. The toolbar picks one; a host can preset
+   * several (busy and failed together, say), shown as one choice until the
+   * viewer picks another.
+   */
+  status?: CallStatus | CallStatus[];
   /**
    * Only calls with this external party, in any spelling. The toolbar has no
    * control for it: a host sets it to show one caller's calls.
@@ -237,11 +292,136 @@ export interface CallListParams extends SentimentFilters {
   from_date?: string;
   /** ISO 8601; calls started on or before */
   to_date?: string;
-  expand?: Array<'did'>;
+  expand?: Array<'did' | 'remote_number'>;
 }
 
 /** A call's final status. */
 export type CallStatus = 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
+
+/**
+ * Query parameters for `calls.summary`. The same filters as `calls.list`, so a
+ * summary describes exactly the calls the list would return; the window is
+ * required and spans at most 90 days.
+ */
+export type CallSummaryParams = Omit<CallListParams, 'limit' | 'page' | 'expand'> & {
+  from_date: string;
+  to_date: string;
+  /** Adds a `time_series` of calendar hours or days; `hour` spans at most 7 days. */
+  granularity?: 'hour' | 'day';
+  /** IANA time zone the buckets follow, such as `America/Toronto`. Defaults to UTC. */
+  time_zone?: string;
+};
+
+/** Calls of one direction and status, split on whether a party connected. */
+export interface CallSummaryCount {
+  direction: 'inbound' | 'outbound' | 'internal';
+  status: CallStatus;
+  /**
+   * Whether a party connected. A completed call can have connected nobody,
+   * when the platform answered it for a menu, a greeting or a queue.
+   */
+  connected: boolean;
+  count: number;
+}
+
+/** Calls of one direction with one sentiment reading. */
+export interface SentimentCount {
+  direction: 'inbound' | 'outbound' | 'internal';
+  sentiment: SentimentLabel;
+  count: number;
+}
+
+/**
+ * Aggregate counts over the calls matching a `calls.summary` query. Rows with a
+ * zero count are omitted. A call with no reading for a side is absent from that
+ * side's rows.
+ */
+export interface CallSummary {
+  object: 'call_summary';
+  total_calls: number;
+  breakdown: CallSummaryCount[];
+  sentiment: {
+    overall: SentimentCount[];
+    local: SentimentCount[];
+    remote: SentimentCount[];
+  };
+  /**
+   * Present when `granularity` is set: every hour or day in the range, empty
+   * ones included, starting at its local boundary in `time_zone`.
+   */
+  time_series?: Array<{ bucket: string; breakdown: CallSummaryCount[] }>;
+}
+
+/** A range condition on a timestamp (ISO 8601). */
+export interface TimestampRangeFilter {
+  gt?: string;
+  gte?: string;
+  lt?: string;
+  lte?: string;
+}
+
+/**
+ * An external phone number the account has had calls with, and what has
+ * happened with it. The unconnected counts cover every call since a party last
+ * connected, however long ago. A call answered by the other side's voicemail
+ * (a call-back, or a forward to a cell phone without press-1-to-accept) counts
+ * as connected.
+ */
+export interface RemoteNumber {
+  object: 'remote_number';
+  /** E.164; identifies the resource */
+  phone_number: string;
+  /** Caller ID name from the number's latest inbound call */
+  name: string | null;
+  /** The latest call with the number; the call object with `expand: ['last_call']` */
+  last_call: string | CallLog;
+  last_call_at: string;
+  last_connected_at: string | null;
+  /** The number's calls to the account since a party last connected, none connected */
+  unconnected_inbound: {
+    count: number;
+    first_at: string | null;
+    last_at: string | null;
+    voicemail_count: number;
+  };
+  /** The account's calls to the number since a party last connected, none connected */
+  unconnected_outbound: { count: number; last_at: string | null };
+}
+
+/**
+ * Query parameters for `remoteNumbers.list`. A lower bound on `last_call_at`
+ * or `unconnected_inbound_last_at` is required, at most 90 days back.
+ */
+export interface RemoteNumberListParams {
+  limit?: number;
+  page?: string;
+  last_call_at?: TimestampRangeFilter;
+  last_connected_at?: TimestampRangeFilter;
+  unconnected_inbound_count?: RangeFilter;
+  unconnected_inbound_last_at?: TimestampRangeFilter;
+  expand?: Array<'last_call'>;
+}
+
+/**
+ * Query parameters for `voicemails.summary`: the voicemail list filters, with
+ * the window required (at most 90 days).
+ */
+export interface VoicemailSummaryParams {
+  /** A user id or a shared voicemail box id */
+  owner?: string;
+  is_read?: boolean;
+  /** ISO 8601; voicemails received on or after */
+  from_date: string;
+  /** ISO 8601; voicemails received on or before */
+  to_date: string;
+}
+
+/** Voicemail counts per mailbox and read state. Zero rows are omitted. */
+export interface VoicemailSummary {
+  object: 'voicemail_summary';
+  total: number;
+  breakdown: Array<{ owner: string; is_read: boolean; count: number }>;
+}
 
 /**
  * Display options for CallHistory component
@@ -297,6 +477,13 @@ export interface VoicemailBehaviorOptions {
    * @default true
    */
   allowSeeking?: boolean;
+
+  /**
+   * How long a message marked read with the Mark as read button keeps its row
+   * and an Undo, in milliseconds.
+   * @default 6000
+   */
+  undoMarkAsReadMs?: number;
 }
 
 // ============================================================================
@@ -390,6 +577,12 @@ export interface CallLog {
    * requested; null when none.
    */
   did: string | CallLogDID | null;
+  /**
+   * The external party in E.164 (the caller on an inbound call, the number
+   * dialed on an outbound one); the RemoteNumber with
+   * `expand: ['remote_number']`. Null on internal and emergency calls.
+   */
+  remote_number: string | RemoteNumber | null;
   /**
    * Another call belonging to the same conversation, as a call id; null when
    * this call stands alone, which is the common case.
@@ -631,7 +824,25 @@ export interface BaseComponentElement extends HTMLElement {
  */
 export interface VoicemailsElement extends Omit<BaseComponentElement, 'setClasses'> {
   setClasses: (classes: VoicemailsClasses) => void;
+  /**
+   * The mailbox to list: a user id or a shared voicemail box id, or `null` for
+   * every mailbox in the account.
+   */
+  setMailbox: (owner: string | null) => void;
+  /**
+   * @deprecated Use `setMailbox`, which also takes a shared voicemail box or
+   * every mailbox. Removed in the next major version.
+   */
   setUserId: (userId: string) => void;
+  setListOptions: (options: VoicemailListOptions) => void;
+  /**
+   * How often to check for new messages, in milliseconds; `null` (the
+   * default) turns it off. Each check reads counts only; the list is read again
+   * only when they change.
+   */
+  setPollInterval: (ms: number | null) => void;
+  /** Read the list again now. */
+  refresh: () => void;
   setDisplayOptions: (options: VoicemailDisplayOptions) => void;
   setBehaviorOptions: (options: VoicemailBehaviorOptions) => void;
   setCustomRowRenderer: (renderer: VoicemailRowRenderer | undefined) => void;
@@ -724,7 +935,10 @@ export type ComponentTagName =
   | 'call-history'
   | 'phone-number-ordering'
   | 'phone-numbers'
-  | 'ai-agent';
+  | 'ai-agent'
+  | 'to-call-back'
+  | 'call-analytics'
+  | 'devices-offline';
 
 /**
  * Web Component element types mapped by tag name
@@ -736,4 +950,7 @@ export interface ComponentElement {
   'phone-number-ordering': PhoneNumberOrderingElement;
   'phone-numbers': PhoneNumbersElement;
   'ai-agent': AIAgentElement;
+  'to-call-back': ToCallBackElement;
+  'call-analytics': CallAnalyticsElement;
+  'devices-offline': DevicesOfflineElement;
 }

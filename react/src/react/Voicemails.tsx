@@ -14,6 +14,7 @@ import {
   type LayoutVariant,
   type VoicemailDisplayOptions,
   type VoicemailBehaviorOptions,
+  type VoicemailListOptions,
   type VoicemailRowRenderer,
   type VoicemailsClasses,
   type Locale,
@@ -21,9 +22,32 @@ import {
 
 export interface VoicemailsProps {
   /**
-   * User ID to fetch voicemails for (required)
+   * The mailbox to list: a user id or a shared voicemail box id, or `null` for
+   * every mailbox in the account. Nothing is read until this or `userId` is set.
    */
-  userId: string;
+  mailbox?: string | null;
+
+  /**
+   * User ID to fetch voicemails for.
+   * @deprecated Use `mailbox`, which also takes a shared voicemail box or every
+   * mailbox. Removed in the next major version.
+   */
+  userId?: string;
+
+  /**
+   * Which voicemails to list, and in what order: unread only, oldest first,
+   * received in the last few days.
+   */
+  listOptions?: VoicemailListOptions;
+
+  /**
+   * How often to check for new messages, in milliseconds. Each check reads
+   * counts only; the list is read again only when they change. Off by default.
+   */
+  pollInterval?: number | null;
+
+  /** Change this to read the list again now. */
+  refreshKey?: string | number;
 
   /**
    * Optional CSS class name
@@ -150,7 +174,11 @@ export interface VoicemailsProps {
  * ```
  */
 export const Voicemails: React.FC<VoicemailsProps> = ({
+  mailbox,
   userId,
+  listOptions,
+  pollInterval,
+  refreshKey,
   className,
   style,
   locale,
@@ -174,7 +202,20 @@ export const Voicemails: React.FC<VoicemailsProps> = ({
   const { containerRef, componentInstance } = useCreateComponent(dialstack, 'voicemails');
 
   // Sync data props to Web Component (type-safe callbacks)
+  // NEXT MAJOR: drop userId; mailbox covers it.
   useUpdateWithSetter(componentInstance, userId, (comp, val) => comp.setUserId(val));
+  // null is a value here (every mailbox), and undefined means "not given".
+  React.useEffect(() => {
+    if (componentInstance && mailbox !== undefined) componentInstance.setMailbox(mailbox);
+  }, [componentInstance, mailbox]);
+  useUpdateWithSetter(componentInstance, listOptions, (comp, val) => comp.setListOptions(val));
+  React.useEffect(() => {
+    if (componentInstance) componentInstance.setPollInterval(pollInterval ?? null);
+  }, [componentInstance, pollInterval]);
+  const firstRefreshKey = React.useRef(refreshKey);
+  React.useEffect(() => {
+    if (componentInstance && refreshKey !== firstRefreshKey.current) componentInstance.refresh();
+  }, [componentInstance, refreshKey]);
 
   // Sync configuration props
   useUpdateWithSetter(componentInstance, locale, (comp, val) => comp.setLocale(val));

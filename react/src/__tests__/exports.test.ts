@@ -19,6 +19,7 @@ import * as Voicemails from '../voicemails';
 import * as CallHistory from '../call-history';
 import * as PhoneNumbers from '../phone-numbers';
 import * as PhoneNumberOrdering from '../phone-number-ordering';
+import * as CallActivity from '../call-activity';
 
 describe('the shared root entry', () => {
   it.each([
@@ -39,6 +40,9 @@ describe('the shared root entry', () => {
     ['PhoneNumbers'],
     ['PhoneNumberOrdering'],
     ['AIAgent'],
+    ['ToCallBack'],
+    ['CallAnalytics'],
+    ['DevicesOffline'],
     ['DialPlan'],
     ['Softphone'],
     ['SoftphoneProvider'],
@@ -76,6 +80,9 @@ describe('the per-component entries', () => {
     ['call-history', CallHistory, 'CallHistory'],
     ['phone-numbers', PhoneNumbers, 'PhoneNumbers'],
     ['phone-number-ordering', PhoneNumberOrdering, 'PhoneNumberOrdering'],
+    ['call-activity', CallActivity, 'ToCallBack'],
+    ['call-activity', CallActivity, 'CallAnalytics'],
+    ['call-activity', CallActivity, 'DevicesOffline'],
   ])('./%s exports %s', (_subpath, mod, name) => {
     expect((mod as Record<string, unknown>)[name]).toBeDefined();
   });

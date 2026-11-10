@@ -65,6 +65,50 @@ describe('calls.list', () => {
   });
 });
 
+describe('summaries', () => {
+  it('calls.summary sends the list filters and the window, without paging params', async () => {
+    const { instance, paths } = recordingInstance();
+    await instance.calls.summary({
+      from_date: '2026-11-06T00:00:00Z',
+      to_date: '2026-11-06T04:00:00Z',
+      direction: 'inbound',
+      status: 'no-answer',
+      remote_sentiment: 'negative',
+    });
+
+    const [path, qs] = (paths[0] ?? '').split('?');
+    expect(path).toBe('/v1/calls/summary');
+    expect(Object.fromEntries(new URLSearchParams(qs))).toEqual({
+      direction: 'inbound',
+      status: 'no-answer',
+      from_date: '2026-11-06T00:00:00Z',
+      to_date: '2026-11-06T04:00:00Z',
+      remote_sentiment: 'negative',
+    });
+  });
+
+  it('voicemails.summary sends owner, is_read=false and the window', async () => {
+    const { instance, paths } = recordingInstance();
+    await instance.voicemails.summary({
+      owner: 'svm_1',
+      is_read: false,
+      from_date: '2026-11-06T00:00:00Z',
+      to_date: '2026-11-07T00:00:00Z',
+    });
+
+    const [path, qs] = (paths[0] ?? '').split('?');
+    expect(path).toBe('/v1/voicemails/summary');
+    expect(Object.fromEntries(new URLSearchParams(qs))).toEqual({
+      owner: 'svm_1',
+      is_read: 'false',
+      from_date: '2026-11-06T00:00:00Z',
+      to_date: '2026-11-07T00:00:00Z',
+    });
+  });
+});
+
+// These endpoints page the same way, so a bare cursor would silently return the
+// first page again and a page-until-done loop would never finish.
 describe('button-template list methods', () => {
   it.each([
     [
@@ -125,5 +169,46 @@ describe('calls: party and connection filters', () => {
     expect(query.getAll('from_number[]')).toEqual(['+14155550142', '+14155550143']);
     expect(query.get('from_number')).toBeNull();
     expect(query.get('to_number')).toBe('+14155550144');
+  });
+
+  it('asks the summary for calendar buckets in a time zone', async () => {
+    const { instance, paths } = recordingInstance();
+    await instance.calls.summary({
+      from_date: '2026-11-06T05:00:00Z',
+      to_date: '2026-11-06T19:00:00Z',
+      granularity: 'hour',
+      time_zone: 'America/Toronto',
+    });
+
+    const query = new URLSearchParams(paths[0]?.split('?')[1]);
+    expect(query.get('granularity')).toBe('hour');
+    expect(query.get('time_zone')).toBe('America/Toronto');
+  });
+});
+
+describe('remoteNumbers', () => {
+  it('lists with range filters in bracket form', async () => {
+    const { instance, paths } = recordingInstance();
+    await instance.remoteNumbers.list({
+      limit: 100,
+      unconnected_inbound_count: { gte: 1 },
+      unconnected_inbound_last_at: { gte: '2026-11-06T05:00:00Z' },
+      expand: ['last_call'],
+    });
+
+    expect(paths[0]?.startsWith('/v1/remote-numbers?')).toBe(true);
+    const query = new URLSearchParams(paths[0]?.split('?')[1]);
+    expect(Object.fromEntries(query)).toEqual({
+      limit: '100',
+      'unconnected_inbound_count[gte]': '1',
+      'unconnected_inbound_last_at[gte]': '2026-11-06T05:00:00Z',
+      'expand[]': 'last_call',
+    });
+  });
+
+  it('retrieves by number with the plus encoded', async () => {
+    const { instance, paths } = recordingInstance();
+    await instance.remoteNumbers.retrieve('+14155550142');
+    expect(paths[0]).toBe('/v1/remote-numbers/%2B14155550142');
   });
 });

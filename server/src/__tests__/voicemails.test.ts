@@ -91,6 +91,46 @@ describe('Voicemails', () => {
 
       expect(requestedUrl()).toBe('https://api.dialstack.ai/v1/voicemails?owner=svm_1');
     });
+
+    it('forwards to_date', async () => {
+      mockEmptyList();
+
+      await dialstack.voicemails.list({ to_date: '2026-02-01T00:00:00Z' }, acct);
+
+      expect(new URL(requestedUrl()).searchParams.get('to_date')).toBe('2026-02-01T00:00:00Z');
+    });
+  });
+
+  describe('voicemails.summary', () => {
+    it('sends the filters and the required window', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ object: 'voicemail_summary', total: 0, breakdown: [] }),
+        text: async () => JSON.stringify({ object: 'voicemail_summary', total: 0, breakdown: [] }),
+        headers: new Headers(),
+      });
+
+      const result = await dialstack.voicemails.summary(
+        {
+          owner: 'user_1',
+          is_read: false,
+          from_date: '2026-11-06T00:00:00Z',
+          to_date: '2026-11-07T00:00:00Z',
+        },
+        acct
+      );
+
+      const url = new URL(requestedUrl());
+      expect(url.pathname).toBe('/v1/voicemails/summary');
+      expect(Object.fromEntries(url.searchParams)).toEqual({
+        owner: 'user_1',
+        is_read: 'false',
+        from_date: '2026-11-06T00:00:00Z',
+        to_date: '2026-11-07T00:00:00Z',
+      });
+      expect(result.object).toBe('voicemail_summary');
+    });
   });
 
   describe('voicemails.retrieve', () => {

@@ -106,6 +106,7 @@ const COMPONENT_ENTRIES = [
   'call-history',
   'phone-numbers',
   'phone-number-ordering',
+  'call-activity',
 ];
 
 const js = (name) => ({

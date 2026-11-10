@@ -118,7 +118,9 @@ export async function loadDialstackAndInitialize(
     },
     // Resource namespaces — delegate directly to the instance properties
     calls: instance.calls,
+    remoteNumbers: instance.remoteNumbers,
     voicemails: instance.voicemails,
+    quality: instance.quality,
     phoneNumbers: instance.phoneNumbers,
     availablePhoneNumbers: instance.availablePhoneNumbers,
     phoneNumberOrders: instance.phoneNumberOrders,
@@ -187,5 +189,8 @@ export async function registerComponents(): Promise<void> {
     import('../components/phone-number-ordering'),
     import('../components/phone-numbers'),
     import('../components/ai-agent'),
+    import('../components/to-call-back'),
+    import('../components/call-analytics'),
+    import('../components/devices-offline'),
   ]);
 }

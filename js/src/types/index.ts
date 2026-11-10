@@ -20,6 +20,7 @@ export type {
   IconString,
   ComponentIcons,
   BaseComponentClasses,
+  CallActivityClasses,
   VoicemailsClasses,
   CallLogsClasses,
   CallHistoryClasses,
@@ -44,6 +45,7 @@ export type {
 export type {
   // Display options
   VoicemailDisplayOptions,
+  VoicemailListOptions,
   CallLogDisplayOptions,
   CallHistoryDisplayOptions,
   // Filters and list params
@@ -52,7 +54,17 @@ export type {
   CallListParams,
   RangeFilter,
   SentimentFilters,
+  // Aggregates
+  CallSummaryParams,
+  CallSummaryCount,
   CallStatus,
+  RemoteNumber,
+  RemoteNumberListParams,
+  TimestampRangeFilter,
+  CallSummary,
+  SentimentCount,
+  VoicemailSummaryParams,
+  VoicemailSummary,
   // Behavior options
   VoicemailBehaviorOptions,
   // Row renderers
@@ -189,6 +201,19 @@ export type {
   RoutingTargetType,
 } from './core';
 export { ROUTING_TARGET_TYPE_ORDER } from './core';
+
+// Call activity components
+export type {
+  QualitySummaryParams,
+  QualitySummary,
+  VoicemailListParams,
+  VoicemailItem,
+  CallAnalyticsRangePreset,
+  CallOutcome,
+  ToCallBackElement,
+  CallAnalyticsElement,
+  DevicesOfflineElement,
+} from './call-activity';
 
 // Dial plan types
 export type {

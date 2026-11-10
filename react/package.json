@@ -124,6 +124,16 @@
         "types": "./dist/phone-number-ordering.d.cts",
         "default": "./dist/phone-number-ordering.cjs"
       }
+    },
+    "./call-activity": {
+      "import": {
+        "types": "./dist/call-activity.d.ts",
+        "default": "./dist/call-activity.mjs"
+      },
+      "require": {
+        "types": "./dist/call-activity.d.cts",
+        "default": "./dist/call-activity.cjs"
+      }
     }
   },
   "main": "./dist/index.cjs",
@@ -156,6 +166,9 @@
       ],
       "phone-number-ordering": [
         "./dist/phone-number-ordering.d.ts"
+      ],
+      "call-activity": [
+        "./dist/call-activity.d.ts"
       ]
     }
   },

@@ -19,6 +19,8 @@ export interface WebComponentStoryProps {
   ports?: PortOrder[];
   /** Override the account's effective pricing (e.g. a toll-free rate) */
   effectivePricing?: Partial<EffectivePricing>;
+  /** Adds or replaces mock instance methods before the element is created */
+  extendInstance?: (instance: DialStackInstanceImpl) => void;
   /** Extra setup after setInstance (e.g. calling setUserId) */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setup?: (el: any) => void;
@@ -36,6 +38,7 @@ export const WebComponentStory: React.FC<WebComponentStoryProps> = ({
   orders,
   ports,
   effectivePricing,
+  extendInstance,
   setup,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -52,6 +55,7 @@ export const WebComponentStory: React.FC<WebComponentStoryProps> = ({
       ports,
       effectivePricing,
     });
+    extendInstance?.(rawInstance);
     // Wrap with logging proxy to trace API calls
     const instance = new Proxy(rawInstance, {
       get(target, prop, receiver) {
@@ -97,7 +101,18 @@ export const WebComponentStory: React.FC<WebComponentStoryProps> = ({
     return () => {
       container.removeChild(el);
     };
-  }, [tagName, theme, layoutVariant, empty, dids, orders, ports, effectivePricing, setup]);
+  }, [
+    tagName,
+    theme,
+    layoutVariant,
+    empty,
+    dids,
+    orders,
+    ports,
+    effectivePricing,
+    extendInstance,
+    setup,
+  ]);
 
   return <div ref={containerRef} />;
 };

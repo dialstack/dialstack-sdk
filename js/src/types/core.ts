@@ -6,12 +6,24 @@ import type { AppearanceOptions, UpdateOptions } from './appearance';
 import type {
   CallListParams,
   CallLog,
+  CallSummary,
+  CallSummaryParams,
+  RemoteNumber,
+  RemoteNumberListParams,
   ComponentTagName,
   ComponentElement,
   Transcript,
+  VoicemailSummary,
+  VoicemailSummaryParams,
   VoicemailTranscript,
 } from './components';
 import type { CallEventMap, CallEventHandler } from './callbacks';
+import type {
+  QualitySummary,
+  QualitySummaryParams,
+  VoicemailItem,
+  VoicemailListParams,
+} from './call-activity';
 import type { DialPlan as DialPlanData, Extension } from './dial-plan';
 import type {
   CreateHardwareOrderRequest,
@@ -243,17 +255,40 @@ export interface CallsResource {
   retrieve(callId: string): Promise<CallLog>;
   /** List call logs, newest first */
   list(params?: CallListParams): Promise<PaginatedResponse<CallLog>>;
+  /**
+   * Aggregate counts over the calls `list` would return for the same filters:
+   * by direction and status, and by sentiment on each side.
+   */
+  summary(params: CallSummaryParams): Promise<CallSummary>;
   /** Call transcript sub-resource */
   transcripts: CallsTranscriptsResource;
 }
 
+export interface RemoteNumbersResource {
+  /** External numbers the account has had calls with, most recent activity first */
+  list(params: RemoteNumberListParams): Promise<PaginatedResponse<RemoteNumber>>;
+  /** One external number's facts, by the number in any spelling */
+  retrieve(phoneNumber: string, params?: { expand?: Array<'last_call'> }): Promise<RemoteNumber>;
+}
+
 export interface VoicemailsResource {
+  /** List voicemails across the account, newest first */
+  list(params?: VoicemailListParams): Promise<PaginatedResponse<VoicemailItem>>;
+  /** Voicemail counts per mailbox and read state over a window */
+  summary(params: VoicemailSummaryParams): Promise<VoicemailSummary>;
   /** Retrieve the transcript for a voicemail */
   retrieveTranscript(voicemailId: string): Promise<VoicemailTranscript>;
   /** Mark a voicemail as read */
   markAsRead(voicemailId: string): Promise<void>;
+  /** Mark a voicemail as unread again */
+  markAsUnread(voicemailId: string): Promise<void>;
   /** Delete a voicemail */
   delete(voicemailId: string): Promise<void>;
+}
+
+export interface QualityResource {
+  /** Call quality over a window: averages and calls per quality tier */
+  summary(params: QualitySummaryParams): Promise<QualitySummary>;
 }
 
 export interface PhoneNumbersResource {
@@ -754,7 +789,9 @@ export interface DialStackInstance {
   // ---------------------------------------------------------------------------
 
   calls: CallsResource;
+  remoteNumbers: RemoteNumbersResource;
   voicemails: VoicemailsResource;
+  quality: QualityResource;
   phoneNumbers: PhoneNumbersResource;
   availablePhoneNumbers: AvailablePhoneNumbersResource;
   phoneNumberOrders: PhoneNumberOrdersResource;

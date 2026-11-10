@@ -360,6 +360,12 @@ export function createMockInstance(
           ],
         };
       },
+      summary: async () => ({
+        object: 'call_summary' as const,
+        total_calls: 0,
+        breakdown: [],
+        sentiment: { overall: [], local: [], remote: [] },
+      }),
       transcripts: {
         retrieve: async (_callId: string) => ({
           call_id: 'mock',
@@ -371,6 +377,7 @@ export function createMockInstance(
     },
 
     voicemails: {
+      summary: async () => ({ object: 'voicemail_summary' as const, total: 0, breakdown: [] }),
       retrieveTranscript: async (_voicemailId: string) => ({
         voicemail: 'mock',
         voicemail_id: 'mock',

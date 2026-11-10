@@ -33,6 +33,13 @@ export interface AppearanceVariables {
   colorSuccess?: string;
   colorWarning?: string;
 
+  // Colors - Charts: one series each, in order. The call activity components draw
+  // missed, abandoned, voicemail and failed calls in 1 to 4.
+  colorChart1?: string;
+  colorChart2?: string;
+  colorChart3?: string;
+  colorChart4?: string;
+
   // Colors - Surface
   colorSurfaceSubtle?: string;
   colorBorder?: string;
@@ -190,6 +197,21 @@ export interface BaseComponentClasses {
    * @default 'dialstack-component--empty'
    */
   empty?: string;
+}
+
+/**
+ * CSS class names for the call activity cards (To call back, Call analytics,
+ * Devices offline). Each element also carries a matching `part`.
+ */
+export interface CallActivityClasses extends BaseComponentClasses {
+  /** The card frame (`part="card"`) */
+  card?: string;
+  /** The header holding the title and description (`part="card-header"`) */
+  header?: string;
+  /** The card's title (`part="card-title"`) */
+  title?: string;
+  /** Each row or tile the card lists (`part="item"`) */
+  item?: string;
 }
 
 /**

@@ -853,6 +853,10 @@ export interface AccountSessionCreateParams {
     agreement_acceptance?: ComponentConfig;
     dial_plan?: ComponentConfig;
     ai_agent?: ComponentConfig;
+    /** The call activity components: To call back, Call analytics, Devices offline. */
+    to_call_back?: ComponentConfig;
+    call_analytics?: ComponentConfig;
+    devices_offline?: ComponentConfig;
     [key: string]: ComponentConfig | undefined;
   };
 }
@@ -1031,6 +1035,12 @@ export interface CallLog {
    */
   did: string | DIDSummary | null;
   /**
+   * The external party in E.164: the caller on an inbound call, the number
+   * dialed on an outbound one. The {@link RemoteNumber} with
+   * `expand: ['remote_number']`. Null on internal and emergency calls.
+   */
+  remote_number: string | RemoteNumber | null;
+  /**
    * Another call belonging to the same conversation, as a call id; null when
    * this call stands alone.
    *
@@ -1085,7 +1095,7 @@ export interface CallLog {
   quality_metrics: QualityMetricLeg[];
 }
 
-export type CallExpand = 'did';
+export type CallExpand = 'did' | 'remote_number';
 
 /**
  * Filters accepted by `GET /v1/calls`.
@@ -1095,18 +1105,62 @@ export type CallExpand = 'did';
  * rejected, so a wrong name returns a 200 with unfiltered results. Verify
  * against the handler before adding one here.
  */
-export interface CallListParams {
+/**
+ * Bounds on a numeric field. Each bound is optional and they combine, so
+ * `{ gte: -1, lt: -0.5 }` is a half-open interval.
+ */
+export interface RangeFilter {
+  gt?: number;
+  gte?: number;
+  lt?: number;
+  lte?: number;
+}
+
+/**
+ * Sentiment conditions accepted by `GET /v1/calls` and `GET /v1/calls/summary`.
+ *
+ * `sentiment` reads the call's overall verdict, `local_*` your user's side and
+ * `remote_*` the other party's. Every condition requires the field it reads, so
+ * a `remote_*` filter excludes calls with no reading for the other party.
+ * Conditions combine with each other and with the other filters.
+ */
+export interface SentimentFilters {
+  sentiment?: SentimentLabel;
+  /** Overall score, -1.0 to +1.0. */
+  sentiment_score?: RangeFilter;
+  /** Overall magnitude, 0.0 to 1.0. */
+  sentiment_magnitude?: RangeFilter;
+  local_sentiment?: SentimentLabel;
+  local_sentiment_score?: RangeFilter;
+  local_sentiment_magnitude?: RangeFilter;
+  remote_sentiment?: SentimentLabel;
+  remote_sentiment_score?: RangeFilter;
+  remote_sentiment_magnitude?: RangeFilter;
+}
+
+export interface CallListParams extends SentimentFilters {
   limit?: number;
   page?: string;
   user_id?: string;
   /** Filter by the phone number (DID) associated with the call, by its id. */
   did?: string;
   direction?: CallDirection;
-  /** Caller's phone number (exact match). */
-  from_number?: string;
-  /** The call's destination (exact match) — as dialed or as routed. */
-  to_number?: string;
-  status?: CallStatus;
+  /** Caller's phone number, or any of several, in any spelling. */
+  from_number?: string | string[];
+  /** The call's destination — as dialed or as routed — or any of several. */
+  to_number?: string | string[];
+  /** One status, or any of several. */
+  status?: CallStatus | CallStatus[];
+  /**
+   * Only calls with this external party (the caller on an inbound call, the
+   * number dialed on an outbound one), in any spelling.
+   */
+  remote_number?: string;
+  /**
+   * Whether a party connected. A call the platform answered only for a menu,
+   * a greeting, hold music or a voicemail is completed but not connected.
+   */
+  connected?: boolean;
   /**
    * Free-text search over both parties: the caller's name, the user, dial
    * plan, voice app or ring group name on either side, and either party's
@@ -1120,8 +1174,112 @@ export interface CallListParams {
   from_date?: string;
   /** Return calls started before this date (ISO 8601). */
   to_date?: string;
-  /** Related resources to include inline. Supported values: `did`. */
+  /** Related resources to include inline. Supported values: `did`, `remote_number`. */
   expand?: CallExpand[];
+}
+
+/**
+ * Parameters for `calls.summary`: the same filters as `calls.list`, so a
+ * summary describes exactly the calls the list would return. The window is
+ * required and spans at most 90 days.
+ */
+export type CallSummaryParams = Omit<CallListParams, 'limit' | 'page' | 'expand'> & {
+  from_date: string;
+  to_date: string;
+  /** Adds a `time_series` of calendar hours or days; `hour` spans at most 7 days. */
+  granularity?: 'hour' | 'day';
+  /** IANA time zone the buckets follow, such as `America/Toronto`. Defaults to UTC. */
+  time_zone?: string;
+};
+
+/** Calls of one direction and status, split on whether a party connected. */
+export interface CallSummaryCount {
+  direction: CallDirection;
+  status: CallStatus;
+  /**
+   * Whether a party connected. A completed call can have connected nobody,
+   * when the platform answered it for a menu, a greeting or a queue.
+   */
+  connected: boolean;
+  count: number;
+}
+
+/** A range condition on a timestamp (ISO 8601). */
+export interface TimestampRangeFilter {
+  gt?: string;
+  gte?: string;
+  lt?: string;
+  lte?: string;
+}
+
+/**
+ * An external phone number the account has had calls with, and what has
+ * happened with it. The unconnected counts cover every call since a party last
+ * connected, however long ago. A call answered by the other side's voicemail
+ * (a call-back, or a forward to a cell phone without press-1-to-accept) counts
+ * as connected.
+ */
+export interface RemoteNumber {
+  object: 'remote_number';
+  /** E.164; identifies the resource. */
+  phone_number: string;
+  /** Caller ID name from the number's latest inbound call. */
+  name: string | null;
+  /** The latest call with the number; the {@link CallLog} with `expand: ['last_call']`. */
+  last_call: string | CallLog;
+  last_call_at: string;
+  last_connected_at: string | null;
+  /** The number's calls to the account since a party last connected, none connected. */
+  unconnected_inbound: {
+    count: number;
+    first_at: string | null;
+    last_at: string | null;
+    voicemail_count: number;
+  };
+  /** The account's calls to the number since a party last connected, none connected. */
+  unconnected_outbound: { count: number; last_at: string | null };
+}
+
+/**
+ * Parameters for `remoteNumbers.list`. A lower bound on `last_call_at` or
+ * `unconnected_inbound_last_at` is required, at most 90 days back.
+ */
+export interface RemoteNumberListParams {
+  limit?: number;
+  page?: string;
+  last_call_at?: TimestampRangeFilter;
+  last_connected_at?: TimestampRangeFilter;
+  unconnected_inbound_count?: RangeFilter;
+  unconnected_inbound_last_at?: TimestampRangeFilter;
+  expand?: Array<'last_call'>;
+}
+
+/** Calls of one direction with one sentiment reading. */
+export interface SentimentCount {
+  direction: CallDirection;
+  sentiment: SentimentLabel;
+  count: number;
+}
+
+/**
+ * Aggregate counts over the calls matching a `calls.summary` query. Rows with a
+ * zero count are omitted. A call with no reading for a side is absent from that
+ * side's rows.
+ */
+export interface CallSummary {
+  object: 'call_summary';
+  total_calls: number;
+  breakdown: CallSummaryCount[];
+  sentiment: {
+    overall: SentimentCount[];
+    local: SentimentCount[];
+    remote: SentimentCount[];
+  };
+  /**
+   * Present when `granularity` is set: every hour or day in the range, empty
+   * ones included, starting at its local boundary in `time_zone`.
+   */
+  time_series?: Array<{ bucket: string; breakdown: CallSummaryCount[] }>;
 }
 
 export interface CallCreateParams {
@@ -1242,8 +1400,26 @@ export interface VoicemailListParams {
   is_read?: boolean;
   /** Return voicemails created on or after this date (ISO 8601). */
   from_date?: string;
+  /** Return voicemails created on or before this date (ISO 8601). */
+  to_date?: string;
   /** Related resources to include inline. Supported values: `call`. */
   expand?: VoicemailExpand[];
+}
+
+/**
+ * Parameters for `voicemails.summary`: the voicemail list filters, with the
+ * window required (at most 90 days).
+ */
+export type VoicemailSummaryParams = Omit<VoicemailListParams, 'limit' | 'page' | 'expand'> & {
+  from_date: string;
+  to_date: string;
+};
+
+/** Voicemail counts per mailbox and read state. Zero rows are omitted. */
+export interface VoicemailSummary {
+  object: 'voicemail_summary';
+  total: number;
+  breakdown: Array<{ owner: string; is_read: boolean; count: number }>;
 }
 
 export interface VoicemailUpdateParams {
@@ -1634,6 +1810,11 @@ export interface Device {
   registration_status: DeviceRegistrationStatus;
   last_registered_at: string | null;
   /**
+   * When a `not_registered` device was last registered on its current lines,
+   * or null if it is registered or was never seen online.
+   */
+  offline_since: string | null;
+  /**
    * The latest call attempt involving the device, any outcome. Null until its
    * first call: presence means it has carried a call, recency means it is
    * still in use.
@@ -1772,6 +1953,8 @@ export interface DeviceListParams {
    * location of their own and are omitted.
    */
   location?: string;
+  /** Return only devices whose `registration_status` is this value. */
+  registration_status?: DeviceRegistrationStatus;
   /**
    * Related resources to include inline. `users` populates `assignments`.
    */
@@ -3476,6 +3659,63 @@ function appendExpand(queryParams: URLSearchParams, expand?: readonly string[]):
   }
 }
 
+const SENTIMENT_LABEL_KEYS = ['sentiment', 'local_sentiment', 'remote_sentiment'] as const;
+const SENTIMENT_RANGE_KEYS = [
+  'sentiment_score',
+  'sentiment_magnitude',
+  'local_sentiment_score',
+  'local_sentiment_magnitude',
+  'remote_sentiment_score',
+  'remote_sentiment_magnitude',
+] as const;
+const RANGE_OPS = ['gt', 'gte', 'lt', 'lte'] as const;
+
+/**
+ * Append the filters `GET /v1/calls` and `GET /v1/calls/summary` share. A
+ * range goes out as one `key[op]=value` pair per bound, the form the API parses.
+ */
+function appendCallFilters(
+  queryParams: URLSearchParams,
+  params?: Omit<CallListParams, 'limit' | 'page' | 'expand'>
+): void {
+  if (!params) return;
+  if (params.user_id) queryParams.set('user_id', params.user_id);
+  if (params.did) queryParams.set('did', params.did);
+  if (params.direction) queryParams.set('direction', params.direction);
+  for (const key of ['from_number', 'to_number'] as const) {
+    const value = params[key];
+    if (Array.isArray(value)) {
+      for (const v of value) queryParams.append(`${key}[]`, v);
+    } else if (value) {
+      queryParams.set(key, value);
+    }
+  }
+  if (Array.isArray(params.status)) {
+    for (const st of params.status) queryParams.append('status[]', st);
+  } else if (params.status) {
+    queryParams.set('status', params.status);
+  }
+  if (params.remote_number) queryParams.set('remote_number', params.remote_number);
+  if (params.connected !== undefined) queryParams.set('connected', String(params.connected));
+  if (params.search) queryParams.set('search', params.search);
+  if (params.from_date) queryParams.set('from_date', params.from_date);
+  if (params.to_date) queryParams.set('to_date', params.to_date);
+  for (const key of SENTIMENT_LABEL_KEYS) {
+    const label = params[key];
+    if (label) queryParams.set(key, label);
+  }
+  for (const key of SENTIMENT_RANGE_KEYS) {
+    const range = params[key];
+    if (!range) continue;
+    for (const op of RANGE_OPS) {
+      const value = range[op];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        queryParams.set(`${key}[${op}]`, String(value));
+      }
+    }
+  }
+}
+
 /**
  * Build the query string for a request whose only parameter is `expand[]`.
  * Returns an empty string when nothing is expanded.
@@ -4409,15 +4649,7 @@ export class DialStack {
       const queryParams = new URLSearchParams();
       if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
       if (params?.page) queryParams.set('page', params.page);
-      if (params?.user_id) queryParams.set('user_id', params.user_id);
-      if (params?.did) queryParams.set('did', params.did);
-      if (params?.direction) queryParams.set('direction', params.direction);
-      if (params?.from_number) queryParams.set('from_number', params.from_number);
-      if (params?.to_number) queryParams.set('to_number', params.to_number);
-      if (params?.status) queryParams.set('status', params.status);
-      if (params?.search) queryParams.set('search', params.search);
-      if (params?.from_date) queryParams.set('from_date', params.from_date);
-      if (params?.to_date) queryParams.set('to_date', params.to_date);
+      appendCallFilters(queryParams, params);
       appendExpand(queryParams, params?.expand);
 
       const query = queryParams.toString();
@@ -4428,6 +4660,26 @@ export class DialStack {
       };
 
       return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+
+    /**
+     * Aggregate counts over the calls `list` would return for the same
+     * filters: by direction and status, and by sentiment on each side.
+     */
+    summary: (
+      params: CallSummaryParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<CallSummary> => {
+      const queryParams = new URLSearchParams();
+      appendCallFilters(queryParams, params);
+      if (params.granularity) queryParams.set('granularity', params.granularity);
+      if (params.time_zone) queryParams.set('time_zone', params.time_zone);
+      return this._request(
+        'GET',
+        `/v1/calls/summary?${queryParams.toString()}`,
+        undefined,
+        options
+      );
     },
 
     /**
@@ -4575,6 +4827,58 @@ export class DialStack {
     },
   };
 
+  /**
+   * External numbers the account has had calls with, and what has happened
+   * with each. Callers still waiting to be reached today:
+   * `list({ unconnected_inbound_count: { gte: 1 }, unconnected_inbound_last_at: { gte: midnight } })`.
+   */
+  remoteNumbers = {
+    list: (
+      params: RemoteNumberListParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): PaginatedList<RemoteNumber> => {
+      const queryParams = new URLSearchParams();
+      if (params.limit !== undefined) queryParams.set('limit', String(params.limit));
+      if (params.page) queryParams.set('page', params.page);
+      const ranges: Array<[string, Record<string, string | number | undefined> | undefined]> = [
+        ['last_call_at', params.last_call_at as Record<string, string | undefined> | undefined],
+        [
+          'last_connected_at',
+          params.last_connected_at as Record<string, string | undefined> | undefined,
+        ],
+        [
+          'unconnected_inbound_count',
+          params.unconnected_inbound_count as Record<string, number | undefined> | undefined,
+        ],
+        [
+          'unconnected_inbound_last_at',
+          params.unconnected_inbound_last_at as Record<string, string | undefined> | undefined,
+        ],
+      ];
+      for (const [key, range] of ranges) {
+        for (const op of ['gt', 'gte', 'lt', 'lte']) {
+          const v = range?.[op];
+          if (v !== undefined) queryParams.set(`${key}[${op}]`, String(v));
+        }
+      }
+      appendExpand(queryParams, params.expand);
+      const path = `/v1/remote-numbers?${queryParams.toString()}`;
+      const fetchPage = (url: string): Promise<ListResponse<RemoteNumber>> => {
+        return this._request('GET', url, undefined, options);
+      };
+      return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+
+    /** One external number's facts, by the number in any spelling. */
+    retrieve: (
+      phoneNumber: string,
+      options: RequestOptions & { dialstackAccount: string; expand?: Array<'last_call'> }
+    ): Promise<RemoteNumber> => {
+      const path = `/v1/remote-numbers/${encodeURIComponent(phoneNumber)}${expandQuery(options.expand)}`;
+      return this._request('GET', path, undefined, options);
+    },
+  };
+
   voicemails = {
     list: (
       params: VoicemailListParams | undefined,
@@ -4586,6 +4890,7 @@ export class DialStack {
       if (params?.owner) queryParams.set('owner', params.owner);
       if (params?.is_read !== undefined) queryParams.set('is_read', String(params.is_read));
       if (params?.from_date) queryParams.set('from_date', params.from_date);
+      if (params?.to_date) queryParams.set('to_date', params.to_date);
       appendExpand(queryParams, params?.expand);
 
       const query = queryParams.toString();
@@ -4596,6 +4901,24 @@ export class DialStack {
       };
 
       return createPaginatedList(this._request('GET', path, undefined, options), fetchPage);
+    },
+
+    /** Voicemail counts per mailbox and read state over a window. */
+    summary: (
+      params: VoicemailSummaryParams,
+      options: RequestOptions & { dialstackAccount: string }
+    ): Promise<VoicemailSummary> => {
+      const queryParams = new URLSearchParams();
+      if (params.owner) queryParams.set('owner', params.owner);
+      if (params.is_read !== undefined) queryParams.set('is_read', String(params.is_read));
+      queryParams.set('from_date', params.from_date);
+      queryParams.set('to_date', params.to_date);
+      return this._request(
+        'GET',
+        `/v1/voicemails/summary?${queryParams.toString()}`,
+        undefined,
+        options
+      );
     },
 
     retrieve: (
@@ -4924,6 +5247,9 @@ export class DialStack {
       if (params?.page) queryParams.set('page', params.page);
       if (params?.type) queryParams.set('type', params.type);
       if (params?.location) queryParams.set('location', params.location);
+      if (params?.registration_status) {
+        queryParams.set('registration_status', params.registration_status);
+      }
       appendExpand(queryParams, params?.expand);
 
       const query = queryParams.toString();

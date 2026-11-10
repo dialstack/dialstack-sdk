@@ -138,6 +138,12 @@ export interface Device {
    */
   last_call_at: string | null;
   /**
+   * For a `not_registered` device, ISO 8601 timestamp of when it was last seen
+   * online (its last registration refresh). `null` while registered, and for a
+   * device never seen online.
+   */
+  offline_since?: string | null;
+  /**
    * Whether the device was shipped in one of the platform's hardware orders,
    * rather than brought by the customer. Deskphones and DECT bases only.
    */
@@ -479,6 +485,8 @@ export interface DeviceListOptions {
   type?: DeviceType;
   /** Eager-load related resources. `users` populates `Device.assignments`. */
   expand?: Array<'users'>;
+  /** Only devices whose `registration_status` is this value */
+  registration_status?: RegistrationStatus;
 }
 
 // ============================================================================
