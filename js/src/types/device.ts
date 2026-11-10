@@ -121,6 +121,11 @@ export interface Device {
   /** ISO 8601 timestamp of last successful config fetch */
   last_provisioned_at?: string;
   /**
+   * Firmware version named in the User-Agent of the last recognized config
+   * fetch. A fetch with an unrecognized User-Agent keeps the previous value.
+   */
+  firmware_version?: string;
+  /**
    * Whether the device is currently reachable (online). Live-derived from the
    * device's assigned lines; distinct from `status`, which only reflects
    * whether the device has fetched its config. Always present.
@@ -178,8 +183,6 @@ export interface Device {
   multicell_role?: MulticellRole;
   /** Maximum number of handsets this base supports */
   max_handsets?: number;
-  /** Current firmware version */
-  firmware_version?: string;
   /** Associated handsets (when eager-loaded) */
   handsets?: DECTHandset[];
 
@@ -328,6 +331,11 @@ export interface ProvisionedDevice {
   current_ip_address?: string;
   /** ISO 8601 timestamp of last successful config fetch */
   last_provisioned_at?: string;
+  /**
+   * Firmware version named in the User-Agent of the last recognized config
+   * fetch. A fetch with an unrecognized User-Agent keeps the previous value.
+   */
+  firmware_version?: string;
   /** ID of the primary line */
   primary_line?: string;
   /** @deprecated Use `primary_line`. Retained for backwards compatibility. */
