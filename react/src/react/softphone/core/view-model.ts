@@ -431,6 +431,9 @@ const CONNECTION_ERROR_CODES = new Set([
 
 export function errorMessageKey(code: string): keyof Locale['softphone'] {
   if (code === 'mic_permission_denied') return 'micPermissionError';
+  // A refused transfer leaves the call up, so "Call failed" would read as the
+  // call itself having failed.
+  if (code === 'transfer_failed') return 'transferFailedError';
   if (CONNECTION_ERROR_CODES.has(code)) return 'connectionError';
   return 'callError';
 }

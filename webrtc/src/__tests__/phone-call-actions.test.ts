@@ -317,3 +317,91 @@ describe('connect() after the transport has closed for good', () => {
     phone.disconnect();
   });
 });
+
+async function transferring() {
+  const ctx = await connectedPhoneWithCall();
+  const errors: PhoneError[] = [];
+  ctx.phone.on('error', (e) => errors.push(e));
+  const ended: string[] = [];
+  ctx.call.on('ended', (r) => ended.push(r));
+  ctx.call.transfer('101');
+  const reqId = ctx.ws.lastOf('call.transfer')!.req_id!;
+  return { ...ctx, errors, ended, reqId };
+}
+
+function refuse(ws: FakeWebSocket, reqId: string) {
+  ws.deliver({
+    type: 'error',
+    code: 'transfer_failed',
+    message: 'transfer failed',
+    req_id: reqId,
+    fatal: false,
+  });
+}
+
+describe('blind transfer', () => {
+  it('sends the destination', async () => {
+    const { ws } = await transferring();
+    const frame = ws.lastOf('call.transfer')!;
+    expect(frame).toMatchObject({ call_id: 'call_1', destination: '101' });
+  });
+
+  // The server hangs up once the far end accepts; the call never sends a
+  // hangup of its own.
+  it('ends as transferred when the server ends the call', async () => {
+    const { ws, call, ended } = await transferring();
+    ws.deliver({
+      type: 'call.ended',
+      call_id: 'call_1',
+      reason: 'transferred',
+      duration_seconds: 4,
+    });
+    expect(call.state).toBe('ended');
+    expect(ended).toEqual(['transferred']);
+    expect(ws.lastOf('call.hangup')).toBeUndefined();
+  });
+
+  it('refuses a second transfer before the server has answered the first', async () => {
+    const { ws, call, reqId } = await transferring();
+    expect(() => call.transfer('102')).toThrow(
+      expect.objectContaining({
+        code: 'transfer_failed',
+        message: expect.stringMatching(/already in progress/),
+      })
+    );
+    expect(ws.sent.filter((m) => m.type === 'call.transfer')).toHaveLength(1);
+
+    // Once refused, the call can transfer again.
+    refuse(ws, reqId);
+    expect(() => call.transfer('102')).not.toThrow();
+  });
+
+  it('keeps a refused transfer connected', async () => {
+    const { ws, call, ended, errors, reqId } = await transferring();
+    refuse(ws, reqId);
+    expect(errors.map((e) => e.code)).toEqual(['transfer_failed']);
+    expect(errors[0]!.callId).toBe('call_1');
+    expect(call.state).toBe('active');
+    expect(ended).toEqual([]);
+  });
+
+  it("keeps a fatal error's own code even when it answers a transfer", async () => {
+    const { ws, errors, reqId } = await transferring();
+    ws.deliver({
+      type: 'error',
+      code: 'session_revoked',
+      message: 'gone',
+      req_id: reqId,
+      fatal: true,
+    });
+    expect(errors[0]!.code).toBe('session_revoked');
+  });
+
+  it('keeps the error code of a non-transfer action', async () => {
+    const { ws, call, errors } = await transferring();
+    call.hold();
+    const holdReq = ws.lastOf('call.hold')!.req_id!;
+    ws.deliver({ type: 'error', code: 'invalid_message', message: 'no', req_id: holdReq });
+    expect(errors.map((e) => e.code)).toEqual(['invalid_message']);
+  });
+});

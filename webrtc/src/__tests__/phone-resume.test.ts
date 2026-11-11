@@ -245,6 +245,24 @@ describe('a dropped socket on an answered call', () => {
     phone.disconnect();
   });
 
+  // The drop may take the transfer's answer with it; a call that is still up
+  // after the resume must not stay locked out of transferring.
+  it('lets the call transfer again when the drop lost the answer', async () => {
+    const { phone, ws, call } = await phoneOnCall();
+    call.transfer('101');
+    ws.drop();
+
+    const ws2 = await nextAttempt();
+    ws2.authenticate({ resumed: true });
+    ws2.deliver(restored());
+
+    expect(() => call.transfer('102')).not.toThrow();
+    expect(ws2.sent.filter((m) => m.type === 'call.transfer')).toEqual([
+      expect.objectContaining({ destination: '102' }),
+    ]);
+    phone.disconnect();
+  });
+
   it('adopts the hold state the server reports', async () => {
     const { phone, ws, call } = await phoneOnCall();
     const held: string[] = [];

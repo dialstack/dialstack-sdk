@@ -384,6 +384,10 @@ describe('errorMessageKey', () => {
     expect(errorMessageKey('mic_permission_denied')).toBe('micPermissionError');
   });
 
+  it('maps a failed transfer to its own key', () => {
+    expect(errorMessageKey('transfer_failed')).toBe('transferFailedError');
+  });
+
   it('maps connection/session-class codes to connectionError, not callError', () => {
     // These are socket/session failures, not call failures — showing "Call
     // failed" for e.g. an idle token-refresh failure (auth_failed) mislabels it.

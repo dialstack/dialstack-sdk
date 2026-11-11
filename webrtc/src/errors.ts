@@ -21,7 +21,8 @@ export type PhoneErrorCode =
   | 'token_refresh_failed'
   | 'mic_permission_denied'
   | 'audio_device_unavailable'
-  | 'audio_device_in_use';
+  | 'audio_device_in_use'
+  | 'transfer_failed';
 
 export class PhoneError extends Error {
   readonly code: PhoneErrorCode;

@@ -43,8 +43,10 @@ export interface UseCallActions extends CallActions {
    * Blind-transfer the active call to `destination`. Returns `true` when the
    * transfer was *initiated* (so the UI can close its transfer overlay), `false`
    * on empty input or a synchronous failure routed to `onError`. `true` means
-   * initiated, not confirmed — the core call is fire-and-forget, so the outcome
-   * arrives later as the call ending ('transferred') or an `onError`.
+   * initiated, not confirmed: once the far end accepts, the call ends
+   * ('transferred') as on a deskphone, so a target that is then busy or doesn't
+   * answer is not reported. A refusal arrives as a `transfer_failed` `onError`
+   * and leaves the call up.
    */
   transfer: (destination: string) => boolean;
 
@@ -151,10 +153,10 @@ export function useCallActions(
       // junk input — silent for an empty field, since the UI gates on non-empty.
       const target = sanitizeOrEmitInvalid(destination, onError, { silentWhenEmpty: true });
       if (!target) return false;
-      // Report that the transfer was initiated (not confirmed — the core call is
-      // fire-and-forget) so the caller can close its transfer overlay; this hook
-      // no longer owns that view-state (it lives in useCallOverlays). A repeat
-      // within the throttle window initiates nothing.
+      // Report that the transfer was initiated, not confirmed (the outcome comes
+      // later as the call ending or an onError), so the caller can close its
+      // transfer overlay; this hook no longer owns that view-state (it lives in
+      // useCallOverlays). A repeat within the throttle window initiates nothing.
       let initiated = false;
       throttleFor(call)('transfer', () => {
         try {

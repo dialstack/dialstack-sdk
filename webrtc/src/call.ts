@@ -226,6 +226,8 @@ export class Call {
   // The subset that were hangups: an error answering one means the server has no
   // such call, so it is over here too.
   private readonly hangupReqIds = new Set<string>();
+  // The subset that were blind transfers still awaiting the server's answer.
+  private readonly transferReqIds = new Set<string>();
   private readonly startConsult: (parent: Call, destination: string) => Promise<Call>;
   private localStream: MediaStream;
   private remoteStream: MediaStream;
@@ -586,6 +588,8 @@ export class Call {
   /** @internal The server's error reply to one of this call's actions. */
   handleActionError(reqId: string): void {
     if (!this.issuedReqIds.delete(reqId)) return;
+    // A refused transfer leaves the call as it was, free to transfer again.
+    this.transferReqIds.delete(reqId);
     if (reqId === this.restartReqId) this.abandonIceRestart();
     // The server refuses a hangup only when it has no such call (a repeat of one
     // it already ended is accepted), so any error answering one means the call
@@ -775,17 +779,34 @@ export class Call {
   }
 
   /**
-   * Blind transfer: immediately redirect the remote party to `destination`.
-   * Fire-and-forget — on success the call ends with reason 'transferred';
-   * on failure a non-fatal error is emitted and the call stays active.
-   * The call must be active.
+   * Blind transfer: redirect the remote party to `destination`. The call must
+   * be connected.
+   *
+   * Once the far end accepts, the server hangs up and the call ends as
+   * 'transferred' while the target may still be ringing; the outcome is not
+   * reported. A transfer the far end refuses reports a `transfer_failed` error
+   * and leaves the call connected.
+   *
+   * One transfer at a time: a second throws a `transfer_failed` error until the
+   * server has answered the first.
    */
   transfer(destination: string): void {
     this.assertTransferable();
     this.refuseWhileReconnecting();
+    // One at a time: the server tracks a single transfer per call, and its
+    // answer (the call ending, or a refusal) clears this.
+    if (this.transferReqIds.size > 0) {
+      throw new PhoneError({
+        code: 'transfer_failed',
+        message: 'A transfer is already in progress on this call',
+        callId: this.id,
+      });
+    }
+    const reqId = this.issueReqId();
+    this.transferReqIds.add(reqId);
     this.transport.sendOrQueue({
       type: 'call.transfer',
-      req_id: this.issueReqId(),
+      req_id: reqId,
       call_id: this.id,
       destination,
     });
@@ -1209,6 +1230,10 @@ export class Call {
    */
   restore(msg: Extract<ServerMessage, { type: 'call.restored' }>): void {
     if (this.endedSettled) return;
+    // A transfer that took effect would have ended the call, so one still
+    // pending here lost its answer in the drop. Without this the call could
+    // never transfer again; the server refuses a real overlap itself.
+    this.transferReqIds.clear();
     const { held } = msg;
     if (held && this.state !== 'held') {
       this.state = 'held';
@@ -1387,6 +1412,7 @@ export class Call {
     // Nothing can answer an ended call's actions any more.
     this.issuedReqIds.clear();
     this.hangupReqIds.clear();
+    this.transferReqIds.clear();
     this.state = 'ended';
     this.ringback.stop();
     this.stopDurationTimer();

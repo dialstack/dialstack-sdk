@@ -28,6 +28,7 @@ export const en = {
     disconnected: 'Disconnected',
     connectionError: 'Connection error',
     callError: 'Call failed',
+    transferFailedError: 'Transfer failed',
     micPermissionError: 'Microphone access is required — allow it and try again',
     dismiss: 'Dismiss',
     unknownCaller: 'Unknown',
