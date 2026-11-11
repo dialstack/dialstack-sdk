@@ -192,6 +192,18 @@ export interface NetworkSettings {
    * `tls` is served only to models that support encrypted signaling.
    */
   sip_transport?: SipTransport;
+  /**
+   * Where the phone gets its DNS servers: `dhcp` from the network, `public`
+   * from Cloudflare `1.1.1.1` and Google `8.8.8.8`, `custom` from `dns_servers`. When
+   * omitted, the platform default applies. Not every model can override DHCP's
+   * DNS; those keep the network's in every mode.
+   */
+  dns_mode?: 'dhcp' | 'public' | 'custom';
+  /**
+   * DNS servers used when `dns_mode` is `custom`: one or two IPv4 addresses,
+   * primary first. Ignored in other modes.
+   */
+  dns_servers?: string[];
 }
 
 /**
