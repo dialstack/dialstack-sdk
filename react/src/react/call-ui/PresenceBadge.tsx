@@ -1,8 +1,8 @@
 import React from 'react';
 import type { PresenceStatus } from '@dialstack/sdk-webrtc';
-import { presenceGlyphs } from '../../core/icons';
-import { presenceTone } from '../../core/view-model';
-import { Glyph } from '../Glyph';
+import { presenceGlyphs } from './core/glyphs';
+import { presenceTone } from './core/presence';
+import { Glyph } from './Glyph';
 
 /** A presence state's mark on a disc in its theme colour. Decorative: the label says it. */
 export const PresenceBadge: React.FC<{ presence: PresenceStatus }> = ({ presence }) => {

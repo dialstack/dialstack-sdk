@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { softphoneGlyphs } from '../../core/icons';
-import { Glyph } from '../Glyph';
+import { ActionButton } from '../../../call-ui/ActionButton';
+import { Glyph } from '../../../call-ui/Glyph';
 import { CallErrorChipView, type CallErrorChipViewProps } from './CallErrorChipView';
 import { DEFAULT_SCOPE, type SoftphoneViewChrome } from './types';
 import { useRoomyHost } from './useRoomyHost';
@@ -146,15 +147,7 @@ export const DialPadView: React.FC<DialPadViewProps> = ({
               <Glyph glyph={showList ? softphoneGlyphs.keypad : softphoneGlyphs.contacts} />
             </button>
           )}
-          <button
-            type="button"
-            className="ds-action ds-call"
-            aria-label={t('call')}
-            disabled={!canCall}
-            onClick={onCall}
-          >
-            <Glyph glyph={softphoneGlyphs.phone} />
-          </button>
+          <ActionButton variant="call" label={t('call')} disabled={!canCall} onClick={onCall} />
           {/* Balances the side button so Call stays centred. */}
           {hasDirectory && <span className="ds-action-side" aria-hidden="true" />}
         </div>

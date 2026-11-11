@@ -364,6 +364,21 @@ describe('Softphone in-call screen', () => {
     expect(call.sendDtmf).toHaveBeenCalledWith('5');
   });
 
+  // Close and hang up share one slot. A keyboard user who closes the keypad
+  // must land on hang up, not lose focus to the page.
+  it('keeps keyboard focus in the action slot when the keypad closes', () => {
+    connectWithActiveCall();
+    fireEvent.click(screen.getByLabelText('Keypad'));
+    const close = document.querySelector<HTMLButtonElement>('.ds-keypad-close')!;
+    close.focus();
+
+    fireEvent.click(close);
+
+    const hangUp = screen.getByLabelText('Hang up');
+    expect(hangUp).toBe(close);
+    expect(document.activeElement).toBe(hangUp);
+  });
+
   it('hides the keypad control when the call cannot send DTMF (e.g. RN)', () => {
     renderSoftphone();
     act(() => phone().emit('connected'));

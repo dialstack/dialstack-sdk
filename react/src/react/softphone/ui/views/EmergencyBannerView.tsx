@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { softphoneGlyphs } from '../../core/icons';
 import { normalizeStateCode } from '../../core/emergency-address-form';
-import { Glyph } from '../Glyph';
+import { Glyph } from '../../../call-ui/Glyph';
 import { DEFAULT_SCOPE, type SoftphoneViewChrome } from './types';
 import type { EmergencyAddress, EmergencyAddressInput } from '@dialstack/sdk-webrtc';
 

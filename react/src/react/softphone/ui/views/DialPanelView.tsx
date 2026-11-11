@@ -2,7 +2,7 @@ import React from 'react';
 import { softphoneGlyphs } from '../../core/icons';
 import type { DirectoryContact } from '../../core/view-model';
 import { useDialPanel } from '../../hooks';
-import { Glyph } from '../Glyph';
+import { Glyph } from '../../../call-ui/Glyph';
 import { DialMatchesView } from './DialMatchesView';
 import { DirectoryPickerView } from './DirectoryPickerView';
 import { PickedTargetView } from './PickedTargetView';

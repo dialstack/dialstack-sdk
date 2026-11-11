@@ -1,8 +1,7 @@
 import React from 'react';
-import { softphoneGlyphs } from '../../core/icons';
-import { Glyph } from '../Glyph';
+import { ActionButton } from '../../../call-ui/ActionButton';
 import { ControlsSlot } from '../ControlsSlot';
-import { PeerAvatar } from './PeerAvatar';
+import { PeerAvatar } from '../../../call-ui/PeerAvatar';
 import { useRoomyHost } from './useRoomyHost';
 import type { PeerSummary, SoftphoneViewChrome } from './types';
 
@@ -42,22 +41,8 @@ export const IncomingCallCardView: React.FC<IncomingCallCardViewProps> = ({
       {!compact && <ControlsSlot />}
 
       <div className="ds-actions ds-actions-incoming">
-        <button
-          type="button"
-          className="ds-action ds-decline"
-          aria-label={t('decline')}
-          onClick={onDecline}
-        >
-          <Glyph glyph={softphoneGlyphs.hangup} />
-        </button>
-        <button
-          type="button"
-          className="ds-action ds-answer"
-          aria-label={t('answer')}
-          onClick={onAnswer}
-        >
-          <Glyph glyph={softphoneGlyphs.phone} />
-        </button>
+        <ActionButton variant="decline" label={t('decline')} onClick={onDecline} />
+        <ActionButton variant="answer" label={t('answer')} onClick={onAnswer} />
       </div>
     </div>
   );

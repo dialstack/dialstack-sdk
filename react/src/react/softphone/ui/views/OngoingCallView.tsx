@@ -1,10 +1,10 @@
 import React from 'react';
 import { softphoneGlyphs } from '../../core/icons';
-import { Glyph } from '../Glyph';
-import { ControlButton } from '../ControlButton';
+import { ActionButton } from '../../../call-ui/ActionButton';
+import { ControlButton } from '../../../call-ui/ControlButton';
 import { ControlsSlot } from '../ControlsSlot';
 import { CallErrorChipView, type CallErrorChipViewProps } from './CallErrorChipView';
-import { PeerAvatar, PeerRow } from './PeerAvatar';
+import { PeerAvatar, PeerRow } from '../../../call-ui/PeerAvatar';
 import { DialPanelView } from './DialPanelView';
 import { KeypadView } from './KeypadView';
 import type { DirectoryContact } from '../../core/view-model';
@@ -382,23 +382,13 @@ export const OngoingCallView: React.FC<OngoingCallViewProps> = ({
         <div className="ds-actions">
           {}
           {inKeypadMode ? (
-            <button
-              type="button"
-              className="ds-action ds-keypad-close"
-              aria-label={t('keypad')}
+            <ActionButton
+              variant="close"
+              label={t('keypad')}
               onClick={() => onToggleOverlay('keypad')}
-            >
-              <Glyph glyph={softphoneGlyphs.close} />
-            </button>
+            />
           ) : (
-            <button
-              type="button"
-              className="ds-action ds-hangup"
-              aria-label={t('hangUp')}
-              onClick={onHangup}
-            >
-              <Glyph glyph={softphoneGlyphs.hangup} />
-            </button>
+            <ActionButton variant="hangup" label={t('hangUp')} onClick={onHangup} />
           )}
         </div>
       </div>

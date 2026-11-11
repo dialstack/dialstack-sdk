@@ -2,7 +2,7 @@ import React, { useId, useRef } from 'react';
 import { softphoneGlyphs } from '../../core/icons';
 import type { DirectoryContact } from '../../core/view-model';
 import { useDirectorySearch } from '../../hooks';
-import { Glyph } from '../Glyph';
+import { Glyph } from '../../../call-ui/Glyph';
 import { DirectoryContactView } from './DirectoryContactView';
 import type { SoftphoneViewChrome } from './types';
 

@@ -602,25 +602,8 @@ export function presenceLabelKey(presence: PresenceStatus): keyof Locale['softph
   }
 }
 
-/**
- * The theme colour of a presence badge. On a call is amber, not red: red is
- * kept for Do Not Disturb, the one state that means "don't send calls here".
- * Offline is drawn hollow, so it doesn't read as one more colour to decode.
- */
-export type PresenceTone = 'success' | 'warning' | 'danger' | 'muted';
-
-export function presenceTone(presence: PresenceStatus): PresenceTone {
-  switch (presence) {
-    case 'available':
-      return 'success';
-    case 'on_call':
-      return 'warning';
-    case 'dnd':
-      return 'danger';
-    default:
-      return 'muted';
-  }
-}
+export { presenceTone } from '../../call-ui/core/presence';
+export type { PresenceTone } from '../../call-ui/core/presence';
 
 /**
  * The one state to show for a user, folding the separate Do Not Disturb flag

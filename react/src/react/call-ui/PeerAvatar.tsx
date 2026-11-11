@@ -1,5 +1,10 @@
 import React, { useState } from 'react';
-import type { PeerSummary } from './types';
+
+/** A host's avatar for a peer: an image, initials, or both (initials back the image up). */
+export interface PeerAvatarData {
+  initials?: string;
+  uri?: string;
+}
 
 /**
  * The host's avatar for a peer (`resolvePeer`): an image, else initials, on the
@@ -8,7 +13,7 @@ import type { PeerSummary } from './types';
  * styles.ts). `sm` is the fixed inline size for one-line rows. An image that
  * fails to load falls back to the initials, or to no avatar without them.
  */
-export const PeerAvatar: React.FC<{ avatar: PeerSummary['avatar']; size?: 'lg' | 'sm' }> = ({
+export const PeerAvatar: React.FC<{ avatar: PeerAvatarData | undefined; size?: 'lg' | 'sm' }> = ({
   avatar,
   size = 'lg',
 }) => {
@@ -30,10 +35,10 @@ export const PeerAvatar: React.FC<{ avatar: PeerSummary['avatar']; size?: 'lg' |
 };
 
 /** A row's name block with the peer's small avatar beside it, when there is one. */
-export const PeerRow: React.FC<{ avatar: PeerSummary['avatar']; children: React.ReactNode }> = ({
-  avatar,
-  children,
-}) =>
+export const PeerRow: React.FC<{
+  avatar: PeerAvatarData | undefined;
+  children: React.ReactNode;
+}> = ({ avatar, children }) =>
   avatar ? (
     <div className="ds-peer-row">
       <PeerAvatar avatar={avatar} size="sm" />

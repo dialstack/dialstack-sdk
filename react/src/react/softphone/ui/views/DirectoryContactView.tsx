@@ -1,6 +1,6 @@
 import React from 'react';
 import { contactDetail, directoryContactTags, type DirectoryContact } from '../../core/view-model';
-import { PresenceBadge } from './PresenceBadge';
+import { PresenceBadge } from '../../../call-ui/PresenceBadge';
 import type { SoftphoneViewChrome } from './types';
 
 /**

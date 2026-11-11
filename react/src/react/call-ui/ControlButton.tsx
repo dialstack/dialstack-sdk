@@ -7,12 +7,12 @@
  */
 
 import React from 'react';
-import type { SoftphoneGlyph } from '../core/icons';
+import type { CallGlyph } from './core/glyphs';
 import { Glyph } from './Glyph';
 
 export const ControlButton: React.FC<{
   label: string;
-  glyph: SoftphoneGlyph;
+  glyph: CallGlyph;
   on?: boolean;
   disabled?: boolean;
   onClick: () => void;

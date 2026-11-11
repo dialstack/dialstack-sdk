@@ -1,4 +1,5 @@
 import type { Locale } from '@dialstack/sdk-js';
+import type { PeerAvatarData } from '../../../call-ui/PeerAvatar';
 
 export interface SoftphoneViewChrome {
   scope?: string;
@@ -11,7 +12,7 @@ export interface PeerSummary {
   name: string;
   number?: string | null;
   /** The host's avatar from `resolvePeer`, drawn above the name. */
-  avatar?: { initials?: string; uri?: string };
+  avatar?: PeerAvatarData;
 }
 
 export type OverlayPanel = 'keypad' | 'transfer' | 'devices' | 'addcall' | null;

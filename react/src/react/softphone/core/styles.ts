@@ -4,6 +4,14 @@
  * source of truth — the React Softphone injects it into a scoped <style>, and the
  * class names (`ds-*`) are shared with the markup the component renders.
  */
+import {
+  actionButtonRules,
+  controlButtonRules,
+  focusRingRules,
+  paletteVariables,
+  peerAvatarRules,
+  presenceBadgeRules,
+} from '../../call-ui/styles';
 import { softphoneDimensions, softphoneFontFamily, type SoftphonePalette } from './theme';
 
 export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'): string {
@@ -15,17 +23,7 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
   const matchScrollRoom = 14;
   return `
     .${scope} {
-      --dsd-bg: ${p.background};
-      --dsd-surface: ${p.surface};
-      --dsd-surface-active: ${p.surfaceActive};
-      --dsd-text: ${p.text};
-      --dsd-text-secondary: ${p.textSecondary};
-      --dsd-border: ${p.border};
-      --dsd-accent: ${p.accent};
-      --dsd-success: ${p.success};
-      --dsd-danger: ${p.danger};
-      --dsd-warning: ${p.warning};
-      --dsd-on-accent: ${p.onAccent};
+${paletteVariables(p)}
       font-family: var(--ds-font-family, ${softphoneFontFamily});
       background: var(--dsd-bg);
       color: var(--dsd-text);
@@ -261,21 +259,7 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     }
     .${scope} .ds-dial-pick-clear:hover { background: var(--dsd-surface-active); color: var(--dsd-text); }
     .${scope} .ds-dial-pick-clear svg { width: 100%; height: 100%; display: block; }
-    .${scope} .ds-action {
-      flex: none; width: ${d.actionButtonSize}px; height: ${d.actionButtonSize}px;
-      border: none; border-radius: 999px; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      color: var(--dsd-on-accent);
-      transition: transform 0.06s ease, filter 0.12s ease;
-      -webkit-tap-highlight-color: transparent;
-    }
-    .${scope} .ds-action svg { width: 46%; height: 46%; }
-    .${scope} .ds-action:active { transform: scale(0.92); }
-    .${scope} .ds-action:disabled { opacity: 0.4; cursor: not-allowed; }
-    .${scope} .ds-call, .${scope} .ds-answer { background: var(--dsd-success); }
-    .${scope} .ds-hangup, .${scope} .ds-decline { background: var(--dsd-danger); }
-    .${scope} .ds-call:not(:disabled):hover, .${scope} .ds-answer:hover,
-    .${scope} .ds-hangup:hover, .${scope} .ds-decline:hover { filter: brightness(1.06); }
+${actionButtonRules(scope)}
 
     .${scope} .ds-peer {
       flex: 1 1 auto;
@@ -293,29 +277,7 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     .${scope} .ds-peer { text-align: center; display: flex; flex-direction: column; gap: 4px; }
     .${scope} .ds-peer-name { font-size: clamp(22px, 6vw, 28px); font-weight: 600; word-break: break-word; }
     .${scope} .ds-peer-number { font-size: 15px; color: var(--dsd-text-secondary); }
-    /* The large avatar shrinks first when the screen runs out of height
-       (flex-shrink well above its siblings'). It is a size container, so its
-       content never holds the peer block open, and below a legible size the
-       disc hides rather than turning into a dot. */
-    .${scope} .ds-peer-avatar {
-      flex: 0 100 64px; min-height: 0; max-height: 64px; width: 64px;
-      align-self: center; margin-bottom: 4px;
-      container-type: size; display: flex; align-items: center; justify-content: center;
-    }
-    .${scope} .ds-peer-avatar-disc {
-      height: 100%; aspect-ratio: 1; border-radius: 999px; overflow: hidden;
-      display: flex; align-items: center; justify-content: center;
-      background: var(--dsd-accent); color: var(--dsd-on-accent);
-      font-size: 34cqh; font-weight: 600;
-    }
-    .${scope} .ds-peer-avatar-disc img { width: 100%; height: 100%; object-fit: cover; }
-    @container (max-height: 39px) {
-      .${scope} .ds-peer-avatar-disc { display: none; }
-    }
-    .${scope} .ds-peer-avatar-sm { flex: none; width: 32px; height: 32px; margin: 0; }
-    .${scope} .ds-peer-avatar-sm .ds-peer-avatar-disc { font-size: 13px; }
-    .${scope} .ds-peer-row { display: flex; align-items: center; justify-content: center; gap: 10px; }
-    .${scope} .ds-peer-row-text { min-width: 0; text-align: left; }
+${peerAvatarRules(scope)}
     .${scope} .ds-callstate { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 6px; }
     .${scope} .ds-callstate-text { font-size: 14px; color: var(--dsd-text-secondary); }
     .${scope} .ds-duration { font-size: 18px; font-variant-numeric: tabular-nums; font-weight: 500; }
@@ -346,23 +308,7 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     /* Three to a row: the column gap is sized so a row of three fits the
        narrowest host (inside the scrollbar gutters) instead of wrapping to two. */
     .${scope} .ds-controls > * { flex: 0 0 ${d.controlButtonSize + 12}px; }
-    .${scope} .ds-control {
-      display: flex; flex-direction: column; align-items: center; gap: 6px;
-      border: none; background: transparent; cursor: pointer;
-      color: var(--dsd-text); font-family: inherit;
-    }
-    .${scope} .ds-control-glyph {
-      width: ${d.controlButtonSize}px; height: ${d.controlButtonSize}px;
-      border-radius: 999px; background: var(--dsd-surface);
-      display: flex; align-items: center; justify-content: center;
-      transition: background-color 0.12s ease;
-    }
-    .${scope} .ds-control-glyph svg { width: 42%; height: 42%; }
-    .${scope} .ds-control:hover:not(:disabled) .ds-control-glyph { background: var(--dsd-surface-active); }
-    .${scope} .ds-control-on .ds-control-glyph { background: var(--dsd-accent); color: var(--dsd-on-accent); }
-    .${scope} .ds-control-label { font-size: 12px; color: var(--dsd-text-secondary); }
-    .${scope} .ds-control-on .ds-control-label { color: var(--dsd-text); }
-    .${scope} .ds-control:disabled { cursor: not-allowed; opacity: 0.4; }
+${controlButtonRules(scope)}
 
     .${scope} .ds-dtmf {
       display: flex; flex-direction: column; gap: 10px;
@@ -381,8 +327,6 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
        the in-call screen) gives up its height before the caller does. */
     .${scope} .ds-incoming-card > .ds-controls-slot { flex-shrink: 1000; }
     .${scope} .ds-screen-incall:has(.ds-dtmf) > .ds-peer { flex: 0 0 auto; }
-    .${scope} .ds-keypad-close { background: var(--dsd-surface); color: var(--dsd-text); }
-    .${scope} .ds-keypad-close:hover { filter: brightness(0.96); }
     .${scope} .ds-dtmf-readout {
       text-align: center; font-size: 22px; min-height: 28px;
       font-variant-numeric: tabular-nums; letter-spacing: 0.08em;
@@ -516,18 +460,7 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
       background: var(--dsd-bg); color: var(--dsd-text-secondary);
     }
     .${scope} .ds-directory-option-detail { font-size: 12px; color: var(--dsd-text-secondary); }
-    .${scope} .ds-directory-presence {
-      flex: none; display: inline-flex; width: 12px; height: 12px; border-radius: 50%;
-      color: var(--dsd-bg); background: var(--dsd-text-secondary);
-    }
-    .${scope} .ds-directory-presence svg { width: 100%; height: 100%; display: block; }
-    .${scope} .ds-directory-presence[data-tone='success'] { background: var(--dsd-success); }
-    .${scope} .ds-directory-presence[data-tone='warning'] { background: var(--dsd-warning); }
-    .${scope} .ds-directory-presence[data-tone='danger'] { background: var(--dsd-danger); }
-    .${scope} .ds-directory-presence[data-presence='offline'] {
-      background: none; color: var(--dsd-text-secondary);
-      box-shadow: inset 0 0 0 1.5px var(--dsd-text-secondary);
-    }
+${presenceBadgeRules(scope)}
     .${scope} .ds-directory-empty {
       padding: 10px; font-size: 13px; text-align: center; color: var(--dsd-text-secondary);
     }
@@ -750,9 +683,6 @@ export function buildSoftphoneStyles(p: SoftphonePalette, scope = 'ds-softphone'
     .ds-host-small .ds-incoming-card-compact .ds-peer-name { font-size: 13px; }
     .ds-host-small .ds-incoming-card-compact .ds-action { width: 36px; height: 36px; }
 
-    .${scope} button:focus-visible, .${scope} input:focus-visible {
-      outline: none;
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsd-accent) 45%, transparent);
-    }
+${focusRingRules(scope)}
   `;
 }
