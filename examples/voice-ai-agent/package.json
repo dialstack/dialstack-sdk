@@ -18,7 +18,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint 'src/**/*.ts'",
     "format": "prettier --write 'src/**/*.ts'",
-    "test": "node --import tsx --test src/transfer-target.test.ts src/providers/telnyx.test.ts src/calls.test.ts"
+    "test": "node --import tsx --test src/transfer-target.test.ts src/providers/telnyx.test.ts src/providers/elevenlabs.test.ts src/providers/openai.test.ts src/calls.test.ts"
   },
   "dependencies": {
     "@dialstack/sdk-server": "file:../../server",

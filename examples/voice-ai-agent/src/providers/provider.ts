@@ -17,9 +17,12 @@
 // drops any agent audio still queued for the caller. Providers whose
 // barge-in signal also fires on echo (Gemini) don't emit it.
 // `close` fires when the upstream connection terminates. Providers that let
-// the agent ask for a human (ElevenLabs, via a client tool) emit `transfer`;
-// the session then issues a DialStack `transfer` action on the call.
-// Telnyx also emits `transcript` turns and accepts text turns (`sendText`).
+// the agent ask for a human (Telnyx, ElevenLabs and OpenAI, via a tool named
+// `transfer_to_human`) emit `transfer`; the session then transfers the call.
+// Telnyx, ElevenLabs and OpenAI also emit `transcript` turns and `tool` for
+// their other client tools. Telnyx, ElevenLabs and OpenAI accept text turns
+// (`sendText`), which a warm transfer needs to brief the person who
+// answers and to hand the caller back afterwards.
 
 import { EventEmitter } from 'node:events';
 
@@ -41,8 +44,18 @@ export interface VoiceProviderEvents {
    */
   transfer: (args: Record<string, unknown>, done: (err?: Error) => void) => void;
   /**
-   * A finished turn: what the caller said, or what the agent said. Only the
-   * Telnyx provider emits it. Turns come in arrival order, not conversation
+   * Any other client-side tool the agent called, with its arguments. `reply`
+   * sends the tool's result back to the agent. The Telnyx, ElevenLabs and OpenAI
+   * providers emit it; with no listener, the tool call is refused.
+   */
+  tool: (
+    name: string,
+    args: Record<string, unknown>,
+    reply: (output: Record<string, unknown>) => void
+  ) => void;
+  /**
+   * A finished turn: what the caller said, or what the agent said. The
+   * Telnyx, ElevenLabs and OpenAI providers emit it. Turns come in arrival order, not conversation
    * order: a caller's transcription can land after the agent's reply to it.
    */
   transcript: (role: 'caller' | 'agent', text: string) => void;
@@ -58,8 +71,8 @@ export interface VoiceProvider extends EventEmitter {
   sendAudio(ulaw: Uint8Array): void;
 
   /**
-   * Add a user text turn the agent answers as it would a spoken one. Only the
-   * Telnyx provider implements it.
+   * Add a user text turn the agent answers as it would a spoken one. Telnyx,
+   * ElevenLabs and OpenAI Realtime implement it; Gemini does not yet.
    */
   sendText?(text: string): void;
 

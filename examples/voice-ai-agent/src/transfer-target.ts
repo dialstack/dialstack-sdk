@@ -15,19 +15,24 @@ export function agentTransferError(err: Error): string {
 }
 
 /**
- * Tool-call arguments as an object. Telnyx sends a JSON string, ElevenLabs an
- * object; anything else, or JSON that is not an object, is no arguments.
+ * Tool-call arguments as an object: Telnyx sends a JSON string, ElevenLabs an
+ * object, and no arguments at all is none. Anything else is malformed and
+ * returns undefined, so the call is refused: read as "none given", a transfer
+ * would go to the default target instead of the extension asked for.
  */
-export function parseToolArgs(raw: unknown): ToolArgs {
+export function parseToolArgs(raw: unknown): ToolArgs | undefined {
+  if (raw === undefined) return {};
   let value = raw;
   if (typeof raw === 'string') {
     try {
       value = JSON.parse(raw);
     } catch {
-      return {};
+      return undefined;
     }
   }
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as ToolArgs) : {};
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as ToolArgs)
+    : undefined;
 }
 
 /** `TRANSFER_EXTENSIONS` (`1001:Sales,1002:Support`) as extension → name. */

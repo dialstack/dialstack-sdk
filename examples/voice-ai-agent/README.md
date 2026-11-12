@@ -87,7 +87,7 @@ All settings come from environment variables — see [`.env.example`](./.env.exa
 | `PUBLIC_URL`                | The HTTPS URL where this server is reachable from the public internet. The webhook handler derives the `wss://.../media` URL from this.                                                                                                                                                                   |
 | `VOICE_APP_WEBHOOK_SECRET`  | The HMAC secret DialStack uses to sign webhook payloads. Set when you create the Voice App.                                                                                                                                                                                                               |
 | `GOOGLE_GENAI_USE_VERTEXAI` | `true` to route Gemini through Vertex AI (requires `GOOGLE_CLOUD_PROJECT` and ADC). Unset or `false` uses the AI Studio API and `GEMINI_API_KEY`.                                                                                                                                                         |
-| `TRANSFER_TARGET`           | Where to transfer the caller when an ElevenLabs agent or Telnyx assistant calls its `transfer_to_human` client tool: an extension, an E.164 number or a `sip:` URI. Unset, the tool call is answered with an error.                                                                                       |
+| `TRANSFER_TARGET`           | Where to transfer the caller when the agent calls its `transfer_to_human` tool (ElevenLabs, OpenAI and Telnyx): an extension, an E.164 number or a `sip:` URI. Unset, the tool call is answered with an error.                                                                                            |
 | `TRANSFER_EXTENSIONS`       | Extensions the agent may name in the tool's optional `extension` argument, as `ext:Name` pairs (`1001:Sales,1002:Support`). A named extension that isn't listed is refused, and the agent is told the listed ones by name so it can ask the caller again; with no `extension`, `TRANSFER_TARGET` is used. |
 | `LOG_TRANSCRIPTS`           | Set to `true` to log caller and agent transcript text at debug level. **Off by default** — transcripts contain PII (names, account numbers, addresses). Only enable in controlled environments.                                                                                                           |
 
@@ -134,6 +134,8 @@ src/
 - Model, voice and instructions come from `OPENAI_MODEL` (default `gpt-realtime-2.1`), `OPENAI_VOICE` (default `marin`) and `OPENAI_INSTRUCTIONS`. The voice can't change once the agent has spoken in a session.
 - The agent speaks first: the example sends `response.create` as soon as `session.updated` confirms the configuration.
 - Barge-in: server VAD with `interrupt_response` cancels the response on OpenAI's side, and `input_audio_buffer.speech_started` drops any agent audio still queued for the caller. The example doesn't send `conversation.item.truncate`, so the model's transcript of an interrupted turn may include words the caller never heard.
+- When `TRANSFER_TARGET` or `TRANSFER_EXTENSIONS` is set, the session declares a `transfer_to_human` function with an optional `extension`, so the model can hand the caller to a person. Unset, the model is offered no transfer. OpenAI keeps no assistant on its side: tools and instructions are sent in each session's `session.update`.
+- Caller speech is transcribed (`gpt-4o-mini-transcribe`, billed per audio minute) only when the provider is created with `transcribe: true`, so its turns can be reported as `transcript` events. The example leaves it off. `LOG_TRANSCRIPTS` controls only whether the text is logged.
 
 ### Telnyx
 
@@ -156,8 +158,7 @@ src/
 
 ## Out of scope (intentionally)
 
-- **Tool / function calling.** Both providers support it; wiring it through is a separate concern.
-- **Transfer for the other providers.** Only the ElevenLabs and Telnyx providers map a tool call to a DialStack `transfer`; see the [Voice Apps guide](https://docs.dialstack.ai/guides/voiceai/voice-apps) to do the same elsewhere.
+- **Transfer for the other providers.** Only the ElevenLabs, OpenAI and Telnyx providers map a tool call to a DialStack `transfer`; see the [Voice Apps guide](https://docs.dialstack.ai/guides/voiceai/voice-apps) to do the same elsewhere.
 - **Reconnection / retry.** A real production deployment should handle upstream WebSocket disconnects more gracefully.
 
 ## Troubleshooting

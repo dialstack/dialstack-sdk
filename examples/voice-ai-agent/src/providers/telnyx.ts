@@ -13,7 +13,8 @@
 //   • Barge-in: `input_audio_buffer.speech_started` emits `interrupt`, which
 //     makes the session drop agent audio still queued for the caller.
 //   • The caller's numbers go in the first `session.update` as dynamic
-//     variables; a client-side tool named `transfer_to_human` emits `transfer`.
+//     variables; a client-side tool named `transfer_to_human` emits `transfer`,
+//     and any other client-side tool emits `tool` for the application to answer.
 //   • Each finished turn is emitted as `transcript` (the caller's from its
 //     transcription, the agent's assembled from its deltas), and `sendText`
 //     adds a user text turn, which the assistant answers like a spoken one.
@@ -127,7 +128,8 @@ export class TelnyxProvider extends EventEmitter implements VoiceProvider {
   }
 
   /**
-   * Add a user text turn and ask the assistant to answer it. Dropped before
+   * Add a user text turn; the assistant answers it on its own, since Telnyx
+   * runs turn-taking and has no response.create. Dropped before
    * session.created, so it can't overtake the session.update.
    */
   sendText(text: string): void {
@@ -138,7 +140,6 @@ export class TelnyxProvider extends EventEmitter implements VoiceProvider {
         item: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] },
       })
     );
-    this.ws.send(JSON.stringify({ type: 'response.create' }));
   }
 
   close(): void {
@@ -259,19 +260,30 @@ export class TelnyxProvider extends EventEmitter implements VoiceProvider {
         })
       );
     };
+    const args = parseToolArgs(item.arguments);
+    if (!args) {
+      this.log.warn({ tool: item.name }, 'tool call with malformed arguments');
+      reply(JSON.stringify({ error: 'The tool arguments must be a JSON object. Try again.' }));
+      return;
+    }
     if (item.name !== TRANSFER_TOOL) {
+      // Any other tool belongs to the application, if it listens for one.
+      if (item.name && this.listenerCount('tool') > 0) {
+        this.emit('tool', item.name, args, (output: Record<string, unknown>) =>
+          reply(JSON.stringify(output))
+        );
+        return;
+      }
       this.log.warn({ tool: item.name }, 'unhandled client-side tool');
       reply(JSON.stringify({ error: 'This tool is not available.' }));
       return;
     }
     // Answer only once DialStack has accepted the transfer, so a rejected
     // one doesn't leave the assistant promising a hand-off that won't happen.
-    this.emit('transfer', parseToolArgs(item.arguments), (err?: Error) =>
+    this.emit('transfer', args, (err?: Error) =>
       reply(
         JSON.stringify(
-          err
-            ? { error: agentTransferError(err) }
-            : { result: 'Transferring the caller.' }
+          err ? { error: agentTransferError(err) } : { result: 'Transferring the caller.' }
         )
       )
     );

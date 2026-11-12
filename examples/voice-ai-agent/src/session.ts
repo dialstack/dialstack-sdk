@@ -16,7 +16,7 @@
 
 import { logger } from './logger.js';
 import { takeCall } from './calls.js';
-import type { VoiceProvider } from './providers/provider.js';
+import type { CallInfo, VoiceProvider } from './providers/provider.js';
 import type {
   MediaStream,
   MediaStreamAudioEvent,
@@ -30,7 +30,8 @@ const CONNECT_TIMEOUT_MS = 15_000;
 
 export interface SessionOptions {
   stream: MediaStream;
-  makeProvider: () => VoiceProvider;
+  /** Called once the call is known, so a provider can be chosen per call. */
+  makeProvider: (call: CallInfo) => VoiceProvider;
   transfer: (callId: string, accountId: string, target: string) => Promise<unknown>;
 }
 
@@ -53,7 +54,13 @@ export function runSession({ stream, makeProvider, transfer }: SessionOptions): 
       return;
     }
 
-    provider = makeProvider();
+    const info: CallInfo = {
+      callId: begin.call_id,
+      accountId: call.accountId,
+      fromNumber: call.fromNumber,
+      toNumber: call.toNumber,
+    };
+    provider = makeProvider(info);
 
     provider.on('audio', (ulaw) => enqueueProviderAudio(ulaw));
     provider.on('interrupt', () => flushProviderAudio());
@@ -86,12 +93,7 @@ export function runSession({ stream, makeProvider, transfer }: SessionOptions): 
 
     try {
       await Promise.race([
-        provider.connect({
-          callId: begin.call_id,
-          accountId: call.accountId,
-          fromNumber: call.fromNumber,
-          toNumber: call.toNumber,
-        }),
+        provider.connect(info),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('provider connect timeout')), CONNECT_TIMEOUT_MS)
         ),

@@ -13,7 +13,7 @@ import { logger } from './logger.js';
 import { startServer } from './server.js';
 import { ElevenLabsProvider } from './providers/elevenlabs.js';
 import { GeminiProvider } from './providers/gemini.js';
-import { OpenAIProvider } from './providers/openai.js';
+import { OpenAIProvider, TRANSFER_TOOL_DEFINITION } from './providers/openai.js';
 import { TelnyxProvider } from './providers/telnyx.js';
 import type { VoiceProvider } from './providers/provider.js';
 
@@ -62,9 +62,7 @@ function main(): void {
   logger.info({ provider, publicUrl, mediaWsUrl }, 'voice-ai-agent ready');
 }
 
-function providerFactory(
-  name: 'elevenlabs' | 'gemini' | 'openai' | 'telnyx',
-): () => VoiceProvider {
+function providerFactory(name: 'elevenlabs' | 'gemini' | 'openai' | 'telnyx'): () => VoiceProvider {
   if (name === 'elevenlabs') {
     const apiKey = required('ELEVENLABS_API_KEY');
     const agentId = required('ELEVENLABS_AGENT_ID');
@@ -78,6 +76,11 @@ function providerFactory(
       instructions:
         process.env.OPENAI_INSTRUCTIONS ||
         'You are a friendly phone receptionist. Greet the caller and ask how you can help. Keep answers short.',
+      // Offer the model a transfer only when there is somewhere to send the caller.
+      tools:
+        process.env.TRANSFER_TARGET || process.env.TRANSFER_EXTENSIONS
+          ? [TRANSFER_TOOL_DEFINITION]
+          : [],
     };
     return () => new OpenAIProvider(opts);
   }
@@ -108,7 +111,7 @@ function printUsage(): void {
       `  ElevenLabs: ELEVENLABS_API_KEY, ELEVENLABS_AGENT_ID\n` +
       `  Gemini:     GEMINI_API_KEY   (or GOOGLE_GENAI_USE_VERTEXAI=true + GOOGLE_CLOUD_PROJECT)\n` +
       `  OpenAI:     OPENAI_API_KEY   (optional: OPENAI_MODEL, OPENAI_VOICE, OPENAI_INSTRUCTIONS)\n` +
-      `  Telnyx:     TELNYX_API_KEY, TELNYX_ASSISTANT_ID\n`,
+      `  Telnyx:     TELNYX_API_KEY, TELNYX_ASSISTANT_ID\n`
   );
 }
 

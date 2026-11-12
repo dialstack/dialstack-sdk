@@ -32,6 +32,8 @@ const isAudioFormat = (f: string): f is AudioFormat =>
   (SUPPORTED_FORMATS as readonly string[]).includes(f);
 
 const TRANSFER_TOOL = 'transfer_to_human';
+// ElevenLabs writes voice-direction tags in lowercase, e.g. [warm].
+const VOICE_TAG = /\[[a-z][a-z -]*\]/g;
 
 const SIGNED_URL_ENDPOINT = 'https://api.elevenlabs.io/v1/convai/conversation/get-signed-url';
 
@@ -49,6 +51,13 @@ export class ElevenLabsProvider extends EventEmitter implements VoiceProvider {
   // flight; their event_id is below the interruption's. Equal ids belong to
   // the next response, matching the ElevenLabs JS client.
   private interruptedEventId = -1;
+  // Set once the conversation is initiated; a user_message before then would
+  // race the initiation.
+  private ready = false;
+  // The agent's last reply is held until something follows it, because an
+  // interruption replaces it with what was actually said
+  // (agent_response_correction).
+  private pendingAgentTurn?: string;
 
   constructor(private readonly opts: ElevenLabsOptions) {
     super();
@@ -69,6 +78,7 @@ export class ElevenLabsProvider extends EventEmitter implements VoiceProvider {
     ws.on('close', (code, reason) => {
       this.log.info({ code, reason: reason.toString('utf8') }, 'ElevenLabs WS closed');
       this.settleConnect(new Error(`ElevenLabs closed before the agent was ready (${code})`));
+      this.flushAgentTurn();
       this.emit('close', reason.toString('utf8'));
     });
     ws.on('error', (err) => {
@@ -120,8 +130,28 @@ export class ElevenLabsProvider extends EventEmitter implements VoiceProvider {
     this.ws.send(JSON.stringify({ user_audio_chunk: payload.toString('base64') }));
   }
 
+  // `user_message`, not `contextual_update`: the latter injects context
+  // "without interrupting", so the agent reads it but says nothing — useless
+  // for a brief that has to be spoken to the person who just answered.
+  sendText(text: string): void {
+    if (this.ws?.readyState !== WebSocket.OPEN || !this.ready) return;
+    this.ws.send(JSON.stringify({ type: 'user_message', text }));
+  }
+
   close(): void {
     this.ws?.close();
+  }
+
+  // Expressive voices put direction tags such as `[warm]` in the reply; they
+  // are spoken as tone, not words.
+  private clean(text: string): string {
+    return text.replace(VOICE_TAG, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  private flushAgentTurn(): void {
+    const turn = this.pendingAgentTurn;
+    this.pendingAgentTurn = undefined;
+    if (turn) this.emit('transcript', 'agent', turn);
   }
 
   private async fetchSignedUrl(): Promise<string> {
@@ -181,6 +211,7 @@ export class ElevenLabsProvider extends EventEmitter implements VoiceProvider {
           },
           'agent ready'
         );
+        this.ready = true;
         this.settleConnect();
         return;
       }
@@ -221,8 +252,10 @@ export class ElevenLabsProvider extends EventEmitter implements VoiceProvider {
       }
 
       case 'client_tool_call': {
+        this.flushAgentTurn();
         // A client tool named `transfer_to_human` on the agent hands the call
-        // to DialStack's `transfer` action. Other client tools aren't handled.
+        // to DialStack's `transfer` action. Any other client tool goes to the
+        // application, if it listens for one.
         const call = msg.client_tool_call as
           | {
               tool_name?: string;
@@ -242,30 +275,65 @@ export class ElevenLabsProvider extends EventEmitter implements VoiceProvider {
             })
           );
         };
+        const args = parseToolArgs(call?.parameters);
+        if (!args) {
+          this.log.warn({ tool: call?.tool_name }, 'tool call with malformed parameters');
+          reply('The tool parameters must be an object. Try again.', true);
+          return;
+        }
         if (call?.tool_name !== TRANSFER_TOOL) {
+          if (call?.tool_name && this.listenerCount('tool') > 0) {
+            this.emit('tool', call.tool_name, args, (output: Record<string, unknown>) =>
+              reply(JSON.stringify(output), 'error' in output)
+            );
+            return;
+          }
           this.log.warn({ tool: call?.tool_name }, 'unhandled client tool');
           reply('This tool is not available.', true);
           return;
         }
         // Answer only once DialStack has accepted the transfer, so a rejected
         // one doesn't leave the agent promising a hand-off that won't happen.
-        this.emit('transfer', parseToolArgs(call.parameters), (err?: Error) =>
-          err
-            ? reply(agentTransferError(err), true)
-            : reply('Transferring the caller.', false)
+        this.emit('transfer', args, (err?: Error) =>
+          err ? reply(agentTransferError(err), true) : reply('Transferring the caller.', false)
         );
         return;
       }
 
-      case 'agent_response_correction':
-        // Sent after an interruption with the truncated reply text; nothing to do.
+      case 'agent_response_correction': {
+        // Sent after an interruption with the reply as far as it was spoken.
+        const ev = msg.agent_response_correction_event as
+          { corrected_agent_response?: unknown } | undefined;
+        if (
+          typeof ev?.corrected_agent_response === 'string' &&
+          this.pendingAgentTurn !== undefined
+        ) {
+          this.pendingAgentTurn = this.clean(ev.corrected_agent_response);
+        }
         return;
+      }
 
-      case 'agent_response':
-      case 'user_transcript':
+      case 'agent_response': {
+        if (process.env.LOG_TRANSCRIPTS === 'true') this.log.debug({ msg }, type);
+        const text = (msg.agent_response_event as { agent_response?: unknown } | undefined)
+          ?.agent_response;
+        if (typeof text !== 'string') return;
+        this.flushAgentTurn();
+        this.pendingAgentTurn = this.clean(text);
+        return;
+      }
+
+      case 'user_transcript': {
         // Gated behind LOG_TRANSCRIPTS=true — these bodies carry PII.
         if (process.env.LOG_TRANSCRIPTS === 'true') this.log.debug({ msg }, type);
+        this.flushAgentTurn();
+        const text = (msg.user_transcription_event as { user_transcript?: unknown } | undefined)
+          ?.user_transcript;
+        if (typeof text !== 'string') return;
+        const turn = text.replace(/\s+/g, ' ').trim();
+        if (turn) this.emit('transcript', 'caller', turn);
         return;
+      }
 
       default:
         this.log.debug({ type }, 'unhandled message');
