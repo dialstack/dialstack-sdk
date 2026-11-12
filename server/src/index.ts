@@ -2111,6 +2111,11 @@ export interface HardwareOrderItem {
   fulfilled: boolean;
   /** The order is on backorder and no shipment has accounted for this unit yet. */
   pending: boolean;
+  /**
+   * The distributor part this unit was bought as; match it against a
+   * shipment's `items[].part_number`. Null until the order ships.
+   */
+  part_number: string | null;
   hardware_catalog: HardwareCatalogItem;
   created_at: string;
   updated_at: string;
@@ -2181,6 +2186,8 @@ export interface HardwareOrderShipment {
   ship_date: string | null;
   /** The carrier status the distributor last reported. */
   status: string | null;
+  /** What the parcel holds, by distributor part number. Empty when not reported. */
+  items: { part_number: string; quantity: number }[];
 }
 
 export interface HardwareOrder {
