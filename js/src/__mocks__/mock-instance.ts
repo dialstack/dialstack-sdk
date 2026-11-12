@@ -372,6 +372,7 @@ export function createMockInstance(
           status: 'pending' as const,
           text: null,
           sentiment: null,
+          utterances: null,
         }),
       },
     },
@@ -384,6 +385,14 @@ export function createMockInstance(
         status: 'completed' as const,
         text: 'Hello, this is a test voicemail. Please call me back when you get a chance. Thanks!',
         sentiment: { overall: 'neutral' as const, score: 0.0, magnitude: 0.05 },
+        utterances: [
+          {
+            speaker: 'remote' as const,
+            start_seconds: 0.4,
+            end_seconds: 5.1,
+            text: 'Hello, this is a test voicemail. Please call me back when you get a chance. Thanks!',
+          },
+        ],
       }),
       markAsRead: async (_voicemailId: string) => {},
       delete: async (_voicemailId: string) => {},

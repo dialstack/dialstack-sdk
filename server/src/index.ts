@@ -926,6 +926,24 @@ export interface Transcript {
    * incomplete, or when the analysis did not produce a usable result.
    */
   sentiment?: Sentiment | null;
+  /**
+   * The transcript as timed utterances, in start order. Null until
+   * transcription completes, and for transcripts created before utterances
+   * were introduced.
+   */
+  utterances?: TranscriptUtterance[] | null;
+}
+
+/**
+ * One stretch of one speaker's speech in a transcript. Times are seconds from
+ * the start of the recording (or voicemail) audio.
+ */
+export interface TranscriptUtterance {
+  /** `local` is the account's own user, `remote` the other party (always `remote` in a voicemail). */
+  speaker: 'local' | 'remote';
+  start_seconds: number;
+  end_seconds: number;
+  text: string;
 }
 
 export type SentimentLabel = 'positive' | 'neutral' | 'negative';
@@ -1388,6 +1406,12 @@ export interface VoicemailTranscript {
   status: TranscriptStatus;
   text: string | null;
   sentiment?: Sentiment | null;
+  /**
+   * The transcript as timed utterances, in start order. Null until
+   * transcription completes, and for transcripts created before utterances
+   * were introduced.
+   */
+  utterances?: TranscriptUtterance[] | null;
 }
 
 export type VoicemailExpand = 'call';

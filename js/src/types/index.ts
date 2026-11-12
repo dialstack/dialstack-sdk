@@ -77,6 +77,7 @@ export type {
   QualityMetricFarEnd,
   TranscriptStatus,
   Transcript,
+  TranscriptUtterance,
   VoicemailTranscript,
   SentimentLabel,
   ChannelSentiment,
