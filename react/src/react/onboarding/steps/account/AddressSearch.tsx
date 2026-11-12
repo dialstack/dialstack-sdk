@@ -5,7 +5,7 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import type { AddressSuggestion, ResolvedAddress, OnboardingLocation } from '@dialstack/sdk-js';
-import { US_STATES } from '../../../../constants/us-states';
+import { supportedCountry } from '@dialstack/sdk-js/pure';
 
 export interface ManualAddress {
   addressNumber: string;
@@ -307,7 +307,7 @@ export const AddressSearch: React.FC<AddressSearchProps> = ({
               onChange={(e) => onManualAddressChange({ ...manualAddress, state: e.target.value })}
             >
               <option value="">{locale.statePlaceholder}</option>
-              {US_STATES.map(([code, name]) => (
+              {(supportedCountry('US')?.regions ?? []).map(([code, name]) => (
                 <option key={code} value={code}>
                   {name}
                 </option>

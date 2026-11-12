@@ -60,7 +60,7 @@ describe('the bundled packages runtime surface', () => {
   // Enumerated, not derived: every entry is a decision about what a customer
   // installs, so adding one should mean editing this list.
   const ALLOWED: Record<string, string[]> = {
-    js: ['libphonenumber-js'],
+    js: ['country-region-data', 'libphonenumber-js'],
     react: ['@dialstack/sdk-webrtc', 'canvas-confetti', 'cmdk', 'dagre', 'libphonenumber-js'],
   };
 

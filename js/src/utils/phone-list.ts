@@ -1,10 +1,13 @@
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 
+import { type SupportedCountryCode, supportedCountry } from '../constants/countries';
+
 /**
  * Why a line could not be turned into a number.
  *
- * - `invalid`       — a single number that is not a real US number
- * - `not_us`        — parses and is valid, but belongs to another country
+ * - `invalid`       — a single number that is not a real phone number
+ * - `not_us`        — parses and is valid, but is not a US or Canadian number
+ *                     (the name predates Canadian support)
  * - `toll_free`     — a US toll-free number, refused unless the caller passes
  *                     `allowTollFree` (a port order and the eligibility check
  *                     take them)
@@ -63,8 +66,8 @@ export interface PhoneListOptions {
 }
 
 /**
- * Mirrors the server's `validateUSPhoneNumber`: valid and US, and not toll-free
- * unless `allowTollFree`.
+ * Mirrors the server's number check: valid and in a supported country, and not
+ * toll-free unless `allowTollFree`.
  * Returns null when the input is not a single parseable number at all, which is
  * the caller's signal to try splitting it into several.
  */
@@ -77,7 +80,7 @@ function classifyOne(candidate: string, allowTollFree = false): Classified | nul
   // silently port the main number and let normalize erase the extension from
   // the text, destroying the evidence too.
   if (parsed.ext) return { ok: false, reason: 'has_extension' };
-  if (parsed.country !== 'US') return { ok: false, reason: 'not_us' };
+  if (!supportedCountry(parsed.country)) return { ok: false, reason: 'not_us' };
   if (!allowTollFree && parsed.getType() === 'TOLL_FREE') return { ok: false, reason: 'toll_free' };
   return { ok: true, e164: parsed.number };
 }
@@ -479,4 +482,30 @@ export function phoneNumberListType(
     type = t;
   }
   return type;
+}
+
+/**
+ * The supported country of a number, or `undefined` for one we don't serve.
+ * Toll-free numbers report `US`: the shared 8YY codes are assigned to it.
+ */
+export function phoneNumberCountry(e164: string): SupportedCountryCode | undefined {
+  return supportedCountry(parsePhoneNumberFromString(e164, 'US')?.country)?.code;
+}
+
+/**
+ * The one country of a list of numbers, `mixed` when they come from several,
+ * or `null` for an empty list. A port order holds one country's numbers: the
+ * carrier ports each country's through its own partners.
+ */
+export function phoneNumberListCountry(
+  e164s: readonly string[]
+): SupportedCountryCode | 'mixed' | null {
+  let country: SupportedCountryCode | null = null;
+  for (const e164 of e164s) {
+    const c = phoneNumberCountry(e164);
+    if (!c) continue;
+    if (country !== null && c !== country) return 'mixed';
+    country = c;
+  }
+  return country;
 }

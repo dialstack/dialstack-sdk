@@ -7,6 +7,16 @@ import { BaseComponent } from './base-component';
 import { segmentedControlStyles, tableStyles } from './shared-styles';
 import { isApiError } from '../core/instance';
 import {
+  type LocalSearchKind,
+  type LocalSearchQuery,
+  readLocalSearch,
+  type SearchRegion,
+  suggestRegions,
+} from '../utils/number-search-input';
+
+/** The one choice before a search: a local number, or a toll-free one. */
+type SearchMode = 'local' | 'toll_free';
+import {
   ROUTING_TARGET_TYPE_ORDER,
   type EffectivePricing,
   type AvailablePhoneNumber,
@@ -104,21 +114,47 @@ const COMPONENT_STYLES = `
   /* ── Segmented Control ── */
   ${segmentedControlStyles}
 
-  .segmented-control {
-    display: flex;
-    max-width: 320px;
+  /* ── Search ──
+     Local or toll-free is the one choice; a local search is then one field
+     that reads an area code, a ZIP code or a state or province. The bar runs
+     left to right like the card's text: where, how many, search. */
+  /* The controls sit in a centred block within the card. */
+  .search-body {
+    max-width: 480px;
     margin-inline: auto;
   }
 
-  .segment-btn {
-    flex: 1;
+  .search-mode {
+    margin-bottom: var(--ds-layout-spacing-md);
   }
 
-  /* ── Search Fields Stack (all variants overlaid, only active visible) ── */
+  .search-bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 7rem auto;
+    gap: var(--ds-layout-spacing-sm);
+    align-items: end;
+  }
+
+  /* No bottom margin anywhere in the bar, so every box ends on one line. */
+  .search-bar .form-group {
+    margin-bottom: 0;
+  }
+
+  /* Every box in the bar is the same height, the button included: the same
+     line height, padding and 1px border (transparent on the button). */
+  .search-bar .form-input,
+  .search-bar .btn {
+    line-height: var(--ds-line-height);
+  }
+
+  .search-bar .btn {
+    border: 1px solid transparent;
+    padding-block: var(--ds-layout-spacing-sm);
+  }
+
+  /* Both modes' fields share one cell, so switching never moves the bar. */
   .search-fields-stack {
     display: grid;
-    max-width: 320px;
-    margin-inline: auto;
   }
 
   .search-fields-stack > * {
@@ -179,13 +215,67 @@ const COMPONENT_STYLES = `
     gap: var(--ds-layout-spacing-md);
   }
 
-  .search-row {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: var(--ds-layout-spacing-md);
-    align-items: end;
+  /* Says how the location field read what was typed, as it is typed. */
+  .search-hint {
+    min-height: calc(var(--ds-font-size-small) * var(--ds-line-height, 1.5));
+    margin: var(--ds-layout-spacing-xs) 0 0;
+    font-size: var(--ds-font-size-small);
+    color: var(--ds-color-text-secondary);
+  }
+
+  .search-hint[data-state='unknown'] {
+    color: var(--ds-color-danger);
+  }
+
+  .search-city {
     max-width: 320px;
-    margin-inline: auto;
+    margin-top: var(--ds-layout-spacing-md);
+  }
+
+  .combobox {
+    position: relative;
+  }
+
+  .combobox-options {
+    position: absolute;
+    inset-inline: 0;
+    top: calc(100% + var(--ds-layout-spacing-xs));
+    z-index: 10;
+    margin: 0;
+    padding: var(--ds-layout-spacing-xs) 0;
+    list-style: none;
+    max-height: 16rem;
+    overflow-y: auto;
+    background: var(--ds-color-background);
+    border: 1px solid var(--ds-color-border);
+    border-radius: var(--ds-border-radius);
+  }
+
+  .combobox-option {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--ds-layout-spacing-md);
+    padding: var(--ds-layout-spacing-sm) var(--ds-layout-spacing-md);
+    cursor: pointer;
+  }
+
+  .combobox-option[aria-selected='true'],
+  .combobox-option:hover {
+    background: var(--ds-color-surface-subtle);
+  }
+
+  .combobox-option-country {
+    color: var(--ds-color-text-secondary);
+    font-size: var(--ds-font-size-small);
+  }
+
+  @media (max-width: 560px) {
+    .search-bar {
+      grid-template-columns: minmax(0, 1fr) 5.5rem;
+    }
+    .search-fields-stack {
+      grid-column: 1 / -1;
+    }
   }
 
   /* ── Buttons ── */
@@ -781,11 +871,23 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
   private step: Step = 'search';
 
   // Search config
-  private searchTypes: SearchType[] = ['area_code', 'zip', 'toll_free'];
+  private searchTypes: SearchType[] = ['area_code', 'zip', 'region', 'toll_free'];
 
-  // Search state
+  // Search state. searchType keeps the host's preference: toll_free opens on
+  // toll-free, any other type on local.
   private searchType: SearchType = 'area_code';
-  private searchValue: string = '';
+  /** Set once the user picks Local or Toll-Free, which a host's list then no longer overrides. */
+  private searchModePicked = false;
+  // The location field as typed, and the state or province picked from its
+  // suggestions, which the text alone may not name (two regions share a code).
+  private locationText: string = '';
+  private pickedRegion: SearchRegion | null = null;
+  private regionSuggestions: SearchRegion[] = [];
+  private activeSuggestion: number = -1;
+  // The optional city of a state or province search, and the ZIP code last
+  // searched, which a "no numbers there" error names.
+  private regionCity: string = '';
+  private searchedZip: string = '';
   // The toll-free code to narrow to, '' for any. Kept apart from searchValue:
   // a local area code is never a valid toll-free one.
   private tollFreeCode: string = '';
@@ -856,14 +958,34 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     return this.searchTypes.filter((type) => type !== 'toll_free' || tollFree);
   }
 
+  /** The ways the location field may name a place: the configured local types. */
+  private localKinds(): LocalSearchKind[] {
+    return this.searchTypes.filter((t): t is LocalSearchKind => t !== 'toll_free');
+  }
+
+  /** Local and toll-free, as far as the configured types and the account allow. */
+  private visibleModes(): SearchMode[] {
+    const modes: SearchMode[] = [];
+    if (this.localKinds().length > 0) modes.push('local');
+    if (this.visibleSearchTypes().includes('toll_free')) modes.push('toll_free');
+    return modes;
+  }
+
   /**
-   * The search type in effect. `searchType` keeps the configured preference
-   * even while it is hidden, so a host's toll-free default comes back once
+   * The mode in effect. `searchType` keeps the configured preference even
+   * while toll-free is hidden, so a host's toll-free default comes back once
    * pricing shows the account can use it.
    */
-  private activeSearchType(): SearchType | null {
-    const visible = this.visibleSearchTypes();
-    return visible.includes(this.searchType) ? this.searchType : (visible[0] ?? null);
+  private activeMode(): SearchMode | null {
+    const modes = this.visibleModes();
+    const preferred: SearchMode = this.searchType === 'toll_free' ? 'toll_free' : 'local';
+    return modes.includes(preferred) ? preferred : (modes[0] ?? null);
+  }
+
+  /** What the location field names: a picked suggestion, or the text read alone. */
+  private localQuery(): LocalSearchQuery | undefined {
+    if (this.pickedRegion) return { kind: 'region', ...this.pickedRegion };
+    return readLocalSearch(this.locationText, this.localKinds());
   }
 
   // ============================================================================
@@ -896,7 +1018,10 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
   setSearchTypes(types: SearchType[]): void {
     if (types.length === 0) return;
     this.searchTypes = types;
-    if (!this.searchTypes.includes(this.searchType)) {
+    // A list starting with toll_free opens on it, even when it also lists the
+    // local type already selected.
+    const opensOnTollFree = types[0] === 'toll_free' && !this.searchModePicked;
+    if (opensOnTollFree || !this.searchTypes.includes(this.searchType)) {
       this.searchType = this.searchTypes[0] ?? 'area_code';
     }
     if (this.isInitialized) {
@@ -936,11 +1061,11 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
   // ============================================================================
 
   private canSearch(): boolean {
-    const type = this.activeSearchType();
-    if (!type) return false;
+    const mode = this.activeMode();
+    if (!mode) return false;
     // A toll-free search needs no filter: "any code" is a valid search.
-    if (type === 'toll_free') return this.canSearchTollFree();
-    return this.searchValue.trim() !== '';
+    if (mode === 'toll_free') return this.canSearchTollFree();
+    return this.localQuery() !== undefined;
   }
 
   /** A toll-free search takes any code, and a Contains word only if valid. */
@@ -957,17 +1082,24 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
 
     try {
       const options: SearchAvailableNumbersOptions = { quantity: this.quantity };
-      const type = this.activeSearchType();
-      if (type === 'toll_free') {
+      const query = this.activeMode() === 'local' ? this.localQuery() : undefined;
+      if (this.activeMode() === 'toll_free') {
         options.numberType = 'toll_free';
         if (this.tollFreeCode) options.areaCode = this.tollFreeCode;
         const { word } = parseTollFreeContains(this.tollFreeContains);
         if (word) options.contains = word;
-      } else if (type === 'zip') {
-        options.zip = this.searchValue;
-      } else {
-        options.areaCode = this.searchValue;
+      } else if (query?.kind === 'zip') {
+        options.zip = query.zip;
+      } else if (query?.kind === 'region') {
+        // The country too: a region's own code may be another country's.
+        options.state = query.region;
+        options.country = query.country;
+        const city = this.regionCity.trim();
+        if (city) options.city = city.toUpperCase();
+      } else if (query?.kind === 'area_code') {
+        options.areaCode = query.areaCode;
       }
+      this.searchedZip = options.zip ?? '';
 
       this.availableNumbers = await this.instance.availablePhoneNumbers.search(options);
       this.searchedContains = options.contains ?? '';
@@ -997,7 +1129,7 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
   private searchErrorMessage(err: unknown): string {
     if (!isApiError(err)) return this.t('phoneNumberOrdering.searchError.description');
     if (err.code === 'zip_not_available') {
-      const zip = typeof err.details?.zip === 'string' ? err.details.zip : this.searchValue;
+      const zip = typeof err.details?.zip === 'string' ? err.details.zip : this.searchedZip;
       return this.t('phoneNumberOrdering.searchError.zipNotAvailable', { zip });
     }
     // Reachable when the pricing leg that shows the tab is present only because
@@ -1294,7 +1426,11 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
   private resetFlow(): void {
     this.stopPolling();
     this.step = 'search';
-    this.searchValue = '';
+    this.locationText = '';
+    this.pickedRegion = null;
+    this.regionSuggestions = [];
+    this.activeSuggestion = -1;
+    this.regionCity = '';
     this.tollFreeCode = '';
     this.tollFreeContains = '';
     this.searchedContains = '';
@@ -1394,65 +1530,84 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     `;
   }
 
-  private renderSearchStep(): string {
-    const searchTypes = this.visibleSearchTypes();
-    const active = this.activeSearchType();
-    // A host that offers only toll-free search, on an account that cannot use
-    // it, would otherwise get a form with no fields and a dead button.
-    if (!active) {
-      return `
-      <div class="card ${this.classes.searchForm || ''}" part="search-form">
-        <h2 class="section-title">${this.t('phoneNumberOrdering.search.title')}</h2>
-        <p class="section-subtitle">${this.t('phoneNumberOrdering.search.noSearchTypes')}</p>
-      </div>`;
+  /** How the location field read its text, said under it as it is typed. */
+  private locationHint(): { text: string; state: 'empty' | 'read' | 'unknown' } {
+    const query = this.localQuery();
+    if (query?.kind === 'area_code')
+      return {
+        text: this.t('phoneNumberOrdering.search.readsAreaCode', { areaCode: query.areaCode }),
+        state: 'read',
+      };
+    if (query?.kind === 'zip')
+      return {
+        text: this.t('phoneNumberOrdering.search.readsZip', { zip: query.zip }),
+        state: 'read',
+      };
+    if (query?.kind === 'region')
+      return {
+        text: this.t('phoneNumberOrdering.search.readsRegion', {
+          region: query.name,
+          country: this.t(`countries.${query.country}`),
+        }),
+        state: 'read',
+      };
+    const typed = this.locationText.trim();
+    if (!typed || this.regionSuggestions.length > 0) {
+      return {
+        text: this.t(`phoneNumberOrdering.search.locationHelp.${this.localKindsKey()}`),
+        state: 'empty',
+      };
     }
-    const segmentBtn = (type: SearchType, label: string) =>
-      searchTypes.includes(type)
-        ? `<button class="segment-btn ${active === type ? 'active' : ''}" data-action="set-search-type" data-type="${type}">${label}</button>`
-        : '';
+    return {
+      text: this.t('phoneNumberOrdering.search.readsNothing', { text: typed }),
+      state: 'unknown',
+    };
+  }
 
-    const hidden = (type: SearchType) => (active === type ? '' : 'search-fields-hidden');
+  /** The locale key naming the configured local kinds, for the field's wording. */
+  private localKindsKey(): string {
+    const kinds = this.localKinds();
+    return (['area_code', 'zip', 'region'] as const).filter((k) => kinds.includes(k)).join('_');
+  }
 
+  private renderRegionOptions(): string {
+    return this.regionSuggestions
+      .map(
+        (r, i) => `
+            <li class="combobox-option" role="option" id="search-location-option-${i}"
+              data-action="pick-region" data-index="${i}"
+              aria-selected="${i === this.activeSuggestion}">
+              <span>${this.escapeHtml(r.name)}</span>
+              <span class="combobox-option-country">${this.t(`countries.${r.country}`)}</span>
+            </li>`
+      )
+      .join('');
+  }
+
+  private renderLocalFields(hidden: boolean): string {
     return `
-      <div class="card ${this.classes.searchForm || ''}" part="search-form">
-        <h2 class="section-title">${this.t('phoneNumberOrdering.search.title')}</h2>
-        <p class="section-subtitle">${this.t('phoneNumberOrdering.search.subtitle')}</p>
+            <div class="form-group ${hidden ? 'search-fields-hidden' : ''}" data-panel="local">
+              <label class="form-label" for="search-location">${this.t(`phoneNumberOrdering.search.locationLabel.${this.localKindsKey()}`)}</label>
+              <div class="combobox">
+                <input class="form-input" type="text" id="search-location"
+                  role="combobox" aria-autocomplete="list" autocomplete="off"
+                  aria-controls="search-location-options"
+                  aria-expanded="${this.regionSuggestions.length > 0}"
+                  aria-describedby="search-location-hint"
+                  ${this.activeSuggestion >= 0 ? `aria-activedescendant="search-location-option-${this.activeSuggestion}"` : ''}
+                  placeholder="${this.t(`phoneNumberOrdering.search.locationPlaceholder.${this.localKindsKey()}`)}"
+                  value="${this.escapeHtml(this.locationText)}" />
+                <ul class="combobox-options" id="search-location-options" role="listbox"
+                  aria-label="${this.t('phoneNumberOrdering.search.regionSuggestions')}"
+                  ${this.regionSuggestions.length > 0 ? '' : 'hidden'}>${this.renderRegionOptions()}</ul>
+              </div>
+            </div>`;
+  }
 
-        <div class="segmented-control" role="radiogroup" aria-label="${this.t('phoneNumberOrdering.search.searchType')}">
-          ${segmentBtn('area_code', this.t('phoneNumberOrdering.search.areaCode'))}
-          ${segmentBtn('zip', this.t('phoneNumberOrdering.search.zip'))}
-          ${segmentBtn('toll_free', this.t('phoneNumberOrdering.search.tollFree'))}
-        </div>
-
-        <div class="search-fields-stack">
-          ${searchTypes
-            .map((type) => {
-              if (type === 'area_code')
-                return `
-              <div class="${hidden('area_code')}" data-panel="area_code">
-                <div class="form-group">
-                  <label class="form-label">${this.t('phoneNumberOrdering.search.areaCodeLabel')}</label>
-                  <input class="form-input" type="text" id="search-area-code"
-                    placeholder="${this.t('phoneNumberOrdering.search.areaCodePlaceholder')}"
-                    value="${active === 'area_code' ? this.escapeHtml(this.searchValue) : ''}"
-                    data-field="value" />
-                </div>
-              </div>`;
-              if (type === 'zip')
-                return `
-              <div class="${hidden('zip')}" data-panel="zip">
-                <div class="form-group">
-                  <label class="form-label">${this.t('phoneNumberOrdering.search.zipLabel')}</label>
-                  <input class="form-input" type="text" id="search-zip"
-                    placeholder="${this.t('phoneNumberOrdering.search.zipPlaceholder')}"
-                    value="${active === 'zip' ? this.escapeHtml(this.searchValue) : ''}"
-                    data-field="value" />
-                </div>
-              </div>`;
-              if (type === 'toll_free')
-                return `
-              <div class="${hidden('toll_free')}" data-panel="toll_free">
-                <div class="toll-free-row">
+  private renderTollFreeFields(hidden: boolean): string {
+    return `
+            <div class="${hidden ? 'search-fields-hidden' : ''}" data-panel="toll_free">
+              <div class="toll-free-row">
                 <div class="form-group">
                   <label class="form-label" for="search-toll-free">${this.t('phoneNumberOrdering.search.tollFreeLabel')}</label>
                   <select class="form-input" id="search-toll-free">
@@ -1471,16 +1626,48 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
                     aria-describedby="search-toll-free-contains-error"
                     aria-invalid="${containsCannotBecomeValid(this.tollFreeContains)}" />
                 </div>
-                </div>
-                <div class="field-error" id="search-toll-free-contains-error"
-                  ${containsCannotBecomeValid(this.tollFreeContains) ? '' : 'hidden'}>${this.t('phoneNumberOrdering.search.tollFreeContainsInvalid')}</div>
-              </div>`;
-              return '';
-            })
-            .join('')}
-        </div>
+              </div>
+            </div>`;
+  }
 
-        <div class="search-row">
+  private renderSearchStep(): string {
+    const modes = this.visibleModes();
+    const mode = this.activeMode();
+    // A host that offers only toll-free search, on an account that cannot use
+    // it, would otherwise get a form with no fields and a dead button.
+    if (!mode) {
+      return `
+      <div class="card ${this.classes.searchForm || ''}" part="search-form">
+        <h2 class="section-title">${this.t('phoneNumberOrdering.search.title')}</h2>
+        <p class="section-subtitle">${this.t('phoneNumberOrdering.search.noSearchTypes')}</p>
+      </div>`;
+    }
+    const modeBtn = (m: SearchMode, label: string) =>
+      `<button class="segment-btn ${mode === m ? 'active' : ''}" role="radio"
+        aria-checked="${mode === m}" data-action="set-search-mode" data-mode="${m}">${label}</button>`;
+    const hint = this.locationHint();
+    const picksCity = mode === 'local' && this.localQuery()?.kind === 'region';
+
+    return `
+      <div class="card ${this.classes.searchForm || ''}" part="search-form">
+        <h2 class="section-title">${this.t('phoneNumberOrdering.search.title')}</h2>
+        <p class="section-subtitle">${this.t('phoneNumberOrdering.search.subtitle')}</p>
+
+        <div class="search-body">
+        ${
+          modes.length > 1
+            ? `<div class="segmented-control search-mode" role="radiogroup" aria-label="${this.t('phoneNumberOrdering.search.searchType')}">
+          ${modeBtn('local', this.t('phoneNumberOrdering.search.local'))}
+          ${modeBtn('toll_free', this.t('phoneNumberOrdering.search.tollFree'))}
+        </div>`
+            : ''
+        }
+
+        <div class="search-bar">
+          <div class="search-fields-stack">
+            ${modes.includes('local') ? this.renderLocalFields(mode !== 'local') : ''}
+            ${modes.includes('toll_free') ? this.renderTollFreeFields(mode !== 'toll_free') : ''}
+          </div>
           <div class="form-group">
             <label class="form-label" for="search-quantity">${this.t('phoneNumberOrdering.search.numberOfResults')}</label>
             <input class="form-input" type="number" id="search-quantity"
@@ -1492,6 +1679,17 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
               ${this.t('phoneNumberOrdering.search.search')}
             </button>
           </div>
+        </div>
+        <p class="search-hint" id="search-location-hint" aria-live="polite"
+          data-state="${hint.state}" ${mode === 'local' ? '' : 'hidden'}>${this.escapeHtml(hint.text)}</p>
+        <div class="field-error" id="search-toll-free-contains-error"
+          ${mode === 'toll_free' && containsCannotBecomeValid(this.tollFreeContains) ? '' : 'hidden'}>${this.t('phoneNumberOrdering.search.tollFreeContainsInvalid')}</div>
+        <div class="form-group search-city" ${picksCity ? '' : 'hidden'}>
+          <label class="form-label" for="search-region-city">${this.t('phoneNumberOrdering.search.regionCityLabel')}</label>
+          <input class="form-input" type="text" id="search-region-city"
+            placeholder="${this.t('phoneNumberOrdering.search.regionCityPlaceholder')}"
+            value="${this.escapeHtml(this.regionCity)}" />
+        </div>
         </div>
       </div>
     `;
@@ -1882,24 +2080,99 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     if (btn) btn.disabled = this.isSearching || !this.canSearch();
   }
 
-  /** Targeted DOM update for search type switching — avoids full re-render to preserve focus. */
-  private updateSearchTypeUI(newType: SearchType): void {
-    if (!this.shadowRoot) return;
-
-    // Toggle active class on segment buttons
-    const buttons = this.shadowRoot.querySelectorAll<HTMLElement>('.segment-btn');
-    buttons.forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.type === newType);
+  /** Targeted DOM update for a mode switch: avoids a re-render, keeping focus. */
+  private updateSearchModeUI(mode: SearchMode): void {
+    const root = this.shadowRoot;
+    if (!root) return;
+    root.querySelectorAll<HTMLElement>('[data-action="set-search-mode"]').forEach((btn) => {
+      const on = btn.dataset.mode === mode;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-checked', String(on));
     });
+    root.querySelectorAll<HTMLElement>('.search-fields-stack > [data-panel]').forEach((panel) => {
+      panel.classList.toggle('search-fields-hidden', panel.dataset.panel !== mode);
+    });
+    this.updateLocationUI();
+  }
 
-    // Toggle visibility based on rendered search types
-    const stack = this.shadowRoot.querySelector('.search-fields-stack');
-    if (stack) {
-      const typeIndex = this.visibleSearchTypes().indexOf(newType);
-      for (let i = 0; i < stack.children.length; i++) {
-        const child = stack.children[i];
-        if (child) child.classList.toggle('search-fields-hidden', i !== typeIndex);
+  /**
+   * Targeted DOM update as the location field changes: its suggestions, the
+   * line saying how it reads, and the city field a state or province opens.
+   */
+  private updateLocationUI(): void {
+    const root = this.shadowRoot;
+    if (!root) return;
+    const local = this.activeMode() === 'local';
+    const input = root.getElementById('search-location');
+    const list = root.getElementById('search-location-options');
+    if (input && list) {
+      list.innerHTML = this.renderRegionOptions();
+      list.toggleAttribute('hidden', this.regionSuggestions.length === 0);
+      input.setAttribute('aria-expanded', String(this.regionSuggestions.length > 0));
+      if (this.activeSuggestion >= 0) {
+        input.setAttribute(
+          'aria-activedescendant',
+          `search-location-option-${this.activeSuggestion}`
+        );
+        root
+          .getElementById(`search-location-option-${this.activeSuggestion}`)
+          ?.scrollIntoView?.({ block: 'nearest' });
+      } else {
+        input.removeAttribute('aria-activedescendant');
       }
+    }
+    const hintEl = root.getElementById('search-location-hint');
+    if (hintEl) {
+      const hint = this.locationHint();
+      hintEl.textContent = hint.text;
+      hintEl.dataset.state = hint.state;
+      hintEl.toggleAttribute('hidden', !local);
+    }
+    root
+      .querySelector('.search-city')
+      ?.toggleAttribute('hidden', !(local && this.localQuery()?.kind === 'region'));
+    root
+      .getElementById('search-toll-free-contains-error')
+      ?.toggleAttribute(
+        'hidden',
+        !(this.activeMode() === 'toll_free' && containsCannotBecomeValid(this.tollFreeContains))
+      );
+    this.updateSearchButton();
+  }
+
+  /** Takes a suggested state or province into the location field. */
+  private pickRegion(index: number): void {
+    const region = this.regionSuggestions[index];
+    if (!region) return;
+    this.pickedRegion = region;
+    this.locationText = region.name;
+    this.regionSuggestions = [];
+    this.activeSuggestion = -1;
+    const input = this.shadowRoot?.getElementById('search-location') as HTMLInputElement | null;
+    if (input) input.value = region.name;
+    this.updateLocationUI();
+  }
+
+  /** Arrow keys walk the suggestions, Enter picks one or searches, Escape closes them. */
+  private handleLocationKey(e: KeyboardEvent): void {
+    const count = this.regionSuggestions.length;
+    if (e.key === 'ArrowDown' && count > 0) {
+      e.preventDefault();
+      this.activeSuggestion = (this.activeSuggestion + 1) % count;
+      this.updateLocationUI();
+    } else if (e.key === 'ArrowUp' && count > 0) {
+      e.preventDefault();
+      this.activeSuggestion = (this.activeSuggestion - 1 + count) % count;
+      this.updateLocationUI();
+    } else if (e.key === 'Escape' && count > 0) {
+      e.preventDefault();
+      this.regionSuggestions = [];
+      this.activeSuggestion = -1;
+      this.updateLocationUI();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (this.activeSuggestion >= 0) this.pickRegion(this.activeSuggestion);
+      else if (this.canSearch() && !this.isSearching) void this.searchNumbers();
     }
   }
 
@@ -1930,15 +2203,19 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     const action = actionEl.dataset.action;
 
     switch (action) {
-      case 'set-search-type': {
-        const type = actionEl.dataset.type as SearchType;
-        if (type && type !== this.activeSearchType()) {
-          this.searchType = type;
-          this.updateSearchTypeUI(type);
-          this.updateSearchButton();
+      case 'set-search-mode': {
+        const mode = actionEl.dataset.mode as SearchMode | undefined;
+        if (mode) this.searchModePicked = true;
+        if (mode && mode !== this.activeMode()) {
+          this.searchType =
+            mode === 'toll_free' ? 'toll_free' : (this.localKinds()[0] ?? 'area_code');
+          this.updateSearchModeUI(mode);
         }
         break;
       }
+      case 'pick-region':
+        this.pickRegion(Number(actionEl.dataset.index));
+        break;
       case 'search':
         this.searchNumbers();
         break;
@@ -2014,11 +2291,24 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
       });
     };
 
-    bindInput('search-area-code', (v) => {
-      this.searchValue = v;
+    bindInput('search-location', (v) => {
+      this.locationText = v;
+      // An edit unpicks the suggestion, unless it leaves the name as picked.
+      if (this.pickedRegion && v !== this.pickedRegion.name) this.pickedRegion = null;
+      this.regionSuggestions =
+        this.pickedRegion || !this.localKinds().includes('region') ? [] : suggestRegions(v);
+      // A name already complete needs no list under it.
+      const read = readLocalSearch(v, this.localKinds());
+      if (read?.kind === 'region' && this.regionSuggestions.length === 1)
+        this.regionSuggestions = [];
+      this.activeSuggestion = -1;
+      this.updateLocationUI();
     });
-    bindInput('search-zip', (v) => {
-      this.searchValue = v;
+    this.shadowRoot
+      .getElementById('search-location')
+      ?.addEventListener('keydown', (e) => this.handleLocationKey(e as KeyboardEvent));
+    bindInput('search-region-city', (v) => {
+      this.regionCity = v;
     });
     bindInput('search-toll-free', (v) => {
       this.tollFreeCode = v;
@@ -2026,15 +2316,11 @@ export class PhoneNumberOrderingComponent extends BaseComponent {
     });
     bindInput('search-toll-free-contains', (v) => {
       this.tollFreeContains = v;
-      const invalid = containsCannotBecomeValid(v);
       this.shadowRoot!.getElementById('search-toll-free-contains')?.setAttribute(
         'aria-invalid',
-        String(invalid)
+        String(containsCannotBecomeValid(v))
       );
-      this.shadowRoot!.getElementById('search-toll-free-contains-error')?.toggleAttribute(
-        'hidden',
-        !invalid
-      );
+      this.updateLocationUI();
       // A code typed with the word ("800-FLOWERS") selects that code, and
       // typing it away puts the select back on any code. Only a change to the
       // typed code does: a code picked since then survives editing the word.

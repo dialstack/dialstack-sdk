@@ -9,8 +9,15 @@ export interface PortOrderAddress {
   street_name: string;
   line2?: string | null;
   city: string;
+  /** Two-letter US state or Canadian province code. */
   state: string;
+  /** A ZIP code, or for a Canadian province a postal code (`A1A 1A1`). */
   zip: string;
+  /**
+   * Two-letter country code. Optional: worked out from `state` when omitted,
+   * and returned.
+   */
+  country?: string;
 }
 
 /** Who the numbers of a local order belong to. */
@@ -24,6 +31,12 @@ export interface PortOrderSubscriber {
   approver_name: string;
   account_number?: string | null;
   pin?: string | null;
+  /**
+   * The company the customer pays for service, when it resells another
+   * carrier's lines. Canadian carriers may reject a port without it, so give
+   * it for every Canadian port. As written on the bill, up to 60 characters.
+   */
+  losing_reseller_name?: string | null;
   address: PortOrderAddress;
 }
 

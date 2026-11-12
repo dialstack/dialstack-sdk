@@ -5,7 +5,12 @@ import {
   type NumberIssue,
   type ParseProblemReason,
   phoneNumberListType,
+  portingHoliday,
+  phoneNumberCountry,
   readyPhoneNumbers,
+  type SupportedCountry,
+  type SupportedCountryCode,
+  supportedCountry,
 } from '@dialstack/sdk-js/pure';
 
 import type { TFn } from './types';
@@ -81,6 +86,19 @@ export function portListType(
   return phoneNumberListType(readyPhoneNumbers(values, issues, PORT_LIST_OPTIONS));
 }
 
+/**
+ * The country whose rules the port list follows. One order is one country (the
+ * API refuses a mix), so the first ready number decides; `undefined` before
+ * there is one.
+ */
+export function portListCountry(
+  values: readonly string[],
+  issues: readonly NumberIssue[]
+): SupportedCountry | undefined {
+  const [first] = readyPhoneNumbers(values, issues, PORT_LIST_OPTIONS);
+  return first === undefined ? undefined : supportedCountry(phoneNumberCountry(first));
+}
+
 /** Whether the customer has typed any part of the service address. */
 export function hasAddress(s: {
   portSubscriberHouseNumber: string;
@@ -142,4 +160,38 @@ export function conflictNumberIssues(err: unknown, t: (key: string) => string): 
       message: t('accountOnboarding.numbers.port.conflictInServiceElsewhere'),
     })),
   ];
+}
+
+/** A local calendar date as `YYYY-MM-DD`. */
+export function localDateKey(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/**
+ * The porting holiday on a local date for a port of `country`'s numbers, or
+ * `null`.
+ * Weekends are not holidays: the carrier skips them separately.
+ */
+export function portHolidayOn(d: Date, country: SupportedCountryCode): string | null {
+  return portingHoliday(localDateKey(d), country);
+}
+
+/** Whether the carrier ports on a local date: a weekday that is no holiday. */
+export function isPortDay(d: Date, country: SupportedCountryCode): boolean {
+  const day = d.getDay();
+  return day !== 0 && day !== 6 && portHolidayOn(d, country) === null;
+}
+
+/**
+ * The earliest port date the API accepts: five porting days after today, which
+ * skip weekends and porting holidays.
+ */
+export function earliestPortDate(today: Date, country: SupportedCountryCode): Date {
+  const d = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  for (let days = 0; days < 5;) {
+    d.setDate(d.getDate() + 1);
+    if (isPortDay(d, country)) days++;
+  }
+  return d;
 }

@@ -479,40 +479,6 @@
   font-weight: var(--ds-font-weight-medium);
 }
 
-.num-search-type-tabs {
-  display: inline-flex;
-  gap: 4px;
-  padding: 6px;
-  background: var(--ds-color-surface-subtle, #f6f6f6);
-  border: 1px solid var(--ds-color-border);
-  border-radius: 100px;
-  margin-bottom: var(--ds-layout-spacing-md);
-}
-
-.num-search-type-tab {
-  padding: 8px 20px;
-  font-size: var(--ds-font-size-small);
-  font-family: var(--ds-font-family);
-  font-weight: var(--ds-font-weight-medium);
-  background: transparent;
-  border: none;
-  border-radius: 100px;
-  cursor: pointer;
-  color: var(--ds-color-text-secondary);
-  transition:
-    background var(--ds-transition-duration),
-    color var(--ds-transition-duration);
-}
-
-.num-search-type-tab:hover:not(.active) {
-  color: var(--ds-color-text);
-}
-
-.num-search-type-tab.active {
-  background: var(--ds-color-primary);
-  color: #fff;
-}
-
 .num-table-container {
   border: 1px solid var(--ds-color-border);
   border-radius: 10px;
@@ -620,19 +586,94 @@
   border-bottom: none;
 }
 
-.num-search-row {
-  display: flex;
-  gap: var(--ds-layout-spacing-sm);
-  align-items: flex-start;
+/* The search: one location field that reads an area code, a ZIP code or a
+   state or province, with the results count and Search beside it, in a block
+   centred in the card. */
+.num-search-body {
+  max-width: 480px;
+  margin-inline: auto;
 }
 
-.num-search-row .form-group {
-  flex: 1;
+.num-search-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6rem auto;
+  gap: var(--ds-layout-spacing-sm);
+  align-items: end;
+}
+
+.num-search-bar .form-group {
   margin-bottom: 0;
 }
 
-.num-search-row .form-group:last-child {
-  flex: 0 0 auto;
+/* Every box in the bar is the same height, the button included. */
+.num-search-bar .form-input,
+.num-search-bar .btn {
+  line-height: var(--ds-line-height);
+}
+
+.num-search-bar .btn {
+  border: 1px solid transparent;
+}
+
+.num-search-hint {
+  margin: var(--ds-layout-spacing-xs) 0 0;
+  font-size: var(--ds-font-size-small);
+  color: var(--ds-color-text-secondary);
+}
+
+.num-search-hint.unknown {
+  color: var(--ds-color-danger);
+}
+
+.num-search-city {
+  max-width: 320px;
+  margin-top: var(--ds-layout-spacing-md);
+}
+
+.num-combobox {
+  position: relative;
+}
+
+.num-combobox-options {
+  position: absolute;
+  inset-inline: 0;
+  top: calc(100% + var(--ds-layout-spacing-xs));
+  z-index: 10;
+  margin: 0;
+  padding: var(--ds-layout-spacing-xs) 0;
+  list-style: none;
+  max-height: 16rem;
+  overflow-y: auto;
+  background: var(--ds-color-background);
+  border: 1px solid var(--ds-color-border);
+  border-radius: var(--ds-border-radius);
+}
+
+.num-combobox-option {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--ds-layout-spacing-md);
+  padding: var(--ds-layout-spacing-sm) var(--ds-layout-spacing-md);
+  cursor: pointer;
+}
+
+.num-combobox-option[aria-selected='true'],
+.num-combobox-option:hover {
+  background: var(--ds-color-surface-subtle);
+}
+
+.num-combobox-option-country {
+  color: var(--ds-color-text-secondary);
+  font-size: var(--ds-font-size-small);
+}
+
+@media (max-width: 560px) {
+  .num-search-bar {
+    grid-template-columns: minmax(0, 1fr) 5.5rem;
+  }
+  .num-search-bar > .form-group:first-child {
+    grid-column: 1 / -1;
+  }
 }
 
 .num-sub-footer {

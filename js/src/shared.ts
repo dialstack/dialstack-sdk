@@ -61,6 +61,24 @@ export {
 } from './utils/device-settings-catalog';
 export type { DeviceSettingDefinition, DeviceSettingKind } from './utils/device-settings-catalog';
 
+// The countries whose numbers we serve, and the rules that differ between
+// them, shared so every surface applies the same ones.
+export {
+  parseRegionCode,
+  regionCode,
+  SUPPORTED_COUNTRIES,
+  supportedCountry,
+} from './constants/countries';
+export type { Region, SupportedCountry, SupportedCountryCode } from './constants/countries';
+// How a location field reads an area code, a ZIP code or a state or province,
+// shared so the ordering component and onboarding read text the same way.
+export { readLocalSearch, suggestRegions } from './utils/number-search-input';
+export type { LocalSearchKind, LocalSearchQuery, SearchRegion } from './utils/number-search-input';
+
+// The days the carrier does not port on, shared so the admin portal and the
+// onboarding portal offer the same port dates.
+export { portingHoliday } from './utils/porting-holidays';
+
 // Bulk phone-number entry. Shared so the admin portal and the onboarding portal
 // accept and reject exactly the same input — a number one surface takes and the
 // other refuses is a number left off a port order.
@@ -70,6 +88,8 @@ export {
   formatNationalUS,
   isPhoneNumberListReady,
   parsePhoneNumberRows,
+  phoneNumberCountry,
+  phoneNumberListCountry,
   phoneNumberListType,
   readyPhoneNumbers,
 } from './utils/phone-list';

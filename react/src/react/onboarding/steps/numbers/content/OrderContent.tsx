@@ -1,7 +1,42 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { NumState, Dispatcher, TFn } from '../types';
 import { formatPhone } from '../helpers';
 import { BillingImpactNotice } from '../../../components/BillingImpactNotice';
+import {
+  type LocalSearchQuery,
+  readLocalSearch,
+  type SearchRegion,
+  suggestRegions,
+} from '@dialstack/sdk-js/pure';
+
+/** What the location field names: a picked suggestion, or the text read alone. */
+export function orderSearchQuery(state: NumState): LocalSearchQuery | undefined {
+  if (state.orderSearchRegion) return { kind: 'region', ...state.orderSearchRegion };
+  return readLocalSearch(state.orderSearchValue);
+}
+
+/** How the location field read its text, said under it as it is typed. */
+function locationHint(
+  state: NumState,
+  suggesting: boolean,
+  t: TFn
+): { text: string; unknown: boolean } {
+  const query = orderSearchQuery(state);
+  const k = 'phoneNumberOrdering.search';
+  if (query?.kind === 'area_code')
+    return { text: t(`${k}.readsAreaCode`, { areaCode: query.areaCode }), unknown: false };
+  if (query?.kind === 'zip')
+    return { text: t(`${k}.readsZip`, { zip: query.zip }), unknown: false };
+  if (query?.kind === 'region')
+    return {
+      text: t(`${k}.readsRegion`, { region: query.name, country: t(`countries.${query.country}`) }),
+      unknown: false,
+    };
+  const typed = state.orderSearchValue.trim();
+  if (!typed || suggesting)
+    return { text: t(`${k}.locationHelp.area_code_zip_region`), unknown: false };
+  return { text: t(`${k}.readsNothing`, { text: typed }), unknown: true };
+}
 
 export const OrderSearchContent = ({
   state,
@@ -14,80 +49,160 @@ export const OrderSearchContent = ({
   dispatch: Dispatcher;
   onSearch: () => void;
 }) => {
+  const [suggestions, setSuggestions] = useState<SearchRegion[]>([]);
+  const [active, setActive] = useState(-1);
   const backToOverview = () => {
     dispatch({ type: 'order_reset' });
     dispatch({ type: 'set_substep', subStep: 'overview' });
   };
-  const searchTypeLabels: Record<string, string> = {
-    area_code: t('accountOnboarding.numbers.order.searchByAreaCode'),
-    zip: t('accountOnboarding.numbers.order.searchByZip'),
+  const query = orderSearchQuery(state);
+  const canSearch = !state.orderIsSearching && query !== undefined;
+  const hint = locationHint(state, suggestions.length > 0, t);
+
+  const type = (value: string) => {
+    dispatch({ type: 'order_set_search_value', value });
+    const found = suggestRegions(value);
+    // A name already complete needs no list under it.
+    const read = readLocalSearch(value);
+    setSuggestions(read?.kind === 'region' && found.length === 1 ? [] : found);
+    setActive(-1);
   };
+  const pick = (region: SearchRegion) => {
+    dispatch({ type: 'order_pick_region', region });
+    setSuggestions([]);
+    setActive(-1);
+  };
+  // Arrow keys walk the suggestions, Enter picks one or searches, Escape closes them.
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const count = suggestions.length;
+    if (e.key === 'ArrowDown' && count > 0) {
+      e.preventDefault();
+      setActive((active + 1) % count);
+    } else if (e.key === 'ArrowUp' && count > 0) {
+      e.preventDefault();
+      setActive((active - 1 + count) % count);
+    } else if (e.key === 'Escape' && count > 0) {
+      e.preventDefault();
+      setSuggestions([]);
+      setActive(-1);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const chosen = suggestions[active];
+      if (chosen) pick(chosen);
+      else if (canSearch) onSearch();
+    }
+  };
+
   return (
     <>
       <h2 className="section-title">{t('accountOnboarding.numbers.order.searchTitle')}</h2>
       <p className="section-subtitle">{t('accountOnboarding.numbers.order.searchSubtitle')}</p>
-      <div style={{ textAlign: 'center' }}>
-        <div className="num-search-type-tabs">
-          {(['area_code', 'zip'] as const).map((type) => (
-            <button
-              key={type}
-              className={`num-search-type-tab${state.orderSearchType === type ? ' active' : ''}`}
-              onClick={() => dispatch({ type: 'order_set_search_type', searchType: type })}
-            >
-              {searchTypeLabels[type]}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="num-search-row">
-        {state.orderSearchType === 'area_code' && (
+      <div className="num-search-body">
+        <div className="num-search-bar">
           <div className="form-group">
-            <label className="form-label">
-              {t('accountOnboarding.numbers.order.areaCodeLabel')}
+            <label className="form-label" htmlFor="num-order-location">
+              {t('phoneNumberOrdering.search.locationLabel.area_code_zip_region')}
+            </label>
+            <div className="num-combobox">
+              <input
+                id="num-order-location"
+                className="form-input"
+                type="text"
+                role="combobox"
+                aria-autocomplete="list"
+                autoComplete="off"
+                aria-controls="num-order-location-options"
+                aria-expanded={suggestions.length > 0}
+                aria-describedby="num-order-location-hint"
+                aria-activedescendant={
+                  active >= 0 ? `num-order-location-option-${active}` : undefined
+                }
+                value={state.orderSearchValue}
+                placeholder={t(
+                  'phoneNumberOrdering.search.locationPlaceholder.area_code_zip_region'
+                )}
+                onChange={(e) => type(e.target.value)}
+                onKeyDown={onKeyDown}
+              />
+              {suggestions.length > 0 && (
+                <ul
+                  id="num-order-location-options"
+                  className="num-combobox-options"
+                  role="listbox"
+                  aria-label={t('phoneNumberOrdering.search.regionSuggestions')}
+                >
+                  {suggestions.map((r, i) => (
+                    <li
+                      key={`${r.country}-${r.region}`}
+                      id={`num-order-location-option-${i}`}
+                      className="num-combobox-option"
+                      role="option"
+                      aria-selected={i === active}
+                      onMouseDown={(e) => {
+                        // Before the input's blur, so the click lands.
+                        e.preventDefault();
+                        pick(r);
+                      }}
+                    >
+                      <span>{r.name}</span>
+                      <span className="num-combobox-option-country">
+                        {t(`countries.${r.country}`)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label" htmlFor="num-order-quantity">
+              {t('accountOnboarding.numbers.order.quantityLabel')}
             </label>
             <input
+              id="num-order-quantity"
               className="form-input"
-              type="text"
-              maxLength={3}
-              value={state.orderSearchValue}
-              placeholder={t('accountOnboarding.numbers.order.areaCodePlaceholder')}
-              onChange={(e) => dispatch({ type: 'order_set_search_value', value: e.target.value })}
+              type="number"
+              min={1}
+              max={50}
+              value={state.orderQuantity}
+              onChange={(e) =>
+                dispatch({
+                  type: 'order_set_quantity',
+                  quantity: parseInt(e.target.value, 10) || 5,
+                })
+              }
             />
           </div>
-        )}
-        {state.orderSearchType === 'zip' && (
           <div className="form-group">
-            <label className="form-label">{t('accountOnboarding.numbers.order.zipLabel')}</label>
+            <button className="btn btn-primary" disabled={!canSearch} onClick={onSearch}>
+              {state.orderIsSearching
+                ? t('accountOnboarding.numbers.order.searching')
+                : t('accountOnboarding.numbers.order.search')}
+            </button>
+          </div>
+        </div>
+        <p
+          id="num-order-location-hint"
+          className={`num-search-hint${hint.unknown ? ' unknown' : ''}`}
+          aria-live="polite"
+        >
+          {hint.text}
+        </p>
+        {query?.kind === 'region' && (
+          <div className="form-group num-search-city">
+            <label className="form-label" htmlFor="num-order-city">
+              {t('accountOnboarding.numbers.order.cityLabel')}
+            </label>
             <input
+              id="num-order-city"
               className="form-input"
               type="text"
-              maxLength={5}
-              value={state.orderSearchValue}
-              placeholder={t('accountOnboarding.numbers.order.zipPlaceholder')}
-              onChange={(e) => dispatch({ type: 'order_set_search_value', value: e.target.value })}
+              value={state.orderSearchCity}
+              placeholder={t('accountOnboarding.numbers.order.cityPlaceholder')}
+              onChange={(e) => dispatch({ type: 'order_set_search_city', city: e.target.value })}
             />
           </div>
         )}
-        <div className="form-group">
-          <label className="form-label">{t('accountOnboarding.numbers.order.quantityLabel')}</label>
-          <input
-            className="form-input"
-            type="number"
-            min={1}
-            max={50}
-            value={state.orderQuantity}
-            onChange={(e) =>
-              dispatch({ type: 'order_set_quantity', quantity: parseInt(e.target.value, 10) || 5 })
-            }
-          />
-        </div>
-        <div className="form-group" style={{ alignSelf: 'flex-end' }}>
-          <button className="btn btn-primary" disabled={state.orderIsSearching} onClick={onSearch}>
-            {state.orderIsSearching
-              ? t('accountOnboarding.numbers.order.searching')
-              : t('accountOnboarding.numbers.order.search')}
-          </button>
-        </div>
       </div>
       {state.orderError && <div className="inline-alert error">{state.orderError}</div>}
       <div className="num-sub-footer" style={{ borderTop: 'none' }}>

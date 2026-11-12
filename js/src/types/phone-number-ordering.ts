@@ -5,7 +5,11 @@
 import type { BaseComponentClasses } from './appearance';
 import type { BaseComponentElement } from './components';
 
-export type SearchType = 'area_code' | 'zip' | 'toll_free';
+/**
+ * How the number search is filtered. `region` searches a US state or a
+ * Canadian province, optionally narrowed to a city.
+ */
+export type SearchType = 'area_code' | 'zip' | 'region' | 'toll_free';
 
 /** `local` for a geographic number, `toll_free` for an 8YY number. */
 export type PhoneNumberType = 'local' | 'toll_free';
@@ -21,7 +25,20 @@ export interface SearchAvailableNumbersOptions {
    * 1-844-75-HELLO). Case, spaces and hyphens are ignored.
    */
   contains?: string;
+  /** A five-digit US ZIP code. Canadian postal codes can't be searched. */
   zip?: string;
+  /**
+   * A two-letter US state or Canadian province code (`NC`, `ON`, `QC`). A
+   * province searches Canadian numbers.
+   */
+  state?: string;
+  /** A city name. Requires `state`. */
+  city?: string;
+  /**
+   * The two-letter country to search. Optional: worked out from `state` or
+   * `areaCode` when omitted; a `state` or `areaCode` outside it is refused.
+   */
+  country?: string;
   quantity?: number;
 }
 
@@ -31,6 +48,7 @@ export interface AvailablePhoneNumber {
   number_type?: PhoneNumberType;
   /** Omitted for toll-free numbers, which have no geography. */
   city?: string;
+  /** Two-letter US state or Canadian province code. */
   state?: string;
   rate_center?: string;
   lata?: string;

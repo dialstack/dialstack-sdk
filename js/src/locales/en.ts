@@ -3,6 +3,11 @@
  */
 
 export const en = {
+  /** Supported countries' names, by ISO 3166-1 alpha-2 code. */
+  countries: {
+    US: 'United States',
+    CA: 'Canada',
+  },
   common: {
     loading: 'Loading...',
     error: 'Error',
@@ -355,28 +360,75 @@ export const en = {
     search: {
       title: 'Search Available Numbers',
       subtitle:
-        'Find available phone numbers by area code or ZIP code, or search toll-free numbers.',
-      searchType: 'Search by',
-      areaCode: 'Area Code',
-      zip: 'ZIP Code',
-      areaCodeLabel: 'Area Code',
-      areaCodePlaceholder: 'e.g. 212',
-      zipLabel: 'ZIP Code',
-      zipPlaceholder: 'e.g. 10001',
+        'Find available US and Canadian phone numbers by area code, ZIP code, state or province, or search toll-free numbers.',
+      searchType: 'Number type',
+      local: 'Local',
       tollFree: 'Toll-Free',
+      // The location field's label, placeholder and help, by the local search
+      // types it takes (all three unless the host limits them).
+      locationLabel: {
+        area_code_zip_region: 'Location',
+        area_code_zip: 'Location',
+        area_code_region: 'Location',
+        zip_region: 'Location',
+        area_code: 'Area code',
+        zip: 'ZIP code',
+        region: 'State or province',
+      },
+      locationPlaceholder: {
+        area_code_zip_region: 'e.g. 212, 10001 or Texas',
+        area_code_zip: 'e.g. 212 or 10001',
+        area_code_region: 'e.g. 212 or Texas',
+        zip_region: 'e.g. 10001 or Texas',
+        area_code: 'e.g. 212',
+        zip: 'e.g. 10001',
+        region: 'e.g. Texas',
+      },
+      locationHelp: {
+        area_code_zip_region: 'Type a 3-digit area code, a US ZIP code, or a state or province.',
+        area_code_zip: 'Type a 3-digit area code or a US ZIP code.',
+        area_code_region: 'Type a 3-digit area code, or a state or province.',
+        zip_region: 'Type a US ZIP code, or a state or province.',
+        area_code: 'Type a 3-digit area code.',
+        zip: 'Type a US ZIP code. Canadian postal codes can’t be searched.',
+        region: 'Type a state or province.',
+      },
+      readsAreaCode: 'Searches area code {areaCode}.',
+      readsZip: 'Searches ZIP code {zip}.',
+      readsRegion: 'Searches {region}, {country}.',
+      readsNothing: '“{text}” isn’t an area code, ZIP code, state or province we can search.',
+      regionSuggestions: 'States and provinces',
+      regionCityLabel: 'City (optional)',
+      regionCityPlaceholder: 'e.g. Toronto',
       tollFreeLabel: 'Toll-free code',
       tollFreeAny: 'Any code',
       tollFreeContainsLabel: 'Contains',
       tollFreeContainsPlaceholder: 'e.g. HELLO',
       tollFreeContainsInvalid: 'Use 4 to 7 letters or digits.',
       noSearchTypes: "Number search isn't available for your account.",
-      numberOfResults: 'Quantity to display',
+      numberOfResults: 'Results',
       search: 'Search',
+      /**
+       * @deprecated Unused since the search takes one location field; removed
+       * in the next major. NEXT MAJOR: delete areaCode, zip, areaCodeLabel,
+       * areaCodePlaceholder, zipLabel and zipPlaceholder.
+       */
+      areaCode: 'Area Code',
+      /** @deprecated See `areaCode`. */
+      zip: 'ZIP Code',
+      /** @deprecated See `areaCode`. */
+      areaCodeLabel: 'Area Code',
+      /** @deprecated See `areaCode`. */
+      areaCodePlaceholder: 'e.g. 212',
+      /** @deprecated See `areaCode`. */
+      zipLabel: 'ZIP Code',
+      /** @deprecated See `areaCode`. */
+      zipPlaceholder: 'e.g. 10001',
     },
     results: {
       title: 'Available Numbers',
       phoneNumber: 'Phone Number',
-      state: 'State',
+      state: 'State / Province',
       tollFree: 'Toll-free',
       selectAll: 'Select all',
       selected: '{count} selected',
@@ -790,14 +842,28 @@ export const en = {
       },
       order: {
         searchTitle: 'Search Available Numbers',
-        searchSubtitle: 'Find available numbers by entering an area code or ZIP code',
+        searchSubtitle:
+          'Find available US and Canadian numbers by area code, ZIP code, or state or province',
+        cityLabel: 'City (optional)',
+        cityPlaceholder: 'Toronto',
+        quantityLabel: 'Results',
+        /**
+         * @deprecated Unused since the search takes one location field (its
+         * wording is phoneNumberOrdering.search's); removed in the next major.
+         * NEXT MAJOR: delete searchByAreaCode, searchByZip, areaCodeLabel,
+         * areaCodePlaceholder, zipLabel and zipPlaceholder.
+         */
         searchByAreaCode: 'Area Code',
+        /** @deprecated See `searchByAreaCode`. */
         searchByZip: 'ZIP Code',
+        /** @deprecated See `searchByAreaCode`. */
         areaCodeLabel: 'Area Code',
+        /** @deprecated See `searchByAreaCode`. */
         areaCodePlaceholder: '212',
+        /** @deprecated See `searchByAreaCode`. */
         zipLabel: 'ZIP Code',
+        /** @deprecated See `searchByAreaCode`. */
         zipPlaceholder: '10001',
-        quantityLabel: 'Quantity',
         search: 'Search',
         searching: 'Searching...',
         resultsTitle: 'Available Numbers',
@@ -806,7 +872,7 @@ export const en = {
         selectAll: 'Select All',
         deselectAll: 'Deselect All',
         selected: 'selected',
-        state: 'State',
+        state: 'State / Province',
         confirmTitle: 'Confirm Your Order',
         confirmSubtitle: 'You are about to order {count} phone numbers',
         confirmSubtitle_one: 'You are about to order {count} phone number',
@@ -846,8 +912,8 @@ export const en = {
         readyCountOther: '{count} numbers ready',
         needsAttentionOne: '{count} row needs attention before you can continue',
         needsAttentionOther: '{count} rows need attention before you can continue',
-        reasonInvalid: 'Not a valid US phone number',
-        reasonNotUs: 'Only US numbers can be ported',
+        reasonInvalid: 'Not a valid phone number',
+        reasonNotUs: 'Only US and Canadian numbers can be ported',
         reasonTollFree: 'Toll-free numbers cannot be ported',
         mixedNumberTypes:
           'Toll-free and local numbers are ported in separate orders. Remove one kind and port it next.',
@@ -925,6 +991,8 @@ export const en = {
         accountNumberPlaceholder: 'From your current carrier',
         pinLabel: 'Account PIN',
         pinPlaceholder: '1234',
+        losingResellerLabel: 'Current Phone Company',
+        losingResellerPlaceholder: 'The company on your phone bill',
         addressHeading: 'Service Address',
         houseNumberLabel: 'Street Number',
         houseNumberPlaceholder: '123',
@@ -934,9 +1002,9 @@ export const en = {
         line2Placeholder: 'Suite 100',
         cityLabel: 'City',
         cityPlaceholder: 'New York',
-        stateLabel: 'State',
-        statePlaceholder: 'Select state',
-        zipLabel: 'ZIP Code',
+        stateLabel: 'State / Province',
+        statePlaceholder: 'Select state or province',
+        zipLabel: 'ZIP / Postal Code',
         zipPlaceholder: '10001',
         focTitle: 'Requested Port Date',
         focSubtitle:
@@ -946,12 +1014,15 @@ export const en = {
         focTimePlaceholder: 'Select time',
         documentsTitle: 'Supporting Documents',
         documentsSubtitle:
-          'Upload your latest phone bill and optionally a Customer Service Record (CSR).',
+          "Upload a recent phone bill and your current carrier's record of your account.",
         billCopyLabel: 'Phone Bill Copy',
         billCopyDesc: 'A recent bill from your current carrier showing the numbers to be ported.',
         billCopyRequired: 'Required',
         csrLabel: 'Customer Service Record (CSR)',
         csrDesc: 'Optional but recommended — speeds up the porting process.',
+        equipmentRecordLabel: 'Equipment Record',
+        equipmentRecordDesc:
+          'Optional. Bell and Telus customers can request one from their carrier; it helps if the port is rejected.',
         csrOptional: 'Optional',
         uploadFile: 'Choose File',
         fileSelected: 'Selected:',
@@ -986,8 +1057,12 @@ export const en = {
         areaCodeRequired: 'Area code is required.',
         areaCodeFormat: 'Enter a 3-digit area code.',
         cityRequired: 'City is required.',
-        stateRequired: 'State is required.',
-        zipRequired: 'ZIP code is required.',
+        stateRequired: 'State or province is required.',
+        zipRequired: 'ZIP or postal code is required.',
+        postalCodeInvalid: 'Enter a postal code, like {example}.',
+        losingResellerRequired:
+          'Enter the company you pay for phone service. The carrier requires it to port these numbers.',
+        losingResellerTooLong: 'Use at most 60 characters.',
         zipFormat: 'Enter a 5-digit ZIP code.',
         selectAtLeastOne: 'Select at least one number.',
         phoneRequired: 'At least one phone number is required.',
@@ -1006,6 +1081,7 @@ export const en = {
         focDateRequired: 'Port date is required.',
         focDateTooSoon: 'Port date must be at least 5 business days from today.',
         focDateWeekend: 'Choose a weekday. Numbers are not ported on weekends.',
+        focDateHoliday: 'Choose another day. Numbers are not ported on {name}.',
         focDateTooFar: 'Port date must be within 30 days.',
         focTimeRequired: 'Port time is required.',
         focTimeOutOfWindow: 'Choose a time between {start} and {end} {zone}.',

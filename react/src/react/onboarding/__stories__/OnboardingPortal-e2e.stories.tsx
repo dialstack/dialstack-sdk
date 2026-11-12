@@ -881,16 +881,14 @@ export const FullOrderFlow: Story = {
         { timeout: DATA_TIMEOUT }
       );
 
-      // Verify search type tabs are present (Area Code + ZIP)
-      const tabs = canvasElement.querySelectorAll('.num-search-type-tab');
-      expect(tabs.length).toBe(2);
+      // One location field takes an area code, a ZIP code or a region.
+      expect(canvasElement.querySelector('#num-order-location')).not.toBeNull();
     });
 
     await step('Enter area code "212" and search', async () => {
-      // The area code input should be visible (default search type)
-      const areaCodeInput = canvasElement.querySelector('input[maxlength="3"]') as HTMLInputElement;
-      expect(areaCodeInput).not.toBeNull();
-      await userEvent.type(areaCodeInput, '212');
+      const locationInput = canvasElement.querySelector('#num-order-location') as HTMLInputElement;
+      await userEvent.type(locationInput, '212');
+      await waitFor(() => expect(canvas.getByText('Searches area code 212.')).toBeInTheDocument());
 
       // Click Search
       await userEvent.click(canvas.getByRole('button', { name: /^Search$/ }));
@@ -1135,7 +1133,7 @@ export const FullPortFlow: Story = {
         '.num-port-address-row-2 select'
       ) as HTMLSelectElement;
       expect(stateSelect).not.toBeNull();
-      await userEvent.selectOptions(stateSelect, 'NY');
+      await userEvent.selectOptions(stateSelect, 'US-NY');
 
       // zip
       await userEvent.type(row2Inputs[1]!, '10001');
@@ -2133,7 +2131,7 @@ export const MultiCarrierPort: Story = {
       const stateSelect = canvasElement.querySelector(
         '.num-port-address-row-2 select'
       ) as HTMLSelectElement;
-      await userEvent.selectOptions(stateSelect, 'NY');
+      await userEvent.selectOptions(stateSelect, 'US-NY');
 
       await userEvent.type(row2Inputs[1]!, '10001');
 
@@ -2262,7 +2260,7 @@ export const MultiCarrierPort: Story = {
       const stateSelect = canvasElement.querySelector(
         '.num-port-address-row-2 select'
       ) as HTMLSelectElement;
-      await userEvent.selectOptions(stateSelect, 'CA');
+      await userEvent.selectOptions(stateSelect, 'US-CA');
 
       await userEvent.type(row2Inputs[1]!, '94102');
 
@@ -2800,15 +2798,15 @@ export const PortRowRemovalWhileFocused: Story = {
 
       // Pasted, not typed: typing formats as it goes, so blur has nothing left
       // to change. A paste of several fans out into rows, and a segment that
-      // cannot be canonicalised — a non-US number here — keeps its text exactly
+      // cannot be canonicalised — a Jamaican number here — keeps its text exactly
       // as written. That is the state blur rewrites.
       const first = rows()[0]!;
       await userEvent.click(first);
-      await userEvent.paste('+16195551234\n+15145551258');
+      await userEvent.paste('+16195551234\n+18765551258');
 
       await waitFor(() => {
         expect(rows()).toHaveLength(2);
-        expect(rows()[1]!.value).toBe('+15145551258');
+        expect(rows()[1]!.value).toBe('+18765551258');
       });
 
       // Caret in the row being removed — the whole point of the test.
@@ -2831,7 +2829,7 @@ export const PortRowRemovalWhileFocused: Story = {
       await userEvent.click(remove);
 
       // One press, one removal. Before the fix a real press left two rows, the
-      // second reformatted to "+1 514 555 1258" and still there.
+      // second reformatted to "+1 876 555 1258" and still there.
       await waitFor(() => expect(rows()).toHaveLength(1));
       expect(rows()[0]!.value).toBe('(619) 555-1234');
     });

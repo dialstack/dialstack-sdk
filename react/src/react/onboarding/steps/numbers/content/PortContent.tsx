@@ -15,6 +15,8 @@ import {
   formatWhileTyping,
   isPhoneNumberListReady,
   parsePhoneNumberRows,
+  regionCode,
+  SUPPORTED_COUNTRIES,
 } from '@dialstack/sdk-js/pure';
 import type { NumState, Dispatcher, TFn } from '../types';
 import {
@@ -22,10 +24,12 @@ import {
   nonPortableMessages,
   PORT_LIST_OPTIONS,
   portListType,
+  portListCountry,
+  earliestPortDate,
+  localDateKey,
   REASON_KEY,
 } from '../port-numbers';
 import { formatPhone } from '../helpers';
-import { US_STATES } from '../../../../../constants/us-states';
 import { focTimeOptions, focZoneLabel, formatFocTime12h } from '@dialstack/sdk-js';
 import { SUCCESS_SVG, CHECK_CIRCLE_SVG, CLOSE_SVG, PLUS_CIRCLE_SVG } from '../../../icons';
 import { BillingImpactNotice } from '../../../components/BillingImpactNotice';
@@ -532,6 +536,14 @@ export const PortSubscriberContent = ({
       val: state.portSubscriberPin,
     },
   ];
+  if (portListCountry(state.portPhoneValues, state.portNumberIssues)?.requiresLosingReseller) {
+    allTextFields.push({
+      field: 'losingReseller',
+      label: t('accountOnboarding.numbers.port.losingResellerLabel'),
+      placeholder: t('accountOnboarding.numbers.port.losingResellerPlaceholder'),
+      val: state.portSubscriberLosingReseller,
+    });
+  }
   const textFields = tollFree
     ? allTextFields.filter((f) => f.field !== 'accountNumber' && f.field !== 'pin')
     : allTextFields;
@@ -673,10 +685,14 @@ export const PortSubscriberContent = ({
               }
             >
               <option value="">{t('accountOnboarding.numbers.port.statePlaceholder')}</option>
-              {US_STATES.map(([code, name]) => (
-                <option key={code} value={code}>
-                  {name}
-                </option>
+              {SUPPORTED_COUNTRIES.map((c) => (
+                <optgroup key={c.code} label={t(`countries.${c.code}`)}>
+                  {c.regions.map(([code, name]) => (
+                    <option key={code} value={regionCode(c.code, code)}>
+                      {name}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
             {e.state && <div className="form-error">{e.state}</div>}
@@ -686,7 +702,7 @@ export const PortSubscriberContent = ({
             <input
               className={`form-input${e.zip ? ' error' : ''}`}
               type="text"
-              maxLength={5}
+              maxLength={10}
               value={state.portSubscriberZip}
               placeholder={t('accountOnboarding.numbers.port.zipPlaceholder')}
               onChange={(e2) =>
@@ -741,18 +757,11 @@ export const PortFocDateContent = ({
   // pick.
   const tollFree = portListType(state.portPhoneValues, state.portNumberIssues) === 'toll_free';
   const today = new Date();
-  let bizDays = 0;
-  const minDate = new Date(today);
-  while (bizDays < 5) {
-    minDate.setDate(minDate.getDate() + 1);
-    const d = minDate.getDay();
-    if (d !== 0 && d !== 6) bizDays++;
-  }
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const minStr = `${minDate.getFullYear()}-${pad(minDate.getMonth() + 1)}-${pad(minDate.getDate())}`;
+  const country = portListCountry(state.portPhoneValues, state.portNumberIssues)?.code ?? 'US';
+  const minStr = localDateKey(earliestPortDate(today, country));
   const maxDate = new Date(today);
   maxDate.setDate(maxDate.getDate() + 30);
-  const maxStr = `${maxDate.getFullYear()}-${pad(maxDate.getMonth() + 1)}-${pad(maxDate.getDate())}`;
+  const maxStr = localDateKey(maxDate);
   // 48 probes of the zone offset, each several Intl formatToParts calls; kept off
   // the per-keystroke render path.
   const timeOptions = useMemo(
@@ -829,8 +838,12 @@ export const PortDocumentsContent = ({
 }) => {
   const billRef = useRef<HTMLInputElement>(null);
   const csrRef = useRef<HTMLInputElement>(null);
+  const country = portListCountry(state.portPhoneValues, state.portNumberIssues);
+  // What the numbers' country calls the carrier's record of the account.
+  const carrierRecord = country?.carrierRecord ?? 'csr';
+  const billRequired = country?.portRequiresBillCopy ?? true;
   const handleNext = () => {
-    if (!state.portBillFile) {
+    if (billRequired && !state.portBillFile) {
       dispatch({
         type: 'port_set_doc_upload_error',
         error: t('accountOnboarding.numbers.validation.billCopyRequired'),
@@ -847,18 +860,22 @@ export const PortDocumentsContent = ({
       {[
         {
           label: t('accountOnboarding.numbers.port.billCopyLabel'),
-          badge: t('accountOnboarding.numbers.port.billCopyRequired'),
-          badgeClass: 'required',
+          badge: t(
+            billRequired
+              ? 'accountOnboarding.numbers.port.billCopyRequired'
+              : 'accountOnboarding.numbers.port.csrOptional'
+          ),
+          badgeClass: billRequired ? 'required' : 'optional',
           desc: t('accountOnboarding.numbers.port.billCopyDesc'),
           file: state.portBillFile,
           ref: billRef,
           action: 'bill' as const,
         },
         {
-          label: t('accountOnboarding.numbers.port.csrLabel'),
+          label: t(`accountOnboarding.numbers.port.${carrierRecord}Label`),
           badge: t('accountOnboarding.numbers.port.csrOptional'),
           badgeClass: 'optional',
-          desc: t('accountOnboarding.numbers.port.csrDesc'),
+          desc: t(`accountOnboarding.numbers.port.${carrierRecord}Desc`),
           file: state.portCsrFile,
           ref: csrRef,
           action: 'csr' as const,
@@ -933,6 +950,9 @@ export const PortReviewContent = ({
   onSubmit: () => void;
   timeZone: string;
 }) => {
+  // What the numbers' country calls the carrier's record of the account.
+  const carrierRecord =
+    portListCountry(state.portPhoneValues, state.portNumberIssues)?.carrierRecord ?? 'csr';
   const result = state.portEligibilityResult;
   if (!result) return null;
   const isMultiCarrier = state.portCarrierGroups.size > 1;
@@ -1012,7 +1032,7 @@ export const PortReviewContent = ({
               value: state.portBillFile?.name ?? '—',
             },
             {
-              label: t('accountOnboarding.numbers.port.csrLabel'),
+              label: t(`accountOnboarding.numbers.port.${carrierRecord}Label`),
               value: state.portCsrFile?.name ?? '—',
             },
           ],

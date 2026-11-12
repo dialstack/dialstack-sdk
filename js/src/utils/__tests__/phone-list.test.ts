@@ -105,8 +105,8 @@ describe('parsePhoneNumberList — never emit a partial parse', () => {
     expect(result.problems.map((p) => p.reason)).toEqual(['toll_free']);
   });
 
-  it('emits nothing for a segment whose run contains a non-US number', () => {
-    const result = parsePhoneNumberList('14165551234 17702126011');
+  it('emits nothing for a segment whose run contains a non-NANP-supported number', () => {
+    const result = parsePhoneNumberList('18765551234 17702126011');
     expect(result.numbers).toEqual([]);
     expect(result.problems.map((p) => p.reason)).toEqual(['not_us']);
   });
@@ -131,8 +131,12 @@ describe('parsePhoneNumberList — rejections that mirror the server', () => {
     }
   );
 
-  it('rejects a Canadian number as not US', () => {
-    expect(reasons('+1 416 555 1234')).toEqual(['not_us']);
+  it('accepts a Canadian number', () => {
+    expect(reasons('+1 416 555 1234')).toEqual([]);
+  });
+
+  it('rejects a Caribbean NANP number', () => {
+    expect(reasons('+1 876 555 1234')).toEqual(['not_us']);
   });
 
   it('rejects a non-NANP number as not US', () => {
@@ -354,7 +358,7 @@ describe('parsePhoneNumberRows', () => {
   });
 
   it('classifies toll-free and non-US rather than accepting them', () => {
-    expect(parsePhoneNumberRows('(800) 555-1212\n+1 416 555 1234').map((r) => r.reason)).toEqual([
+    expect(parsePhoneNumberRows('(800) 555-1212\n+1 876 555 1234').map((r) => r.reason)).toEqual([
       'toll_free',
       'not_us',
     ]);

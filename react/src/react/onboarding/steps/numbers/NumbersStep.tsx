@@ -21,6 +21,7 @@ import {
   defaultLocale,
   isApiError,
   readyPhoneNumbers,
+  parseRegionCode,
 } from '@dialstack/sdk-js/pure';
 import { mergePhoneNumbers } from '../../merge-phone-numbers';
 import { CHECK_SVG_WHITE, CHECK_CIRCLE_SVG, ERROR_SVG, PHONE_SVG } from '../../icons';
@@ -40,6 +41,9 @@ import {
   hasAddress,
   PORT_LIST_OPTIONS,
   portListType,
+  portListCountry,
+  earliestPortDate,
+  portHolidayOn,
 } from './port-numbers';
 import { type NumState, type CardMode, numReducer, INITIAL_STATE, E911_POLL_MAX } from './types';
 import { getSidebarActiveKey, takesCallerIdAndListing, validateCallerIdName } from './helpers';
@@ -55,6 +59,7 @@ import { OverviewContent } from './content/OverviewContent';
 import { CallerIdContent } from './content/CallerIdContent';
 import { DirectoryListingContent } from './content/DirectoryListingContent';
 import {
+  orderSearchQuery,
   OrderSearchContent,
   OrderResultsContent,
   OrderConfirmContent,
@@ -236,8 +241,16 @@ export const NumbersStep: React.FC = () => {
       dispatch({ type: 'order_search_start' });
       try {
         const opts: SearchAvailableNumbersOptions = { quantity: s.orderQuantity };
-        if (s.orderSearchType === 'area_code') opts.areaCode = s.orderSearchValue;
-        else opts.zip = s.orderSearchValue;
+        const query = orderSearchQuery(s);
+        if (query?.kind === 'area_code') opts.areaCode = query.areaCode;
+        else if (query?.kind === 'zip') opts.zip = query.zip;
+        else if (query?.kind === 'region') {
+          // The country too: a region's own code may be another country's.
+          opts.state = query.region;
+          opts.country = query.country;
+          const city = s.orderSearchCity.trim();
+          if (city) opts.city = city.toUpperCase();
+        }
         const results = await dialstack.availablePhoneNumbers.search(opts);
         dispatch({ type: 'order_search_success', results });
       } catch (err) {
@@ -368,7 +381,27 @@ export const NumbersStep: React.FC = () => {
           errors.state = t('accountOnboarding.numbers.validation.stateRequired');
         if (!s.portSubscriberZip.trim())
           errors.zip = t('accountOnboarding.numbers.validation.zipRequired');
+        else {
+          // The menu's ISO 3166-2 code names the address's country, whose
+          // postal code it must be.
+          const addressCountry = parseRegionCode(s.portSubscriberState)?.country;
+          if (
+            addressCountry?.postalCode &&
+            !addressCountry.postalCode.test(s.portSubscriberZip.trim())
+          )
+            errors.zip = t('accountOnboarding.numbers.validation.postalCodeInvalid', {
+              example: addressCountry.postalCodeExample,
+            });
+        }
       }
+      // Some countries' carriers refuse a port that doesn't name the reseller.
+      if (
+        portListCountry(s.portPhoneValues, s.portNumberIssues)?.requiresLosingReseller &&
+        !s.portSubscriberLosingReseller.trim()
+      )
+        errors.losingReseller = t('accountOnboarding.numbers.validation.losingResellerRequired');
+      else if (s.portSubscriberLosingReseller.trim().length > 60)
+        errors.losingReseller = t('accountOnboarding.numbers.validation.losingResellerTooLong');
       if (Object.keys(errors).length > 0) {
         dispatch({ type: 'port_set_subscriber_errors', errors });
         return false;
@@ -388,19 +421,20 @@ export const NumbersStep: React.FC = () => {
         const focDate = new Date(s.portFocDate + 'T00:00:00');
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        let bizDays = 0;
-        const check = new Date(today);
-        while (bizDays < 5) {
-          check.setDate(check.getDate() + 1);
-          const d = check.getDay();
-          if (d !== 0 && d !== 6) bizDays++;
-        }
-        if (focDate < check) errors.date = t('accountOnboarding.numbers.validation.focDateTooSoon');
-        // The carrier never ports on a weekend, and the API refuses one; a
-        // holiday is refused there too, with its own message.
+        // The numbers' country's holidays: one order is one country.
+        const country = portListCountry(s.portPhoneValues, s.portNumberIssues)?.code ?? 'US';
+        if (focDate < earliestPortDate(today, country))
+          errors.date = t('accountOnboarding.numbers.validation.focDateTooSoon');
+        // The carrier never ports on a weekend or a porting holiday, and the
+        // API refuses both.
         const weekday = focDate.getDay();
+        const holiday = portHolidayOn(focDate, country);
         if (weekday === 0 || weekday === 6)
           errors.date = t('accountOnboarding.numbers.validation.focDateWeekend');
+        else if (holiday)
+          errors.date = t('accountOnboarding.numbers.validation.focDateHoliday', {
+            name: holiday,
+          });
         const maxDate = new Date(today);
         maxDate.setDate(maxDate.getDate() + 30);
         if (focDate > maxDate)
@@ -444,13 +478,15 @@ export const NumbersStep: React.FC = () => {
 
         const btnParsed = parsePhoneNumberFromString(s.portSubscriberBtn, 'US');
         const tollFree = portListType(s.portPhoneValues, s.portNumberIssues) === 'toll_free';
+        const subscriberRegion = parseRegionCode(s.portSubscriberState);
         const address = {
           house_number: s.portSubscriberHouseNumber.trim(),
           street_name: s.portSubscriberStreetName.trim(),
           line2: s.portSubscriberLine2.trim() || undefined,
           city: s.portSubscriberCity.trim(),
-          state: s.portSubscriberState.trim(),
+          state: subscriberRegion?.region ?? s.portSubscriberState.trim(),
           zip: s.portSubscriberZip.trim(),
+          country: subscriberRegion?.country.code,
         };
         // A toll-free order carries no BTN, account number, PIN or time: the
         // API refuses them, because the carrier does.
@@ -473,6 +509,7 @@ export const NumbersStep: React.FC = () => {
                 approver_name: s.portSubscriberApproverName.trim(),
                 account_number: s.portSubscriberAccountNumber.trim() || undefined,
                 pin: s.portSubscriberPin.trim() || undefined,
+                losing_reseller_name: s.portSubscriberLosingReseller.trim() || undefined,
                 address,
               },
               requested_foc_date: s.portFocDate,

@@ -9,6 +9,7 @@ import React from 'react';
 import { screen, waitFor, fireEvent } from '@testing-library/react';
 import { defaultLocale, type Locale } from '@dialstack/sdk-js';
 import { NumbersStep } from '../steps/numbers/NumbersStep';
+import { isPortDay } from '../steps/numbers/port-numbers';
 import {
   renderWithOnboarding,
   mockAccount,
@@ -339,9 +340,9 @@ async function navigatePortFlowTo(
   // Select state
   const stateSelects = document.querySelectorAll<HTMLSelectElement>('select');
   const stateSelect = Array.from(stateSelects).find((s) =>
-    Array.from(s.options).some((o) => o.value === 'NY')
+    Array.from(s.options).some((o) => o.value === 'US-NY')
   );
-  if (stateSelect) fireEvent.change(stateSelect, { target: { value: 'NY' } });
+  if (stateSelect) fireEvent.change(stateSelect, { target: { value: 'US-NY' } });
 
   if (target === 'subscriber') return;
 
@@ -355,9 +356,9 @@ async function navigatePortFlowTo(
   // Fill FOC date
   const futureDate = new Date();
   futureDate.setDate(futureDate.getDate() + 10);
-  // A weekday: the port date step refuses weekends.
-  while ([0, 6].includes(futureDate.getDay())) futureDate.setDate(futureDate.getDate() + 1);
-  const dateStr = futureDate.toISOString().split('T')[0]!;
+  // A porting day: the port date step refuses weekends and holidays.
+  while (!isPortDay(futureDate, 'US')) futureDate.setDate(futureDate.getDate() + 1);
+  const dateStr = localDateKey(futureDate);
   const dateInput = document.querySelector<HTMLInputElement>('input[type="date"]')!;
   fireEvent.change(dateInput, { target: { value: dateStr } });
 
@@ -403,6 +404,13 @@ async function navigatePortFlowTo(
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+// The local date, not toISOString's UTC one: in the evening the UTC date is
+// already tomorrow, which turns a Friday into a Saturday.
+function localDateKey(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 describe('NumbersStep', () => {
   afterEach(() => {
@@ -814,8 +822,8 @@ describe('NumbersStep', () => {
       await navigateToOrder();
 
       // Enter area code
-      const areaInput = screen.getByPlaceholderText('212');
-      fireEvent.change(areaInput, { target: { value: '212' } });
+      fireEvent.change(screen.getByLabelText('Location'), { target: { value: '212' } });
+      expect(document.body.textContent).toContain('Searches area code 212.');
 
       // Click search
       fireEvent.click(screen.getByRole('button', { name: /Search$/i }));
@@ -823,6 +831,35 @@ describe('NumbersStep', () => {
       await waitFor(() => {
         expect(document.body.textContent).toContain('(212) 555-9001');
         expect(document.body.textContent).toContain('(212) 555-9002');
+      });
+    });
+
+    it('searches a province picked from the suggestions, and its city', async () => {
+      const search = jest
+        .fn()
+        .mockResolvedValue([{ phone_number: '+14165550142', city: 'TORONTO', state: 'ON' }]);
+      await renderNumbers({ ...defaultAvailablePhoneNumbersNS({ search }) });
+      await navigateToOrder();
+
+      const searchButton = screen.getByRole('button', { name: /Search$/i });
+      expect(searchButton).toBeDisabled();
+      // The start of a name suggests it; picking it names the province.
+      fireEvent.change(screen.getByLabelText('Location'), { target: { value: 'ont' } });
+      expect(searchButton).toBeDisabled();
+      fireEvent.mouseDown(screen.getByRole('option', { name: /Ontario/ }));
+      expect(screen.getByLabelText('Location')).toHaveValue('Ontario');
+      expect(document.body.textContent).toContain('Searches Ontario, Canada.');
+      fireEvent.change(screen.getByLabelText('City (optional)'), { target: { value: 'Toronto' } });
+      fireEvent.click(searchButton);
+
+      await waitFor(() => {
+        expect(search).toHaveBeenCalledWith({
+          state: 'ON',
+          country: 'CA',
+          city: 'TORONTO',
+          quantity: 5,
+        });
+        expect(document.body.textContent).toContain('(416) 555-0142');
       });
     });
 
@@ -844,6 +881,7 @@ describe('NumbersStep', () => {
       await navigateToOrder();
 
       // Search
+      fireEvent.change(screen.getByLabelText('Location'), { target: { value: '212' } });
       fireEvent.click(screen.getByRole('button', { name: /Search$/i }));
 
       await waitFor(() => {
@@ -934,7 +972,7 @@ describe('NumbersStep', () => {
       enterPortNumbers('2125551001\n(000) 123-4567');
 
       await waitFor(() => {
-        expect(document.body.textContent).toContain('Not a valid US phone number');
+        expect(document.body.textContent).toContain('Not a valid phone number');
       });
 
       expect(screen.getByRole('button', { name: /Check Eligibility/i })).toBeDisabled();
@@ -1055,6 +1093,52 @@ describe('NumbersStep', () => {
         expect(document.body.textContent).toContain('BTN is required');
         expect(document.body.textContent).toContain('Business name is required');
       });
+    });
+
+    it('asks a Canadian port for the phone company and a postal code', async () => {
+      await renderNumbers({
+        ...defaultPortOrdersNS({
+          checkEligibility: jest.fn().mockResolvedValue({
+            portable_numbers: [
+              {
+                phone_number: '+14165551001',
+                losing_carrier_name: 'Bell Canada',
+                is_wireless: false,
+                account_number_required: false,
+              },
+            ],
+            non_portable_numbers: [],
+          }),
+        }),
+      });
+      await navigateToPort();
+      enterPortNumbers('(416) 555-1001');
+      fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
+      await waitFor(() => expect(document.body.textContent).toContain('Portable'));
+      fireEvent.click(screen.getByRole('button', { name: /Continue with Portable/i }));
+      await waitFor(() => expect(document.body.textContent).toContain('Subscriber Information'));
+
+      expect(screen.getByPlaceholderText('The company on your phone bill')).toBeInTheDocument();
+      const stateSelect = Array.from(document.querySelectorAll<HTMLSelectElement>('select')).find(
+        (el) => Array.from(el.options).some((o) => o.value === 'CA-ON')
+      )!;
+      fireEvent.change(stateSelect, { target: { value: 'CA-ON' } });
+      const zipInputs = screen.getAllByPlaceholderText('10001');
+      fireEvent.change(zipInputs[zipInputs.length - 1]!, { target: { value: '90210' } });
+
+      const nextButtons = screen.getAllByRole('button', { name: /Next/i });
+      fireEvent.click(nextButtons[nextButtons.length - 1]!);
+      await waitFor(() => {
+        expect(document.body.textContent).toContain('Enter a postal code, like M5V 2T6');
+        expect(document.body.textContent).toContain(
+          'The carrier requires it to port these numbers'
+        );
+      });
+    });
+
+    it('does not ask a US port for the phone company', async () => {
+      await navigatePortFlowTo((await renderNumbers()).instance, 'subscriber');
+      expect(screen.queryByPlaceholderText('The company on your phone bill')).toBeNull();
     });
 
     it('reports a non-portable number against its row and stays put', async () => {
@@ -1341,9 +1425,9 @@ describe('NumbersStep', () => {
       fireEvent.change(zipInputs[zipInputs.length - 1]!, { target: { value: '10001' } });
       const stateSelects = document.querySelectorAll<HTMLSelectElement>('select');
       const stateSelect = Array.from(stateSelects).find((s) =>
-        Array.from(s.options).some((o) => o.value === 'NY')
+        Array.from(s.options).some((o) => o.value === 'US-NY')
       );
-      if (stateSelect) fireEvent.change(stateSelect, { target: { value: 'NY' } });
+      if (stateSelect) fireEvent.change(stateSelect, { target: { value: 'US-NY' } });
 
       // Advance to FOC date
       let nextBtns = screen.getAllByRole('button', { name: /Next/i });
@@ -1355,10 +1439,10 @@ describe('NumbersStep', () => {
       // Fill FOC
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + 10);
-      // A weekday: the port date step refuses weekends.
-      while ([0, 6].includes(futureDate.getDay())) futureDate.setDate(futureDate.getDate() + 1);
+      // A porting day: the port date step refuses weekends and holidays.
+      while (!isPortDay(futureDate, 'US')) futureDate.setDate(futureDate.getDate() + 1);
       const dateInput = document.querySelector<HTMLInputElement>('input[type="date"]')!;
-      fireEvent.change(dateInput, { target: { value: futureDate.toISOString().split('T')[0] } });
+      fireEvent.change(dateInput, { target: { value: localDateKey(futureDate) } });
       const timeSelect = document.querySelector<HTMLSelectElement>('select')!;
       fireEvent.change(timeSelect, { target: { value: '10:00' } });
 
@@ -2049,9 +2133,9 @@ describe('NumbersStep', () => {
       fireEvent.change(zipInputs[zipInputs.length - 1]!, { target: { value: '10001' } });
       const stateSelects = document.querySelectorAll<HTMLSelectElement>('select');
       const stateSelect = Array.from(stateSelects).find((s) =>
-        Array.from(s.options).some((o) => o.value === 'NY')
+        Array.from(s.options).some((o) => o.value === 'US-NY')
       );
-      if (stateSelect) fireEvent.change(stateSelect, { target: { value: 'NY' } });
+      if (stateSelect) fireEvent.change(stateSelect, { target: { value: 'US-NY' } });
     }
 
     /** Complete subscriber -> FOC -> docs -> review -> submit for one carrier. */
@@ -2072,10 +2156,10 @@ describe('NumbersStep', () => {
       // Fill FOC date
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + 10);
-      // A weekday: the port date step refuses weekends.
-      while ([0, 6].includes(futureDate.getDay())) futureDate.setDate(futureDate.getDate() + 1);
+      // A porting day: the port date step refuses weekends and holidays.
+      while (!isPortDay(futureDate, 'US')) futureDate.setDate(futureDate.getDate() + 1);
       const dateInput = document.querySelector<HTMLInputElement>('input[type="date"]')!;
-      fireEvent.change(dateInput, { target: { value: futureDate.toISOString().split('T')[0] } });
+      fireEvent.change(dateInput, { target: { value: localDateKey(futureDate) } });
       const timeSelect = document.querySelector<HTMLSelectElement>('select')!;
       fireEvent.change(timeSelect, { target: { value: '10:00' } });
 

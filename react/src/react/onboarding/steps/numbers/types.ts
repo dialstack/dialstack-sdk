@@ -5,11 +5,15 @@ import type {
   PortEligibilityResult,
   DIDItem,
   PhoneNumberItem,
-  SearchType,
   OnboardingLocation,
 } from '@dialstack/sdk-js';
 import type { NumSubStep } from '../../constants';
-import type { NumberIssue } from '@dialstack/sdk-js/pure';
+import {
+  type NumberIssue,
+  portingHoliday,
+  type SearchRegion,
+  SUPPORTED_COUNTRIES,
+} from '@dialstack/sdk-js/pure';
 
 export type { NumSubStep };
 
@@ -19,8 +23,12 @@ export interface NumState {
   isLoadingNumbers: boolean;
   loadError: string | null;
   phoneNumbers: PhoneNumberItem[];
-  orderSearchType: SearchType;
+  /** The location field as typed: an area code, a ZIP code or a region. */
   orderSearchValue: string;
+  /** The state or province picked from the field's suggestions. */
+  orderSearchRegion: SearchRegion | null;
+  /** The optional city of a state or province search. */
+  orderSearchCity: string;
   orderQuantity: number;
   orderIsSearching: boolean;
   orderAvailableNumbers: AvailablePhoneNumber[];
@@ -47,6 +55,7 @@ export interface NumState {
   portSubscriberCity: string;
   portSubscriberState: string;
   portSubscriberZip: string;
+  portSubscriberLosingReseller: string;
   portSubscriberErrors: Record<string, string>;
   portFocDate: string;
   portFocTime: string;
@@ -87,8 +96,9 @@ export type NumAction =
   | { type: 'load_numbers_start' }
   | { type: 'load_numbers_success'; phoneNumbers: PhoneNumberItem[] }
   | { type: 'load_numbers_error'; error: string }
-  | { type: 'order_set_search_type'; searchType: SearchType }
+  | { type: 'order_pick_region'; region: SearchRegion }
   | { type: 'order_set_search_value'; value: string }
+  | { type: 'order_set_search_city'; city: string }
   | { type: 'order_set_quantity'; quantity: number }
   | { type: 'order_search_start' }
   | { type: 'order_search_success'; results: AvailablePhoneNumber[] }
@@ -171,11 +181,15 @@ export const E911_POLL_MAX = 5;
 export function makeFocDate(): string {
   const d = new Date();
   d.setDate(d.getDate() + 14);
-  // Carriers never port on a weekend and validation refuses one.
-  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+  // Carriers never port on a weekend or a holiday, and validation refuses
+  // both.
   // Local date: validation parses it back as local midnight.
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const key = () => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  // The numbers aren't known yet, so no supported country's holiday.
+  const holiday = () => SUPPORTED_COUNTRIES.some((c) => portingHoliday(key(), c.code) !== null);
+  while (d.getDay() === 0 || d.getDay() === 6 || holiday()) d.setDate(d.getDate() + 1);
+  return key();
 }
 
 export const INITIAL_STATE: NumState = {
@@ -184,8 +198,9 @@ export const INITIAL_STATE: NumState = {
   isLoadingNumbers: true,
   loadError: null,
   phoneNumbers: [],
-  orderSearchType: 'area_code',
   orderSearchValue: '',
+  orderSearchRegion: null,
+  orderSearchCity: '',
   orderQuantity: 5,
   orderIsSearching: false,
   orderAvailableNumbers: [],
@@ -210,6 +225,7 @@ export const INITIAL_STATE: NumState = {
   portSubscriberCity: '',
   portSubscriberState: '',
   portSubscriberZip: '',
+  portSubscriberLosingReseller: '',
   portSubscriberErrors: {},
   portFocDate: makeFocDate(),
   portFocTime: '',
@@ -256,14 +272,18 @@ export function numReducer(state: NumState, action: NumAction): NumState {
       return { ...state, isLoadingNumbers: false, phoneNumbers: action.phoneNumbers };
     case 'load_numbers_error':
       return { ...state, isLoadingNumbers: false, loadError: action.error };
-    case 'order_set_search_type':
+    case 'order_set_search_value':
+      // An edit unpicks the suggestion, unless it leaves the name as picked.
       return {
         ...state,
-        orderSearchType: action.searchType,
-        orderSearchValue: '',
+        orderSearchValue: action.value,
+        orderSearchRegion:
+          state.orderSearchRegion?.name === action.value ? state.orderSearchRegion : null,
       };
-    case 'order_set_search_value':
-      return { ...state, orderSearchValue: action.value };
+    case 'order_pick_region':
+      return { ...state, orderSearchValue: action.region.name, orderSearchRegion: action.region };
+    case 'order_set_search_city':
+      return { ...state, orderSearchCity: action.city };
     case 'order_set_quantity':
       return { ...state, orderQuantity: action.quantity };
     case 'order_search_start':
@@ -313,8 +333,9 @@ export function numReducer(state: NumState, action: NumAction): NumState {
     case 'order_reset':
       return {
         ...state,
-        orderSearchType: 'area_code',
         orderSearchValue: '',
+        orderSearchRegion: null,
+        orderSearchCity: '',
         orderQuantity: 5,
         orderIsSearching: false,
         orderIsPlacing: false,
@@ -377,6 +398,7 @@ export function numReducer(state: NumState, action: NumAction): NumState {
         city: 'portSubscriberCity',
         state: 'portSubscriberState',
         zip: 'portSubscriberZip',
+        losingReseller: 'portSubscriberLosingReseller',
       };
       const key = fieldMap[action.field];
       return key ? { ...state, [key]: action.value } : state;
@@ -420,6 +442,7 @@ export function numReducer(state: NumState, action: NumAction): NumState {
         portSubscriberCity: '',
         portSubscriberState: '',
         portSubscriberZip: '',
+        portSubscriberLosingReseller: '',
         portSubscriberErrors: {},
         portFocDate: makeFocDate(),
         portFocTime: '',
@@ -466,6 +489,7 @@ export function numReducer(state: NumState, action: NumAction): NumState {
         portSubscriberCity: '',
         portSubscriberState: '',
         portSubscriberZip: '',
+        portSubscriberLosingReseller: '',
         portSubscriberErrors: {},
         portFocDate: makeFocDate(),
         portFocTime: '',

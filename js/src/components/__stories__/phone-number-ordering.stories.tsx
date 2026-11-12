@@ -29,7 +29,7 @@ export const TollFree: Story = {
   play: async ({ canvasElement }) => {
     await waitFor(() => {
       const root = shadow(canvasElement);
-      expect(root?.querySelector('[data-type="toll_free"]')).toBeTruthy();
+      expect(root?.querySelector('[data-panel="toll_free"]')).toBeTruthy();
     });
     const root = shadow(canvasElement)!;
     // The stack is as tall as its tallest panel: without the toll-free one it
@@ -57,7 +57,7 @@ export const RouteStep: Story = {
     await step('Search for numbers', async () => {
       await waitFor(() => {
         const root = shadow(canvasElement);
-        const input = root?.querySelector<HTMLInputElement>('#search-area-code');
+        const input = root?.querySelector<HTMLInputElement>('#search-location');
         expect(input).toBeTruthy();
         input!.value = '212';
         input!.dispatchEvent(new Event('input', { bubbles: true }));

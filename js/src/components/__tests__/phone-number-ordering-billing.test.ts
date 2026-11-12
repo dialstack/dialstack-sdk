@@ -80,7 +80,7 @@ async function confirmStep(context: BillingContext): Promise<OrderingEl> {
   document.body.appendChild(el);
   await settle();
 
-  const input = el.shadowRoot.querySelector<HTMLInputElement>('#search-area-code');
+  const input = el.shadowRoot.querySelector<HTMLInputElement>('#search-location');
   if (input) {
     input.value = '514';
     input.dispatchEvent(new Event('input', { bubbles: true }));

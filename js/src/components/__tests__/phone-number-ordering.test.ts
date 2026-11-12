@@ -110,7 +110,7 @@ const click = (el: OrderingEl, action: string) =>
 
 /** Drive search → results → select-all → confirm → route step. */
 async function advanceToRouteStep(el: OrderingEl): Promise<void> {
-  const input = el.shadowRoot.querySelector<HTMLInputElement>('#search-area-code');
+  const input = el.shadowRoot.querySelector<HTMLInputElement>('#search-location');
   input!.value = '514';
   input!.dispatchEvent(new Event('input', { bubbles: true }));
   click(el, 'search');
@@ -239,7 +239,7 @@ function withPricing(instance: DialStackInstanceImpl, tollFree: boolean): DialSt
 
 const tollFreeTab = (el: OrderingEl) =>
   el.shadowRoot.querySelector<HTMLElement>(
-    '[data-action="set-search-type"][data-type="toll_free"]'
+    '[data-action="set-search-mode"][data-mode="toll_free"]'
   );
 
 describe('PhoneNumberOrdering toll-free search', () => {
@@ -261,6 +261,19 @@ describe('PhoneNumberOrdering toll-free search', () => {
     };
     // Without area_code, the first configured type becomes the default.
     el.setSearchTypes(['toll_free', 'zip']);
+    el.setInstance(instance);
+    document.body.appendChild(el);
+    await settle();
+
+    expect(tollFreeTab(el)?.classList.contains('active')).toBe(true);
+  });
+
+  it('opens on toll-free when the list starts with it, local types listed too', async () => {
+    const instance = withPricing(makeInstance(jest.fn()), true);
+    const el = document.createElement('dialstack-phone-number-ordering') as OrderingEl & {
+      setSearchTypes: (types: string[]) => void;
+    };
+    el.setSearchTypes(['toll_free', 'area_code', 'zip']);
     el.setInstance(instance);
     document.body.appendChild(el);
     await settle();
@@ -303,7 +316,7 @@ describe('PhoneNumberOrdering toll-free search', () => {
     const el = await mount(instance);
 
     el.shadowRoot
-      .querySelector<HTMLElement>('[data-action="set-search-type"][data-type="toll_free"]')!
+      .querySelector<HTMLElement>('[data-action="set-search-mode"][data-mode="toll_free"]')!
       .click();
     await settle();
     const select = el.shadowRoot.querySelector<HTMLSelectElement>('#search-toll-free')!;
@@ -317,6 +330,80 @@ describe('PhoneNumberOrdering toll-free search', () => {
     expect(row?.textContent).toContain('Toll-free');
   });
 
+  it('searches a province picked from the suggestions, and its city', async () => {
+    const instance = makeInstance(jest.fn());
+    const search = jest.fn(async (): Promise<AvailablePhoneNumber[]> => [
+      {
+        phone_number: '+14165550142',
+        number_type: 'local',
+        city: 'TORONTO',
+        state: 'ON',
+      },
+    ]);
+    (
+      instance as unknown as { availablePhoneNumbers: { search: jest.Mock } }
+    ).availablePhoneNumbers.search = search;
+    const el = await mount(instance);
+
+    const button = el.shadowRoot.querySelector<HTMLButtonElement>('[data-action="search"]')!;
+    const location = el.shadowRoot.querySelector<HTMLInputElement>('#search-location')!;
+    location.value = 'ont';
+    location.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(button.disabled).toBe(true);
+
+    // The start of a name suggests it; picking it names the province.
+    const option = el.shadowRoot.querySelector<HTMLElement>('[data-action="pick-region"]')!;
+    expect(option.textContent).toContain('Ontario');
+    option.click();
+    expect(location.value).toBe('Ontario');
+    expect(el.shadowRoot.querySelector('#search-location-hint')?.textContent).toBe(
+      'Searches Ontario, Canada.'
+    );
+    const city = el.shadowRoot.querySelector<HTMLInputElement>('#search-region-city')!;
+    city.value = ' Toronto ';
+    city.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(button.disabled).toBe(false);
+    click(el, 'search');
+    await settle();
+
+    expect(search).toHaveBeenCalledWith({
+      state: 'ON',
+      country: 'CA',
+      city: 'TORONTO',
+      quantity: 10,
+    });
+    const row = el.shadowRoot.querySelector('tr[data-phone="+14165550142"]');
+    expect(row?.textContent).toContain('ON');
+  });
+
+  it('reads an area code, a ZIP code or a state named in full', async () => {
+    const instance = makeInstance(jest.fn());
+    const search = jest.fn(async (): Promise<AvailablePhoneNumber[]> => []);
+    (
+      instance as unknown as { availablePhoneNumbers: { search: jest.Mock } }
+    ).availablePhoneNumbers.search = search;
+    const el = await mount(instance);
+    const location = el.shadowRoot.querySelector<HTMLInputElement>('#search-location')!;
+    const hint = () => el.shadowRoot.querySelector('#search-location-hint')?.textContent;
+    const type = (v: string) => {
+      location.value = v;
+      location.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+
+    type('212');
+    expect(hint()).toBe('Searches area code 212.');
+    type('10001-1234');
+    expect(hint()).toBe('Searches ZIP code 10001.');
+    type('xyz');
+    expect(hint()).toContain('isn’t an area code');
+    type('québec');
+    expect(hint()).toBe('Searches Québec, Canada.');
+
+    location.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await settle();
+    expect(search).toHaveBeenCalledWith({ state: 'QC', country: 'CA', quantity: 10 });
+  });
+
   it('searches every toll-free code when none is picked', async () => {
     const instance = withPricing(makeInstance(jest.fn()), true);
     const search = jest.fn(async (): Promise<AvailablePhoneNumber[]> => []);
@@ -326,7 +413,7 @@ describe('PhoneNumberOrdering toll-free search', () => {
     const el = await mount(instance);
 
     el.shadowRoot
-      .querySelector<HTMLElement>('[data-action="set-search-type"][data-type="toll_free"]')!
+      .querySelector<HTMLElement>('[data-action="set-search-mode"][data-mode="toll_free"]')!
       .click();
     await settle();
     const button = el.shadowRoot.querySelector<HTMLButtonElement>('[data-action="search"]')!;
@@ -813,7 +900,7 @@ describe('PhoneNumberOrdering slow orders', () => {
     expect(callbacks.pending).not.toHaveBeenCalled();
     expect(instance.phoneNumberOrders.retrieve).toHaveBeenCalledTimes(1);
     // Still on the fresh search step, not pulled back to the abandoned order.
-    expect(el.shadowRoot.querySelector('#search-area-code')).not.toBeNull();
+    expect(el.shadowRoot.querySelector('#search-location')).not.toBeNull();
   });
 
   it('fires onOrderError with the order when polling finds it failed', async () => {

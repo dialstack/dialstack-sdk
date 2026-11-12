@@ -916,6 +916,9 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       if (options.areaCode) params.set('area_code', options.areaCode);
       if (options.contains) params.set('contains', options.contains);
       if (options.zip) params.set('zip', options.zip);
+      if (options.state) params.set('state', options.state);
+      if (options.city) params.set('city', options.city);
+      if (options.country) params.set('country', options.country);
       if (options.quantity) params.set('quantity', String(options.quantity));
 
       const response = await this.fetchApi(`/v1/available-phone-numbers?${params}`);
