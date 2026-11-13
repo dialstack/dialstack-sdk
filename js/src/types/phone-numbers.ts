@@ -65,6 +65,12 @@ export interface DIDItem {
   country?: string;
   expires_at?: string | null;
   disconnected_at?: string | null;
+  /**
+   * When the number last went into service, or null until it first has. Moving
+   * the number to another account does not change it. A number can be
+   * disconnected 30 days after this time.
+   */
+  activated_at?: string | null;
   outbound_enabled: boolean;
   fax_enabled: boolean;
   config?: DIDConfig;
