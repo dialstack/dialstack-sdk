@@ -57,6 +57,12 @@ export interface DIDItem {
    * name, directory listing or outbound porting PIN.
    */
   number_type?: PhoneNumberType;
+  /**
+   * The number's ISO 3166-1 alpha-2 country: `US` or `CA` today, more as
+   * countries are added, so it is not a closed union. Toll-free numbers report
+   * `US`. A directory listing is available only for US numbers.
+   */
+  country?: string;
   expires_at?: string | null;
   disconnected_at?: string | null;
   outbound_enabled: boolean;

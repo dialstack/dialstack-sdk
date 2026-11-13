@@ -795,7 +795,8 @@ export const en = {
           'A directory listing feeds your business information into online directories and data aggregators, helping customers find you. It also reduces the chance of your outbound calls being flagged as spam by call-screening apps.',
         selectPrompt: 'Select which number should be listed:',
         noneOption: 'None \u2014 skip directory listing',
-        noDIDs: 'No eligible phone numbers to configure.',
+        noDIDs:
+          'No eligible phone numbers to configure. A directory listing is available only for US numbers, and not for temporary or toll-free ones.',
         businessName: 'Business Name',
         businessNamePlaceholder: 'Enter business name for listing',
         businessNameHelp:

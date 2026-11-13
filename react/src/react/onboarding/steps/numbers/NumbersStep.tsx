@@ -46,7 +46,12 @@ import {
   portHolidayOn,
 } from './port-numbers';
 import { type NumState, type CardMode, numReducer, INITIAL_STATE, E911_POLL_MAX } from './types';
-import { getSidebarActiveKey, takesCallerIdAndListing, validateCallerIdName } from './helpers';
+import {
+  getSidebarActiveKey,
+  takesCallerId,
+  takesDirectoryListing,
+  validateCallerIdName,
+} from './helpers';
 import {
   FOC_CARRIER_TIMEZONE,
   focWindowIn,
@@ -829,7 +834,7 @@ export const NumbersStep: React.FC = () => {
   // Only one DID per account can have a listing. Temporary numbers are excluded.
   const initDirectoryListingState = useCallback(
     (s: NumState) => {
-      const eligible = s.activeDIDs.filter(takesCallerIdAndListing);
+      const eligible = s.activeDIDs.filter(takesDirectoryListing);
 
       // Find best default location
       const defaultLoc = contextLocations[0];
@@ -893,7 +898,7 @@ export const NumbersStep: React.FC = () => {
       const inputs: Record<string, string> = {};
       const statuses: Record<string, 'idle' | 'submitted'> = {};
       for (const did of dids) {
-        if (!takesCallerIdAndListing(did)) continue;
+        if (!takesCallerId(did)) continue;
         inputs[did.id] = did.caller_id_name ?? '';
         statuses[did.id] = did.caller_id_name ? 'submitted' : 'idle';
       }
@@ -908,7 +913,7 @@ export const NumbersStep: React.FC = () => {
         // Inline dl_init so we don't rely on reducer state having flushed —
         // mirrors initDirectoryListingState but reads from the just-loaded
         // `dids` array directly.
-        const eligible = dids.filter(takesCallerIdAndListing);
+        const eligible = dids.filter(takesDirectoryListing);
         const defaultLoc = contextLocations[0];
         const existingListed = eligible.find(
           (d) => d.directory_listing_type && d.directory_listing_type !== 'non_registered'
@@ -933,7 +938,7 @@ export const NumbersStep: React.FC = () => {
 
       const pending = s.activeDIDs.filter(
         (did) =>
-          takesCallerIdAndListing(did) &&
+          takesCallerId(did) &&
           s.callerIdStatuses[did.id] !== 'submitted' &&
           (s.callerIdInputs[did.id] ?? '').trim() !== ''
       );
@@ -1048,7 +1053,7 @@ export const NumbersStep: React.FC = () => {
     const inputs: Record<string, string> = {};
     const statuses: Record<string, 'idle' | 'submitted'> = {};
     for (const did of dids) {
-      if (!takesCallerIdAndListing(did)) continue;
+      if (!takesCallerId(did)) continue;
       inputs[did.id] = did.caller_id_name ?? '';
       statuses[did.id] = did.caller_id_name ? 'submitted' : 'idle';
     }

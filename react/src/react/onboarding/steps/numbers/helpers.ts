@@ -7,12 +7,20 @@ export function formatPhone(phone: string): string {
 }
 
 /**
- * Whether a number can carry a caller ID name and a directory listing.
- * Temporary numbers are released at the end of the trial, and the carrier
- * supports neither on toll-free numbers.
+ * Whether a number can carry a caller ID name. Temporary numbers are released
+ * at the end of the trial, and toll-free numbers support none.
  */
-export function takesCallerIdAndListing(did: DIDItem): boolean {
+export function takesCallerId(did: DIDItem): boolean {
   return did.number_class !== 'temporary' && did.number_type !== 'toll_free';
+}
+
+/**
+ * Whether a number can carry a directory listing: what takes a caller ID name,
+ * and only US numbers, since the directory covers the US alone. A number from
+ * an API that predates `country` counts as US.
+ */
+export function takesDirectoryListing(did: DIDItem): boolean {
+  return takesCallerId(did) && (did.country ?? 'US') === 'US';
 }
 
 export function getStatusBadgeClass(status: PhoneNumberStatus): string {
