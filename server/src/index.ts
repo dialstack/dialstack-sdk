@@ -210,6 +210,12 @@ export interface Account {
    * `customer_ordering_enabled` override resolved against the platform default.
    */
   customer_ordering_effective?: boolean;
+  /**
+   * Whether every hardware order for this account needs the customer's
+   * approval before it is placed, with the `customer_approval_required`
+   * override resolved against the platform default.
+   */
+  customer_approval_required_effective?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -291,6 +297,14 @@ export interface AccountConfig {
    * refuses. Settable only with a platform secret key.
    */
   customer_ordering_enabled?: boolean | null;
+  /**
+   * Account-level override of the platform's customer approval requirement:
+   * whether every hardware order for this account needs the customer's
+   * approval before it is placed. Tri-state: null/undefined inherits the
+   * platform default, `true` requires approval, `false` does not. Settable
+   * only with a platform secret key.
+   */
+  customer_approval_required?: boolean | null;
 }
 
 export interface BillingAddress {
