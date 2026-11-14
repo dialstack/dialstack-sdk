@@ -613,15 +613,28 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
   // ===========================================================================
 
   calls = {
-    create: async (params: { userId: string; dialString: string }): Promise<void> => {
+    create: async (params: {
+      userId: string;
+      dialString: string;
+      metadata?: Record<string, string>;
+    }): Promise<{ commandId?: string }> => {
       const response = await this.fetchApi('/v1/calls', {
         method: 'POST',
-        body: JSON.stringify({ user_id: params.userId, dial_string: params.dialString }),
+        body: JSON.stringify({
+          user_id: params.userId,
+          dial_string: params.dialString,
+          metadata: params.metadata,
+        }),
       });
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Failed to initiate call: ${response.status} ${errorText}`);
       }
+      // An API from before the command id answers 202 with no body.
+      const text = await response.text();
+      return {
+        commandId: text ? (JSON.parse(text) as { command_id?: string }).command_id : undefined,
+      };
     },
     retrieve: async (callId: string): Promise<CallLog> => {
       const response = await this.fetchApi(`/v1/calls/${callId}`);

@@ -46,18 +46,31 @@ describe('Calls', () => {
   }
 
   describe('calls.create', () => {
-    it('posts the user and dial string', async () => {
-      mockNoContent();
+    it('posts the user, dial string and metadata and returns the command id', async () => {
+      mockJSON({ command_id: 'cmd_123' }, 202);
 
-      await dialstack.calls.create({ user: 'user_123', dial_string: '+15551234567' }, acct);
+      const accepted = await dialstack.calls.create(
+        { user: 'user_123', dial_string: '+15551234567', metadata: { order: '42' } },
+        acct
+      );
 
+      expect(accepted).toEqual({ command_id: 'cmd_123' });
       expect(requestedUrl()).toBe('https://api.dialstack.ai/v1/calls');
       expect(requestInit().method).toBe('POST');
       expect(JSON.parse(requestInit().body as string)).toEqual({
         user: 'user_123',
         dial_string: '+15551234567',
+        metadata: { order: '42' },
       });
     });
+  });
+
+  it('resolves with no command id against an API that answers 202 with no body', async () => {
+    mockNoContent();
+
+    await expect(
+      dialstack.calls.create({ user: 'user_123', dial_string: '+15551234567' }, acct)
+    ).resolves.toEqual({});
   });
 
   describe('calls.list', () => {

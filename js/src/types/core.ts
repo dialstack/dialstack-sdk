@@ -249,8 +249,17 @@ export interface CallsTranscriptsResource {
 }
 
 export interface CallsResource {
-  /** Initiate an outbound call */
-  create(params: { userId: string; dialString: string }): Promise<void>;
+  /**
+   * Initiate an outbound call. Resolves with the request's `commandId`, which
+   * the `call.command_succeeded` or `call.command_failed` webhook carries as
+   * `command`, along with `metadata` if you set any. `commandId` is absent
+   * only when the API answering predates it.
+   */
+  create(params: {
+    userId: string;
+    dialString: string;
+    metadata?: Record<string, string>;
+  }): Promise<{ commandId?: string }>;
   /** Retrieve a call log by ID (opaque `call_` identifier; may aggregate multiple CDR legs) */
   retrieve(callId: string): Promise<CallLog>;
   /** List call logs, newest first */

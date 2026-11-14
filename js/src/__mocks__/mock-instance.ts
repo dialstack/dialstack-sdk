@@ -320,7 +320,9 @@ export function createMockInstance(
     logout: async () => {},
 
     calls: {
-      create: async (_params: { userId: string; dialString: string }) => {},
+      create: async (_params: { userId: string; dialString: string }) => ({
+        commandId: 'cmd_mock',
+      }),
       // Same canned page as the raw fetchApi path, so stories see one data set.
       list: async () => {
         const response = await instance.fetchApi('/v1/calls');

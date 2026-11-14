@@ -1341,6 +1341,23 @@ export interface CallCreateParams {
    * `config.find_me_follow_me.alternates` on the user.
    */
   find_me_follow_me_key?: string;
+  /**
+   * Your own string key-value pairs, echoed on the outcome event for this
+   * request (`call.command_succeeded` or `call.command_failed`). Up to 50
+   * keys; keys up to 40 bytes and values up to 500 bytes, in UTF-8.
+   */
+  metadata?: Record<string, string>;
+}
+
+/**
+ * A call request accepted, not yet placed. It is resolved once on the account
+ * webhook: `call.command_succeeded` names the placed call in `call_id`, or
+ * `call.command_failed` gives the reason no call was placed. Both carry this
+ * id as `command`.
+ */
+export interface CallCreateResponse {
+  /** Absent only when the API answering predates it. */
+  command_id?: string;
 }
 
 /** Call recording metadata with a signed download URL. */
@@ -4677,14 +4694,22 @@ export class DialStack {
   calls = {
     /**
      * Place an outbound call. The user's endpoints ring first; when the user
-     * answers, `dial_string` is dialed. Accepted asynchronously — the call
-     * progresses over webhooks, so there is no response body.
+     * answers, `dial_string` is dialed. Accepted asynchronously: match the
+     * returned `command_id` to the request's outcome event to learn the call's
+     * id, or why no call was placed.
      */
-    create: (
+    create: async (
       params: CallCreateParams,
       options: RequestOptions & { dialstackAccount: string }
-    ): Promise<void> => {
-      return this._request('POST', '/v1/calls', params, options);
+    ): Promise<CallCreateResponse> => {
+      // An API from before the command id answers 202 with no body.
+      const accepted = await this._request<CallCreateResponse | undefined>(
+        'POST',
+        '/v1/calls',
+        params,
+        options
+      );
+      return accepted ?? {};
     },
 
     list: (
