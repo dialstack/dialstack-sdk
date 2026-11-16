@@ -9,6 +9,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 (`@dialstack/sdk-js`, `-react`, `-webrtc`, `-server`), which release together on
 their own line.
 
+## [0.5.0](https://github.com/dialstack/dialstack-sdk/compare/native-v0.4.0...native-v0.5.0) (2026-11-16)
+
+### Features
+
+- The softphone lists the other users in the signed-in user's account, with
+  live presence, in its directory. `SoftphoneProvider` takes
+  `accountDirectory`, which defaults to on when you pass no `directory`; pass
+  both to list the account's users ahead of your entries. Each presence state
+  has its own badge, and Do Not Disturb and away are marked.
+- The dial pad offers the directory and suggests matching contacts as you
+  dial; tapping a suggestion or a directory entry calls it, from the dial pad
+  and from Add call.
+- The transfer and add-call panels say what the target is, switch with an
+  icon button, and show the picked contact as its directory row with live
+  presence and a × to change it. The directory search has a search icon and a
+  clear button, and closes on a pick.
+- Calls are named after the directory contact or account user they reach, and
+  numbers in the directory, dial matches and call views are formatted for
+  display.
+- `listDirectory({ types })` returns typed entries for the account's other
+  dialable destinations as well as users: queues, ring groups, voice apps,
+  dial plans and shared voicemail boxes. Every entry has an `id`.
+  `types: 'all'` asks for every type, and entries of a type this SDK version
+  doesn't know are skipped. `listDirectory()` without options is unchanged.
+- Calls stay up through a dropped signalling socket. While the phone resumes
+  its session, `call.isReconnecting` is true and the call emits
+  `reconnecting`, then `reconnected`. Mute and hang-up take effect locally at
+  once and reach the server on the resume; hold, resume and transfer throw
+  `transport_closed` until the call is back. The softphone shows
+  "Reconnecting…" and disables those buttons meanwhile.
+- Calls restart ICE by themselves when the network changes under them.
+  `SoftphoneProvider` takes `subscribeNetworkChange` (for example with
+  `@react-native-community/netinfo`) so a network change is noticed at once,
+  and `call.restartIce()` is public for apps that learn of one first.
+- `rebindEmergencyAddress(id, { anchor })` binds an emergency address on the
+  open connection, keeping calls in progress up, and resolves with the
+  verdict. The softphone now binds this way and never drops a call to bind
+  E911. `reconnectWithEmergency` is deprecated.
+- A blind transfer the far end refuses is reported as a `transfer_failed`
+  error and the call stays up; the softphone shows "Transfer failed". Once the
+  far end accepts, the call ends as `transferred` while the target may still
+  be ringing.
+
+### Bug Fixes
+
+- `call.transfer()` throws `transfer_failed` while an earlier transfer on the
+  same call is still unanswered, and a call can transfer again after a
+  reconnect lost the answer to its last transfer.
+- ICE restarts stay in order and no longer latch, and session resume works
+  within the window after a long outage, with its retry backoff capped at 2 s.
+  Gathering waits for a complete candidate set unless the far end trickles.
+- Re-INVITE handling follows RFC 3261, 6026, 6141 and 8839: target refresh,
+  CANCEL on timeout, glare back-off, and ending the call on a 481 or 408.
+- The far end putting the call on hold no longer emits `held`; the call stays
+  `active`, and `held` reports only a local hold.
+- A mute the server lost is resent, a hang-up made during a drop is
+  delivered, and a server error for an action of a call that has already
+  ended is dropped.
+- A denied E911 submit is rejected, and a rebind whose send throws settles.
+- Repeated taps on answer, decline, hang up, mute, hold, transfer, merge,
+  conference hold and switch are ignored, and a second `placeCall` is dropped
+  while one is still being placed.
+- The dial pad and keypad fit their keys to the available height, keep their
+  proportions as they shrink or the directory opens, and stay still as the
+  first digit is typed.
+- Feature codes show their leading `*` or `#`.
+
 ## [0.4.0](https://github.com/dialstack/dialstack-sdk/compare/native-v0.3.0...native-v0.4.0) (2026-10-26)
 
 ### Features
