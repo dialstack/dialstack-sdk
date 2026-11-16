@@ -5,6 +5,86 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.11.0](https://github.com/dialstack/dialstack-sdk/compare/v3.10.0...v3.11.0) (2026-11-16)
+
+### Features
+
+- New call activity components, each a standalone web component with a React
+  wrapper under `@dialstack/sdk-react/call-activity`: **To call back**
+  (`<dialstack-to-call-back>`, callers nobody reached in the last 7 days, with
+  a timeline of their tries and yours), **Call analytics**
+  (`<dialstack-call-analytics>`, inbound outcomes, sentiment, call quality and
+  volume against the previous period, with its own range picker) and **Device
+  health** (`<dialstack-device-health>`, assigned desk phones and DECT bases
+  that are not registered, and since when). The appearance gains
+  `colorChart1`–`colorChart4` for their charts.
+- **Voicemails** can list every mailbox in the account or a shared voicemail
+  box: the new `mailbox` prop (`setMailbox()`) takes a user id, a shared
+  voicemail box id or `null` for every mailbox. `userId` (`setUserId()`) still
+  works and is deprecated. New `listOptions` (unread only, oldest first,
+  received within N days), `pollInterval`, `refreshKey`, and the display
+  options `variant: 'card'`, `showMailbox` and `showMarkAsReadButton` (mark as
+  read, with a few seconds to undo).
+- **CallLogs** filters on sentiment (overall, your user's side or the other
+  party's: a label plus score and magnitude ranges) and on a custom date
+  range, highlights any filter narrowing the list, and shows a sentiment
+  column. `CallLogFilters` takes the sentiment filters, `dateRange`,
+  `remote_number`, `connected`, and several statuses at once.
+- **server:** `calls.list` takes the same new filters, and `from_number`,
+  `to_number` and `status` accept several values. New `calls.summary`,
+  `voicemails.summary` and `remoteNumbers.list` / `remoteNumbers.retrieve`;
+  calls can expand `remote_number`.
+- `calls.create` resolves with the request's `command_id`, which the
+  `call.command_succeeded` / `call.command_failed` webhook events carry as
+  `command`, and accepts `metadata` that those events echo back.
+- Call and voicemail transcripts carry `utterances`: timed, per-speaker
+  segments of the text.
+- Canadian numbers: phone number ordering and onboarding search, order and
+  port them. A local search now takes one location field that reads an area
+  code, a US ZIP code, or a state or province suggested as it is typed, and
+  region menus name the country with the region. A Canadian port takes a
+  province and postal code and a `losing_reseller_name`, needs no phone bill,
+  and offers the carrier's equipment record as its optional upload.
+  Phone numbers, available numbers and port orders report their `country`.
+- Onboarding refuses porting holidays as port dates, by the country of the
+  numbers being ported, and counts the earliest date in porting days.
+- Onboarding offers the directory listing only for US numbers.
+- Phone numbers expose `activated_at`.
+- Deskphones expose `firmware_version`, as reported by the phone's last
+  config fetch.
+- Network settings take `dns_mode` (`dhcp`, `public` or `custom`) and
+  `dns_servers`.
+- **server:** devices expose `offline_since` and the device list filters on
+  `registration_status`; hardware order items carry the `part_number` they
+  were bought as, and shipments list their `items`, and
+  accounts take `customer_approval_required` (with
+  `customer_approval_required_effective`) for hardware orders.
+- **webrtc:** a blind transfer the far end refuses is reported as a
+  `transfer_failed` error (a new `PhoneErrorCode`) and the call stays up; the
+  softphone shows "Transfer failed". Once the far end accepts, the call ends
+  as `transferred` while the target may still be ringing.
+- **react/softphone:** a park glyph in the call UI glyph set.
+
+### Bug Fixes
+
+- **webrtc:** `call.transfer()` throws `transfer_failed` while an earlier
+  transfer on the same call is still unanswered, and a call can transfer
+  again after a reconnect lost the answer to its last transfer.
+- **webrtc:** a server error for an action of a call that has already ended
+  is dropped, and a fatal error answering a transfer keeps its own code.
+- **react/softphone:** the softphone sizes itself only by its host's imposed
+  height, so a content-sized host no longer flips between compact and full
+  layouts depending on earlier screens.
+- **react/softphone:** closing the keypad keeps keyboard focus, and a
+  disabled action button no longer brightens on hover.
+- An opened voicemail shows its transcript again, as plain text.
+- CallLogs: a press outside an open toolbar panel is no longer swallowed,
+  focus stays on the date button after a reload, a corrected date range
+  applies, and `setFilters` falls back to the host's window.
+- Phone number ordering opens on toll-free when the configured search types
+  start with it, and the ZIP field says it is US only.
+- Québec is spelled with its accent.
+
 ## [3.10.0](https://github.com/dialstack/dialstack-sdk/compare/v3.9.0...v3.10.0) (2026-11-09)
 
 ### Features
