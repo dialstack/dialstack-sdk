@@ -477,9 +477,9 @@ const server = createServer(async (req, res) => {
       if (evt.type !== 'call.mobile_push_wakeup') return reply(200, { ignored: evt.type });
 
       const d = evt.data ?? {};
-      const list = devices.get(d.user_id) ?? [];
+      const list = devices.get(d.user) ?? [];
       if (list.length === 0) {
-        console.warn(`[webhook] no device for ${d.user_id} — cannot wake`);
+        console.warn(`[webhook] no device for ${d.user} — cannot wake`);
         return reply(200, { ok: false, reason: 'no device registered' });
       }
 
@@ -487,7 +487,7 @@ const server = createServer(async (req, res) => {
         callId: d.call_id,
         from: d.from_number,
         fromName: d.from_name,
-        userId: d.user_id,
+        userId: d.user,
       });
       return reply(200, { ok: results.some((r) => r.ok) });
     }

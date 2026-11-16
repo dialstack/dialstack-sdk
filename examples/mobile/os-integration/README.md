@@ -197,9 +197,12 @@ config plugin, so `app.json` needs no iOS block beyond the bundle id.
 
 ## What the wake path does
 
-1. A call arrives for a user with `mobile_push_wakeup` on and no live
-   registration. DialStack parks the INVITE and sends the
-   `call.mobile_push_wakeup` webhook to the integrator's backend.
+1. A call arrives for a user with `mobile_push_wakeup` on. DialStack sends the
+   `call.mobile_push_wakeup` webhook to the integrator's backend. It does so
+   for every call delivered to the user's softphone sessions, even when a
+   browser softphone is connected: the browser rings at once and the app joins
+   once it wakes. Only when the user has no connected session does DialStack
+   also park the INVITE, for at most 30 seconds.
 2. The backend sends the push — a high-priority FCM data message on Android, an
    APNs VoIP push on iOS.
 3. The call library reports the call to Telecom/CallKit **with no JS running** —
@@ -248,6 +251,30 @@ the audio session and this app supplies the rest.
 
 Keep InCallManager to its screen and proximity calls. Its ringback runs its own
 device selection and moves the audio to the speaker behind Telecom's back.
+
+## Call library version
+
+The example is pinned to `expo-callkit-telecom` 0.5.0, with
+`patches/expo-callkit-telecom+0.5.0.patch` applied to its native code. The
+patch file is the full list of changes; the main ones are:
+
+- **App-controlled ringback:** `playDialtone` and `stopDialtone`, so the app,
+  which knows when the far end is alerting and when early media replaces it,
+  starts and stops the tone instead of the library.
+- **VoIP push deduplication on iOS:** a push for a call the app already
+  reported to CallKit (because it arrived over the socket first) updates that
+  call instead of creating a second one.
+- **An Android foreground service** that keeps the network up for the call from
+  the moment it rings or is placed, and adds the microphone once answered.
+- **A wake signal on Android:** after a push reports a call, the library
+  always broadcasts `onPushCallReported`, so the wake service starts even when
+  the app is already running in the background, where its JavaScript timers
+  are paused. The wake path depends on it.
+- **CallKit screen fixes on iOS:** no video button on audio-only calls, and the
+  app's icon on the call screen.
+
+`expo-callkit-telecom` 1.x has not been qualified with this example. Before
+upgrading, check every change in the patch file against it.
 
 ## Swapping the call library
 
