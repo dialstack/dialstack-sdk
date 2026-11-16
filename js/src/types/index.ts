@@ -171,6 +171,7 @@ export type {
   AccountConfig,
   Account,
   TosVariant,
+  AccountCountry,
   UpdateAccountRequest,
   AccountPricing,
   EffectivePricing,

@@ -164,6 +164,9 @@ type EventCallback<T> = (event: T) => void;
 /** The Service Subscription Agreement an account signs. */
 export type TosVariant = 'standard' | 'hipaa';
 
+/** The country an account is in. */
+export type AccountCountry = 'US' | 'CA';
+
 export interface Account {
   id: string;
   email: string | null;
@@ -175,6 +178,13 @@ export interface Account {
   main_location_id: string | null;
   /** Button template inherited by newly created deskphones and DECT handsets. */
   default_button_template: string | null;
+  /**
+   * Where the account does business: `US` or `CA`. Set when the account is
+   * created and never changed. The account's locations must be in this country,
+   * and it decides how dialed numbers are read, including which are emergency
+   * numbers.
+   */
+  country?: AccountCountry;
   /**
    * Which Service Subscription Agreement this account must sign. `standard` is
    * the ordinary agreement; `hipaa` is the healthcare agreement incorporating
@@ -229,7 +239,11 @@ export interface AccountConfig {
   /** Admin-key-only intercom recipient policy; component sessions cannot change it.
    * Omit on update to preserve it; null resets to Off. */
   intercom?: IntercomConfig | null;
-  /** ISO 3166-1 alpha-2 country code (default: "US") */
+  // NEXT MAJOR: delete `region`; `Account.country` replaces it.
+  /**
+   * @deprecated Read-only copy of the account's `country`, which is now its
+   * dialing region. Sending a different value is refused. Removed in the next major.
+   */
   region?: string;
   /** Number of digits for extension numbers, 3-6 (default: 4) */
   extension_length?: number;
@@ -332,6 +346,12 @@ export interface AccountCreateParamsBase {
    * Omit to use your platform's configured default.
    */
   tos_variant?: TosVariant;
+  /**
+   * Where the account does business: `US` (the default) or `CA`. It can't be
+   * changed later, and the address must be in it. Creating a Canadian account
+   * needs Canada enabled for your platform; contact DialStack.
+   */
+  country?: AccountCountry;
 }
 
 /**

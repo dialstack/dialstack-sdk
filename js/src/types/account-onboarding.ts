@@ -48,6 +48,11 @@ export interface AccountConfig {
   /** Admin-key-only intercom recipient policy; component sessions cannot change it.
    * Omit on update to preserve it; null resets to Everyone. */
   intercom?: IntercomConfig | null;
+  // NEXT MAJOR: delete `region`; `Account.country` replaces it.
+  /**
+   * @deprecated Read-only copy of the account's `country`, which is now its
+   * dialing region. Sending a different value is refused. Removed in the next major.
+   */
   region?: string;
   extension_length?: number;
   /** Whether calls are transcribed. Defaults to false. Voicemail is transcribed regardless. */
@@ -126,6 +131,9 @@ export interface AccountConfig {
 /** The Service Subscription Agreement an account signs. */
 export type TosVariant = 'standard' | 'hipaa';
 
+/** The country an account is in. */
+export type AccountCountry = 'US' | 'CA';
+
 export interface Account {
   id: string;
   name?: string | null;
@@ -136,6 +144,13 @@ export interface Account {
    */
   phone?: string | null;
   primary_contact_name?: string | null;
+  /**
+   * Where the account does business: `US` or `CA`. Set when the account is
+   * created and never changed. The account's locations must be in this country,
+   * and it decides how dialed numbers are read, including which are emergency
+   * numbers.
+   */
+  country?: AccountCountry;
   config: AccountConfig;
   /** True when the account has completed every onboarding step. */
   onboarding_complete: boolean;

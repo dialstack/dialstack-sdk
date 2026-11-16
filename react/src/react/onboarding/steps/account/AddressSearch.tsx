@@ -5,7 +5,7 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import type { AddressSuggestion, ResolvedAddress, OnboardingLocation } from '@dialstack/sdk-js';
-import { supportedCountry } from '@dialstack/sdk-js/pure';
+import { supportedCountry, type SupportedCountryCode } from '@dialstack/sdk-js/pure';
 
 export interface ManualAddress {
   addressNumber: string;
@@ -27,6 +27,8 @@ export interface AddressSearchProps {
   onEditAddress: () => void;
   suggestAddresses: (query: string, country: string) => Promise<AddressSuggestion[]>;
   getPlaceDetails: (placeId: string) => Promise<ResolvedAddress>;
+  /** The account's country: suggestions and regions come from it. */
+  country: SupportedCountryCode;
   locale: {
     searchPlaceholder: string;
     searching: string;
@@ -44,6 +46,9 @@ export interface AddressSearchProps {
     statePlaceholder: string;
     postalCodeLabel: string;
     postalCodePlaceholder: string;
+    provinceLabel: string;
+    canadianPostalCodeLabel: string;
+    canadianPostalCodePlaceholder: string;
   };
 }
 
@@ -109,6 +114,7 @@ export const AddressSearch: React.FC<AddressSearchProps> = ({
   onEditAddress,
   suggestAddresses,
   getPlaceDetails,
+  country,
   locale,
 }) => {
   const [query, setQuery] = useState('');
@@ -136,7 +142,7 @@ export const AddressSearch: React.FC<AddressSearchProps> = ({
       setIsLoadingSuggestions(true);
 
       try {
-        const results = await suggestAddresses(q, 'US');
+        const results = await suggestAddresses(q, country);
         if (version !== searchVersion.current) return;
         setSuggestions(results);
         setDropdownOpen(true);
@@ -151,7 +157,7 @@ export const AddressSearch: React.FC<AddressSearchProps> = ({
         }
       }
     },
-    [suggestAddresses]
+    [suggestAddresses, country]
   );
 
   const handleQueryChange = useCallback(
@@ -300,14 +306,16 @@ export const AddressSearch: React.FC<AddressSearchProps> = ({
             />
           </div>
           <div className="form-group">
-            <label className="form-label">{locale.stateLabel}</label>
+            <label className="form-label">
+              {country === 'CA' ? locale.provinceLabel : locale.stateLabel}
+            </label>
             <select
               className="form-select"
               value={manualAddress.state}
               onChange={(e) => onManualAddressChange({ ...manualAddress, state: e.target.value })}
             >
               <option value="">{locale.statePlaceholder}</option>
-              {(supportedCountry('US')?.regions ?? []).map(([code, name]) => (
+              {(supportedCountry(country)?.regions ?? []).map(([code, name]) => (
                 <option key={code} value={code}>
                   {name}
                 </option>
@@ -315,12 +323,18 @@ export const AddressSearch: React.FC<AddressSearchProps> = ({
             </select>
           </div>
           <div className="form-group">
-            <label className="form-label">{locale.postalCodeLabel}</label>
+            <label className="form-label">
+              {country === 'CA' ? locale.canadianPostalCodeLabel : locale.postalCodeLabel}
+            </label>
             <input
               className="form-input"
               type="text"
               value={manualAddress.postalCode}
-              placeholder={locale.postalCodePlaceholder}
+              placeholder={
+                country === 'CA'
+                  ? locale.canadianPostalCodePlaceholder
+                  : locale.postalCodePlaceholder
+              }
               onChange={(e) =>
                 onManualAddressChange({ ...manualAddress, postalCode: e.target.value })
               }

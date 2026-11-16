@@ -1,8 +1,8 @@
 /**
- * US IANA timezone identifiers with human-readable labels.
- * Covers the contiguous US, Alaska, Hawaii, and US territories.
+ * IANA timezone identifiers with human-readable labels: the contiguous US,
+ * Alaska, Hawaii, the US territories, and Canada.
  */
-export const US_TIMEZONES = [
+export const TIMEZONES = [
   ['Pacific/Guam', 'Guam'],
   ['America/Puerto_Rico', 'Atlantic — Puerto Rico'],
   ['America/New_York', 'Eastern — New York'],
@@ -14,4 +14,11 @@ export const US_TIMEZONES = [
   ['America/Adak', 'Hawaii-Aleutian — Adak'],
   ['Pacific/Honolulu', 'Hawaii — Honolulu'],
   ['Pacific/Pago_Pago', 'Samoa — Pago Pago'],
+  ['America/St_Johns', "Newfoundland — St. John's"],
+  ['America/Halifax', 'Atlantic — Halifax'],
+  ['America/Toronto', 'Eastern — Toronto'],
+  ['America/Winnipeg', 'Central — Winnipeg'],
+  ['America/Regina', 'Saskatchewan — Regina'],
+  ['America/Edmonton', 'Mountain — Edmonton'],
+  ['America/Vancouver', 'Pacific — Vancouver'],
 ] as const;

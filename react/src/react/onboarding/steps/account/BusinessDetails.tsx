@@ -5,7 +5,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import type { OnboardingLocation, ResolvedAddress } from '@dialstack/sdk-js';
-import { US_TIMEZONES } from '../../../../constants/us-timezones';
+import { TIMEZONES } from '../../../../constants/timezones';
 import { useOnboarding } from '../../OnboardingContext';
 import { StepNavigation } from '../../StepNavigation';
 import { ErrorAlert } from '../../components/ErrorAlert';
@@ -38,6 +38,8 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
   const { dialstack, accountConfig, account, locations, reloadSharedData, locale } =
     useOnboarding();
   const t = locale.accountOnboarding.account;
+  // The account's locations must be in its country.
+  const accountCountry = account?.country ?? 'US';
 
   const [accountName, setAccountName] = useState('');
   const [accountEmail, setAccountEmail] = useState('');
@@ -175,7 +177,7 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
               city: manualAddress.city.trim(),
               state: manualAddress.state.trim(),
               postal_code: manualAddress.postalCode.trim(),
-              country: 'US',
+              country: accountCountry,
             };
 
         const locationPayload = { name: locationName.trim(), address };
@@ -200,7 +202,7 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
             city: manualAddress.city.trim(),
             state: manualAddress.state.trim(),
             postal_code: manualAddress.postalCode.trim(),
-            country: 'US',
+            country: accountCountry,
           },
         });
       }
@@ -233,7 +235,7 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
     t,
   ]);
 
-  const tzLabel = timezone ? (US_TIMEZONES.find(([v]) => v === timezone)?.[1] ?? timezone) : null;
+  const tzLabel = timezone ? (TIMEZONES.find(([v]) => v === timezone)?.[1] ?? timezone) : null;
   const showTimezoneReadonly = addressMode === 'confirmed' && !!timezone;
 
   return (
@@ -314,6 +316,7 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
             onEditAddress={handleEditAddress}
             suggestAddresses={dialstack.addresses.suggest}
             getPlaceDetails={dialstack.addresses.getPlaceDetails}
+            country={accountCountry}
             locale={t.location}
           />
           {validationErrors.address && <div className="form-error">{validationErrors.address}</div>}
@@ -331,7 +334,7 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
                 onChange={(e) => setTimezone(e.target.value)}
               >
                 {!timezone && <option value="">{t.details.timezonePlaceholder}</option>}
-                {US_TIMEZONES.map(([value, label]) => (
+                {TIMEZONES.map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
                   </option>

@@ -432,6 +432,38 @@ describe('BusinessDetails', () => {
     });
   });
 
+  it("creates a Canadian account's location in Canada, with provinces", async () => {
+    const { container, instance } = await renderBD({
+      ...locationsNS({ list: jest.fn().mockResolvedValue([]) }),
+      ...accountNS({ retrieve: jest.fn().mockResolvedValue({ ...mockAccount, country: 'CA' }) }),
+    });
+
+    fireEvent.change(getFieldByLabel(container, 'Location Name'), { target: { value: 'HQ' } });
+    fireEvent.click(screen.getByText('Enter manually'));
+    await waitFor(() => {
+      expect(getFieldByLabel(container, 'Province')).toBeTruthy();
+    });
+
+    fireEvent.change(getFieldByLabel(container, 'Street'), {
+      target: { value: 'Rue Sainte-Catherine' },
+    });
+    fireEvent.change(getFieldByLabel(container, 'City'), { target: { value: 'Montréal' } });
+    fireEvent.change(getFieldByLabel(container, 'Postal code'), { target: { value: 'H2X 1K4' } });
+    fireEvent.change(getFieldByLabel(container, 'Province'), { target: { value: 'QC' } });
+    fireEvent.change(getFieldByLabel(container, 'Timezone'), {
+      target: { value: 'America/Toronto' },
+    });
+
+    clickNext();
+
+    await waitFor(() => {
+      expect(instance.locations.create).toHaveBeenCalledWith({
+        name: 'HQ',
+        address: expect.objectContaining({ state: 'QC', country: 'CA' }),
+      });
+    });
+  });
+
   it('skips createLocation when an existing location is loaded', async () => {
     const { instance } = await renderBD({
       ...locationsNS({ list: jest.fn().mockResolvedValue([mockLocation]) }),
