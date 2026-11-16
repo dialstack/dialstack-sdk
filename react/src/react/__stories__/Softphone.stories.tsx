@@ -16,6 +16,8 @@ import type { SoftphoneLayoutVariant } from '../softphone/core/view-model';
 // <Softphone> itself takes no connection props.
 interface StoryArgs {
   appearance?: AppearanceOptions;
+  /** The preview's colour-theme arg (see .storybook/preview.tsx), which embeds set from the URL. */
+  theme?: 'light' | 'dark';
   layoutVariant?: SoftphoneLayoutVariant;
 }
 
@@ -25,11 +27,13 @@ const meta: Meta<StoryArgs> = {
   // components; the softphone's own default is 'auto'.
   args: { layoutVariant: 'auto' },
   argTypes: { layoutVariant: { control: 'select', options: ['auto', 'full', 'compact'] } },
-  render: ({ appearance, layoutVariant }) => (
+  render: ({ appearance, theme, layoutVariant }) => (
     <SoftphoneProvider
       token="preview-token"
       autoConnect={false}
-      appearance={appearance}
+      // A story's own appearance.theme wins; otherwise follow the preview's theme
+      // arg, like the sdk-js components do.
+      appearance={theme ? { ...appearance, theme: appearance?.theme ?? theme } : appearance}
       layoutVariant={layoutVariant}
     >
       <Softphone />
