@@ -138,4 +138,38 @@ describe('Voicemail greetings', () => {
       expect(JSON.parse(requestInit().body as string)).toEqual({ is_read: true });
     });
   });
+
+  describe('clip filters on other lists', () => {
+    const empty = {
+      object: 'list',
+      url: '',
+      next_page_url: null,
+      previous_page_url: null,
+      data: [],
+    };
+
+    it('sends audio_clip on dial plans', async () => {
+      mockJSON(empty);
+      await dialstack.dialPlans.list({ audio_clip: 'aud_123' }, acct);
+      expect(new URL(requestedUrl()).searchParams.get('audio_clip')).toBe('aud_123');
+    });
+
+    it('sends voicemail_greeting_clip on users', async () => {
+      mockJSON(empty);
+      await dialstack.users.list({ voicemail_greeting_clip: 'aud_123' }, acct);
+      expect(new URL(requestedUrl()).searchParams.get('voicemail_greeting_clip')).toBe('aud_123');
+    });
+
+    it('sends each clip role on queues', async () => {
+      mockJSON(empty);
+      await dialstack.queues.list(
+        { hold_music_clip: 'aud_1', entry_prompt_clip: 'aud_2', periodic_prompt_clip: 'aud_3' },
+        acct
+      );
+      const params = new URL(requestedUrl()).searchParams;
+      expect(params.get('hold_music_clip')).toBe('aud_1');
+      expect(params.get('entry_prompt_clip')).toBe('aud_2');
+      expect(params.get('periodic_prompt_clip')).toBe('aud_3');
+    });
+  });
 });

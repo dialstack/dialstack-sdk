@@ -790,6 +790,8 @@ export interface UserListParams {
   page?: string;
   /** Filter by name or email (case-insensitive partial match). */
   search?: string;
+  /** Only users whose `voicemail_greeting_clip` is this audio clip. */
+  voicemail_greeting_clip?: string;
   /** Related resources to include inline. */
   expand?: UserExpand[];
 }
@@ -2854,6 +2856,8 @@ export interface DialPlanCreateParams {
 export interface DialPlanListParams {
   limit?: number;
   page?: string;
+  /** Only dial plans with a node that plays this audio clip or uses it as a menu prompt. */
+  audio_clip?: string;
   /** Related resources to include inline. Supported values: `extensions`. */
   expand?: DialPlanExpand[];
 }
@@ -3178,6 +3182,12 @@ export interface QueueUpdateParams {
 export interface QueueListParams {
   limit?: number;
   page?: string;
+  /** Only queues whose `hold_music_clip` is this audio clip. */
+  hold_music_clip?: string;
+  /** Only queues whose `entry_prompt_clip` is this audio clip. */
+  entry_prompt_clip?: string;
+  /** Only queues whose `periodic_prompt_clip` is this audio clip. */
+  periodic_prompt_clip?: string;
   /** Related resources to include inline. Supported values: `extensions`. */
   expand?: QueueExpand[];
 }
@@ -4499,6 +4509,8 @@ export class DialStack {
       if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
       if (params?.page) queryParams.set('page', params.page);
       if (params?.search) queryParams.set('search', params.search);
+      if (params?.voicemail_greeting_clip)
+        queryParams.set('voicemail_greeting_clip', params.voicemail_greeting_clip);
       appendExpand(queryParams, params?.expand);
 
       const query = queryParams.toString();
@@ -6027,6 +6039,7 @@ export class DialStack {
       const queryParams = new URLSearchParams();
       if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
       if (params?.page) queryParams.set('page', params.page);
+      if (params?.audio_clip) queryParams.set('audio_clip', params.audio_clip);
       appendExpand(queryParams, params?.expand);
 
       const query = queryParams.toString();
@@ -6200,6 +6213,10 @@ export class DialStack {
       const queryParams = new URLSearchParams();
       if (params?.limit !== undefined) queryParams.set('limit', String(params.limit));
       if (params?.page) queryParams.set('page', params.page);
+      for (const key of ['hold_music_clip', 'entry_prompt_clip', 'periodic_prompt_clip'] as const) {
+        const value = params?.[key];
+        if (value) queryParams.set(key, value);
+      }
       appendExpand(queryParams, params?.expand);
 
       const query = queryParams.toString();
