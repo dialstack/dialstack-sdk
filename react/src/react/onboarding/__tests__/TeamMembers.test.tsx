@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
-import { TeamMembers } from '../steps/account/TeamMembers';
+import { TeamMembers } from '../steps/users/TeamMembers';
 import {
   renderWithOnboarding,
   createStatefulUserMocks,
@@ -505,7 +505,7 @@ describe('TeamMembers', () => {
       expect(defaultProps.onDone).toHaveBeenCalled();
     });
 
-    expect(progressStore.getCompletedSubSteps('account').has('team-members')).toBe(true);
+    expect(progressStore.getCompletedSubSteps('users').has('team-members')).toBe(true);
   });
 
   it('advances with a single member whose email matches the account contact address', async () => {
@@ -524,7 +524,7 @@ describe('TeamMembers', () => {
       expect(defaultProps.onDone).toHaveBeenCalled();
     });
 
-    expect(progressStore.getCompletedSubSteps('account').has('team-members')).toBe(true);
+    expect(progressStore.getCompletedSubSteps('users').has('team-members')).toBe(true);
   });
 
   // ==========================================================================

@@ -93,6 +93,7 @@ describe('deriveOnboardingState', () => {
   it('returns empty completion sets for an empty snapshot', () => {
     const { completed } = deriveOnboardingState(emptySnapshot);
     expect(completed.account.size).toBe(0);
+    expect(completed.users.size).toBe(0);
     expect(completed.numbers.size).toBe(0);
     expect(completed.hardware.size).toBe(0);
   });
@@ -104,7 +105,14 @@ describe('deriveOnboardingState', () => {
       locations: [mkLocation()],
     });
     expect(completed.account.has('business-details')).toBe(true);
-    expect(completed.account.has('team-members')).toBe(false);
+    expect(completed.users.has('team-members')).toBe(false);
+  });
+
+  it('marks team-members without business details', () => {
+    // The users step stands alone: a platform can hide business details.
+    const { completed } = deriveOnboardingState({ ...emptySnapshot, users: [mkUser('u1')] });
+    expect(completed.account.has('business-details')).toBe(false);
+    expect(completed.users.has('team-members')).toBe(true);
   });
 
   it('marks team-members when the account has ≥1 user', () => {
@@ -120,7 +128,7 @@ describe('deriveOnboardingState', () => {
       deriveOnboardingState({
         ...base,
         users: [{ ...mkUser('u1'), email: 'employee@acme.test' }],
-      }).completed.account.has('team-members')
+      }).completed.users.has('team-members')
     ).toBe(true);
 
     expect(
@@ -130,7 +138,7 @@ describe('deriveOnboardingState', () => {
           { ...mkUser('u1'), email: 'employee@acme.test' },
           { ...mkUser('u2'), email: 'other@acme.test' },
         ],
-      }).completed.account.has('team-members')
+      }).completed.users.has('team-members')
     ).toBe(true);
   });
 
@@ -149,7 +157,7 @@ describe('deriveOnboardingState', () => {
           { ...mkUser('u1'), email: 'owner@acme.test' },
           { ...mkUser('u2'), email: null },
         ],
-      }).completed.account.has('team-members')
+      }).completed.users.has('team-members')
     ).toBe(true);
   });
 
@@ -168,13 +176,13 @@ describe('deriveOnboardingState', () => {
       deriveOnboardingState({
         ...base,
         users: [{ ...mkUser('u1'), email: 'owner@acme.test' }],
-      }).completed.account.has('team-members')
+      }).completed.users.has('team-members')
     ).toBe(true);
 
     // Still incomplete with no users at all.
-    expect(
-      deriveOnboardingState({ ...base, users: [] }).completed.account.has('team-members')
-    ).toBe(false);
+    expect(deriveOnboardingState({ ...base, users: [] }).completed.users.has('team-members')).toBe(
+      false
+    );
   });
 
   describe('numbers — unexpired DIDs count, expired ones drop out', () => {

@@ -9,7 +9,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useOnboarding, type StepEntryMode } from './OnboardingContext';
 import { useOnboardingProgress } from './useOnboardingProgress';
-import { CIRCUMFERENCE } from './portal-constants';
+import { CIRCUMFERENCE, stepLabel } from './portal-constants';
 import { CheckIconWhite, HelpIcon, OverviewIcon, STEP_ICON_COMPONENTS } from './portal-icons';
 import type { StepName } from './progress-store';
 
@@ -100,8 +100,7 @@ const PortalSidebarBase: React.FC<PortalSidebarProps> = ({
           .filter(Boolean)
           .join(' ');
 
-        const stepsLocale = locale.accountOnboarding.steps as Record<string, string>;
-        const stepLabel = stepsLocale[step] ?? step;
+        const label = stepLabel(locale, step);
         const entryMode: StepEntryMode = isComplete ? 'review' : 'continue';
 
         return (
@@ -121,7 +120,7 @@ const PortalSidebarBase: React.FC<PortalSidebarProps> = ({
                 return Icon ? <Icon /> : null;
               })()}
             </span>
-            <span className="portal-step-name">{stepLabel}</span>
+            <span className="portal-step-name">{label}</span>
             <span className="portal-step-indicator">
               {isComplete ? (
                 <div className="check-circle">

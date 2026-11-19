@@ -1,4 +1,5 @@
 .overview-container {
+  container: overview / inline-size;
   padding: 40px 48px;
   overflow-y: auto;
   height: 100%;
@@ -86,12 +87,28 @@
   margin: 0 0 20px;
 }
 
-/* Step cards grid */
+/* Step cards grid. One row of as many cards as there are steps, but never
+   fewer than two tracks, so a lone card doesn't stretch across the page. Four
+   cards need ~980px of overview width before their buttons fit on one line,
+   so below that they go two by two. The width is the overview's own, not the
+   viewport's: hosts embed the portal inside their own layout. */
 .overview-cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 20px;
   margin-bottom: 32px;
+}
+
+.overview-cards[data-count='1'],
+.overview-cards[data-count='2'],
+.overview-cards[data-count='4'] {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+@container overview (min-width: 980px) {
+  .overview-cards[data-count='4'] {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 
 @keyframes card-entrance {
@@ -127,6 +144,9 @@
 }
 .overview-card:nth-child(3) {
   animation-delay: 0.15s;
+}
+.overview-card:nth-child(4) {
+  animation-delay: 0.2s;
 }
 
 .overview-card:hover {
@@ -421,7 +441,7 @@
 
 /* ── Responsive ── */
 @media (max-width: 1024px) {
-  .overview-cards {
+  .overview-cards[data-count] {
     grid-template-columns: repeat(2, 1fr);
   }
 }
@@ -445,7 +465,7 @@
 }
 
 @media (max-width: 480px) {
-  .overview-cards {
+  .overview-cards[data-count] {
     grid-template-columns: 1fr;
   }
 

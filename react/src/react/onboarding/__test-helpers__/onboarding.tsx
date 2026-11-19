@@ -630,6 +630,7 @@ export async function renderWithOnboarding(
   if (progressHydration) {
     const completed = {
       account: new Set<string>((progressHydration.account as string[]) ?? []),
+      users: new Set<string>((progressHydration.users as string[]) ?? []),
       numbers: new Set<string>((progressHydration.numbers as string[]) ?? []),
       hardware: new Set<string>((progressHydration.hardware as string[]) ?? []),
     };

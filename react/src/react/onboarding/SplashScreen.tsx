@@ -79,16 +79,11 @@ const SplashScreenBase: React.FC<SplashScreenProps> = ({ logoHtml, platformName,
   }, [logoHtml]);
 
   const splash = locale.onboardingPortal.splash;
-  const stepLabels: Record<string, string> = {
-    account: splash.step1,
-    numbers: splash.step2,
-    hardware: splash.step3,
-  };
-  const chipLabels = activeSteps.flatMap((step) => stepLabels[step] ?? []);
+  const stepCount = activeSteps.filter((s) => s !== 'final_complete').length;
   const subtitle =
-    chipLabels.length <= 1
+    stepCount <= 1
       ? (splash.subtitleSingleStep ?? defaultLocale.onboardingPortal.splash.subtitleSingleStep)
-      : splash.subtitle.replace('{count}', String(chipLabels.length));
+      : splash.subtitle.replace('{count}', String(stepCount));
 
   return (
     <div className="splash-container" ref={containerRef}>
@@ -106,14 +101,6 @@ const SplashScreenBase: React.FC<SplashScreenProps> = ({ logoHtml, platformName,
             {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- static SVG constant from our own source */}
             <span dangerouslySetInnerHTML={{ __html: ARROW_RIGHT_SVG }} />
           </button>
-        </div>
-        <div className="splash-chips">
-          {chipLabels.map((label, i) => (
-            <div key={label} className="splash-chip">
-              <div className="splash-chip-number">{i + 1}</div>
-              <span className="splash-chip-label">{label}</span>
-            </div>
-          ))}
         </div>
       </div>
 

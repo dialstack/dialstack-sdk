@@ -7,7 +7,7 @@ import React from 'react';
 import { screen } from '@testing-library/react';
 import { renderWithOnboarding } from '../__test-helpers__/onboarding';
 import { BillingImpactNotice } from '../components/BillingImpactNotice';
-import { TeamMembers } from '../steps/account/TeamMembers';
+import { TeamMembers } from '../steps/users/TeamMembers';
 
 const notice = () => screen.queryByRole('note', { name: 'Billing impact' });
 const text = () => notice()?.textContent?.replace(/\s+/g, ' ').trim() ?? '';

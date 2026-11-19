@@ -4,7 +4,7 @@
  * Responsibilities:
  * - Hold references to the DialStack instance, progress store, and config
  * - Derive activeSteps from collectionOptions (include/exclude against the
- *   three navigable steps: account, numbers, hardware)
+ *   four navigable steps: account, users, numbers, hardware)
  *
  * This file does NOT fetch data (see useOnboardingData) and does NOT subscribe
  * to progressStore changes (see useOnboardingProgress).
@@ -32,10 +32,11 @@ import {
   type Extension,
 } from '@dialstack/sdk-js';
 import type { OnboardingProgressStore } from './progress-store';
+import { ONBOARDING_STEPS, type StepName } from './constants';
 import { useDialstackComponents } from '@dialstack/sdk-react';
 
-/** The three steps a user navigates through (final_complete is not a nav target). */
-const NAVIGABLE_STEPS: AccountOnboardingStep[] = ['account', 'numbers', 'hardware'];
+/** The steps a user navigates through (final_complete is not a nav target). */
+const NAVIGABLE_STEPS: AccountOnboardingStep[] = [...ONBOARDING_STEPS];
 
 /**
  * How the user entered the current step.
@@ -126,14 +127,24 @@ function computeActiveSteps(
   options: OnboardingCollectionOptions | undefined
 ): AccountOnboardingStep[] {
   let steps = [...NAVIGABLE_STEPS];
+  const include = options?.steps?.include;
+  const exclude = options?.steps?.exclude;
 
-  if (options?.steps?.include) {
-    const includeSet = new Set(options.steps.include);
+  // NEXT MAJOR: drop `legacy`. `account` used to cover team members too, so a
+  // host that names `account` but never `users` predates the split: `users`
+  // follows `account` for it, as before. A host that names `users` anywhere
+  // gets the lists literally.
+  const legacy = !include?.includes('users') && !exclude?.includes('users');
+
+  if (include) {
+    const includeSet = new Set(include);
+    if (legacy && includeSet.has('account')) includeSet.add('users');
     steps = steps.filter((s) => includeSet.has(s));
   }
 
-  if (options?.steps?.exclude) {
-    const excludeSet = new Set(options.steps.exclude);
+  if (exclude) {
+    const excludeSet = new Set(exclude);
+    if (legacy && excludeSet.has('account')) excludeSet.add('users');
     steps = steps.filter((s) => !excludeSet.has(s));
   }
 
@@ -223,9 +234,7 @@ export function findNextIncompleteStep(
   // Search after current step first, then wrap around
   const after = navigable.slice(idx + 1);
   const before = navigable.slice(0, idx);
-  const next = [...after, ...before].find(
-    (s) => !progressStore.isStepComplete(s as 'account' | 'numbers' | 'hardware')
-  );
+  const next = [...after, ...before].find((s) => !progressStore.isStepComplete(s as StepName));
   return next ?? 'final_complete';
 }
 

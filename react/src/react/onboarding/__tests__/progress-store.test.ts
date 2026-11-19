@@ -29,7 +29,8 @@ describe('OnboardingProgressStore', () => {
       store.subscribe(listener);
 
       store.hydrateFromDerived({
-        account: new Set(['business-details', 'team-members']),
+        account: new Set(['business-details']),
+        users: new Set(['team-members']),
         numbers: new Set(['overview']),
         hardware: new Set(),
       });
@@ -42,7 +43,8 @@ describe('OnboardingProgressStore', () => {
     it('overwrites previous state on re-hydration', () => {
       const store = createStore();
       store.hydrateFromDerived({
-        account: new Set(['business-details', 'team-members']),
+        account: new Set(['business-details']),
+        users: new Set(['team-members']),
         numbers: new Set(),
         hardware: new Set(),
       });
@@ -50,6 +52,7 @@ describe('OnboardingProgressStore', () => {
 
       store.hydrateFromDerived({
         account: new Set(),
+        users: new Set(),
         numbers: new Set(),
         hardware: new Set(),
       });
@@ -60,10 +63,10 @@ describe('OnboardingProgressStore', () => {
   describe('completeSubStep', () => {
     it('marks a substep complete and updates progress', () => {
       const store = createStore();
-      store.completeSubStep('account', 'business-details');
+      store.completeSubStep('numbers', 'overview');
 
-      expect(store.getCompletedSubSteps('account').has('business-details')).toBe(true);
-      expect(store.getStepProgressPercent('account')).toBe(50);
+      expect(store.getCompletedSubSteps('numbers').has('overview')).toBe(true);
+      expect(store.getStepProgressPercent('numbers')).toBe(25);
     });
 
     it('does not re-notify when called for an already-completed substep', () => {
@@ -93,14 +96,13 @@ describe('OnboardingProgressStore', () => {
     it('returns true when all sidebar groups have at least one completed substep', () => {
       const store = createStore();
       store.completeSubStep('account', 'business-details');
-      store.completeSubStep('account', 'team-members');
       expect(store.isStepComplete('account')).toBe(true);
     });
 
     it('returns false when some sidebar groups are incomplete', () => {
       const store = createStore();
-      store.completeSubStep('account', 'business-details');
-      expect(store.isStepComplete('account')).toBe(false);
+      store.completeSubStep('numbers', 'overview');
+      expect(store.isStepComplete('numbers')).toBe(false);
     });
   });
 
@@ -135,7 +137,7 @@ describe('OnboardingProgressStore', () => {
       expect(listener).toHaveBeenCalledTimes(1);
 
       unsub();
-      store.completeSubStep('account', 'team-members');
+      store.completeSubStep('users', 'team-members');
       expect(listener).toHaveBeenCalledTimes(1);
     });
   });

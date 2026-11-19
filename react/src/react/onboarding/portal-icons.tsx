@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import type { StepName } from './constants';
 
 export const OverviewIcon: React.FC = () => (
   <svg
@@ -107,8 +108,25 @@ const HeadsetIcon: React.FC = () => (
   </svg>
 );
 
-export const STEP_ICON_COMPONENTS: Record<string, React.FC> = {
+const UsersIcon: React.FC = () => (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+);
+
+export const STEP_ICON_COMPONENTS: Record<StepName, React.FC> = {
   account: BuildingIcon,
+  users: UsersIcon,
   numbers: PhoneIcon,
   hardware: HeadsetIcon,
 };

@@ -1,19 +1,24 @@
-import { BUILDING_SVG, PHONE_SVG, HEADSET_SVG } from './icons';
+import { BUILDING_SVG, USER_SVG, PHONE_SVG, HEADSET_SVG } from './icons';
+import { defaultLocale, type Locale } from '@dialstack/sdk-js';
+import type { StepName } from './constants';
 
-export const STEP_ICONS: Record<string, string> = {
+export const STEP_ICONS: Record<StepName, string> = {
   account: BUILDING_SVG,
+  users: USER_SVG,
   numbers: PHONE_SVG,
   hardware: HEADSET_SVG,
 };
 
 export const STEP_I18N_KEYS: Record<string, string> = {
   account: 'accountOnboarding.steps.account',
+  users: 'accountOnboarding.steps.users',
   numbers: 'accountOnboarding.steps.numbers',
   hardware: 'accountOnboarding.steps.hardware',
 };
 
 export const STEP_DESC_KEYS: Record<string, string> = {
   account: 'onboardingPortal.overview.accountDesc',
+  users: 'onboardingPortal.overview.usersDesc',
   numbers: 'onboardingPortal.overview.numbersDesc',
   hardware: 'onboardingPortal.overview.hardwareDesc',
 };
@@ -28,3 +33,23 @@ export const CHECK_SVG_WHITE = `<svg viewBox="0 0 24 24" fill="none" stroke="cur
 export const ARROW_RIGHT_SVG = `<svg viewBox="0 0 33 33" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6.875 16.5H26.125" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M16.5 6.875L26.125 16.5L16.5 26.125" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 export const CIRCUMFERENCE = 2 * Math.PI * 16; // ~100.53
+
+// Keys added after a release are optional in Locale, so a custom locale
+// written earlier may lack them: fall back to English, never to the raw id.
+export function stepLabel(locale: Locale, step: string): string {
+  const label = (steps: Locale['accountOnboarding']['steps']) =>
+    (steps as Record<string, string | undefined>)[step];
+  return (
+    label(locale.accountOnboarding.steps) ?? label(defaultLocale.accountOnboarding.steps) ?? step
+  );
+}
+
+export function stepDescription(locale: Locale, step: string): string {
+  const key = STEP_DESC_KEYS[step as StepName]?.replace('onboardingPortal.overview.', '');
+  if (!key) return '';
+  const desc = (overview: Locale['onboardingPortal']['overview']) =>
+    (overview as Record<string, string | undefined>)[key];
+  return (
+    desc(locale.onboardingPortal.overview) ?? desc(defaultLocale.onboardingPortal.overview) ?? ''
+  );
+}

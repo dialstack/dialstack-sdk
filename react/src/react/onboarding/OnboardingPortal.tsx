@@ -29,6 +29,7 @@ import { PortalSidebar } from './PortalSidebar';
 import { SplashScreen } from './SplashScreen';
 import { OverviewScreen } from './OverviewScreen';
 import { AccountStep } from './steps/account/AccountStep';
+import { UsersStep } from './steps/users/UsersStep';
 import { NumbersStep } from './steps/numbers/NumbersStep';
 import { HardwareStep } from './steps/hardware/HardwareStep';
 import { useOnboardingBootstrap } from './useOnboardingBootstrap';
@@ -215,10 +216,11 @@ const PortalInner: React.FC<PortalInnerProps> = (props) => {
   // Started in this browser+account.
   const [viewMode, setViewMode] = useState<'splash' | 'overview' | 'wizard'>(() => {
     if (localStartedFlag || account?.onboarding_complete) return 'overview';
-    const anyStepDone =
-      progressStore.isStepComplete('account') ||
-      progressStore.isStepComplete('numbers') ||
-      progressStore.isStepComplete('hardware');
+    // Only steps the user sees: a platform that hides users usually has some
+    // before the owner's first visit, and that must not skip the splash.
+    const anyStepDone = activeSteps.some(
+      (s) => s !== 'final_complete' && progressStore.isStepComplete(s as StepName)
+    );
     return anyStepDone ? 'overview' : 'splash';
   });
 
@@ -300,7 +302,10 @@ const PortalInner: React.FC<PortalInnerProps> = (props) => {
       isReviewNavRef.current = false;
     }
 
-    if (lastNotifiedStepRef.current !== currentStep) {
+    // The store starts on 'account', which the host may have hidden; never
+    // report a step outside the host's own list.
+    const reportable = currentStep === 'final_complete' || activeSteps.includes(currentStep);
+    if (reportable && lastNotifiedStepRef.current !== currentStep) {
       lastNotifiedStepRef.current = currentStep;
       onStepChangeRef.current?.({ step: currentStep });
     }
@@ -393,6 +398,28 @@ const PortalInner: React.FC<PortalInnerProps> = (props) => {
     [colorPrimary, colorPrimaryHover, isDark, props.style]
   );
 
+  // Every step hidden: there is nothing to walk through. The agreement gate in
+  // front of the portal has already run, so the user is done.
+  if (!activeSteps.some((s) => s !== 'final_complete')) {
+    return (
+      <ShadowContainer stylesheets={PORTAL_STYLESHEETS} style={{ height: '100vh', width: '100%' }}>
+        <div
+          className={`portal-layout${props.className ? ` ${props.className}` : ''}`}
+          style={portalStyle}
+        >
+          <FinalCompleteScreen
+            locale={locale}
+            fullTermsOfServiceUrl={props.fullTermsOfServiceUrl}
+            recipientTermsOfServiceUrl={props.recipientTermsOfServiceUrl}
+            privacyPolicyUrl={props.privacyPolicyUrl}
+            onDone={props.onBack}
+            celebrate={false}
+          />
+        </div>
+      </ShadowContainer>
+    );
+  }
+
   return (
     <ShadowContainer stylesheets={PORTAL_STYLESHEETS} style={{ height: '100vh', width: '100%' }}>
       <div
@@ -479,7 +506,13 @@ interface FinalCompleteScreenProps {
   fullTermsOfServiceUrl?: string;
   recipientTermsOfServiceUrl?: string;
   privacyPolicyUrl?: string;
-  onDone: () => void;
+  /** No button when absent. */
+  onDone?: () => void;
+  /**
+   * False for an account with nothing to onboard: no confetti and a plain
+   * title, since it is shown on every visit rather than once on finishing.
+   */
+  celebrate?: boolean;
 }
 
 const FinalCompleteScreen: React.FC<FinalCompleteScreenProps> = ({
@@ -488,11 +521,13 @@ const FinalCompleteScreen: React.FC<FinalCompleteScreenProps> = ({
   recipientTermsOfServiceUrl,
   privacyPolicyUrl,
   onDone,
+  celebrate = true,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const confettiRef = useRef<ReturnType<typeof createConfetti> | null>(null);
 
   useLayoutEffect(() => {
+    if (!celebrate) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const container = canvas.parentElement;
@@ -541,7 +576,7 @@ const FinalCompleteScreen: React.FC<FinalCompleteScreenProps> = ({
       clearTimeout(t);
       confettiRef.current?.reset();
     };
-  }, []);
+  }, [celebrate]);
 
   const legalLinks: React.ReactNode[] = [];
   if (fullTermsOfServiceUrl)
@@ -616,7 +651,10 @@ const FinalCompleteScreen: React.FC<FinalCompleteScreenProps> = ({
           zIndex: 1,
         }}
       >
-        {locale.accountOnboarding.complete.title}
+        {celebrate
+          ? locale.accountOnboarding.complete.title
+          : (locale.accountOnboarding.complete.allSetTitle ??
+            defaultLocale.accountOnboarding.complete.allSetTitle)}
       </h1>
       <p
         style={{
@@ -631,29 +669,31 @@ const FinalCompleteScreen: React.FC<FinalCompleteScreenProps> = ({
         {locale.accountOnboarding.complete.subtitle}
       </p>
       {legalSection}
-      <div style={{ marginTop: 16, zIndex: 1 }}>
-        <button
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '0 28px',
-            height: 44,
-            minWidth: 150,
-            background: 'var(--ds-portal-color-primary, #6772E5)',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 100,
-            fontSize: 14,
-            fontWeight: 500,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-          }}
-          onClick={onDone}
-        >
-          {locale.accountOnboarding.nav.exit}
-        </button>
-      </div>
+      {onDone && (
+        <div style={{ marginTop: 16, zIndex: 1 }}>
+          <button
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 28px',
+              height: 44,
+              minWidth: 150,
+              background: 'var(--ds-portal-color-primary, #6772E5)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 100,
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+            onClick={onDone}
+          >
+            {locale.accountOnboarding.nav.exit}
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -666,6 +706,7 @@ const PortalStepRouter: React.FC = React.memo(() => {
   return (
     <>
       {currentStep === 'account' && <AccountStep />}
+      {currentStep === 'users' && <UsersStep />}
       {currentStep === 'numbers' && <NumbersStep />}
       {currentStep === 'hardware' && <HardwareStep />}
     </>

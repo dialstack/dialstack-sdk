@@ -641,7 +641,10 @@ export const en = {
       retry: 'Try Again',
     },
     steps: {
-      account: 'Account Setup',
+      account: 'Business Details',
+      // Optional so that a locale written against an earlier release still
+      // compiles; the portal falls back to English when a locale omits it.
+      ...({ users: 'Users' } as { users?: string }),
       numbers: 'Phone Numbers',
       hardware: 'Hardware Setup',
       complete: 'Complete',
@@ -1159,6 +1162,9 @@ export const en = {
     },
     complete: {
       title: 'Wahoo!',
+      // Optional so that a locale written against an earlier release still
+      // compiles; the portal falls back to English when a locale omits it.
+      ...({ allSetTitle: "You're all set" } as { allSetTitle?: string }),
       subtitle: "It's time to start using your embedded voice system",
       e911: {
         loading: 'Configuring emergency services...',
@@ -1272,7 +1278,10 @@ export const en = {
       needHelpSubtitle: 'Our team is here to help you get set up quickly',
       scheduleCall: 'Schedule a Call',
       viewDocs: 'View Documentation',
-      accountDesc: 'Set up your business profile, add team members, and configure your dial plan',
+      accountDesc: 'Confirm your company information and address',
+      // Optional so that a locale written against an earlier release still
+      // compiles; the portal falls back to English when a locale omits it.
+      ...({ usersDesc: 'Add users and assign extensions' } as { usersDesc?: string }),
       numbersDesc: 'Port existing numbers or request new business lines',
       hardwareDesc: 'Assign phones to team members and track delivery',
       phoneStatusTitle: 'Phone number status',
@@ -1290,8 +1299,13 @@ export const en = {
       title: 'Welcome\nto {platformName}',
       subtitle: "Let's get your business set up in {count} easy steps",
       start: 'Start Onboarding',
+      // NEXT MAJOR: delete step1–step3. The splash no longer lists the steps
+      // (the sidebar already does); they stay so custom locales keep compiling.
+      /** @deprecated No longer shown; removed in the next major. */
       step1: 'Account Details',
+      /** @deprecated No longer shown; removed in the next major. */
       step2: 'Setup Phone Numbers',
+      /** @deprecated No longer shown; removed in the next major. */
       step3: 'Assign Hardware',
       // Optional so that a locale written against an earlier release still
       // compiles; the splash falls back to English when a locale omits it.

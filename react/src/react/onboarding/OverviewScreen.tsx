@@ -11,7 +11,7 @@ import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { AccountRatesCard } from './components/AccountRatesCard';
 import { useOnboarding, type StepEntryMode } from './OnboardingContext';
 import { useOnboardingProgress } from './useOnboardingProgress';
-import { STEP_ICONS, STEP_DESC_KEYS, CHECK_SVG_WHITE } from './portal-constants';
+import { STEP_ICONS, CHECK_SVG_WHITE, stepLabel, stepDescription } from './portal-constants';
 import { PHONE_SVG } from './icons';
 import type { StepName } from './progress-store';
 import type { PhoneNumberItem } from '@dialstack/sdk-js';
@@ -44,10 +44,6 @@ const OverviewScreenBase: React.FC<OverviewScreenProps> = ({
     .replace('{completed}', String(completedCount))
     .replace('{total}', String(steps.length));
 
-  const stepsLocale = locale.accountOnboarding.steps as Record<string, string>;
-  const descKeys = STEP_DESC_KEYS as Record<string, string>;
-  const overviewLocale = locale.onboardingPortal.overview as Record<string, string>;
-
   return (
     <div className="overview-container">
       {/* Header */}
@@ -76,7 +72,7 @@ const OverviewScreenBase: React.FC<OverviewScreenProps> = ({
 
       {/* Step cards */}
       <h2 className="overview-steps-title">{locale.onboardingPortal.overview.stepsTitle}</h2>
-      <div className="overview-cards">
+      <div className="overview-cards" data-count={steps.length}>
         {steps.map((step) => {
           const isComplete = progressStore.isStepComplete(step);
           const stepPct = progressStore.getStepProgressPercent(step);
@@ -102,10 +98,7 @@ const OverviewScreenBase: React.FC<OverviewScreenProps> = ({
             btnText = `${locale.onboardingPortal.overview.completeSetup} →`;
           }
 
-          const descKey = descKeys[step] ?? '';
-          // descKey is like 'onboardingPortal.overview.accountDesc' — navigate the locale object
-          const descParts = descKey.replace('onboardingPortal.overview.', '');
-          const desc = descParts ? (overviewLocale[descParts] ?? '') : '';
+          const desc = stepDescription(locale, step);
 
           return (
             <div key={step} className="overview-card">
@@ -117,7 +110,7 @@ const OverviewScreenBase: React.FC<OverviewScreenProps> = ({
                   __html: isComplete ? CHECK_SVG_WHITE : (STEP_ICONS[step] ?? ''),
                 }}
               />
-              <h4>{stepsLocale[step] ?? step}</h4>
+              <h4>{stepLabel(locale, step)}</h4>
               <p>{desc}</p>
               <div className="overview-card-progress">
                 <span className="overview-card-progress-label">{progressLabel}</span>

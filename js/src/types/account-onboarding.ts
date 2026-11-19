@@ -4,7 +4,11 @@
 
 import type { BaseComponentClasses } from './appearance';
 
-export type AccountOnboardingStep = 'account' | 'numbers' | 'hardware' | 'final_complete';
+/**
+ * `account` is business details; `users` adds the account's users. Every step
+ * can be hidden with {@link OnboardingCollectionOptions}.
+ */
+export type AccountOnboardingStep = 'account' | 'users' | 'numbers' | 'hardware' | 'final_complete';
 
 /**
  * Options to control which onboarding steps are presented.
@@ -13,6 +17,9 @@ export type AccountOnboardingStep = 'account' | 'numbers' | 'hardware' | 'final_
  * - `exclude` hides the listed steps.
  * - When both are set, `include` is applied first, then `exclude` removes from that result.
  * - The `final_complete` step is always shown regardless of these options.
+ * - If neither list names `users`, `users` follows `account`, as when
+ *   `account` covered team members too. Name `users` in either list to choose
+ *   it on its own: in the next major, `account` means business details only.
  */
 export interface OnboardingCollectionOptions {
   steps?: {

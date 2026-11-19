@@ -80,6 +80,7 @@ import {
   PortReviewContent,
   PortSubmittedContent,
 } from './content/PortContent';
+import { usePrevStepHandler } from '../usePrevStepHandler';
 
 // Stable array for ShadowContainer — step-specific CSS passed to OnboardingLayout.
 const NUMBERS_EXTRA_STYLESHEETS = [numbersStyles];
@@ -125,13 +126,7 @@ export const NumbersStep: React.FC = () => {
     stateRef.current = state;
   }, [state]);
 
-  // Back from first sub-step goes to previous step (if any).
-  const numbersIdx = activeSteps.indexOf('numbers');
-  const handleBackToPrevStep = useMemo(() => {
-    if (numbersIdx <= 0) return undefined;
-    const prevStep = activeSteps[numbersIdx - 1]!;
-    return () => progressStore.setCurrentStep(prevStep);
-  }, [numbersIdx, activeSteps, progressStore]);
+  const handleBackToPrevStep = usePrevStepHandler('numbers');
 
   const t = useCallback(
     (key: string, params?: Record<string, string | number>): string => {

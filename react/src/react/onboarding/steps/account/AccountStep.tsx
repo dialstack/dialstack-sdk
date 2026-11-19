@@ -1,5 +1,6 @@
 /**
- * Account onboarding step — manages the business-details and team-members sub-steps.
+ * Business details onboarding step. Its id stays `account` for compatibility
+ * with existing `collectionOptions`.
  */
 
 import React, { useState, useCallback, useMemo } from 'react';
@@ -9,41 +10,14 @@ import { BuildingIcon } from '../../components/icons';
 import { StepSidebar } from '../../components/StepSidebar';
 import { StepCompleteScreen } from '../../components/StepCompleteScreen';
 import { BusinessDetails } from './BusinessDetails';
-import { TeamMembers } from './TeamMembers';
-
-type AccountSubStep = 'business-details' | 'team-members' | 'complete';
+import { usePrevStepHandler } from '../usePrevStepHandler';
 
 export const AccountStep: React.FC = () => {
-  const { locale, progressStore, activeSteps, entryMode } = useOnboarding();
-  // 'continue' entry: jump to the first substep not yet data-satisfied. 'review'
-  // walks from the start so the user can revisit existing values.
-  const [subStep, setSubStep] = useState<AccountSubStep>(() => {
-    if (entryMode === 'review') return 'business-details';
-    const done = progressStore.getCompletedSubSteps('account');
-    if (!done.has('business-details')) return 'business-details';
-    if (!done.has('team-members')) return 'team-members';
-    return 'business-details';
-  });
+  const { locale, progressStore, activeSteps } = useOnboarding();
+  const [complete, setComplete] = useState(false);
+  const handleBackToPrevStep = usePrevStepHandler('account');
 
-  // Back from first sub-step goes to previous step (if any).
-  const accountIdx = activeSteps.indexOf('account');
-  const handleBackToPrevStep = useMemo(() => {
-    if (accountIdx <= 0) return undefined;
-    const prevStep = activeSteps[accountIdx - 1]!;
-    return () => progressStore.setCurrentStep(prevStep);
-  }, [accountIdx, activeSteps, progressStore]);
-
-  const handleBusinessDetailsAdvance = useCallback(() => {
-    setSubStep('team-members');
-  }, []);
-
-  const handleTeamMembersBack = useCallback(() => {
-    setSubStep('business-details');
-  }, []);
-
-  const handleTeamMembersDone = useCallback(() => {
-    setSubStep('complete');
-  }, []);
+  const handleAdvance = useCallback(() => setComplete(true), []);
 
   const handleCompleteDone = useCallback(() => {
     progressStore.setCurrentStep(findNextIncompleteStep(activeSteps, progressStore, 'account'));
@@ -51,48 +25,30 @@ export const AccountStep: React.FC = () => {
 
   const stepLabel = locale.accountOnboarding.steps.account;
 
-  const sidebarSubSteps = useMemo(
-    () => [
-      {
-        key: 'business-details',
-        label: locale.accountOnboarding.sidebar.businessDetails,
-        description: locale.accountOnboarding.sidebar.businessDetailsDesc,
-      },
-      {
-        key: 'team-members',
-        label: locale.accountOnboarding.sidebar.teamMembers,
-        description: locale.accountOnboarding.sidebar.teamMembersDesc,
-      },
-    ],
-    [locale]
-  );
-
-  const sidebar = useMemo(() => {
-    const activeIdx =
-      subStep === 'complete'
-        ? sidebarSubSteps.length // all complete
-        : sidebarSubSteps.findIndex((s) => s.key === subStep);
-
-    return (
+  const sidebar = useMemo(
+    () => (
       <StepSidebar
         icon={<BuildingIcon />}
         title={stepLabel}
-        items={sidebarSubSteps}
-        activeIndex={activeIdx}
+        items={[
+          {
+            key: 'business-details',
+            label: locale.accountOnboarding.sidebar.businessDetails,
+            description: locale.accountOnboarding.sidebar.businessDetailsDesc,
+          },
+        ]}
+        activeIndex={complete ? 1 : 0}
       />
-    );
-  }, [subStep, sidebarSubSteps, stepLabel]);
+    ),
+    [complete, locale, stepLabel]
+  );
 
   return (
     <OnboardingLayout sidebar={sidebar}>
-      {subStep === 'business-details' && (
-        <BusinessDetails onAdvance={handleBusinessDetailsAdvance} onBack={handleBackToPrevStep} />
-      )}
-      {subStep === 'team-members' && (
-        <TeamMembers onBack={handleTeamMembersBack} onDone={handleTeamMembersDone} />
-      )}
-      {subStep === 'complete' && (
+      {complete ? (
         <StepCompleteScreen stepName={stepLabel} onDone={handleCompleteDone} />
+      ) : (
+        <BusinessDetails onAdvance={handleAdvance} onBack={handleBackToPrevStep} />
       )}
     </OnboardingLayout>
   );

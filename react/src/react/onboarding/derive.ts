@@ -39,6 +39,7 @@ export function deriveOnboardingState(snapshot: OnboardingDataSnapshot): Derived
 
   const completed: Record<StepName, Set<string>> = {
     account: new Set(),
+    users: new Set(),
     numbers: new Set(),
     hardware: new Set(),
   };
@@ -62,7 +63,7 @@ export function deriveOnboardingState(snapshot: OnboardingDataSnapshot): Derived
   // are given a seat; a true empty team can't mark the substep complete. (This
   // used to discount any user whose email matched the account's contact
   // address, which wrongly excluded an owner who also holds a seat.)
-  if (hasBusinessDetails && users.length >= 1) completed.account.add('team-members');
+  if (users.length >= 1) completed.users.add('team-members');
 
   // Any unexpired DID — temp or user-ordered — counts as a working number.
   // Temp DIDs drop out once expires_at passes, flipping the account back to

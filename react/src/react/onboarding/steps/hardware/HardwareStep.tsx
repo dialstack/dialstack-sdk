@@ -11,6 +11,7 @@ import { StepSidebar } from '../../components/StepSidebar';
 import { StepCompleteScreen } from '../../components/StepCompleteScreen';
 import { DeviceAssignment } from './DeviceAssignment';
 import hardwareStyles from '../../styles/hardware-styles.css';
+import { usePrevStepHandler } from '../usePrevStepHandler';
 
 // Stable array for ShadowContainer — step-specific CSS passed to OnboardingLayout.
 const HARDWARE_EXTRA_STYLESHEETS = [hardwareStyles];
@@ -20,13 +21,7 @@ export const HardwareStep: React.FC = () => {
   const [location, setLocation] = useState<OnboardingLocation | null>(null);
   const [isComplete, setIsComplete] = useState(false);
 
-  // Back from first sub-step goes to previous step (if any).
-  const hardwareIdx = activeSteps.indexOf('hardware');
-  const handleBackToPrevStep = useMemo(() => {
-    if (hardwareIdx <= 0) return undefined;
-    const prevStep = activeSteps[hardwareIdx - 1]!;
-    return () => progressStore.setCurrentStep(prevStep);
-  }, [hardwareIdx, activeSteps, progressStore]);
+  const handleBackToPrevStep = usePrevStepHandler('hardware');
 
   const handleDone = useCallback(async () => {
     // Hardware completion is data-driven (devices/dect_bases on the account);

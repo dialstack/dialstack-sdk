@@ -12,7 +12,7 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { OnboardingPortal } from '../OnboardingPortal';
 import { DialstackComponentsProvider } from '../../DialstackComponentsProvider';
-import { defaultLocale } from '@dialstack/sdk-js';
+import { defaultLocale, type Locale, type OnboardingCollectionOptions } from '@dialstack/sdk-js';
 import {
   createMockInstance,
   mockAccount,
@@ -22,11 +22,15 @@ import {
 
 const ssa = defaultLocale.accountOnboarding.ssa;
 
-function renderPortal(overrides?: MockInstanceOverrides) {
+function renderPortal(
+  overrides?: MockInstanceOverrides,
+  collectionOptions?: OnboardingCollectionOptions,
+  locale?: Locale
+) {
   const instance = createMockInstance(overrides);
   const result = render(
     <DialstackComponentsProvider dialstack={instance}>
-      <OnboardingPortal />
+      <OnboardingPortal collectionOptions={collectionOptions} locale={locale} />
     </DialstackComponentsProvider>
   );
   return { instance, ...result };
@@ -164,5 +168,87 @@ describe('OnboardingPortal SSA gating', () => {
     });
     await waitFor(() => expect(screen.getByText(ssa.loadError.title)).toBeInTheDocument());
     expect(portalShell()).not.toBeInTheDocument();
+  });
+});
+
+describe('OnboardingPortal step visibility', () => {
+  const steps = defaultLocale.accountOnboarding.steps;
+
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('shows business details and users as separate steps', async () => {
+    renderPortal(accountWith('not_required'));
+    await expectPortal();
+    expect(screen.getAllByText(steps.account).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(steps.users!).length).toBeGreaterThan(0);
+  });
+
+  it('keeps business details when only the users step is excluded', async () => {
+    renderPortal(accountWith('not_required'), { steps: { exclude: ['users'] } });
+    await expectPortal();
+    expect(screen.getAllByText(steps.account).length).toBeGreaterThan(0);
+    expect(screen.queryByText(steps.users!)).not.toBeInTheDocument();
+  });
+
+  it('shows a static all-set screen when every step is excluded', async () => {
+    renderPortal(accountWith('not_required'), {
+      steps: { exclude: ['account', 'users', 'numbers', 'hardware'] },
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByText(defaultLocale.accountOnboarding.complete.allSetTitle)
+      ).toBeInTheDocument()
+    );
+    expect(screen.queryByText(defaultLocale.accountOnboarding.complete.title)).toBeNull();
+    expect(screen.queryByText(steps.account)).not.toBeInTheDocument();
+    // No onBack from the host, so no button that would do nothing.
+    expect(screen.queryByText(defaultLocale.accountOnboarding.nav.exit)).toBeNull();
+  });
+
+  it('keeps the users step for a host that includes account without users', async () => {
+    // NEXT MAJOR: `include: ['account']` then means business details only, and
+    // this expectation flips to the users step being absent.
+    renderPortal(accountWith('not_required'), { steps: { include: ['account', 'numbers'] } });
+    await expectPortal();
+    expect(screen.getAllByText(steps.users!).length).toBeGreaterThan(0);
+    expect(screen.queryByText(steps.hardware)).not.toBeInTheDocument();
+  });
+
+  it('hides the users step for a host that excludes account without users', async () => {
+    // NEXT MAJOR: `exclude: ['account']` then hides business details only, and
+    // this expectation flips to the users step being shown.
+    renderPortal(accountWith('not_required'), { steps: { exclude: ['account'] } });
+    await expectPortal();
+    expect(screen.queryByText(steps.users!)).not.toBeInTheDocument();
+    expect(screen.getAllByText(steps.numbers).length).toBeGreaterThan(0);
+  });
+
+  it('takes the lists literally once a host names users', async () => {
+    renderPortal(accountWith('not_required'), {
+      steps: { include: ['users', 'numbers', 'hardware'], exclude: ['account'] },
+    });
+    await expectPortal();
+    expect(screen.getAllByText(steps.users!).length).toBeGreaterThan(0);
+    expect(screen.queryByText(steps.account)).not.toBeInTheDocument();
+  });
+
+  it('falls back to English for a step a custom locale predates', async () => {
+    const { users: _users, ...olderSteps } = defaultLocale.accountOnboarding.steps;
+    const olderLocale = {
+      ...defaultLocale,
+      accountOnboarding: { ...defaultLocale.accountOnboarding, steps: olderSteps },
+    } as Locale;
+    renderPortal(accountWith('not_required'), undefined, olderLocale);
+    await expectPortal();
+    expect(screen.getAllByText(steps.users!).length).toBeGreaterThan(0);
+  });
+
+  it('still requires the agreement when every step is excluded', async () => {
+    renderPortal(accountWith('unsigned'), {
+      steps: { exclude: ['account', 'users', 'numbers', 'hardware'] },
+    });
+    await expectGate();
   });
 });

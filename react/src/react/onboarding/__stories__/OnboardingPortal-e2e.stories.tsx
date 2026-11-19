@@ -65,16 +65,16 @@ const DATA_TIMEOUT = 5000;
  * skip splash and land on the overview screen — the splash button is no longer
  * present. This helper clicks the matching overview card button instead.
  *
- * `stepIndex`: 0 = Account, 1 = Numbers, 2 = Hardware.
+ * `stepIndex`: 0 = Business Details, 1 = Users, 2 = Numbers, 3 = Hardware.
  */
 async function enterWizardAt(
   _canvas: ReturnType<typeof within>,
   canvasElement: HTMLElement,
-  stepIndex: 0 | 1 | 2
+  stepIndex: 0 | 1 | 2 | 3
 ): Promise<void> {
   await waitFor(
     () => {
-      expect(canvasElement.querySelectorAll('.overview-card').length).toBe(3);
+      expect(canvasElement.querySelectorAll('.overview-card').length).toBe(4);
     },
     { timeout: DATA_TIMEOUT }
   );
@@ -103,14 +103,14 @@ async function clickButton(
 }
 
 /**
- * Navigate through the Account step (Business Details -> Team Members -> Complete -> Done).
- * Returns after the "Done" click triggers transition to the next step.
+ * Navigate through the Business Details step to its complete screen and Done.
+ * The mock account already has users, so Done skips the completed Users step
+ * and lands on Numbers.
  */
 async function completeAccountStep(
   canvas: ReturnType<typeof within>,
   canvasElement: HTMLElement
 ): Promise<void> {
-  // Wait for Business Details to load
   await waitFor(
     () => {
       expect(canvas.getByRole('heading', { name: /Business Details/i })).toBeInTheDocument();
@@ -126,26 +126,10 @@ async function completeAccountStep(
     { timeout: DATA_TIMEOUT }
   );
 
-  // Next -> Team Members
   await clickButton(canvas, canvasElement, /Next →/, { last: true });
   await waitFor(
     () => {
-      expect(canvas.getByRole('heading', { name: /Team Members/i })).toBeInTheDocument();
-    },
-    { timeout: DATA_TIMEOUT }
-  );
-  await waitFor(
-    () => {
-      expect(canvas.getByText('Alice Smith')).toBeInTheDocument();
-    },
-    { timeout: DATA_TIMEOUT }
-  );
-
-  // Next -> Account Complete
-  await clickButton(canvas, canvasElement, /Next →/, { last: true });
-  await waitFor(
-    () => {
-      expect(canvas.getByText('Account Setup Complete')).toBeInTheDocument();
+      expect(canvas.getByText('Business Details Complete')).toBeInTheDocument();
     },
     { timeout: DATA_TIMEOUT }
   );
@@ -338,10 +322,10 @@ export const FullHappyPath: Story = {
         { timeout: DATA_TIMEOUT }
       );
 
-      // Verify sidebar shows "Account Setup" step as active
+      // Verify sidebar shows the "Business Details" step as active
       const sidebarItems = canvasElement.querySelectorAll('.portal-step-item');
       const accountItem = Array.from(sidebarItems).find((el) =>
-        el.textContent?.includes('Account Setup')
+        el.textContent?.includes('Business Details')
       );
       expect(accountItem).not.toBeUndefined();
       expect(accountItem?.classList.contains('active')).toBe(true);
@@ -350,36 +334,16 @@ export const FullHappyPath: Story = {
       expect(canvas.getByText(/Save & Exit to Overview/)).toBeInTheDocument();
     });
 
-    await step('Next -> Team Members', async () => {
+    await step('Next -> Business Details Complete -> Done -> Numbers', async () => {
       await clickButton(canvas, canvasElement, /Next →/, { last: true });
-
       await waitFor(
         () => {
-          expect(canvas.getByRole('heading', { name: /Team Members/i })).toBeInTheDocument();
+          expect(canvas.getByText('Business Details Complete')).toBeInTheDocument();
         },
         { timeout: DATA_TIMEOUT }
       );
 
-      // Verify existing users from mock
-      await waitFor(
-        () => {
-          expect(canvas.getByText('Alice Smith')).toBeInTheDocument();
-          expect(canvas.getByText('Bob Jones')).toBeInTheDocument();
-        },
-        { timeout: DATA_TIMEOUT }
-      );
-    });
-
-    await step('Next -> Account Complete -> Done -> Numbers', async () => {
-      await clickButton(canvas, canvasElement, /Next →/, { last: true });
-
-      await waitFor(
-        () => {
-          expect(canvas.getByText('Account Setup Complete')).toBeInTheDocument();
-        },
-        { timeout: DATA_TIMEOUT }
-      );
-
+      // The mock account already has users, so Done skips the Users step.
       await userEvent.click(canvas.getByRole('button', { name: /^Done$/ }));
 
       // Should auto-navigate to Numbers step
@@ -438,7 +402,7 @@ export const SidebarNavigation: Story = {
       await completeAccountStep(canvas, canvasElement);
     });
 
-    await step('Verify sidebar shows Account Setup as completed', async () => {
+    await step('Verify sidebar shows Business Details and Users as completed', async () => {
       // After account completion we should be on Numbers step
       await waitFor(
         () => {
@@ -447,12 +411,12 @@ export const SidebarNavigation: Story = {
         { timeout: DATA_TIMEOUT }
       );
 
-      // Account Setup sidebar item should have completed class
+      // Business Details and Users sidebar items should have completed class
       const sidebarItems = canvasElement.querySelectorAll('.portal-step-item');
-      const accountItem = Array.from(sidebarItems).find((el) =>
-        el.textContent?.includes('Account Setup')
-      );
-      expect(accountItem?.classList.contains('completed')).toBe(true);
+      for (const label of ['Business Details', 'Users']) {
+        const item = Array.from(sidebarItems).find((el) => el.textContent?.includes(label));
+        expect(item?.classList.contains('completed')).toBe(true);
+      }
 
       // Numbers sidebar item should be active
       const numbersItem = Array.from(sidebarItems).find((el) =>
@@ -461,21 +425,24 @@ export const SidebarNavigation: Story = {
       expect(numbersItem?.classList.contains('active')).toBe(true);
     });
 
-    await step('Click Account Setup sidebar item -> navigates to Account step', async () => {
-      const sidebarItems = canvasElement.querySelectorAll('.portal-step-item');
-      const accountItem = Array.from(sidebarItems).find((el) =>
-        el.textContent?.includes('Account Setup')
-      );
-      expect(accountItem).not.toBeUndefined();
-      await userEvent.click(accountItem!);
+    await step(
+      'Click Business Details sidebar item -> navigates to Business Details step',
+      async () => {
+        const sidebarItems = canvasElement.querySelectorAll('.portal-step-item');
+        const accountItem = Array.from(sidebarItems).find((el) =>
+          el.textContent?.includes('Business Details')
+        );
+        expect(accountItem).not.toBeUndefined();
+        await userEvent.click(accountItem!);
 
-      await waitFor(
-        () => {
-          expect(canvas.getByRole('heading', { name: /Business Details/i })).toBeInTheDocument();
-        },
-        { timeout: DATA_TIMEOUT }
-      );
-    });
+        await waitFor(
+          () => {
+            expect(canvas.getByRole('heading', { name: /Business Details/i })).toBeInTheDocument();
+          },
+          { timeout: DATA_TIMEOUT }
+        );
+      }
+    );
 
     await step('Click Hardware Setup sidebar item -> navigates to Hardware step', async () => {
       const sidebarItems = canvasElement.querySelectorAll('.portal-step-item');
@@ -581,7 +548,7 @@ export const SaveAndExitFlow: Story = {
       await waitFor(
         () => {
           const cards = canvasElement.querySelectorAll('.overview-card');
-          expect(cards.length).toBe(3);
+          expect(cards.length).toBe(4);
         },
         { timeout: DATA_TIMEOUT }
       );
@@ -589,7 +556,7 @@ export const SaveAndExitFlow: Story = {
 
     await step('Click Complete Setup on Account card -> returns to Account wizard', async () => {
       const cardBtns = canvasElement.querySelectorAll('.overview-card-btn');
-      // First card button is for Account Setup
+      // First card button is for Business Details
       await userEvent.click(cardBtns[0]!);
 
       await waitFor(
@@ -747,9 +714,11 @@ export const ReviewCompletedStep: Story = {
     });
 
     await step('Account card shows "Review" button with 100% progress', async () => {
-      // Find the Account Setup card
+      // Find the Business Details card
       const cards = canvasElement.querySelectorAll('.overview-card');
-      const accountCard = Array.from(cards).find((c) => c.textContent?.includes('Account Setup'));
+      const accountCard = Array.from(cards).find((c) =>
+        c.textContent?.includes('Business Details')
+      );
       expect(accountCard).not.toBeUndefined();
 
       // It should show "Complete" status and "Review" button
@@ -764,7 +733,9 @@ export const ReviewCompletedStep: Story = {
 
     await step('Click Review -> form is pre-populated with saved values', async () => {
       const cards = canvasElement.querySelectorAll('.overview-card');
-      const accountCard = Array.from(cards).find((c) => c.textContent?.includes('Account Setup'));
+      const accountCard = Array.from(cards).find((c) =>
+        c.textContent?.includes('Business Details')
+      );
       const reviewBtn = accountCard?.querySelector('.overview-card-btn--review') as HTMLElement;
       await userEvent.click(reviewBtn);
 
@@ -789,10 +760,10 @@ export const ReviewCompletedStep: Story = {
       ) as HTMLInputElement | null;
       expect(emailInput).not.toBeNull();
 
-      // Sidebar should show Account Setup as active
+      // Sidebar should show Business Details as active
       const sidebarItems = canvasElement.querySelectorAll('.portal-step-item');
       const accountItem = Array.from(sidebarItems).find((el) =>
-        el.textContent?.includes('Account Setup')
+        el.textContent?.includes('Business Details')
       );
       expect(accountItem?.classList.contains('active')).toBe(true);
     });
@@ -1594,13 +1565,25 @@ export const ComprehensiveValidation: Story = {
 
     // ---- Account - Team Members Validation ----
 
-    await step('Fix all fields and advance to Team Members', async () => {
+    await step('Fix all fields, then open Team Members', async () => {
       const contactInput = canvasElement.querySelector(
         'input[placeholder="Jane Doe"]'
       ) as HTMLInputElement;
       await userEvent.type(contactInput, 'Jane Doe');
 
       await clickButton(canvas, canvasElement, /Next →/, { last: true });
+      await waitFor(
+        () => {
+          expect(canvas.getByText('Business Details Complete')).toBeInTheDocument();
+        },
+        { timeout: DATA_TIMEOUT }
+      );
+
+      // Users is already complete in the mock, so Done would skip it.
+      const usersItem = Array.from(canvasElement.querySelectorAll('.portal-step-item')).find((el) =>
+        el.textContent?.includes('Users')
+      );
+      await userEvent.click(usersItem!);
 
       await waitFor(
         () => {
@@ -1637,7 +1620,7 @@ export const ComprehensiveValidation: Story = {
       await clickButton(canvas, canvasElement, /Next →/, { last: true });
       await waitFor(
         () => {
-          expect(canvas.getByText('Account Setup Complete')).toBeInTheDocument();
+          expect(canvas.getByText('Users Complete')).toBeInTheDocument();
         },
         { timeout: DATA_TIMEOUT }
       );
@@ -1707,7 +1690,7 @@ export const ReviewAllSteps: Story = {
   play: async ({ canvasElement, step }) => {
     const canvas = within(canvasElement);
 
-    await step('Complete all 3 steps', async () => {
+    await step('Complete all 4 steps', async () => {
       await startAndReachNumbers(canvas, canvasElement);
       await completeNumbersStep(canvas, canvasElement);
       await completeHardwareStep(canvas, canvasElement);
@@ -1735,9 +1718,9 @@ export const ReviewAllSteps: Story = {
       );
     });
 
-    await step('Overview shows all 3 steps as complete with Review buttons', async () => {
+    await step('Overview shows all 4 steps as complete with Review buttons', async () => {
       const cards = canvasElement.querySelectorAll('.overview-card');
-      expect(cards.length).toBe(3);
+      expect(cards.length).toBe(4);
 
       // All cards should have "Complete" and "Review" buttons
       for (const card of Array.from(cards)) {
@@ -1750,7 +1733,9 @@ export const ReviewAllSteps: Story = {
 
     await step('Click Review on Account card -> Business Details pre-populated', async () => {
       const cards = canvasElement.querySelectorAll('.overview-card');
-      const accountCard = Array.from(cards).find((c) => c.textContent?.includes('Account Setup'));
+      const accountCard = Array.from(cards).find((c) =>
+        c.textContent?.includes('Business Details')
+      );
       const reviewBtn = accountCard?.querySelector('.overview-card-btn--review') as HTMLElement;
       await userEvent.click(reviewBtn);
 
@@ -2340,26 +2325,8 @@ export const TeamMemberAddDelete: Story = {
   play: async ({ canvasElement, step }) => {
     const canvas = within(canvasElement);
 
-    await step('Enter Account step from overview and navigate to Team Members', async () => {
-      await enterWizardAt(canvas, canvasElement, 0);
-
-      await waitFor(
-        () => {
-          expect(canvas.getByRole('heading', { name: /Business Details/i })).toBeInTheDocument();
-        },
-        { timeout: DATA_TIMEOUT }
-      );
-
-      // Wait for form to be populated
-      await waitFor(
-        () => {
-          expect(canvasElement.querySelector('input[value="Acme Corp"]')).not.toBeNull();
-        },
-        { timeout: DATA_TIMEOUT }
-      );
-
-      // Next -> Team Members
-      await clickButton(canvas, canvasElement, /Next →/, { last: true });
+    await step('Enter the Users step from overview', async () => {
+      await enterWizardAt(canvas, canvasElement, 1);
       await waitFor(
         () => {
           expect(canvas.getByRole('heading', { name: /Team Members/i })).toBeInTheDocument();
@@ -2496,7 +2463,7 @@ export const SplashSuppressedByLocalStorageFlag: Story = {
       );
       // Splash artifacts must not be in the DOM.
       expect(canvas.queryByRole('button', { name: /Start Onboarding/i })).toBeNull();
-      expect(canvasElement.querySelectorAll('.overview-card').length).toBe(3);
+      expect(canvasElement.querySelectorAll('.overview-card').length).toBe(4);
     });
   },
 };
@@ -2537,7 +2504,9 @@ export const ReviewOnAlreadyCompleteAccount: Story = {
 
     await step('Click Review on Account → wizard, NO Wahoo', async () => {
       const cards = canvasElement.querySelectorAll('.overview-card');
-      const accountCard = Array.from(cards).find((c) => c.textContent?.includes('Account Setup'));
+      const accountCard = Array.from(cards).find((c) =>
+        c.textContent?.includes('Business Details')
+      );
       const reviewBtn = accountCard?.querySelector('.overview-card-btn--review') as HTMLElement;
       expect(reviewBtn).not.toBeNull();
       await userEvent.click(reviewBtn);
@@ -2596,7 +2565,7 @@ export const WahooNeverShownWhenAlreadyComplete: Story = {
         { timeout: DATA_TIMEOUT }
       );
       expect(canvas.queryByText('Wahoo!')).toBeNull();
-      expect(canvasElement.querySelectorAll('.overview-card').length).toBe(3);
+      expect(canvasElement.querySelectorAll('.overview-card').length).toBe(4);
     });
 
     await step('Wait a beat to let any auto-redirect race finish', async () => {
@@ -2651,7 +2620,9 @@ export const NoWahooReshowAfterFinishAndReview: Story = {
 
     await step('Click Review on Account card → wizard, NOT Wahoo', async () => {
       const cards = canvasElement.querySelectorAll('.overview-card');
-      const accountCard = Array.from(cards).find((c) => c.textContent?.includes('Account Setup'));
+      const accountCard = Array.from(cards).find((c) =>
+        c.textContent?.includes('Business Details')
+      );
       const reviewBtn = accountCard?.querySelector('.overview-card-btn--review') as HTMLElement;
       expect(reviewBtn).not.toBeNull();
       await userEvent.click(reviewBtn);
@@ -2667,22 +2638,13 @@ export const NoWahooReshowAfterFinishAndReview: Story = {
     });
 
     await step(
-      'Walk through Account wizard to "Done" — must land on Overview, not Wahoo',
+      'Walk through Business Details wizard to "Done" — must land on Overview, not Wahoo',
       async () => {
-        // Next → Team Members
+        // Next → Business Details Complete
         await clickButton(canvas, canvasElement, /Next →/, { last: true });
         await waitFor(
           () => {
-            expect(canvas.getByRole('heading', { name: /Team Members/i })).toBeInTheDocument();
-          },
-          { timeout: DATA_TIMEOUT }
-        );
-
-        // Next → Account Complete
-        await clickButton(canvas, canvasElement, /Next →/, { last: true });
-        await waitFor(
-          () => {
-            expect(canvas.getByText('Account Setup Complete')).toBeInTheDocument();
+            expect(canvas.getByText('Business Details Complete')).toBeInTheDocument();
           },
           { timeout: DATA_TIMEOUT }
         );

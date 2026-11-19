@@ -26,6 +26,7 @@ export class OnboardingProgressStore {
   private currentStep: AccountOnboardingStep = 'account';
   private completed: Record<StepName, Set<string>> = {
     account: new Set(),
+    users: new Set(),
     numbers: new Set(),
     hardware: new Set(),
   };

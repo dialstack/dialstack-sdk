@@ -1,10 +1,6 @@
 // ── Step names ──────────────────────────────────────────────────────────
-export const ONBOARDING_STEPS = ['account', 'numbers', 'hardware'] as const;
+export const ONBOARDING_STEPS = ['account', 'users', 'numbers', 'hardware'] as const;
 export type StepName = (typeof ONBOARDING_STEPS)[number];
-
-// ── Account substeps ────────────────────────────────────────────────────
-export const ACCOUNT_SUBSTEPS = ['business-details', 'team-members'] as const;
-export type AccountSubStep = (typeof ACCOUNT_SUBSTEPS)[number];
 
 // ── Numbers substeps ────────────────────────────────────────────────────
 export const NUMBERS_SUBSTEPS = [
@@ -42,10 +38,8 @@ export interface SidebarGroup {
 }
 
 export const SIDEBAR_GROUPS: Record<StepName, SidebarGroup[]> = {
-  account: [
-    { sidebarKey: 'business-details', substeps: ['business-details'] },
-    { sidebarKey: 'team-members', substeps: ['team-members'] },
-  ],
+  account: [{ sidebarKey: 'business-details', substeps: ['business-details'] }],
+  users: [{ sidebarKey: 'team-members', substeps: ['team-members'] }],
   numbers: [
     { sidebarKey: 'options', substeps: ['overview'] },
     {
@@ -74,6 +68,7 @@ export const SIDEBAR_GROUPS: Record<StepName, SidebarGroup[]> = {
 /** Flat list of all substeps per step (derived from sidebar groups). */
 export const ORDERED_SUBSTEPS: Record<StepName, string[]> = {
   account: SIDEBAR_GROUPS.account.flatMap((g) => g.substeps),
+  users: SIDEBAR_GROUPS.users.flatMap((g) => g.substeps),
   numbers: SIDEBAR_GROUPS.numbers.flatMap((g) => g.substeps),
   hardware: SIDEBAR_GROUPS.hardware.flatMap((g) => g.substeps),
 };

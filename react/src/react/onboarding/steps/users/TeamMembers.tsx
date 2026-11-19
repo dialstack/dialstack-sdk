@@ -17,7 +17,8 @@ import { ErrorAlert } from '../../components/ErrorAlert';
 import { BillingImpactNotice } from '../../components/BillingImpactNotice';
 
 export interface TeamMembersProps {
-  onBack: () => void;
+  /** Absent when users is the first visible step. */
+  onBack?: () => void;
   onDone: () => void;
 }
 
@@ -357,7 +358,7 @@ export const TeamMembers: React.FC<TeamMembersProps> = ({ onBack, onDone }) => {
 
       <StepNavigation
         onBack={onBack}
-        backLabel={`\u2190 ${nav.back}`}
+        backLabel={onBack ? `\u2190 ${nav.back}` : undefined}
         onNext={handleDone}
         nextLabel={`${nav.next} \u2192`}
         isNextDisabled={!hasEnoughUsers}
