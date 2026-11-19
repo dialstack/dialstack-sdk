@@ -34,6 +34,17 @@ describe('deviceSettingsCatalog', () => {
     expect(options('abstractions.display.date_format')).toEqual(['M/D/Y', 'D/M/Y', 'Y-M-D']);
   });
 
+  it('renders the phone directory as a boolean', () => {
+    expect(
+      deviceSettingsCatalog.find((d) => d.path === 'abstractions.features.directory_enabled')
+    ).toEqual({
+      path: 'abstractions.features.directory_enabled',
+      kind: 'boolean',
+      labelKey: 'directory',
+      confirmOn: ['true'],
+    });
+  });
+
   it('has unique paths', () => {
     const paths = deviceSettingsCatalog.map((d) => d.path);
     expect(new Set(paths).size).toBe(paths.length);

@@ -39,6 +39,12 @@ export const deviceSettingsCatalog: readonly DeviceSettingDefinition[] = [
     confirmOn: ['tls'],
   },
   {
+    path: 'abstractions.features.directory_enabled',
+    kind: 'boolean',
+    labelKey: 'directory',
+    confirmOn: ['true'],
+  },
+  {
     path: 'abstractions.features.call_waiting_enabled',
     kind: 'boolean',
     labelKey: 'callWaiting',

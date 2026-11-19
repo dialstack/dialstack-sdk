@@ -246,6 +246,13 @@ export interface FeatureSettings {
    * honoured on Snom and Yealink desk phones.
    */
   ring_group_silent_ring_enabled?: boolean;
+  /**
+   * Show the account's phone directory on the phone. Disabled by default,
+   * since it needs firmware that handles the phonebook. Set per platform or
+   * account, or on a phone through its overrides. Honoured on Snom, Yealink
+   * and Poly phones.
+   */
+  directory_enabled?: boolean;
 }
 
 /**
