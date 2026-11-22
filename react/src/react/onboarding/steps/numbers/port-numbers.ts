@@ -1,3 +1,4 @@
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import {
   describeNonPortable,
   type NonPortableMessages,
@@ -116,6 +117,46 @@ export function hasAddress(s: {
     s.portSubscriberState,
     s.portSubscriberZip,
   ].some((v) => v.trim() !== '');
+}
+
+/**
+ * The numbers this order ports: the current carrier's group when the numbers
+ * span carriers, which are ported one order per carrier, or else every
+ * portable number.
+ */
+export function orderNumbers(s: {
+  portCarrierGroups: Map<string, string[]>;
+  portCurrentCarrier: string | null;
+  portEligibilityResult: { portable_numbers: { phone_number: string }[] } | null;
+}): string[] {
+  if (s.portCarrierGroups.size > 1 && s.portCurrentCarrier) {
+    return s.portCarrierGroups.get(s.portCurrentCarrier) ?? [];
+  }
+  return s.portEligibilityResult?.portable_numbers.map((n) => n.phone_number) ?? [];
+}
+
+/**
+ * Whether a partial port needs a new billing number: only when the billing
+ * number is itself one of the numbers on the order, so the account left behind
+ * needs another one.
+ */
+export function needsNewBtn(s: {
+  portSubscriberPartialPort: boolean | null;
+  portSubscriberBtn: string;
+  portCarrierGroups: Map<string, string[]>;
+  portCurrentCarrier: string | null;
+  portEligibilityResult: { portable_numbers: { phone_number: string }[] } | null;
+}): boolean {
+  if (!s.portSubscriberPartialPort) return false;
+  const btn = parsePhoneNumberFromString(s.portSubscriberBtn, 'US');
+  return !!btn?.isValid() && orderNumbers(s).includes(btn.format('E.164'));
+}
+
+/** The typed new billing number in E.164, or undefined when blank or invalid. */
+export function newBtnE164(s: { portSubscriberNewBtn: string }): string | undefined {
+  const parsed = parsePhoneNumberFromString(s.portSubscriberNewBtn, 'US');
+  // The API takes a new billing number only in a country it ports.
+  return parsed?.isValid() && supportedCountry(parsed.country) ? parsed.format('E.164') : undefined;
 }
 
 /** The `details` shapes carried by `phone_numbers_already_claimed` and `mixed_carrier`. */

@@ -27,6 +27,7 @@ import {
   portListCountry,
   earliestPortDate,
   localDateKey,
+  needsNewBtn,
   REASON_KEY,
 } from '../port-numbers';
 import { formatPhone } from '../helpers';
@@ -568,6 +569,39 @@ export const PortSubscriberContent = ({
         </div>
       )}
       <div className="num-port-subscriber-form">
+        {/* Per carrier: each one's account is full or partial on its own. A
+            toll-free number moves by RespOrg, with no carrier account to split. */}
+        {!tollFree && (
+          <fieldset className="form-group num-port-type">
+            <legend className="form-label">
+              {t('accountOnboarding.numbers.port.portTypeLabel')}
+            </legend>
+            {(['full', 'partial'] as const).map((kind) => (
+              <label key={kind} className="num-port-type-option">
+                <input
+                  type="radio"
+                  name="num-port-type"
+                  checked={state.portSubscriberPartialPort === (kind === 'partial')}
+                  onChange={() =>
+                    dispatch({
+                      type: 'port_set_subscriber_partial_port',
+                      value: kind === 'partial',
+                    })
+                  }
+                />
+                <span>
+                  <span className="num-port-type-label">
+                    {t(`accountOnboarding.numbers.port.${kind}PortLabel`)}
+                  </span>
+                  <span className="form-help">
+                    {t(`accountOnboarding.numbers.port.${kind}PortHint`)}
+                  </span>
+                </span>
+              </label>
+            ))}
+            {e.portType && <div className="form-error">{e.portType}</div>}
+          </fieldset>
+        )}
         {!tollFree && (
           <div className="form-group">
             <label className="form-label">{t('accountOnboarding.numbers.port.btnLabel')}</label>
@@ -582,6 +616,30 @@ export const PortSubscriberContent = ({
               }}
             />
             {e.btn && <div className="form-error">{e.btn}</div>}
+          </div>
+        )}
+        {!tollFree && needsNewBtn(state) && (
+          <div className="form-group">
+            <label className="form-label">{t('accountOnboarding.numbers.port.newBtnLabel')}</label>
+            <input
+              className={`form-input${e.newBtn ? ' error' : ''}`}
+              type="tel"
+              value={state.portSubscriberNewBtn}
+              placeholder={t('accountOnboarding.numbers.port.btnPlaceholder')}
+              onChange={(e2) => {
+                const fmt = new AsYouType('US');
+                dispatch({
+                  type: 'port_set_subscriber_field',
+                  field: 'newBtn',
+                  value: fmt.input(e2.target.value),
+                });
+              }}
+            />
+            {e.newBtn ? (
+              <div className="form-error">{e.newBtn}</div>
+            ) : (
+              <div className="form-help">{t('accountOnboarding.numbers.port.newBtnHint')}</div>
+            )}
           </div>
         )}
         {textFields.map(({ field, label, placeholder, val }) => (

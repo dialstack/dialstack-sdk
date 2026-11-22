@@ -280,6 +280,11 @@ function portRows(): HTMLInputElement[] {
  * Put a list into the step the way a person would: paste it into the first row
  * and let it fan out.
  */
+/** Answers the subscriber form's full-or-partial question with a full port. */
+function chooseFullPort() {
+  fireEvent.click(screen.getByRole('radio', { name: /Full port/i }));
+}
+
 function enterPortNumbers(text: string) {
   const [first] = portRows();
   if (!first) throw new Error('port numbers rows not rendered');
@@ -303,7 +308,9 @@ function fillByPlaceholder(placeholder: string, value: string) {
 /** Navigate through the full port flow to a target sub-step. */
 async function navigatePortFlowTo(
   instance: RenderOnboardingResult['instance'],
-  target: 'eligibility' | 'subscriber' | 'foc-date' | 'documents' | 'review' | 'submitted'
+  target: 'eligibility' | 'subscriber' | 'foc-date' | 'documents' | 'review' | 'submitted',
+  /** Runs once the subscriber form is filled, before advancing past it. */
+  editSubscriber?: () => void
 ) {
   await navigateToPort();
 
@@ -324,6 +331,7 @@ async function navigatePortFlowTo(
   });
 
   // Fill subscriber form
+  chooseFullPort();
   fillByPlaceholder('(555) 123-4567', '(212) 555-1001');
   fillByPlaceholder('Acme Corp', 'Acme Corp');
   fillByPlaceholder('John Doe', 'John Doe');
@@ -343,6 +351,7 @@ async function navigatePortFlowTo(
     Array.from(s.options).some((o) => o.value === 'US-NY')
   );
   if (stateSelect) fireEvent.change(stateSelect, { target: { value: 'US-NY' } });
+  editSubscriber?.();
 
   if (target === 'subscriber') return;
 
@@ -1414,6 +1423,7 @@ describe('NumbersStep', () => {
       });
 
       // Fill subscriber
+      chooseFullPort();
       fillByPlaceholder('(555) 123-4567', '(212) 555-1001');
       fillByPlaceholder('Acme Corp', 'Acme Corp');
       fillByPlaceholder('John Doe', 'John Doe');
@@ -1515,6 +1525,107 @@ describe('NumbersStep', () => {
       expect(portOrders.submit).toHaveBeenCalledWith('po_01abc');
 
       expect(document.body.textContent).toContain('Port Request Submitted');
+    });
+
+    /**
+     * Picks a partial port and types a new billing number, whose field shows
+     * only when the BTN is ported.
+     */
+    const partialWithNewBtn = (newBtn: string) => () => {
+      fireEvent.click(screen.getByRole('radio', { name: /Partial port/i }));
+      const btnInputs = screen.getAllByPlaceholderText('(555) 123-4567');
+      fireEvent.change(btnInputs[btnInputs.length - 1]!, { target: { value: newBtn } });
+    };
+
+    it('sends a partial port with its new billing number', async () => {
+      const result = await renderNumbers();
+      await navigatePortFlowTo(result.instance, 'submitted', partialWithNewBtn('(212) 555-0199'));
+
+      const portOrders = (result.instance as unknown as Record<string, Record<string, jest.Mock>>)
+        .portOrders;
+      expect(portOrders.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subscriber: expect.objectContaining({ partial_port: true, new_btn: '+12125550199' }),
+        })
+      );
+    });
+
+    it('refuses a toll-free new billing number', async () => {
+      const result = await renderNumbers();
+      await navigatePortFlowTo(result.instance, 'subscriber', partialWithNewBtn('(800) 555-0100'));
+
+      const nextButtons = screen.getAllByRole('button', { name: /Next/i });
+      fireEvent.click(nextButtons[nextButtons.length - 1]!);
+      await waitFor(() => {
+        expect(document.body.textContent).toContain('Use a local number, not a toll-free one.');
+      });
+    });
+
+    it('refuses a new billing number equal to the billing number', async () => {
+      const result = await renderNumbers();
+      await navigatePortFlowTo(result.instance, 'subscriber', partialWithNewBtn('(212) 555-1001'));
+
+      const nextButtons = screen.getAllByRole('button', { name: /Next/i });
+      fireEvent.click(nextButtons[nextButtons.length - 1]!);
+      await waitFor(() => {
+        expect(document.body.textContent).toContain('Use a number other than the billing number.');
+      });
+    });
+
+    it('refuses a new billing number that is being ported', async () => {
+      // Two numbers on the order: the BTN and another one being ported.
+      const result = await renderNumbers(
+        defaultPortOrdersNS({
+          checkEligibility: jest.fn().mockResolvedValue({
+            portable_numbers: ['+12125551001', '+12125551002'].map((phone_number) => ({
+              phone_number,
+              losing_carrier_name: 'OldCo',
+              is_wireless: false,
+              account_number_required: false,
+            })),
+            non_portable_numbers: [],
+          }),
+        })
+      );
+      await navigatePortFlowTo(result.instance, 'subscriber', partialWithNewBtn('(212) 555-1002'));
+
+      const nextButtons = screen.getAllByRole('button', { name: /Next/i });
+      fireEvent.click(nextButtons[nextButtons.length - 1]!);
+      await waitFor(() => {
+        expect(document.body.textContent).toContain(
+          'Use a number that stays with your current carrier, not one you are moving.'
+        );
+      });
+    });
+
+    it('refuses the subscriber form until full or partial is chosen', async () => {
+      await renderNumbers();
+      await navigateToPort();
+      enterPortNumbers('(212) 555-1001');
+      fireEvent.click(screen.getByRole('button', { name: /Check Eligibility/i }));
+      await waitFor(() => expect(document.body.textContent).toContain('Portable'));
+      fireEvent.click(screen.getByRole('button', { name: /Continue with Portable/i }));
+      await waitFor(() => expect(document.body.textContent).toContain('Subscriber Information'));
+
+      const nextButtons = screen.getAllByRole('button', { name: /Next/i });
+      fireEvent.click(nextButtons[nextButtons.length - 1]!);
+      await waitFor(() => {
+        expect(document.body.textContent).toContain('Choose a full or partial port.');
+      });
+      fireEvent.click(screen.getByRole('radio', { name: /Full port/i }));
+      expect(document.body.textContent).not.toContain('Choose a full or partial port.');
+    });
+
+    it('asks for a new billing number only when the billing number is ported', async () => {
+      const result = await renderNumbers();
+      await navigatePortFlowTo(result.instance, 'subscriber', () => {
+        fireEvent.click(screen.getByRole('radio', { name: /Partial port/i }));
+        expect(screen.getByText('New Billing Number (optional)')).toBeTruthy();
+        fireEvent.change(screen.getAllByPlaceholderText('(555) 123-4567')[0]!, {
+          target: { value: '(212) 555-0100' },
+        });
+        expect(screen.queryByText('New Billing Number (optional)')).toBeNull();
+      });
     });
 
     it('shows review screen with summary', async () => {
@@ -2122,6 +2233,7 @@ describe('NumbersStep', () => {
 
     /** Fill the subscriber form fields (same pattern as navigatePortFlowTo). */
     function fillSubscriberForm() {
+      chooseFullPort();
       fillByPlaceholder('(555) 123-4567', '(212) 555-1001');
       fillByPlaceholder('Acme Corp', 'Acme Corp');
       fillByPlaceholder('John Doe', 'John Doe');

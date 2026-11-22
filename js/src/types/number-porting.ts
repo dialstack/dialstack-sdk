@@ -37,6 +37,18 @@ export interface PortOrderSubscriber {
    * it for every Canadian port. As written on the bill, up to 60 characters.
    */
   losing_reseller_name?: string | null;
+  /**
+   * Other numbers on the same account stay with the current provider. The
+   * current provider rejects a port that leaves numbers behind unless it is
+   * marked partial.
+   */
+  partial_port?: boolean;
+  /**
+   * When the billing number is one of the numbers being ported, the number the
+   * current provider bills the remaining account under (E.164). Must stay with
+   * the current provider. Requires `partial_port`.
+   */
+  new_btn?: string | null;
   address: PortOrderAddress;
 }
 

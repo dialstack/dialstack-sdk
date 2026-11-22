@@ -56,6 +56,9 @@ export interface NumState {
   portSubscriberState: string;
   portSubscriberZip: string;
   portSubscriberLosingReseller: string;
+  /** Full (false) or partial (true) port; null until chosen. */
+  portSubscriberPartialPort: boolean | null;
+  portSubscriberNewBtn: string;
   portSubscriberErrors: Record<string, string>;
   portFocDate: string;
   portFocTime: string;
@@ -117,6 +120,7 @@ export type NumAction =
   | { type: 'port_check_eligibility_error'; error: string }
   | { type: 'port_set_subscriber_btn'; value: string }
   | { type: 'port_set_subscriber_field'; field: string; value: string }
+  | { type: 'port_set_subscriber_partial_port'; value: boolean }
   | { type: 'port_set_subscriber_errors'; errors: Record<string, string> }
   | { type: 'port_set_foc_date'; date: string }
   | { type: 'port_set_foc_time'; time: string }
@@ -226,6 +230,8 @@ export const INITIAL_STATE: NumState = {
   portSubscriberState: '',
   portSubscriberZip: '',
   portSubscriberLosingReseller: '',
+  portSubscriberPartialPort: null,
+  portSubscriberNewBtn: '',
   portSubscriberErrors: {},
   portFocDate: makeFocDate(),
   portFocTime: '',
@@ -399,9 +405,14 @@ export function numReducer(state: NumState, action: NumAction): NumState {
         state: 'portSubscriberState',
         zip: 'portSubscriberZip',
         losingReseller: 'portSubscriberLosingReseller',
+        newBtn: 'portSubscriberNewBtn',
       };
       const key = fieldMap[action.field];
       return key ? { ...state, [key]: action.value } : state;
+    }
+    case 'port_set_subscriber_partial_port': {
+      const { portType: _cleared, ...rest } = state.portSubscriberErrors;
+      return { ...state, portSubscriberPartialPort: action.value, portSubscriberErrors: rest };
     }
     case 'port_set_subscriber_errors':
       return { ...state, portSubscriberErrors: action.errors };
@@ -430,7 +441,9 @@ export function numReducer(state: NumState, action: NumAction): NumState {
       return {
         ...state,
         portCurrentCarrier: action.carrier,
-        // Reset subscriber form fields for new carrier group
+        // Reset subscriber form fields for new carrier group, port type
+        // included: each carrier's account is full or partial on its own.
+        portSubscriberPartialPort: null,
         portSubscriberBtn: '',
         portSubscriberBusinessName: '',
         portSubscriberApproverName: '',
@@ -443,6 +456,7 @@ export function numReducer(state: NumState, action: NumAction): NumState {
         portSubscriberState: '',
         portSubscriberZip: '',
         portSubscriberLosingReseller: '',
+        portSubscriberNewBtn: '',
         portSubscriberErrors: {},
         portFocDate: makeFocDate(),
         portFocTime: '',
@@ -490,6 +504,8 @@ export function numReducer(state: NumState, action: NumAction): NumState {
         portSubscriberState: '',
         portSubscriberZip: '',
         portSubscriberLosingReseller: '',
+        portSubscriberPartialPort: null,
+        portSubscriberNewBtn: '',
         portSubscriberErrors: {},
         portFocDate: makeFocDate(),
         portFocTime: '',

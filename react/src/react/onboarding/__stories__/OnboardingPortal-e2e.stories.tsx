@@ -1062,6 +1062,7 @@ export const FullPortFlow: Story = {
 
     await step('Fill subscriber information', async () => {
       // BTN field
+      await userEvent.click(canvas.getByRole('radio', { name: /Full port/ }));
       const btnInput = canvasElement.querySelector(
         '.num-port-subscriber-form input[type="tel"]'
       ) as HTMLInputElement;
@@ -2088,6 +2089,7 @@ export const MultiCarrierPort: Story = {
       expect(banner!.textContent).toContain('AT&T Mobility');
 
       // Fill subscriber form
+      await userEvent.click(canvas.getByRole('radio', { name: /Full port/ }));
       const btnInput = canvasElement.querySelector(
         '.num-port-subscriber-form input[type="tel"]'
       ) as HTMLInputElement;
@@ -2218,6 +2220,7 @@ export const MultiCarrierPort: Story = {
       expect(banner!.textContent).toContain('Verizon Business');
 
       // Fill subscriber
+      await userEvent.click(canvas.getByRole('radio', { name: /Full port/ }));
       const btnInput = canvasElement.querySelector(
         '.num-port-subscriber-form input[type="tel"]'
       ) as HTMLInputElement;

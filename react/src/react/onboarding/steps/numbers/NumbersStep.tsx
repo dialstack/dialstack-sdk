@@ -20,6 +20,7 @@ import {
   type DialPlan,
   defaultLocale,
   isApiError,
+  phoneNumberListType,
   readyPhoneNumbers,
   parseRegionCode,
 } from '@dialstack/sdk-js/pure';
@@ -39,6 +40,9 @@ import {
   mapNonPortableToIssues,
   nonPortableMessages,
   hasAddress,
+  newBtnE164,
+  needsNewBtn,
+  orderNumbers,
   PORT_LIST_OPTIONS,
   portListType,
   portListCountry,
@@ -359,6 +363,9 @@ export const NumbersStep: React.FC = () => {
       // once the customer has started filling it in.
       const tollFree = portListType(s.portPhoneValues, s.portNumberIssues) === 'toll_free';
       if (!tollFree) {
+        // Asked outright: a default would send a full port nobody chose.
+        if (s.portSubscriberPartialPort === null)
+          errors.portType = t('accountOnboarding.numbers.validation.portTypeRequired');
         if (!s.portSubscriberBtn.trim())
           errors.btn = t('accountOnboarding.numbers.validation.btnRequired');
         else {
@@ -402,6 +409,19 @@ export const NumbersStep: React.FC = () => {
         errors.losingReseller = t('accountOnboarding.numbers.validation.losingResellerRequired');
       else if (s.portSubscriberLosingReseller.trim().length > 60)
         errors.losingReseller = t('accountOnboarding.numbers.validation.losingResellerTooLong');
+      // The new billing number stays with the current carrier, so it can be
+      // neither the BTN nor a number on this order.
+      if (!tollFree && needsNewBtn(s) && s.portSubscriberNewBtn.trim()) {
+        const newBtn = newBtnE164(s);
+        const btn = parsePhoneNumberFromString(s.portSubscriberBtn, 'US');
+        if (!newBtn) errors.newBtn = t('accountOnboarding.numbers.validation.btnInvalid');
+        else if (phoneNumberListType([newBtn]) === 'toll_free')
+          errors.newBtn = t('accountOnboarding.numbers.validation.newBtnTollFree');
+        else if (btn?.isValid() && btn.format('E.164') === newBtn)
+          errors.newBtn = t('accountOnboarding.numbers.validation.newBtnSameAsBtn');
+        else if (orderNumbers(s).includes(newBtn))
+          errors.newBtn = t('accountOnboarding.numbers.validation.newBtnPorted');
+      }
       if (Object.keys(errors).length > 0) {
         dispatch({ type: 'port_set_subscriber_errors', errors });
         return false;
@@ -469,12 +489,8 @@ export const NumbersStep: React.FC = () => {
       if (!s.portEligibilityResult) return;
       dispatch({ type: 'port_submit_start' });
       try {
-        // Determine which numbers to submit: current carrier group or all portable
         const isMultiCarrier = s.portCarrierGroups.size > 1;
-        const portableNumbers =
-          isMultiCarrier && s.portCurrentCarrier
-            ? (s.portCarrierGroups.get(s.portCurrentCarrier) ?? [])
-            : s.portEligibilityResult.portable_numbers.map((n) => n.phone_number);
+        const portableNumbers = orderNumbers(s);
 
         const btnParsed = parsePhoneNumberFromString(s.portSubscriberBtn, 'US');
         const tollFree = portListType(s.portPhoneValues, s.portNumberIssues) === 'toll_free';
@@ -510,6 +526,10 @@ export const NumbersStep: React.FC = () => {
                 account_number: s.portSubscriberAccountNumber.trim() || undefined,
                 pin: s.portSubscriberPin.trim() || undefined,
                 losing_reseller_name: s.portSubscriberLosingReseller.trim() || undefined,
+                partial_port: s.portSubscriberPartialPort === true || undefined,
+                // Only while its field shows: a hidden field keeps what was
+                // typed, and the API refuses a new billing number on a full port.
+                new_btn: needsNewBtn(s) ? newBtnE164(s) : undefined,
                 address,
               },
               requested_foc_date: s.portFocDate,
