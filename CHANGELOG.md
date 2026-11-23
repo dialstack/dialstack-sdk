@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.12.0](https://github.com/dialstack/dialstack-sdk/compare/v3.11.0...v3.12.0) (2026-11-23)
+
+### Features
+
+- **Onboarding** splits business details and users into two steps:
+  `AccountOnboardingStep` gains `users`, and every step can be hidden with
+  `steps.include` / `steps.exclude`. Existing options keep their meaning: when
+  neither list names `users`, it follows `account`. With every step hidden, the
+  portal shows an all-set screen. The new locale keys (`steps.users`,
+  `overview.usersDesc`, `complete.allSetTitle`) are optional with an English
+  fallback, so existing custom locales still compile.
+- **Onboarding** overview shows one card column per visible step (two by two
+  when narrow), and the welcome screen no longer lists the steps. Its three
+  step-chip locale strings are deprecated.
+- **Onboarding** supports Canadian accounts: the business-details step uses
+  provinces, postal codes, address search and time zones for the account's
+  country. `Account.country` (`AccountCountry`: `US` or `CA`) is set at
+  creation and cannot change; **server:** `accounts.create()` accepts
+  `country`. `AccountConfig.region` is deprecated and is now a read-only copy
+  of `country`.
+- **Onboarding** porting supports partial ports: each current carrier's order
+  asks for a full or partial port, and for a new billing number when the
+  billing number itself is ported (local, US or Canadian). `PortOrderSubscriber`
+  gains `partial_port` and `new_btn`.
+- `FeatureSettings.directory_enabled` shows the account's phone directory on
+  desk phones. The device settings catalog lists it and asks for confirmation
+  before enabling it.
+- **server:** list filters by audio clip: `users.list()` takes
+  `voicemail_greeting_clip`, `dialPlans.list()` takes `audio_clip`, and
+  `queues.list()` takes `hold_music_clip`, `entry_prompt_clip` and
+  `periodic_prompt_clip`.
+
 ## [3.11.0](https://github.com/dialstack/dialstack-sdk/compare/v3.10.0...v3.11.0) (2026-11-16)
 
 ### Features
