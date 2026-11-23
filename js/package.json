@@ -74,7 +74,7 @@
   },
   "dependencies": {
     "country-region-data": "^4.1.0",
-    "libphonenumber-js": "^1.13.16"
+    "libphonenumber-js": "^1.13.17"
   },
   "devDependencies": {
     "rollup-plugin-dts": "^6.5.1"
