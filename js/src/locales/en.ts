@@ -197,7 +197,7 @@ export const en = {
     title: 'Voicemails',
     loading: 'Loading voicemails...',
     empty: 'No voicemails',
-    noUserId: 'Please set a user ID to load voicemails',
+    noUserId: 'Please set a mailbox to load voicemails',
     transcription: 'Transcription',
     summary: 'Summary',
     sentiment: 'Sentiment',

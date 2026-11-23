@@ -57,7 +57,11 @@ export interface PhoneNumberOrderingProps {
   classes?: PhoneNumberOrderingClasses;
 
   /**
-   * Which search modes to show. Defaults to ['area_code', 'zip'].
+   * What a search may name: the local field reads only the local types listed
+   * (`region` is a state or province), and Toll-Free shows only when listed and
+   * toll-free numbers are enabled. A list starting with `toll_free` opens on
+   * toll-free. An empty list is ignored.
+   * @default ['area_code', 'zip', 'region', 'toll_free']
    */
   searchTypes?: SearchType[];
 
@@ -67,12 +71,15 @@ export interface PhoneNumberOrderingProps {
   onLoaderStart?: (event: LoaderStart) => void;
 
   /**
-   * Callback when there's an error loading data
+   * Callback when there's an error loading data. A failed search fires this,
+   * with the API's error message for your logs, and never `onOrderError`.
    */
   onLoadError?: (event: LoadError) => void;
 
   /**
-   * Callback when an order is successfully placed
+   * Callback when an order completes, with its ID and the order. A `partial`
+   * order lands here too; check `failed_numbers`. A failed order goes to
+   * `onOrderError` instead.
    */
   onOrderComplete?: (event: { orderId: string; order: NumberOrder }) => void;
 

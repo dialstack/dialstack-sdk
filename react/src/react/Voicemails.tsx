@@ -23,7 +23,9 @@ import {
 export interface VoicemailsProps {
   /**
    * The mailbox to list: a user id or a shared voicemail box id, or `null` for
-   * every mailbox in the account. Nothing is read until this or `userId` is set.
+   * every mailbox in the account. A user's mailbox holds only that user's own
+   * voicemail, not the shared boxes. Nothing is read until this or `userId` is
+   * set.
    */
   mailbox?: string | null;
 
@@ -96,14 +98,10 @@ export interface VoicemailsProps {
    */
   classes?: VoicemailsClasses;
 
-  /**
-   * Display options for controlling field visibility
-   */
+  /** Show or hide parts of the UI, or frame the list as a card. */
   displayOptions?: VoicemailDisplayOptions;
 
-  /**
-   * Behavior options for controlling component behavior
-   */
+  /** Playback, read-state and delete-confirmation behavior. */
   behaviorOptions?: VoicemailBehaviorOptions;
 
   /**
@@ -146,18 +144,22 @@ export interface VoicemailsProps {
   onVoicemailDelete?: (event: { voicemailId: string }) => void;
 
   /**
-   * Callback when call back button is clicked
+   * Called after the Call back button has placed the call. The component places
+   * it itself, from the mailbox's user, so don't start another call here.
    */
   onCallBack?: (event: { phoneNumber: string }) => void;
 
   /**
-   * Custom delete confirmation handler. Return true to proceed with deletion.
+   * Called before a voicemail is deleted, for your own confirmation dialog.
+   * Resolve `true` to delete or `false` to cancel; set `confirmBeforeDelete:
+   * false` so the built-in dialog doesn't show too.
    */
   onDeleteRequest?: (voicemailId: string) => Promise<boolean>;
 }
 
 /**
- * Voicemails component displays a list of voicemails for a specific user
+ * Voicemails component: the voicemail of one user, one shared voicemail box, or
+ * every mailbox in the account.
  *
  * Must be used within a DialstackComponentsProvider.
  *
@@ -165,10 +167,9 @@ export interface VoicemailsProps {
  * ```tsx
  * <DialstackComponentsProvider dialstack={dialstack}>
  *   <Voicemails
- *     userId="user-uuid-123"
+ *     mailbox={userId}
  *     onLoadError={(e) => console.error(e.error)}
  *     onVoicemailSelect={(e) => console.log('Selected:', e.voicemailId)}
- *     onCallBack={(e) => initiateCall(e.phoneNumber)}
  *   />
  * </DialstackComponentsProvider>
  * ```
@@ -212,9 +213,12 @@ export const Voicemails: React.FC<VoicemailsProps> = ({
   React.useEffect(() => {
     if (componentInstance) componentInstance.setPollInterval(pollInterval ?? null);
   }, [componentInstance, pollInterval]);
-  const firstRefreshKey = React.useRef(refreshKey);
+  // Compared with the last key seen, not the first, so 0 → 1 → 0 refreshes twice.
+  const lastRefreshKey = React.useRef(refreshKey);
   React.useEffect(() => {
-    if (componentInstance && refreshKey !== firstRefreshKey.current) componentInstance.refresh();
+    if (refreshKey === lastRefreshKey.current) return;
+    lastRefreshKey.current = refreshKey;
+    componentInstance?.refresh();
   }, [componentInstance, refreshKey]);
 
   // Sync configuration props

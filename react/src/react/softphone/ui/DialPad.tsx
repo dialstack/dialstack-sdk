@@ -21,6 +21,8 @@ export interface DialPadProps {
   /**
    * Focus the destination field on mount so the user can type immediately (e.g.
    * when the dial pad opens in a drawer). Off by default to avoid stealing focus.
+   *
+   * @default false
    */
   autoFocusDestination?: boolean;
 }

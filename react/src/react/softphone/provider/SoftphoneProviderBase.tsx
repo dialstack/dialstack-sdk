@@ -52,6 +52,7 @@ import type { CountryCode } from 'libphonenumber-js';
 
 /** Context fields both platforms expose. Platforms add their own via `extra`. */
 export interface SoftphoneContextBase {
+  /** Connection lifecycle state. */
   connection: SoftphoneConnectionState;
   /**
    * The live WebRTC phone, or null before the first one is constructed. For the
@@ -59,14 +60,21 @@ export interface SoftphoneContextBase {
    * must work whether or not a call is up. Per-call actions belong on `actions`.
    */
   webrtcPhone: DialStackPhone | null;
+  /** Every live call (active, held, and ringing inbound). */
   calls: Call[];
+  /** The call the user is talking to, or null. */
   activeCall: Call | null;
+  /** Ringing inbound calls not yet answered. */
   incomingCalls: Call[];
   /** True while an unanswered inbound call should be audibly ringing. */
   incomingRinging: boolean;
+  /** Answered calls currently on hold. */
   heldCalls: Call[];
+  /** Answer a specific ringing call, holding the active call first. */
   answerCall: (call: Call) => void;
+  /** Make an already-answered held call the active one. */
   switchToCall: (call: Call) => void;
+  /** Action callbacks for the foreground call (see `useCallActions`). */
   actions: UseCallActions;
   /**
    * Internal built-in-UI machinery: the mutually-exclusive keypad/transfer
@@ -90,6 +98,10 @@ export interface SoftphoneContextBase {
   startAttendedTransfer: (destination: string) => Promise<void>;
   completeAttendedTransfer: () => void;
   cancelAttendedTransfer: () => void;
+  /**
+   * Place an outbound call. Cleans the input (trims and normalizes), reports
+   * invalid or empty input via `onError`, and resolves when the attempt settles.
+   */
   placeCall: (destination: string) => Promise<void>;
   /** The calls bridged into a local three-way conference (empty when not merged). */
   mergedCalls: Call[];
@@ -106,9 +118,12 @@ export interface SoftphoneContextBase {
   holdConference: (held: boolean) => void;
   emergency: UseEmergencyBinding;
   emergencyManagedByHost: boolean;
+  /** The last error surfaced to the user, or null. */
   lastError: { code: string; message: string } | null;
+  /** Dismiss the current error. */
   clearError: () => void;
   t: (key: keyof Locale['softphone']) => string;
+  /** Pretty-print a number for display. */
   displayNumber: (value: string) => string;
   /** Resolved theme palette — computed on both platforms so mobile themes like web. */
   palette: SoftphonePalette;

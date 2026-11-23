@@ -5,8 +5,15 @@
 import type { BaseComponentClasses } from './appearance';
 
 /**
- * `account` is business details; `users` adds the account's users. Every step
- * can be hidden with {@link OnboardingCollectionOptions}.
+ * A step of the onboarding portal:
+ *
+ * - `account`: business details
+ * - `users`: users and their extensions
+ * - `numbers`: phone number ordering, porting and configuration
+ * - `hardware`: device assignment
+ * - `final_complete`: the completion screen, always shown
+ *
+ * Every other step can be hidden with {@link OnboardingCollectionOptions}.
  */
 export type AccountOnboardingStep = 'account' | 'users' | 'numbers' | 'hardware' | 'final_complete';
 

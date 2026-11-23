@@ -24,7 +24,7 @@ export interface CallHistoryProps {
   phoneNumber: string;
 
   /**
-   * Maximum number of calls to display
+   * Maximum number of calls to display, clamped to 1–20
    * @default 5
    */
   limit?: number;

@@ -44,7 +44,8 @@ export interface VoicemailDisplayOptions {
   showTranscription?: boolean;
 
   /**
-   * Show callback button
+   * Show the Call back button. It appears only when the mailbox is a user's,
+   * since the call is placed from that user.
    * @default true
    */
   showCallbackButton?: boolean;
@@ -100,8 +101,10 @@ export interface VoicemailListOptions {
   unreadOnly?: boolean;
 
   /**
-   * `oldest` puts the message that has waited longest first, and reads every
-   * page up front; `newest` pages with Load more.
+   * `oldest` puts the message that has waited longest first. It reads the
+   * newest 1,000 matching messages up front and shows them oldest first, with
+   * no Load more; older messages beyond those are not shown. `newest` pages
+   * with Load more.
    * @default 'newest'
    */
   order?: 'newest' | 'oldest';
@@ -436,7 +439,7 @@ export interface CallHistoryDisplayOptions {
   showRelativeTime?: boolean;
 
   /**
-   * Show direction icon (inbound/outbound/missed)
+   * Show direction icon (inbound/outbound/missed/voicemail)
    * @default true
    */
   showDirectionIcon?: boolean;
@@ -501,7 +504,8 @@ export type VoicemailRowRenderer = (voicemail: {
 }) => string;
 
 /**
- * Render function for custom call log row rendering
+ * Render function for custom call log row rendering. Returns HTML: escape any
+ * value you interpolate, since caller names come from the caller.
  */
 export type CallLogRowRenderer = (call: CallLog) => string;
 
@@ -857,13 +861,24 @@ export interface ComponentConfig {
  * Base component element interface with common setters
  */
 export interface BaseComponentElement extends HTMLElement {
+  /** Connect the element to an initialized instance. Nothing loads before this. */
   setInstance: (instance: DialStackInstanceImpl) => void;
+  /** UI strings. */
   setLocale: (locale: Locale) => void;
+  /** Date, time and phone number formatting. */
   setFormatting: (formatting: FormattingOptions) => void;
+  /** Replace some or all of the default SVG icons. */
   setIcons: (icons: ComponentIcons) => void;
+  /**
+   * Spacing density: `compact` for tight spaces such as a side panel,
+   * `default`, or `comfortable` for more breathing room.
+   */
   setLayoutVariant: (variant: LayoutVariant) => void;
+  /** Extra CSS classes on parts of the component. */
   setClasses: (classes: BaseComponentClasses) => void;
+  /** Called when the component starts loading data. */
   setOnLoaderStart: (callback: ((event: LoaderStart) => void) | undefined) => void;
+  /** Called when loading fails; `error` is a message string. */
   setOnLoadError: (callback: ((event: LoadError) => void) | undefined) => void;
 }
 
@@ -874,7 +889,8 @@ export interface VoicemailsElement extends Omit<BaseComponentElement, 'setClasse
   setClasses: (classes: VoicemailsClasses) => void;
   /**
    * The mailbox to list: a user id or a shared voicemail box id, or `null` for
-   * every mailbox in the account.
+   * every mailbox in the account. A user's mailbox holds only that user's own
+   * voicemail, not the shared boxes. Nothing is read until this is set.
    */
   setMailbox: (owner: string | null) => void;
   /**
@@ -907,12 +923,16 @@ export interface VoicemailsElement extends Omit<BaseComponentElement, 'setClasse
  */
 export interface CallLogsElement extends Omit<BaseComponentElement, 'setClasses'> {
   setClasses: (classes: CallLogsClasses) => void;
+  /** Only show calls in this range, as ISO 8601 dates; `end` defaults to now. */
   setDateRange: (dateRange: { start?: string; end?: string }) => void;
   setFilters: (filters: CallLogFilters) => void;
   setOnFiltersChange: (callback: ((filters: CallLogFilters) => void) | undefined) => void;
+  /** Rows per page (default 10). */
   setLimit: (limit: number) => void;
   setDisplayOptions: (options: CallLogDisplayOptions) => void;
+  /** Return your own HTML for each row; escape any value you interpolate. */
   setCustomRowRenderer: (renderer: CallLogRowRenderer | undefined) => void;
+  /** Called when a row is clicked, with the call's ID and the full call. */
   setOnRowClick: (
     callback: ((event: { callId: string; call: CallLog }) => void) | undefined
   ) => void;

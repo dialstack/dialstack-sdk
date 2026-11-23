@@ -126,3 +126,32 @@ describe('wrappers re-rendered with the same props', () => {
     });
   });
 });
+
+describe('Voicemails refreshKey', () => {
+  it('refreshes on every change, including a change back to the first key', async () => {
+    let element: (HTMLElement & { refresh: () => void }) | null = null;
+    const dialstack = {
+      create: jest.fn((tag: string) => {
+        element = document.createElement(`dialstack-${tag}`) as typeof element;
+        return element;
+      }),
+      update: jest.fn(),
+      logout: jest.fn(),
+      removeAppearanceTarget: jest.fn(),
+    } as unknown as DialStackInstance;
+    const tree = (refreshKey: number) => (
+      <DialstackComponentsProvider dialstack={dialstack}>
+        <Voicemails refreshKey={refreshKey} />
+      </DialstackComponentsProvider>
+    );
+    const { rerender } = render(tree(0));
+    await waitFor(() => expect(element).not.toBeNull());
+    const refresh = jest.spyOn(element!, 'refresh').mockImplementation(() => {});
+
+    rerender(tree(0));
+    rerender(tree(1));
+    rerender(tree(0));
+
+    expect(refresh).toHaveBeenCalledTimes(2);
+  });
+});

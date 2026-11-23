@@ -33,7 +33,8 @@ export interface CallLogsProps {
   style?: React.CSSProperties;
 
   /**
-   * Date range filter for call logs
+   * Only show calls in this range, as ISO 8601 dates; `end` is optional and
+   * defaults to now
    */
   dateRange?: DateRange;
 
@@ -45,7 +46,8 @@ export interface CallLogsProps {
   filters?: CallLogFilters;
 
   /**
-   * Maximum number of call logs per page (default: 20)
+   * Rows per page
+   * @default 10
    */
   limit?: number;
 
@@ -92,7 +94,8 @@ export interface CallLogsProps {
   displayOptions?: CallLogDisplayOptions;
 
   /**
-   * Custom row renderer for call log rows
+   * Return your own HTML for each row. Escape any value you interpolate:
+   * caller names come from the caller.
    *
    * A new function re-renders the list, since it may draw rows differently.
    * Written inline, that happens on every render of your component; wrap it in
@@ -111,7 +114,7 @@ export interface CallLogsProps {
   onLoadError?: (event: LoadError) => void;
 
   /**
-   * Callback when a row is clicked
+   * Callback when a row is clicked, with the call's ID and the full call
    */
   onRowClick?: (event: { callId: string; call: CallLog }) => void;
 

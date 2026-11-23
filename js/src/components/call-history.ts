@@ -62,7 +62,7 @@ export class CallHistoryComponent extends BaseComponent {
   }
 
   /**
-   * Set the maximum number of calls to display
+   * Set the maximum number of calls to display, clamped to 1–20 (default 5)
    */
   setLimit(limit: number): void {
     this.limit = Math.min(Math.max(1, limit), 20);

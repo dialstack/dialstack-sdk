@@ -74,11 +74,14 @@ import { formatValidationError } from '../utils/format-validation-error';
 // ============================================================================
 
 export interface DialPlanProps {
-  /** The ID of the dial plan to fetch and display */
+  /** The ID of the dial plan to fetch and display. Omit it in `edit` mode to create a new dial plan. */
   dialPlanId?: string;
-  /** Display mode: 'view' (default), 'edit', or 'preview' (static thumbnail) */
+  /**
+   * Display mode: 'view' (read-only), 'edit', or 'preview' (static thumbnail)
+   * @default 'view'
+   */
   mode?: DialPlanMode;
-  /** Locale strings for node labels and exits */
+  /** Locale strings for node labels and exits. English when omitted. */
   locale?: DialPlanLocale;
   /** Callback fired when a node is clicked (view mode) */
   onNodeClick?: (nodeId: string, node: DialPlanNode) => void;
@@ -94,15 +97,18 @@ export interface DialPlanProps {
   onDirtyChange?: (isDirty: boolean) => void;
   /** Alias for onLoadError, used in edit mode */
   onError?: (error: Error) => void;
-  /** Color theme: 'light' (default) or 'dark' */
+  /**
+   * Color theme. Defaults to the instance's `appearance.theme`, else `'light'`.
+   */
   theme?: 'light' | 'dark';
   /** Optional CSS class name for the container */
   className?: string;
   /** Optional inline styles for the container */
   style?: React.CSSProperties;
   /**
-   * Optional callback to create a new resource from a config panel select.
-   * Provided by the host app. `options` carries per-type hints (currently
+   * Optional callback to create a new resource when the user picks "Create
+   * new …" in a target picker. Provided by the host app; resolve with the new
+   * resource to select it. `options` carries per-type hints (currently
    * `notifyEligible` for voice apps) so the create dialog can skip choices
    * incompatible with the current edit context.
    */
@@ -112,7 +118,7 @@ export interface DialPlanProps {
   ) => Promise<{ id: string; name: string; extension_number?: string } | undefined>;
   /**
    * Optional callback to show a resource's details, e.g. in a modal or a new
-   * tab. Provided by the host app. After the resource may have been edited,
+   * tab, when the user opens a selected target. Provided by the host app. After the resource may have been edited,
    * call `refreshResources()` on the ref so the nodes show its new values.
    */
   onOpenResource?: (resourceId: string) => void;

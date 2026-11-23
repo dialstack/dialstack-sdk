@@ -33,6 +33,8 @@ export interface SoftphoneProps {
   /**
    * Focus the dial pad's destination field on mount so the user can type
    * immediately (e.g. when the softphone opens in a drawer).
+   *
+   * @default false
    */
   autoFocusDestination?: boolean;
 }

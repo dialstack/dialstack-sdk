@@ -29,7 +29,8 @@ export interface PhoneNumbersProps {
   style?: React.CSSProperties;
 
   /**
-   * Maximum number of phone numbers per page (default: 10)
+   * Rows per page
+   * @default 10
    */
   limit?: number;
 

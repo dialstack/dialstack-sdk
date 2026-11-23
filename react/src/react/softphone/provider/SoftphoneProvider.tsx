@@ -78,10 +78,15 @@ export interface SoftphoneProviderProps {
    */
   emergencyAddressId?: string;
 
-  /** Connect automatically once mounted (default: true). */
+  /**
+   * Connect automatically once mounted. Set `false` to render before the token
+   * is ready.
+   *
+   * @default true
+   */
   autoConnect?: boolean;
 
-  /** Theming — the same appearance surface used across the SDK. */
+  /** Theming — the same appearance surface (`theme`, `variables`) used across the SDK. */
   appearance?: AppearanceOptions;
 
   /** Locale for UI strings. */

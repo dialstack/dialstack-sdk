@@ -41,7 +41,7 @@ import { Voicemails } from '@dialstack/sdk-react/voicemails';
 
 <DialstackComponentsProvider dialstack={dialstack}>
   <CallLogs />
-  <Voicemails userId={userId} />
+  <Voicemails mailbox={userId} />
 </DialstackComponentsProvider>;
 ```
 

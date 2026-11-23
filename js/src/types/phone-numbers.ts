@@ -244,6 +244,7 @@ export interface PhoneNumberItem {
   source: 'did' | 'number_order' | 'port_order';
   created_at: string;
   updated_at: string;
+  /** The phone number's ID. Always set for an active number. */
   did?: string;
   /** @deprecated Use `did`. Retained for backwards compatibility. */
   did_id?: string;
@@ -270,8 +271,11 @@ export type PhoneNumberRowSection = 'detail' | 'routing';
  * Payload passed to the `onRowClick` host callback.
  */
 export interface PhoneNumberRowClickEvent {
+  /** The selected phone number. */
   phoneNumber: string;
+  /** The merged row: an active number, a number order or a port. */
   item: PhoneNumberItem;
+  /** Which area was clicked: the row body or the call-routing cell. */
   section: PhoneNumberRowSection;
 }
 
@@ -279,9 +283,13 @@ export interface PhoneNumberRowClickEvent {
  * CSS classes for the PhoneNumbers component
  */
 export interface PhoneNumbersClasses extends BaseComponentClasses {
+  /** Class for the table */
   table?: string;
+  /** Class for each row */
   row?: string;
+  /** Class for status badges */
   statusBadge?: string;
+  /** Class for the pagination controls */
   pagination?: string;
 }
 
@@ -290,6 +298,8 @@ export interface PhoneNumbersClasses extends BaseComponentClasses {
  */
 export interface PhoneNumbersElement extends Omit<BaseComponentElement, 'setClasses'> {
   setClasses: (classes: PhoneNumbersClasses) => void;
+  /** Rows per page (default 10). */
   setLimit: (limit: number) => void;
+  /** Called when a row or its call-routing cell is clicked. */
   setOnRowClick: (callback: ((event: PhoneNumberRowClickEvent) => void) | undefined) => void;
 }

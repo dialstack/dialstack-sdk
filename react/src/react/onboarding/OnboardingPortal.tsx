@@ -59,18 +59,36 @@ const PORTAL_RESET = '* { box-sizing: border-box; font-family: var(--ds-font-fam
 const PORTAL_STYLESHEETS = [PORTAL_RESET + PORTAL_STYLES, SPLASH_STYLES, OVERVIEW_STYLES];
 
 export interface OnboardingPortalProps {
+  /** Custom locale for UI strings. English when omitted. */
   locale?: Locale;
+  /** Date and phone number formatting options. */
   formatting?: FormattingOptions;
+  /** Custom SVG icons. */
   icons?: ComponentIcons;
+  /** Which steps to show. Every step is shown when omitted. */
   collectionOptions?: OnboardingCollectionOptions;
+  /** Link to your full terms of service, shown on the completion screen. */
   fullTermsOfServiceUrl?: string;
+  /** Link to your recipient terms of service, shown on the completion screen. */
   recipientTermsOfServiceUrl?: string;
+  /** Link to your privacy policy, shown on the completion screen. */
   privacyPolicyUrl?: string;
+  /** Called when the user clicks the back button. The sidebar shows the button only when this is set. */
   onBack?: () => void;
+  /** Label for the back button. */
   backLabel?: string;
+  /** HTML string rendered as the sidebar logo. */
   logoHtml?: string;
+  /** Platform name shown in the UI. */
   platformName?: string;
+  /**
+   * Color theme. Defaults to the instance's `appearance.theme`, else `'light'`.
+   */
   theme?: 'light' | 'dark';
+  /**
+   * Brand colors for the sidebar, buttons and accents. When omitted, the
+   * portal uses the colors passed to `loadDialstackAndInitialize()`.
+   */
   appearance?: { variables?: { colorPrimary?: string; colorPrimaryHover?: string } };
   /**
    * Whether the signed-in person may accept the subscription agreement on this
@@ -80,13 +98,20 @@ export interface OnboardingPortalProps {
    * session's `agreement_acceptance` component. When `false`, the gate still
    * renders the agreement but asks the account owner to accept it, instead of
    * offering a button whose submission the API rejects.
+   * @default true
    */
   canAcceptAgreement?: boolean;
+  /** Shows a "View Documentation" link to this URL on the overview screen. */
   documentationUrl?: string;
+  /** Shows a "Schedule a Call" button on the overview screen that calls this. */
   onScheduleCall?: () => void;
+  /** Shows a "Help & Support" link in the sidebar that calls this. */
   onHelpSupport?: () => void;
+  /** Called when the active step changes. */
   onStepChange?: (event: { step: AccountOnboardingStep }) => void;
+  /** Additional CSS class for the root element. */
   className?: string;
+  /** Inline styles for the root element. */
   style?: React.CSSProperties;
 }
 

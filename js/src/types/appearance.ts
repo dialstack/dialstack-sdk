@@ -176,25 +176,21 @@ export interface ComponentIcons {
 export interface BaseComponentClasses {
   /**
    * Base class applied to the container always
-   * @default 'dialstack-component'
    */
   base?: string;
 
   /**
    * Class applied when the component is loading
-   * @default 'dialstack-component--loading'
    */
   loading?: string;
 
   /**
    * Class applied when there's an error
-   * @default 'dialstack-component--error'
    */
   error?: string;
 
   /**
    * Class applied when the component has no data
-   * @default 'dialstack-component--empty'
    */
   empty?: string;
 }
@@ -220,37 +216,31 @@ export interface CallActivityClasses extends BaseComponentClasses {
 export interface VoicemailsClasses extends BaseComponentClasses {
   /**
    * Class for the voicemail list container
-   * @default 'dialstack-voicemail-list'
    */
   list?: string;
 
   /**
    * Class for each voicemail item
-   * @default 'dialstack-voicemail-item'
    */
   item?: string;
 
   /**
    * Class for expanded voicemail item
-   * @default 'dialstack-voicemail-item--expanded'
    */
   itemExpanded?: string;
 
   /**
    * Class for unread voicemail item
-   * @default 'dialstack-voicemail-item--unread'
    */
   itemUnread?: string;
 
   /**
    * Class for the audio player
-   * @default 'dialstack-voicemail-player'
    */
   player?: string;
 
   /**
    * Class for action buttons container
-   * @default 'dialstack-voicemail-actions'
    */
   actions?: string;
 }
@@ -261,37 +251,31 @@ export interface VoicemailsClasses extends BaseComponentClasses {
 export interface CallLogsClasses extends BaseComponentClasses {
   /**
    * Class for the table element
-   * @default 'dialstack-call-logs-table'
    */
   table?: string;
 
   /**
    * Class for table header
-   * @default 'dialstack-call-logs-header'
    */
   header?: string;
 
   /**
    * Class for table rows
-   * @default 'dialstack-call-logs-row'
    */
   row?: string;
 
   /**
    * Class for inbound call rows
-   * @default 'dialstack-call-logs-row--inbound'
    */
   rowInbound?: string;
 
   /**
    * Class for outbound call rows
-   * @default 'dialstack-call-logs-row--outbound'
    */
   rowOutbound?: string;
 
   /**
    * Class for pagination container
-   * @default 'dialstack-call-logs-pagination'
    */
   pagination?: string;
 }
@@ -302,55 +286,46 @@ export interface CallLogsClasses extends BaseComponentClasses {
 export interface CallHistoryClasses extends BaseComponentClasses {
   /**
    * Class for the call history list container
-   * @default 'dialstack-call-history-list'
    */
   list?: string;
 
   /**
    * Class for each call history item
-   * @default 'dialstack-call-history-item'
    */
   item?: string;
 
   /**
    * Class for inbound call items
-   * @default 'dialstack-call-history-item--inbound'
    */
   itemInbound?: string;
 
   /**
    * Class for outbound call items
-   * @default 'dialstack-call-history-item--outbound'
    */
   itemOutbound?: string;
 
   /**
    * Class for missed call items
-   * @default 'dialstack-call-history-item--missed'
    */
   itemMissed?: string;
 
   /**
    * Class for voicemail call items
-   * @default 'dialstack-call-history-item--voicemail'
    */
   itemVoicemail?: string;
 
   /**
    * Class for direction icon
-   * @default 'dialstack-call-history-icon'
    */
   icon?: string;
 
   /**
    * Class for time display
-   * @default 'dialstack-call-history-time'
    */
   time?: string;
 
   /**
    * Class for duration display
-   * @default 'dialstack-call-history-duration'
    */
   duration?: string;
 }

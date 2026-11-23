@@ -58,11 +58,14 @@ export interface NumberOrder {
   id: string;
   order_type: 'purchase' | 'disconnect';
   status: 'pending' | 'complete' | 'partial' | 'failed';
+  /** The numbers requested, in E.164 format. */
   phone_numbers: string[];
   completed_numbers: string[];
   failed_numbers: string[];
   error_message: string | null;
+  /** ISO 8601 timestamp. */
   created_at: string;
+  /** ISO 8601 timestamp. */
   updated_at: string;
 }
 
@@ -106,17 +109,32 @@ export interface PhoneNumberOrderPendingEvent {
 }
 
 export interface PhoneNumberOrderingClasses extends BaseComponentClasses {
+  /** Class for the search step */
   searchForm?: string;
+  /** Class for the results step */
   resultsTable?: string;
+  /** Class for each result row */
   resultRow?: string;
+  /** Class for a selected result row */
   resultRowSelected?: string;
+  /** Class for the confirm step */
   confirmPanel?: string;
+  /** Class for the step shown once the order is placed */
   orderComplete?: string;
 }
 
 export interface PhoneNumberOrderingElement extends Omit<BaseComponentElement, 'setClasses'> {
   setClasses: (classes: PhoneNumberOrderingClasses) => void;
+  /**
+   * What a search may name (default: all of `area_code`, `zip`, `region` and
+   * `toll_free`). A list starting with `toll_free` opens on toll-free; an empty
+   * list is ignored.
+   */
   setSearchTypes: (types: SearchType[]) => void;
+  /**
+   * Called when an order completes, fully or `partial`ly. A failed order goes
+   * to `onOrderError` instead.
+   */
   setOnOrderComplete: (
     cb: ((event: { orderId: string; order: NumberOrder }) => void) | undefined
   ) => void;

@@ -29,10 +29,15 @@ export interface UseCallActionsOptions {
  * to a specific `Call` rather than only the foreground one.
  */
 export interface CallActions {
+  /** Answer the call. */
   answer: () => void;
+  /** Reject a ringing call. */
   reject: () => void;
+  /** Hang up. */
   hangup: () => void;
+  /** Mute or unmute. */
   toggleMute: () => void;
+  /** Hold or resume. */
   toggleHold: () => void;
   /** Send a DTMF digit (no-op when no call). */
   sendDtmf: (digit: string) => void;

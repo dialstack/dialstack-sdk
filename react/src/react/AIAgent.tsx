@@ -36,7 +36,8 @@ export interface AIAgentProps {
   /**
    * Fields the editor should not render. An app that manages exactly one agent
    * per account might pass `hideFields={['name']}`, since that label is never
-   * heard by callers.
+   * heard by callers. Saving leaves a hidden field's stored value as it was.
+   * @default []
    */
   hideFields?: AIAgentField[];
   /** Optional callback invoked after a successful save. */
