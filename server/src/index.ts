@@ -1065,21 +1065,49 @@ export type CallDirection = 'inbound' | 'outbound' | 'internal';
 
 export type CallStatus = 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
 
+/** Where a call is in its life. */
+export type CallLogState = 'initiated' | 'connected' | 'ended';
+
+/** One side of a call. */
+export interface CallLogParty {
+  /** The account's user on this side, or null when the party isn't one of the account's users or can't be identified. */
+  user: string | null;
+}
+
 /**
  * Record of a completed or attempted call. The `id` is an opaque call log
  * identifier — one call log may span several underlying legs, so it does not
  * correspond to any single leg.
  *
  * The record is lifecycle-spanning: it can be retrieved while the call is still
- * live, in which case it is a sparse projection. `status`, `to_label`,
- * `ended_at`, `duration_seconds`, `answered_at`, `connected_at`,
+ * live, and `state` says which. While the call is in progress it is a sparse
+ * projection: `status`, `to_label`, `ended_at`, `duration_seconds`,
  * `hangup_cause`, `summary`, and `recording_url` are null until the call
- * completes, and `quality_metrics` is empty. `to_number` is present live for
- * outbound and internal calls but null for inbound ones, whose routed
- * destination is resolved later.
+ * completes, `answered_at` and `connected_at` are null until a person picks up,
+ * and `quality_metrics` is empty. `caller` and `callee` name who is on a call in
+ * progress. `to_number` is present live for outbound and internal calls but null
+ * for inbound ones, whose routed destination is resolved later.
  */
 export interface CallLog {
+  object: 'call';
   id: string;
+  /**
+   * Where the call is in its life: `initiated` until a person picks up,
+   * `connected` once one has, `ended` once it is over. Assume no order: more
+   * states may be added, and a call can go back (a transfer rings again).
+   */
+  state: CallLogState;
+  /**
+   * The call's own side: the outside caller on an inbound call, the user who
+   * dialed on an outbound or internal one. Present while the call is in
+   * progress; null on a finished call.
+   */
+  caller: CallLogParty | null;
+  /**
+   * The party who picked up. Null until someone picks up and on a finished
+   * call.
+   */
+  callee: CallLogParty | null;
   user: string | null;
   endpoint: string | null;
   /**

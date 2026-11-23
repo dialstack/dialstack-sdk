@@ -557,8 +557,35 @@ export interface CallLogDID {
   phone_number: string;
 }
 
+/** Where a call is in its life. */
+export type CallLogState = 'initiated' | 'connected' | 'ended';
+
+/** One side of a call. */
+export interface CallLogParty {
+  /** The account's user on this side, or null when the party isn't one of the account's users or can't be identified. */
+  user: string | null;
+}
+
 export interface CallLog {
+  object: 'call';
   id: string;
+  /**
+   * Where the call is in its life: `initiated` until a person picks up,
+   * `connected` once one has, `ended` once it is over. Assume no order: more
+   * states may be added, and a call can go back (a transfer rings again).
+   */
+  state: CallLogState;
+  /**
+   * The call's own side: the outside caller on an inbound call, the user who
+   * dialed on an outbound or internal one. Present while the call is in
+   * progress; null on a finished call.
+   */
+  caller: CallLogParty | null;
+  /**
+   * The party who picked up. Null until someone picks up and on a finished
+   * call.
+   */
+  callee: CallLogParty | null;
   user?: string | null;
   /** @deprecated Use `user`. Retained for backwards compatibility. */
   user_id: string | null;
@@ -622,6 +649,7 @@ export interface CallLog {
   to_number: string | null;
   to_label: string | null;
   started_at: string;
+  // Null until a person picks up, and on a call that was never answered.
   answered_at: string | null;
   // When the call connected: a user's device or an external number answered,
   // or a voice app took it with attach or bridge. Null when the call never

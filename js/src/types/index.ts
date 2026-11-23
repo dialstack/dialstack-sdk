@@ -72,6 +72,8 @@ export type {
   CallLogRowRenderer,
   // Data models
   CallLog,
+  CallLogState,
+  CallLogParty,
   CallLogDID,
   QualityMetricLeg,
   QualityMetricFarEnd,
