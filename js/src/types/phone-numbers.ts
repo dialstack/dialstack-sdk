@@ -78,10 +78,12 @@ export interface DIDItem {
   /**
    * Prefix added to the inbound caller's display name (e.g. `[Acme] John Smith`,
    * or `[Acme] +14084806024` when the caller's name is unknown), for calls
-   * answered on behalf of a specific brand or business. Applies both to the
-   * device that answers and to calls forwarded out to an external number, so a
-   * forwarded business call can be told apart from a personal one. Affects only
-   * the caller ID presented for inbound calls, not call records.
+   * answered on behalf of a specific brand or business. Applies to the device
+   * that answers, and is also sent on calls forwarded out to an external number.
+   * On a forwarded call, it shows in countries whose carriers display the name
+   * sent with the call (such as Canada) and usually not in those that look the
+   * name up instead (such as the US). Affects only the caller ID presented for
+   * inbound calls, not call records.
    */
   caller_id_prefix?: string | null;
   directory_listing_name?: string | null;
@@ -165,8 +167,9 @@ export interface UpdatePhoneNumberRequest {
   caller_id_name?: string;
   /**
    * Prefix added to the inbound caller's display name (e.g. `[Acme] John Smith`,
-   * or `[Acme] +14084806024` when the caller's name is unknown). Applies both to
-   * the device that answers and to calls forwarded out to an external number.
+   * or `[Acme] +14084806024` when the caller's name is unknown). Applies to the
+   * device that answers, and is also sent on calls forwarded out to an external
+   * number, where whether it shows depends on the country the phone is in.
    * Send `null` to clear.
    */
   caller_id_prefix?: string | null;
