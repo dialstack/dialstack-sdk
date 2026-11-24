@@ -9,7 +9,7 @@ import React from 'react';
 import { screen, waitFor, fireEvent } from '@testing-library/react';
 import { defaultLocale, type Locale } from '@dialstack/sdk-js';
 import { NumbersStep } from '../steps/numbers/NumbersStep';
-import { isPortDay } from '../steps/numbers/port-numbers';
+import { earliestPortDate } from '../steps/numbers/port-numbers';
 import {
   renderWithOnboarding,
   mockAccount,
@@ -363,10 +363,10 @@ async function navigatePortFlowTo(
   });
 
   // Fill FOC date
-  const futureDate = new Date();
-  futureDate.setDate(futureDate.getDate() + 10);
-  // A porting day: the port date step refuses weekends and holidays.
-  while (!isPortDay(futureDate, 'US')) futureDate.setDate(futureDate.getDate() + 1);
+  // The first date the step accepts: five porting days out, skipping weekends
+  // and holidays, so the test holds in any week (a fixed +10 days fell short
+  // across Thanksgiving).
+  const futureDate = earliestPortDate(new Date(), 'US');
   const dateStr = localDateKey(futureDate);
   const dateInput = document.querySelector<HTMLInputElement>('input[type="date"]')!;
   fireEvent.change(dateInput, { target: { value: dateStr } });
@@ -1447,10 +1447,10 @@ describe('NumbersStep', () => {
       });
 
       // Fill FOC
-      const futureDate = new Date();
-      futureDate.setDate(futureDate.getDate() + 10);
-      // A porting day: the port date step refuses weekends and holidays.
-      while (!isPortDay(futureDate, 'US')) futureDate.setDate(futureDate.getDate() + 1);
+      // The first date the step accepts: five porting days out, skipping weekends
+      // and holidays, so the test holds in any week (a fixed +10 days fell short
+      // across Thanksgiving).
+      const futureDate = earliestPortDate(new Date(), 'US');
       const dateInput = document.querySelector<HTMLInputElement>('input[type="date"]')!;
       fireEvent.change(dateInput, { target: { value: localDateKey(futureDate) } });
       const timeSelect = document.querySelector<HTMLSelectElement>('select')!;
@@ -2266,10 +2266,10 @@ describe('NumbersStep', () => {
       });
 
       // Fill FOC date
-      const futureDate = new Date();
-      futureDate.setDate(futureDate.getDate() + 10);
-      // A porting day: the port date step refuses weekends and holidays.
-      while (!isPortDay(futureDate, 'US')) futureDate.setDate(futureDate.getDate() + 1);
+      // The first date the step accepts: five porting days out, skipping weekends
+      // and holidays, so the test holds in any week (a fixed +10 days fell short
+      // across Thanksgiving).
+      const futureDate = earliestPortDate(new Date(), 'US');
       const dateInput = document.querySelector<HTMLInputElement>('input[type="date"]')!;
       fireEvent.change(dateInput, { target: { value: localDateKey(futureDate) } });
       const timeSelect = document.querySelector<HTMLSelectElement>('select')!;
