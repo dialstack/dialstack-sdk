@@ -107,11 +107,11 @@ export const en = {
     switchToCall: 'Switch to this call',
     heldCallsLabel: 'On hold',
     callWaiting: 'Call waiting',
-    // E911 "Are you here?" location confirmation (shown until the session's
+    // E9-1-1 "Are you here?" location confirmation (shown until the session's
     // emergency address is bound to the current network).
     emergencyPrompt: 'Set your emergency location',
     emergencyHint:
-      'Confirm your location before placing calls — required by 911 regulations for internet calling.',
+      'Confirm your location before placing calls — required by 9-1-1 regulations for internet calling.',
     emergencyConfirm: "Yes, I'm here",
     emergencyNewLocation: 'Set a new location',
     emergencyUseLocation: 'Use my current location',
@@ -732,7 +732,7 @@ export const en = {
       },
       location: {
         heading: 'Business Location',
-        description: 'Add your business address for E911 and caller ID.',
+        description: 'Add your business address for emergency calls and caller ID.',
         nameLabel: 'Location Name',
         namePlaceholder: 'Main Office',
         nameRequired: 'Location name is required',
@@ -1181,18 +1181,19 @@ export const en = {
       e911: {
         loading: 'Configuring emergency services...',
         pollingStatus: 'Verifying emergency services registration...',
-        verified: 'E911 emergency address is verified.',
-        processing: 'E911 registration is being processed. This may take a few minutes.',
+        verified: 'Emergency address is verified.',
+        processing:
+          'Emergency address registration is being processed. This may take a few minutes.',
         pendingAfterPolling:
-          'E911 registration submitted. Your phone service is active — emergency address verification will complete shortly.',
+          'Emergency address submitted. Your phone service is active — emergency address verification will complete shortly.',
         addressStandardized: 'Your address was standardized for emergency services accuracy.',
         primaryAssigned: 'assigned as primary number for',
-        errorTitle: 'E911 configuration failed',
+        errorTitle: 'Emergency address registration failed',
         errorDescription:
           'There was an error configuring emergency services. You can retry or configure manually later.',
         retryButton: 'Retry',
         deferred:
-          'E911 emergency services have not been fully configured. Each location with a phone number needs a verified emergency address before your phone service can be activated.',
+          'Emergency calling is not fully set up yet. Each location with a phone number needs a verified emergency address before your phone service can be activated.',
       },
     },
     stepComplete: {
@@ -1216,7 +1217,7 @@ export const en = {
     ssa: {
       title: 'Review and accept your subscription agreement',
       intro:
-        'Before you can use your phone service, please review the Service Subscription Agreement below — including its emergency calling (911/E911) terms — and confirm your acceptance.',
+        'Before you can use your phone service, please review the Service Subscription Agreement below — including its emergency calling (9-1-1) terms — and confirm your acceptance.',
       pricingTitle: 'Your plan pricing',
       perUser: 'Per user',
       perNumber: 'Per phone number',

@@ -86,6 +86,12 @@ export interface DIDItem {
    * inbound calls, not call records.
    */
   caller_id_prefix?: string | null;
+  /**
+   * The language a 9-1-1 call from this number asks for: the one set, or the
+   * default, French for a Québec area code and English otherwise. Only
+   * Canadian emergency call takers act on it.
+   */
+  emergency_language?: EmergencyLanguage;
   directory_listing_name?: string | null;
   directory_listing_type?: DirectoryListingType;
   directory_listing_location?: string | null;
@@ -173,6 +179,8 @@ export interface UpdatePhoneNumberRequest {
    * Send `null` to clear.
    */
   caller_id_prefix?: string | null;
+  /** Set the 9-1-1 call language, or `null` to go back to the default. */
+  emergency_language?: EmergencyLanguage | null;
   caller_id_visibility?: 'PUBLIC' | 'PRIVATE';
   fax_enabled?: boolean;
   /** Pass `null` to clear the per-DID config blob. */
@@ -196,6 +204,11 @@ export interface SmsPortOutWindow {
 export interface UpdateSmsPortOutRequest {
   expires_at: string | null;
 }
+
+/**
+ * Language of a 9-1-1 call: `en` (English) or `fr` (French).
+ */
+export type EmergencyLanguage = 'en' | 'fr';
 
 /**
  * Unified phone number status across DIDs, number orders, and port orders

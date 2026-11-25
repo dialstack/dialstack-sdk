@@ -138,6 +138,7 @@ export type {
   InboundRouting,
   DIDConfig,
   DirectoryListingType,
+  EmergencyLanguage,
   UpdatePhoneNumberRequest,
   SmsPortOutWindow,
   UpdateSmsPortOutRequest,

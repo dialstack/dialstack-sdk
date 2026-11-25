@@ -1782,7 +1782,7 @@ describe('NumbersStep', () => {
       await completeToE911(result.instance);
 
       await waitFor(() => {
-        expect(document.body.textContent).toContain('E911 emergency address is verified');
+        expect(document.body.textContent).toContain('Emergency address is verified');
       });
 
       expect(validateE911Mock).toHaveBeenCalledWith('loc_01abc');
@@ -1809,9 +1809,7 @@ describe('NumbersStep', () => {
       await completeToE911(result.instance);
 
       await waitFor(() => {
-        expect(document.body.textContent).toContain(
-          'E911 emergency services have not been fully configured'
-        );
+        expect(document.body.textContent).toContain('Emergency calling is not fully set up yet');
       });
 
       expect(
@@ -1835,7 +1833,7 @@ describe('NumbersStep', () => {
       await completeToE911(result.instance);
 
       await waitFor(() => {
-        expect(document.body.textContent).toContain('E911 configuration failed');
+        expect(document.body.textContent).toContain('Emergency address registration failed');
         expect(document.body.textContent).toContain('error configuring emergency services');
         expect(document.querySelector('.center-icon.error')).not.toBeNull();
       });
@@ -1875,7 +1873,7 @@ describe('NumbersStep', () => {
       // Wait for poll to resolve (2s interval + async resolution)
       await waitFor(
         () => {
-          expect(document.body.textContent).toContain('E911 emergency address is verified');
+          expect(document.body.textContent).toContain('Emergency address is verified');
         },
         { timeout: 5000 }
       );
@@ -1943,7 +1941,7 @@ describe('NumbersStep', () => {
 
       // Should show error with retry
       await waitFor(() => {
-        expect(document.body.textContent).toContain('E911 configuration failed');
+        expect(document.body.textContent).toContain('Emergency address registration failed');
       });
 
       // Click retry
@@ -1952,7 +1950,7 @@ describe('NumbersStep', () => {
 
       // Should show success after retry
       await waitFor(() => {
-        expect(document.body.textContent).toContain('E911 emergency address is verified');
+        expect(document.body.textContent).toContain('Emergency address is verified');
       });
 
       expect(validateMock).toHaveBeenCalledTimes(2);
@@ -2020,7 +2018,7 @@ describe('NumbersStep', () => {
       // Should show error with retry after poll failure
       await waitFor(
         () => {
-          expect(document.body.textContent).toContain('E911 configuration failed');
+          expect(document.body.textContent).toContain('Emergency address registration failed');
         },
         { timeout: 5000 }
       );
@@ -2040,7 +2038,7 @@ describe('NumbersStep', () => {
 
       // Wait for error state
       await waitFor(() => {
-        expect(document.body.textContent).toContain('E911 configuration failed');
+        expect(document.body.textContent).toContain('Emergency address registration failed');
       });
 
       // When E911 fails the step isn't actually data-complete — we don't
