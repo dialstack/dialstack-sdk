@@ -111,6 +111,7 @@ import type {
   CreateHardwareOrderRequest,
   HardwareCatalogList,
   HardwareOrder,
+  HardwareOrderApprovalParams,
   HardwareOrderList,
   HardwareShippingQuote,
   UpdateHardwareOrderRequest,
@@ -1012,16 +1013,22 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         undefined,
         'Failed to get hardware order'
       ),
-    submitForApproval: async (orderId: string): Promise<HardwareOrder> =>
+    submitForApproval: async (
+      orderId: string,
+      params?: HardwareOrderApprovalParams
+    ): Promise<HardwareOrder> =>
       this.hardwareOrderRequest(
         `/v1/hardware-orders/${encodeURIComponent(orderId)}/submit-for-approval`,
-        { method: 'POST' },
+        approvalInit(params),
         'Failed to submit hardware order'
       ),
-    approve: async (orderId: string): Promise<HardwareOrder> =>
+    approve: async (
+      orderId: string,
+      params?: HardwareOrderApprovalParams
+    ): Promise<HardwareOrder> =>
       this.hardwareOrderRequest(
         `/v1/hardware-orders/${encodeURIComponent(orderId)}/approve`,
-        { method: 'POST' },
+        approvalInit(params),
         'Failed to approve hardware order'
       ),
     decline: async (orderId: string, reason: string): Promise<HardwareOrder> =>
@@ -2858,4 +2865,11 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
       headers,
     });
   }
+}
+
+// A location rides in the body; without one the request carries none, as before.
+function approvalInit(params?: HardwareOrderApprovalParams): RequestInit {
+  return params?.location
+    ? { method: 'POST', body: JSON.stringify({ location: params.location }) }
+    : { method: 'POST' };
 }

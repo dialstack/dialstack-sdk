@@ -29,6 +29,7 @@ import type {
   CreateHardwareOrderRequest,
   HardwareCatalogList,
   HardwareOrder,
+  HardwareOrderApprovalParams,
   HardwareOrderList,
   HardwareShippingQuote,
   UpdateHardwareOrderRequest,
@@ -345,9 +346,9 @@ export interface HardwareOrdersResource {
    * Submit a draft for approval. A customer's submission is its approval; when
    * no other approval is needed the order is placed.
    */
-  submitForApproval(orderId: string): Promise<HardwareOrder>;
+  submitForApproval(orderId: string, params?: HardwareOrderApprovalParams): Promise<HardwareOrder>;
   /** Approve a pending order; the last required approval places it. */
-  approve(orderId: string): Promise<HardwareOrder>;
+  approve(orderId: string, params?: HardwareOrderApprovalParams): Promise<HardwareOrder>;
   /** Decline a pending order, returning it to a draft with the reason. */
   decline(orderId: string, reason: string): Promise<HardwareOrder>;
   /** Start a draft. Needs the `hardware_ordering_edit` component. */

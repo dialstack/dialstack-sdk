@@ -37,6 +37,24 @@ describe('hardwareOrders', () => {
     expect(calls[0][1]?.method).toBe('POST');
   });
 
+  it('sends the device location with a submission and an approval', async () => {
+    const { instance, calls } = recordingInstance();
+
+    await instance.hardwareOrders.submitForApproval('hwo_1', { location: 'loc_1' });
+    await instance.hardwareOrders.approve('hwo_1', { location: 'loc_2' });
+
+    expect(JSON.parse(String(calls[0][1]?.body))).toEqual({ location: 'loc_1' });
+    expect(JSON.parse(String(calls[1][1]?.body))).toEqual({ location: 'loc_2' });
+  });
+
+  it('sends no body when no location is given', async () => {
+    const { instance, calls } = recordingInstance();
+
+    await instance.hardwareOrders.approve('hwo_1');
+
+    expect(calls[0][1]?.body).toBeUndefined();
+  });
+
   it('declines an order with its reason', async () => {
     const { instance, calls } = recordingInstance();
 

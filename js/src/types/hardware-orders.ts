@@ -42,6 +42,18 @@ export interface HardwareOrderAddress {
   country?: string;
 }
 
+/** Optional body for submitting a hardware order for approval or approving it. */
+export interface HardwareOrderApprovalParams {
+  /**
+   * Location every deskphone and DECT base on the order is going to: their
+   * 911 dispatch address. Written on each of them, as checkout's `location`
+   * is. Omitted, they keep the locations they carry, and placement defaults
+   * any without one (the only location, else the user's, else the main one),
+   * which is discouraged on an account with several locations.
+   */
+  location?: string;
+}
+
 export interface HardwareOrder {
   id: string;
   object?: string;

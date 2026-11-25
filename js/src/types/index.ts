@@ -361,6 +361,7 @@ export type {
   HardwareOrder,
   HardwareOrderAddress,
   HardwareOrderApproval,
+  HardwareOrderApprovalParams,
   HardwareOrderLine,
   HardwareOrderLineInput,
   HardwareOrderList,

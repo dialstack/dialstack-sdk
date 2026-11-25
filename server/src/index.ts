@@ -2442,7 +2442,9 @@ export interface HardwareOrderPlaceParams {
    * overwrites each unit's location before the order is placed and sets
    * their 911 dispatch address. Must be one of the account's locations.
    * May be omitted when the account has exactly one location; an order goes
-   * to one location, so file one order per site.
+   * to one location, so file one order per site. Omitted on an account with
+   * several locations, each unit gets a default (its user's location, else
+   * the main one), which may not be where it is installed: discouraged.
    */
   location?: string;
   /**
