@@ -32,7 +32,7 @@
   padding: 0 6px;
   border-radius: var(--ds-border-radius-round);
   background: var(--ds-color-primary);
-  color: #fff;
+  color: var(--ds-color-primary-text, #fff);
   font-size: 11px;
   font-weight: var(--ds-font-weight-bold);
   display: flex;
@@ -240,7 +240,7 @@
   padding: 4px 10px;
   border-radius: 100px;
   background: var(--ds-color-primary);
-  color: #fff;
+  color: var(--ds-color-primary-text, #fff);
   font-size: 12px;
   font-weight: var(--ds-font-weight-medium);
   animation: chip-pop 0.25s ease-out;
@@ -249,7 +249,7 @@
 .hw-device-badge-chip__remove {
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.7);
+  color: color-mix(in srgb, var(--ds-color-primary-text, #fff) 70%, transparent);
   cursor: pointer;
   padding: 0;
   margin-left: 2px;
@@ -260,7 +260,7 @@
 }
 
 .hw-device-badge-chip__remove:hover {
-  color: #fff;
+  color: var(--ds-color-primary-text, #fff);
 }
 
 /* ── HW Step: Legacy Device List (add device form) ── */

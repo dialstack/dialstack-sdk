@@ -1,4 +1,4 @@
-import { computePortalCssVars, LIGHT_COLORS } from '../design-tokens';
+import { computePortalCssVars, LIGHT_COLORS, resolvePrimaryPair } from '../design-tokens';
 
 describe('computePortalCssVars', () => {
   describe('white-label override', () => {
@@ -27,8 +27,25 @@ describe('computePortalCssVars', () => {
     it('derives portal sidebar/splash vars from colorPrimary instead of defaults', () => {
       const vars = computePortalCssVars({ colorPrimary: '#00A67E' }) as Record<string, string>;
       expect(vars['--ds-portal-sidebar-bg']).toBe('#00A67E');
-      expect(vars['--ds-portal-sidebar-active']).toBe('color-mix(in srgb, #00A67E, white 20%)');
+      expect(vars['--ds-portal-sidebar-active']).toBe('color-mix(in srgb, #00A67E, #ffffff 20%)');
       expect(vars['--ds-portal-splash-bg']).toBe('color-mix(in srgb, #00A67E, black 15%)');
+    });
+
+    it('draws white text on the primary when colorPrimaryText is omitted', () => {
+      const vars = computePortalCssVars({ colorPrimary: '#E5E5E5' }) as Record<string, string>;
+      expect(vars['--ds-color-primary-text']).toBe('#ffffff');
+      expect(vars['--ds-portal-color-primary-text']).toBe('#ffffff');
+      expect(vars['--ds-portal-sidebar-text']).toBe('#ffffff');
+    });
+
+    it('uses an explicit colorPrimaryText for the sidebar and buttons', () => {
+      const vars = computePortalCssVars({
+        colorPrimary: '#E5E5E5',
+        colorPrimaryText: '#171717',
+      }) as Record<string, string>;
+      expect(vars['--ds-portal-sidebar-text']).toBe('#171717');
+      expect(vars['--ds-portal-color-primary-text']).toBe('#171717');
+      expect(vars['--ds-portal-sidebar-active']).toBe('color-mix(in srgb, #E5E5E5, #171717 20%)');
     });
 
     it('writes the focus ring with the override color, not the default', () => {
@@ -67,6 +84,48 @@ describe('computePortalCssVars', () => {
       expect(vars['--ds-portal-color-background']).toBe('#1a1a1a');
       expect(vars['--ds-color-text']).toBe('#ffffff');
       expect(vars['--ds-portal-color-text']).toBe('#ffffff');
+    });
+  });
+});
+
+describe('colorPrimaryText without a brand primary', () => {
+  it('colors the default sidebar and splash text', () => {
+    const vars = computePortalCssVars({ colorPrimaryText: '#000000' }) as Record<string, string>;
+    expect(vars['--ds-portal-sidebar-text']).toBe('#000000');
+    expect(vars['--ds-portal-splash-text']).toBe('#000000');
+  });
+
+  it('keeps the default light text when neither is set', () => {
+    const vars = computePortalCssVars({}) as Record<string, string>;
+    expect(vars['--ds-portal-sidebar-text']).toBe('#f0f0ff');
+    expect(vars['--ds-portal-splash-text']).toBe('#ffffff');
+  });
+});
+
+describe('resolvePrimaryPair', () => {
+  const instance = { colorPrimary: '#18181b', colorPrimaryText: '#fafafa' };
+
+  it("does not pair a prop's primary with the instance's text color", () => {
+    expect(resolvePrimaryPair({ colorPrimary: '#E5E5E5' }, instance)).toEqual({
+      colorPrimary: '#E5E5E5',
+      colorPrimaryText: undefined,
+    });
+  });
+
+  it('keeps a text color the prop sets with its primary', () => {
+    expect(
+      resolvePrimaryPair({ colorPrimary: '#E5E5E5', colorPrimaryText: '#171717' }, instance)
+    ).toEqual({ colorPrimary: '#E5E5E5', colorPrimaryText: '#171717' });
+  });
+
+  it('takes both from the instance when the prop sets no primary', () => {
+    expect(resolvePrimaryPair(undefined, instance)).toEqual(instance);
+  });
+
+  it("lets a prop's text color override the instance's on the instance's primary", () => {
+    expect(resolvePrimaryPair({ colorPrimaryText: '#000000' }, instance)).toEqual({
+      colorPrimary: '#18181b',
+      colorPrimaryText: '#000000',
     });
   });
 });

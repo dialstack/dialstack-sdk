@@ -176,13 +176,22 @@ const ProgressRing = ({ pct }: { pct: number }) => {
   const offset = CIRCUMFERENCE * (1 - pct / 100);
   return (
     <svg viewBox="0 0 36 36" className="progress-ring">
-      <circle cx="18" cy="18" r="16" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="3" />
       <circle
         cx="18"
         cy="18"
         r="16"
         fill="none"
-        stroke="#fff"
+        strokeWidth="3"
+        style={{
+          stroke: 'color-mix(in srgb, var(--ds-portal-sidebar-text, #fff) 20%, transparent)',
+        }}
+      />
+      <circle
+        cx="18"
+        cy="18"
+        r="16"
+        fill="none"
+        style={{ stroke: 'var(--ds-portal-sidebar-text, #fff)' }}
         strokeWidth="3"
         strokeDasharray={CIRCUMFERENCE}
         strokeDashoffset={offset}
@@ -194,7 +203,7 @@ const ProgressRing = ({ pct }: { pct: number }) => {
         y="18"
         textAnchor="middle"
         dominantBaseline="central"
-        fill="#fff"
+        style={{ fill: 'var(--ds-portal-sidebar-text, #fff)' }}
         fontSize="9"
         fontWeight="bold"
       >

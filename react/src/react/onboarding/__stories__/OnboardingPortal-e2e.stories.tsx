@@ -16,7 +16,7 @@ const LOGO_HTML = `<div style="display:flex;align-items:center;gap:8px">
 <rect x="0" y="10.7" width="2.4" height="15.6" rx="1.2" fill="#692CFF"/>
 <rect x="31.7" y="10.7" width="2.4" height="15.6" rx="1.2" fill="#692CFF"/>
 </svg>
-<span style="font-size:20px;font-weight:700;color:#f0f0ff">DialStack</span>
+<span style="font-size:20px;font-weight:700;color:inherit">DialStack</span>
 </div>`;
 
 type Props = React.ComponentProps<typeof OnboardingPortal> & DecoratorArgs;

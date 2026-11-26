@@ -1287,7 +1287,7 @@ export class CallLogsComponent extends BaseComponent {
           padding: 0 var(--ds-spacing-xs);
           border-radius: var(--ds-border-radius-large);
           background: var(--ds-color-primary);
-          color: var(--ds-color-background);
+          color: var(--ds-color-primary-text);
           font-size: var(--ds-font-size-small);
           font-weight: var(--ds-font-weight-medium);
           text-align: center;
@@ -1367,7 +1367,7 @@ export class CallLogsComponent extends BaseComponent {
 
         .seg-input:checked + .seg-option {
           background: var(--ds-color-primary);
-          color: var(--ds-color-background);
+          color: var(--ds-color-primary-text);
         }
 
         .seg-input:focus-visible + .seg-option {
@@ -1508,7 +1508,7 @@ export class CallLogsComponent extends BaseComponent {
         }
 
         .panel-btn.primary {
-          color: var(--ds-color-background);
+          color: var(--ds-color-primary-text);
           background: var(--ds-color-primary);
           border-color: var(--ds-color-primary);
         }

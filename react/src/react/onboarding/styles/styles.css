@@ -44,7 +44,7 @@
   height: 28px;
   border-radius: var(--ds-border-radius-round);
   background: var(--ds-color-primary);
-  color: #fff;
+  color: var(--ds-color-primary-text, #fff);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -386,7 +386,7 @@
 
 .btn-primary {
   background: var(--ds-color-primary);
-  color: #fff;
+  color: var(--ds-color-primary-text, #fff);
   border-radius: 100px;
   min-width: 150px;
   height: 44px;

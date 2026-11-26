@@ -47,7 +47,7 @@
   animation: fade-slide-up 0.6s ease-out;
   font-size: clamp(22px, 7cqh, 85px);
   font-weight: 700;
-  color: #fff;
+  color: var(--ds-portal-splash-text, #fff);
   line-height: 1.08;
   margin: 0 0 20px;
   white-space: pre-line;
@@ -57,7 +57,7 @@
 .splash-subtitle {
   animation: fade-slide-up 0.6s ease-out 0.1s both;
   font-size: clamp(16px, 2.4cqh, 24px);
-  color: #fff;
+  color: var(--ds-portal-splash-text, #fff);
   margin: 0 0 36px;
   line-height: 1.4;
   letter-spacing: -0.24px;
@@ -69,7 +69,7 @@
   align-items: center;
   gap: 5px;
   background: var(--ds-color-primary, #692cff);
-  color: #fff;
+  color: var(--ds-color-primary-text, #fff);
   border: none;
   border-radius: 100px;
   padding: 13px 21px 13px 22px;
@@ -83,7 +83,7 @@
 }
 
 .splash-btn:hover {
-  background: color-mix(in srgb, var(--ds-color-primary), white 12%);
+  background: color-mix(in srgb, var(--ds-color-primary), var(--ds-color-primary-text, #fff) 12%);
 }
 
 .splash-btn svg {

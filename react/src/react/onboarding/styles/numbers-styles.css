@@ -279,7 +279,7 @@
 
 .num-sub-progress-step.active {
   background: var(--ds-color-primary);
-  color: #fff;
+  color: var(--ds-color-primary-text, #fff);
 }
 
 .num-sub-progress-step.completed {

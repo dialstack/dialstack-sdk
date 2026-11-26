@@ -1430,7 +1430,7 @@ export class VoicemailsComponent extends BaseComponent {
           border-radius: var(--ds-border-radius-round);
           border: none;
           background: var(--ds-color-primary);
-          color: white;
+          color: var(--ds-color-primary-text);
           cursor: pointer;
           display: flex;
           align-items: center;
@@ -1479,7 +1479,7 @@ export class VoicemailsComponent extends BaseComponent {
 
         .action-btn.call {
           background: var(--ds-color-primary);
-          color: white;
+          color: var(--ds-color-primary-text);
         }
 
         .action-btn.mark-read {

@@ -402,7 +402,7 @@ export function OngoingCallView({
             <Glyph
               glyph={softphoneGlyphs.hangup}
               size={(styles.action.width as number) * 0.46}
-              color={palette.onAccent}
+              color={palette.onStatus}
             />
           </Pressable>
         )}

@@ -374,7 +374,7 @@ export const dialPlanStyles = `
 
 .ds-dial-plan-menu-options__add:hover:not(:disabled) {
   background: var(--ds-color-primary, #6366f1);
-  color: #ffffff;
+  color: var(--ds-color-primary-text, #ffffff);
 }
 
 .ds-dial-plan-menu-options__add:disabled {
@@ -717,7 +717,7 @@ export const dialPlanStyles = `
 
 .ds-dial-plan-config-field__segmented-option--active {
   background: var(--ds-color-primary, #3b82f6);
-  color: #ffffff;
+  color: var(--ds-color-primary-text, #ffffff);
   font-weight: 500;
 }
 
@@ -833,7 +833,7 @@ export const dialPlanStyles = `
 
 .ds-resource-combobox__item[data-selected="true"] {
   background: var(--ds-color-primary, #3b82f6);
-  color: #ffffff;
+  color: var(--ds-color-primary-text, #ffffff);
 }
 
 .ds-resource-combobox__item--selected {
@@ -875,7 +875,7 @@ export const dialPlanStyles = `
 
 .ds-resource-combobox__create[data-selected="true"] {
   background: var(--ds-color-primary, #3b82f6);
-  color: #ffffff;
+  color: var(--ds-color-primary-text, #ffffff);
 }
 
 .ds-resource-combobox__empty {

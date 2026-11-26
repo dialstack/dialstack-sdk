@@ -21,6 +21,8 @@ export interface AppearanceVariables {
   // Colors - Primary
   colorPrimary?: string;
   colorPrimaryHover?: string;
+  /** Text and icons on a `colorPrimary` fill. Defaults to white. */
+  colorPrimaryText?: string;
 
   // Colors - Semantic
   colorBackground?: string;

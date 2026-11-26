@@ -307,7 +307,7 @@ const COMPONENT_STYLES = `
 
   .btn-primary {
     background: var(--ds-color-primary);
-    color: #fff;
+    color: var(--ds-color-primary-text);
   }
 
   .btn-primary:hover:not(:disabled) {
@@ -449,7 +449,7 @@ const COMPONENT_STYLES = `
   .checkbox-visual svg {
     width: 12px;
     height: 12px;
-    color: #fff;
+    color: var(--ds-color-primary-text);
     opacity: 0;
     transform: scale(0.5);
     transition: all var(--ds-transition-duration);

@@ -14,7 +14,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
 import { create as createConfetti } from 'canvas-confetti';
-import { computePortalCssVars } from './design-tokens';
+import { computePortalCssVars, resolvePrimaryPair } from './design-tokens';
 import { ShadowContainer } from './ShadowRoot';
 import {
   OnboardingProvider,
@@ -89,7 +89,9 @@ export interface OnboardingPortalProps {
    * Brand colors for the sidebar, buttons and accents. When omitted, the
    * portal uses the colors passed to `loadDialstackAndInitialize()`.
    */
-  appearance?: { variables?: { colorPrimary?: string; colorPrimaryHover?: string } };
+  appearance?: {
+    variables?: { colorPrimary?: string; colorPrimaryHover?: string; colorPrimaryText?: string };
+  };
   /**
    * Whether the signed-in person may accept the subscription agreement on this
    * account's behalf. Defaults to `true`; forwarded to the acceptance gate.
@@ -412,15 +414,24 @@ const PortalInner: React.FC<PortalInnerProps> = (props) => {
 
   const instanceAppearance = useAppearance(dialstack);
   const isDark = (props.theme ?? instanceAppearance?.theme ?? 'light') === 'dark';
-  const colorPrimary =
-    props.appearance?.variables?.colorPrimary ?? instanceAppearance?.variables?.colorPrimary;
+  const { colorPrimary, colorPrimaryText } = resolvePrimaryPair(
+    props.appearance?.variables,
+    instanceAppearance?.variables
+  );
   const colorPrimaryHover =
     props.appearance?.variables?.colorPrimaryHover ??
     instanceAppearance?.variables?.colorPrimaryHover;
 
   const portalStyle = useMemo(
-    () => computePortalCssVars({ colorPrimary, colorPrimaryHover, isDark, baseStyle: props.style }),
-    [colorPrimary, colorPrimaryHover, isDark, props.style]
+    () =>
+      computePortalCssVars({
+        colorPrimary,
+        colorPrimaryHover,
+        colorPrimaryText,
+        isDark,
+        baseStyle: props.style,
+      }),
+    [colorPrimary, colorPrimaryHover, colorPrimaryText, isDark, props.style]
   );
 
   // Every step hidden: there is nothing to walk through. The agreement gate in
@@ -705,7 +716,7 @@ const FinalCompleteScreen: React.FC<FinalCompleteScreenProps> = ({
               height: 44,
               minWidth: 150,
               background: 'var(--ds-portal-color-primary, #6772E5)',
-              color: '#fff',
+              color: 'var(--ds-portal-color-primary-text, #fff)',
               border: 'none',
               borderRadius: 100,
               fontSize: 14,

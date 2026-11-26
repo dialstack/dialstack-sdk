@@ -545,7 +545,12 @@ export abstract class BaseComponent extends getHTMLElementBase() {
 
     // Colors with theme-aware defaults
     const colorPrimary = vars.colorPrimary || '#6772E5';
-    const colorPrimaryHover = vars.colorPrimaryHover || '#5469d4';
+    // A brand primary without its own hover darkens itself, as the onboarding
+    // portal does; the default indigo hover belongs to the default primary only.
+    const colorPrimaryHover =
+      vars.colorPrimaryHover ||
+      (vars.colorPrimary ? `color-mix(in srgb, ${vars.colorPrimary}, black 10%)` : '#5469d4');
+    const colorPrimaryText = vars.colorPrimaryText || '#ffffff';
     const colorBackground = vars.colorBackground || (isDark ? '#1a1a1a' : '#ffffff');
     const colorText = vars.colorText || (isDark ? '#ffffff' : '#1a1a1a');
     const colorTextSecondary =
@@ -641,6 +646,7 @@ export abstract class BaseComponent extends getHTMLElementBase() {
         /* Colors - Primary */
         --ds-color-primary: ${colorPrimary};
         --ds-color-primary-hover: ${colorPrimaryHover};
+        --ds-color-primary-text: ${colorPrimaryText};
 
         /* Colors - Semantic */
         --ds-color-background: ${colorBackground};

@@ -27,6 +27,7 @@ export function paletteVariables(p: CallPalette): string {
       --dsd-danger: ${p.danger};
       --dsd-warning: ${p.warning};
       --dsd-on-accent: ${p.onAccent};
+      --dsd-on-status: ${p.onStatus};
 `.slice(1, -1);
 }
 
@@ -37,7 +38,7 @@ export function actionButtonRules(scope: string): string {
       flex: none; width: ${d.actionButtonSize}px; height: ${d.actionButtonSize}px;
       border: none; border-radius: 999px; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      color: var(--dsd-on-accent);
+      color: var(--dsd-on-status);
       transition: transform 0.06s ease, filter 0.12s ease;
       -webkit-tap-highlight-color: transparent;
     }

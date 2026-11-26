@@ -239,7 +239,7 @@
   align-items: center;
   gap: 6px;
   background: var(--ds-color-primary, #692cff);
-  color: #fff;
+  color: var(--ds-color-primary-text, #fff);
   border: none;
   border-radius: 24px;
   padding: 10px 20px;
@@ -436,7 +436,7 @@
 
 .overview-help-btn:hover {
   background: var(--ds-color-primary, #692cff);
-  color: #fff;
+  color: var(--ds-color-primary-text, #fff);
 }
 
 /* ── Responsive ── */

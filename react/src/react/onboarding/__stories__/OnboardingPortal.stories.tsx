@@ -12,7 +12,7 @@ const LOGO_HTML = `<div style="display:flex;align-items:center;gap:8px">
 <rect x="0" y="10.7" width="2.4" height="15.6" rx="1.2" fill="#692CFF"/>
 <rect x="31.7" y="10.7" width="2.4" height="15.6" rx="1.2" fill="#692CFF"/>
 </svg>
-<span style="font-size:20px;font-weight:700;color:#f0f0ff">DialStack</span>
+<span style="font-size:20px;font-weight:700;color:inherit">DialStack</span>
 </div>`;
 
 type Props = React.ComponentProps<typeof OnboardingPortal> & DecoratorArgs;
@@ -44,7 +44,7 @@ export const WhiteLabeled: Story = {
 <circle cx="12" cy="12" r="10" fill="#00A67E"/>
 <path d="M8 12l3 3 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
-<span style="font-size:20px;font-weight:700;color:#f0f0ff">Acme Telecom</span>
+<span style="font-size:20px;font-weight:700;color:inherit">Acme Telecom</span>
 </div>`,
     appearance: { variables: { colorPrimary: '#00A67E', colorPrimaryHover: '#008F6D' } },
   },
@@ -72,5 +72,13 @@ export const WithTemporaryDID: Story = {
         updated_at: '2026-03-20T10:00:00Z',
       },
     ],
+  },
+};
+
+// A dark theme whose primary is light, with the dark text the platform pairs it with.
+export const DarkThemeLightPrimary: Story = {
+  args: {
+    theme: 'dark' as const,
+    appearance: { variables: { colorPrimary: '#E5E5E5', colorPrimaryText: '#171717' } },
   },
 };

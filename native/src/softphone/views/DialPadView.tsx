@@ -193,7 +193,7 @@ export function DialPadView({
           <Glyph
             glyph={softphoneGlyphs.phone}
             size={(styles.action.width as number) * 0.46}
-            color={palette.onAccent}
+            color={palette.onStatus}
           />
         </Pressable>
         {/* Balances the side button so Call stays centred. */}

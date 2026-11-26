@@ -311,7 +311,7 @@ const STYLES = `
 
   .ds-button--primary {
     background: var(--ds-color-primary, #3b82f6);
-    color: var(--ds-color-primary-contrast, #ffffff);
+    color: var(--ds-color-primary-text, #ffffff);
   }
 
   .ds-button--primary:hover:not(:disabled) {

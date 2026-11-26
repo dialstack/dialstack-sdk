@@ -67,7 +67,7 @@ export function IncomingCallCardView({
             pressed && styles.actionPressed,
           ]}
         >
-          <Glyph glyph={softphoneGlyphs.hangup} size={size * 0.46} color={palette.onAccent} />
+          <Glyph glyph={softphoneGlyphs.hangup} size={size * 0.46} color={palette.onStatus} />
         </Pressable>
         <Pressable
           onPress={onAnswer}
@@ -79,7 +79,7 @@ export function IncomingCallCardView({
             pressed && styles.actionPressed,
           ]}
         >
-          <Glyph glyph={softphoneGlyphs.phone} size={size * 0.46} color={palette.onAccent} />
+          <Glyph glyph={softphoneGlyphs.phone} size={size * 0.46} color={palette.onStatus} />
         </Pressable>
       </View>
     </View>

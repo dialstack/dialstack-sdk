@@ -24,6 +24,9 @@ export interface CallPalette {
   danger: string;
   warning: string;
   onAccent: string;
+  /** Glyphs on the success and danger fills (call, answer, decline, hang up),
+   *  which stay white whatever the brand's primary is. */
+  onStatus: string;
 }
 
 export const callDimensions = {
@@ -44,6 +47,7 @@ const LIGHT: CallPalette = {
   danger: '#e5484d',
   warning: '#f5a623',
   onAccent: '#ffffff',
+  onStatus: '#ffffff',
 };
 
 const DARK: CallPalette = {
@@ -58,6 +62,7 @@ const DARK: CallPalette = {
   danger: '#ff6369',
   warning: '#f5a623',
   onAccent: '#ffffff',
+  onStatus: '#ffffff',
 };
 
 function isDark(theme: Theme | undefined): boolean {
@@ -78,7 +83,8 @@ export function resolveCallPalette(appearance?: AppearanceOptions): CallPalette 
     success: v.colorSuccess ?? base.success,
     danger: v.colorDanger ?? base.danger,
     warning: v.colorWarning ?? base.warning,
-    onAccent: base.onAccent,
+    onAccent: v.colorPrimaryText ?? base.onAccent,
+    onStatus: base.onStatus,
   };
 }
 

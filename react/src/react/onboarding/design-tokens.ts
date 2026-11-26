@@ -42,6 +42,7 @@ export const STATIC_TOKENS = {
 export const LIGHT_COLORS = {
   '--ds-color-primary': '#6772E5',
   '--ds-color-primary-hover': '#5469d4',
+  '--ds-color-primary-text': '#ffffff',
   '--ds-color-background': '#ffffff',
   '--ds-color-text': '#1a1a1a',
   '--ds-color-text-secondary': 'rgba(0,0,0,0.6)',
@@ -63,9 +64,30 @@ export const DARK_COLORS = {
   '--ds-color-border-subtle': 'rgba(255,255,255,0.05)',
 } as const;
 
+type PrimaryVariables = { colorPrimary?: string; colorPrimaryText?: string };
+
+/**
+ * The primary and the text drawn on it, taken from the same source. A text color
+ * is chosen for one primary, so a prop that sets `colorPrimary` must not pick up
+ * the instance's `colorPrimaryText`; left unset, the text takes its default.
+ */
+export function resolvePrimaryPair(
+  prop: PrimaryVariables | undefined,
+  instance: PrimaryVariables | undefined
+): PrimaryVariables {
+  if (prop?.colorPrimary) {
+    return { colorPrimary: prop.colorPrimary, colorPrimaryText: prop.colorPrimaryText };
+  }
+  return {
+    colorPrimary: instance?.colorPrimary,
+    colorPrimaryText: prop?.colorPrimaryText ?? instance?.colorPrimaryText,
+  };
+}
+
 export interface PortalCssVarsOptions {
   colorPrimary?: string;
   colorPrimaryHover?: string;
+  colorPrimaryText?: string;
   isDark?: boolean;
   baseStyle?: React.CSSProperties;
 }
@@ -81,7 +103,7 @@ export interface PortalCssVarsOptions {
  * fall back to the default DialStack purple.
  */
 export function computePortalCssVars(opts: PortalCssVarsOptions): React.CSSProperties {
-  const { colorPrimary, colorPrimaryHover, isDark = false, baseStyle } = opts;
+  const { colorPrimary, colorPrimaryHover, colorPrimaryText, isDark = false, baseStyle } = opts;
 
   const effectivePrimary = colorPrimary ?? LIGHT_COLORS['--ds-color-primary'];
   const effectivePrimaryHover =
@@ -90,8 +112,15 @@ export function computePortalCssVars(opts: PortalCssVarsOptions): React.CSSPrope
       ? `color-mix(in srgb, ${colorPrimary}, black 10%)`
       : LIGHT_COLORS['--ds-color-primary-hover']);
 
+  const primaryText = colorPrimaryText ?? '#ffffff';
+
+  // Without a brand color the sidebar and splash use their own purples, not the
+  // default primary, so their text keeps its own light default.
   const sidebarBg = colorPrimary ?? '#1c1247';
-  const sidebarActive = colorPrimary ? `color-mix(in srgb, ${colorPrimary}, white 20%)` : '#4c3c8e';
+  const sidebarText = colorPrimary ? primaryText : (colorPrimaryText ?? '#f0f0ff');
+  const sidebarActive = colorPrimary
+    ? `color-mix(in srgb, ${colorPrimary}, ${primaryText} 20%)`
+    : '#4c3c8e';
   const splashBg = colorPrimary ? `color-mix(in srgb, ${colorPrimary}, black 15%)` : '#2d2065';
   const splashShape = colorPrimary ? `color-mix(in srgb, ${colorPrimary}, white 30%)` : '#8A7ACE';
   const splashShelf = colorPrimary ? `color-mix(in srgb, ${colorPrimary}, white 70%)` : '#d1c6ff';
@@ -103,6 +132,7 @@ export function computePortalCssVars(opts: PortalCssVarsOptions): React.CSSPrope
     ...(isDark ? DARK_COLORS : {}),
     '--ds-color-primary': effectivePrimary,
     '--ds-color-primary-hover': effectivePrimaryHover,
+    '--ds-color-primary-text': primaryText,
   };
 
   const portalColorVars = Object.fromEntries(
@@ -111,8 +141,10 @@ export function computePortalCssVars(opts: PortalCssVarsOptions): React.CSSPrope
 
   return {
     '--ds-portal-sidebar-bg': sidebarBg,
+    '--ds-portal-sidebar-text': sidebarText,
     '--ds-portal-sidebar-active': sidebarActive,
     '--ds-portal-splash-bg': splashBg,
+    '--ds-portal-splash-text': colorPrimary ? primaryText : (colorPrimaryText ?? '#ffffff'),
     '--ds-portal-splash-shape': splashShape,
     '--ds-portal-splash-shelf': splashShelf,
     ...portalColorVars,

@@ -21,7 +21,7 @@ import {
   type EffectivePricing,
   type FormattingOptions,
 } from '@dialstack/sdk-js/pure';
-import { computePortalCssVars, generateLayoutCssVars } from './design-tokens';
+import { computePortalCssVars, generateLayoutCssVars, resolvePrimaryPair } from './design-tokens';
 import { ShadowContainer } from './ShadowRoot';
 import { useAppearance } from '../useAppearance';
 import SHARED_STYLES from './styles/styles.css';
@@ -128,7 +128,9 @@ export interface SsaAcceptanceGateProps {
   locale: Locale;
   formatting?: FormattingOptions;
   theme?: 'light' | 'dark';
-  appearance?: { variables?: { colorPrimary?: string; colorPrimaryHover?: string } };
+  appearance?: {
+    variables?: { colorPrimary?: string; colorPrimaryHover?: string; colorPrimaryText?: string };
+  };
   /**
    * Whether this session may record acceptance. Defaults to `true`.
    *
@@ -214,13 +216,15 @@ function useGateShell(
 ): React.CSSProperties {
   const instanceAppearance = useAppearance(dialstack);
   const isDark = (theme ?? instanceAppearance?.theme ?? 'light') === 'dark';
-  const colorPrimary =
-    appearance?.variables?.colorPrimary ?? instanceAppearance?.variables?.colorPrimary;
+  const { colorPrimary, colorPrimaryText } = resolvePrimaryPair(
+    appearance?.variables,
+    instanceAppearance?.variables
+  );
   const colorPrimaryHover =
     appearance?.variables?.colorPrimaryHover ?? instanceAppearance?.variables?.colorPrimaryHover;
   return useMemo(
-    () => computePortalCssVars({ colorPrimary, colorPrimaryHover, isDark }),
-    [colorPrimary, colorPrimaryHover, isDark]
+    () => computePortalCssVars({ colorPrimary, colorPrimaryHover, colorPrimaryText, isDark }),
+    [colorPrimary, colorPrimaryHover, colorPrimaryText, isDark]
   );
 }
 
@@ -415,7 +419,9 @@ export const SsaAcceptanceGate: React.FC<SsaAcceptanceGateProps> = ({
 export interface SsaGateLoadErrorProps {
   locale: Locale;
   theme?: 'light' | 'dark';
-  appearance?: { variables?: { colorPrimary?: string; colorPrimaryHover?: string } };
+  appearance?: {
+    variables?: { colorPrimary?: string; colorPrimaryHover?: string; colorPrimaryText?: string };
+  };
   /** Retry loading the agreement. */
   onRetry: () => void | Promise<void>;
 }
