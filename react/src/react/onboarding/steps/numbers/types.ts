@@ -5,7 +5,6 @@ import type {
   PortEligibilityResult,
   DIDItem,
   PhoneNumberItem,
-  OnboardingLocation,
 } from '@dialstack/sdk-js';
 import type { NumSubStep } from '../../constants';
 import {
@@ -82,9 +81,10 @@ export interface NumState {
   portCurrentCarrier: string | null;
   portCompletedCarriers: string[];
   portOrderResults: Array<{ carrier: string; orderId: string; status: string }>;
-  e911FlowState: 'idle' | 'running' | 'polling' | 'simple' | 'complex' | 'failed';
-  e911ProvisionedLocation: OnboardingLocation | null;
-  e911PollCount: number;
+  /** The complete state is up while the numbers are still being routed. */
+  isFinishing: boolean;
+  /** Routing the numbers failed: the complete state offers a retry, not success. */
+  finishFailed: boolean;
   dlEligibleDIDs: DIDItem[];
   dlSelectedDIDId: string | null;
   dlBusinessName: string;
@@ -155,12 +155,7 @@ export type NumAction =
       attempted: boolean;
     }
   | { type: 'caller_id_persist_name'; didId: string; name: string }
-  | {
-      type: 'e911_set_state';
-      state: 'idle' | 'running' | 'polling' | 'simple' | 'complex' | 'failed';
-      location?: OnboardingLocation | null;
-      pollCount?: number;
-    }
+  | { type: 'set_finishing'; finishing: boolean; failed?: boolean }
   | {
       type: 'dl_init';
       eligibleDIDs: DIDItem[];
@@ -179,8 +174,6 @@ export type Dispatcher = React.Dispatch<NumAction>;
 export type TFn = (key: string, params?: Record<string, string | number>) => string;
 
 export type CardMode = 'overview' | 'caller-id' | 'directory-listing';
-
-export const E911_POLL_MAX = 5;
 
 export function makeFocDate(): string {
   const d = new Date();
@@ -255,9 +248,8 @@ export const INITIAL_STATE: NumState = {
   callerIdStatuses: {},
   callerIdErrors: {},
   callerIdBulkAttempted: false,
-  e911FlowState: 'idle',
-  e911ProvisionedLocation: null,
-  e911PollCount: 0,
+  isFinishing: false,
+  finishFailed: false,
   dlEligibleDIDs: [],
   dlSelectedDIDId: null,
   dlBusinessName: '',
@@ -576,13 +568,8 @@ export function numReducer(state: NumState, action: NumAction): NumState {
           d.id === action.didId ? { ...d, caller_id_name: action.name } : d
         ),
       };
-    case 'e911_set_state':
-      return {
-        ...state,
-        e911FlowState: action.state,
-        ...(action.location !== undefined ? { e911ProvisionedLocation: action.location } : {}),
-        ...(action.pollCount !== undefined ? { e911PollCount: action.pollCount } : {}),
-      };
+    case 'set_finishing':
+      return { ...state, isFinishing: action.finishing, finishFailed: action.failed ?? false };
     case 'dl_init':
       return {
         ...state,

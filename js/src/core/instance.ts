@@ -2236,8 +2236,11 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         body: JSON.stringify(request),
       });
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to create location: ${response.status} ${errorText}`);
+        const { message, code, details } = await extractApiError(
+          response,
+          `Failed to create location: ${response.status}`
+        );
+        throw new ApiError(message, response.status, code, details);
       }
       return response.json();
     },
@@ -2268,11 +2271,17 @@ export class DialStackInstanceImplClass implements DialStackInstanceImpl {
         body: JSON.stringify(request),
       });
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to update location: ${response.status} ${errorText}`);
+        const { message, code, details } = await extractApiError(
+          response,
+          `Failed to update location: ${response.status}`
+        );
+        throw new ApiError(message, response.status, code, details);
       }
       return response.json();
     },
+    // NEXT MAJOR: delete validateE911 and provisionE911 (and E911ValidationResult).
+    // E911 registration is automatic; provision-e911 is a no-op that returns the
+    // location, and neither route is in the public API spec any more.
     validateE911: async (locationId: string): Promise<E911ValidationResult> => {
       const response = await this.fetchApi(`/v1/locations/${locationId}/validate-e911`, {
         method: 'POST',

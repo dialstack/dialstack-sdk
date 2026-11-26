@@ -33,7 +33,6 @@ export function getStatusBadgeClass(status: PhoneNumberStatus): string {
 
 export function getSidebarActiveKey(subStep: NumSubStep): string {
   if (subStep === 'overview') return 'options';
-  if (subStep === 'e911') return 'e911';
   if (subStep === 'caller-id') return 'caller-id';
   if (subStep === 'directory-listing') return 'directory-listing';
   if (subStep === 'order-status' || subStep === 'port-submitted') return 'verification';

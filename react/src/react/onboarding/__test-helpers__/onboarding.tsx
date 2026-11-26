@@ -121,7 +121,6 @@ export const mockLocation = {
     country: 'US',
     formatted_address: '123 Main St, New York, NY 10001',
   },
-  e911_status: 'none' as const,
   status: 'active',
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
@@ -455,8 +454,6 @@ export function createMockInstance(overrides?: MockInstanceOverrides): DialStack
       retrieve: jest.fn().mockResolvedValue(mockLocation),
       list: jest.fn().mockResolvedValue([mockLocation]),
       update: jest.fn().mockResolvedValue(mockLocation),
-      validateE911: jest.fn().mockResolvedValue({ valid: true }),
-      provisionE911: jest.fn().mockResolvedValue(mockLocation),
     },
     addresses: {
       suggest: jest.fn().mockResolvedValue([]),

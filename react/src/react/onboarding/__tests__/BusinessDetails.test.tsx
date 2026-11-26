@@ -7,7 +7,7 @@
 import React from 'react';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { BusinessDetails } from '../steps/account/BusinessDetails';
-import type { AccountConfig } from '@dialstack/sdk-js';
+import { ApiError, type AccountConfig } from '@dialstack/sdk-js';
 import {
   renderWithOnboarding,
   mockAccount,
@@ -74,8 +74,6 @@ describe('BusinessDetails', () => {
         }),
         retrieve: jest.fn().mockResolvedValue(mockLocation),
         update: jest.fn().mockResolvedValue(mockLocation),
-        validateE911: jest.fn().mockResolvedValue({ valid: true }),
-        provisionE911: jest.fn().mockResolvedValue(mockLocation),
         ...overrides,
       },
     };
@@ -719,6 +717,27 @@ describe('BusinessDetails', () => {
   // ==========================================================================
   // Error handling
   // ==========================================================================
+
+  it('explains an address emergency services cannot use', async () => {
+    const { container } = await renderBD({
+      ...locationsNS({
+        list: jest.fn().mockResolvedValue([mockLocation]),
+        update: jest
+          .fn()
+          .mockRejectedValue(new ApiError('raw server text', 400, 'address_not_dispatchable')),
+      }),
+    });
+
+    fireEvent.change(getFieldByLabel(container, 'Location Name'), {
+      target: { value: 'Renamed Office' },
+    });
+    clickNext();
+
+    await waitFor(() => {
+      expect(screen.getByText(/Emergency services can't use this address/)).toBeTruthy();
+    });
+    expect(screen.queryByText('raw server text')).toBeNull();
+  });
 
   it('shows save error when updateAccount fails', async () => {
     await renderBD({

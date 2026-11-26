@@ -40,7 +40,7 @@ export class OnboardingProgressStore {
   /**
    * Replace the in-memory completion sets with a freshly derived snapshot.
    * Called by useOnboardingBootstrap after fetching account data. Polls during
-   * port/E911 flows keep firing identical snapshots — skip notify when nothing
+   * port flows keep firing identical snapshots — skip notify when nothing
    * changed so downstream subscribers don't re-render on every reload tick.
    */
   hydrateFromDerived(completed: Record<StepName, Set<string>>): void {

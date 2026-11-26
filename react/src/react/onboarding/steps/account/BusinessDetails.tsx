@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { defaultLocale, isApiError } from '@dialstack/sdk-js/pure';
 import type { OnboardingLocation, ResolvedAddress } from '@dialstack/sdk-js';
 import { TIMEZONES } from '../../../../constants/timezones';
 import { useOnboarding } from '../../OnboardingContext';
@@ -207,6 +208,15 @@ export const BusinessDetails: React.FC<BusinessDetailsProps> = ({ onAdvance, onB
         });
       }
     } catch (err) {
+      if (isApiError(err) && err.code === 'address_not_dispatchable') {
+        setSaveError(
+          t.addressNotDispatchable ??
+            defaultLocale.accountOnboarding.account.addressNotDispatchable ??
+            t.saveError
+        );
+        setIsSaving(false);
+        return;
+      }
       setSaveError(err instanceof Error ? err.message : t.saveError);
       setIsSaving(false);
       return;

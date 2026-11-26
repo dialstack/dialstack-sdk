@@ -84,10 +84,6 @@ export function deriveOnboardingState(snapshot: OnboardingDataSnapshot): Derived
     completed.numbers.add('order-confirm');
   }
   if (hasActiveDID && hasUserDID) completed.numbers.add('order-status');
-  // A location's main phone number is unrelated to E911 provisioning.
-  if (locations.some((l) => l.e911_status === 'provisioned')) {
-    completed.numbers.add('e911');
-  }
   // Gate on liveDIDs (not raw dids) for parity with the substeps above — an
   // expired DID's caller-id/listing shouldn't mark the substep complete.
   if (liveDIDs.some((d) => !!d.caller_id_name)) completed.numbers.add('caller-id');

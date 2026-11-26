@@ -865,16 +865,6 @@
   margin: 0;
 }
 
-/* ── E911 Panel ── */
-.e911-panel .center-state {
-  min-height: auto;
-  padding: var(--ds-layout-spacing-md) 0;
-}
-
-.e911-panel .spinner {
-  --ds-spinner-size: 24px;
-}
-
 /* ── Sub-step transition animations ── */
 @keyframes substep-enter {
   from {

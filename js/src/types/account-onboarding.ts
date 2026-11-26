@@ -454,6 +454,12 @@ export interface OnboardingLocation {
   primary_did?: string | null;
   /** @deprecated Use `primary_did`. Retained for backwards compatibility. */
   primary_did_id?: string | null;
+  /**
+   * @deprecated Emergency (E911) registration is automatic and internal to the
+   * platform. Removed in the next major.
+   */
+  // NEXT MAJOR: delete this field; the API stops documenting it, and keeps
+  // returning it only for readers of this deprecated type.
   e911_status?: 'none' | 'pending' | 'binding' | 'provisioned' | 'failed';
   /** @deprecated The operational-status field was retired; always "active". */
   status: string;
@@ -486,6 +492,7 @@ export interface UpdateLocationRequest {
   config?: LocationConfig;
 }
 
+/** @deprecated Returned only by the deprecated `locations.validateE911()`. Removed in the next major. */
 export interface E911ValidationResult {
   adjusted: boolean;
   address?: {

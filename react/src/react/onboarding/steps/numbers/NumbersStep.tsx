@@ -13,7 +13,6 @@ import {
   type DIDItem,
   type NumberOrder,
   type PortOrder,
-  type OnboardingLocation,
   type DialStackInstance,
   type SearchAvailableNumbersOptions,
   type CreatePortOrderRequest,
@@ -25,10 +24,9 @@ import {
   parseRegionCode,
 } from '@dialstack/sdk-js/pure';
 import { mergePhoneNumbers } from '../../merge-phone-numbers';
-import { CHECK_SVG_WHITE, CHECK_CIRCLE_SVG, ERROR_SVG, PHONE_SVG } from '../../icons';
+import { CHECK_SVG_WHITE, PHONE_SVG } from '../../icons';
 import { useOnboarding, findNextIncompleteStep } from '../../OnboardingContext';
 import { SIDEBAR_GROUPS } from '../../constants';
-import { usePortalActions } from '../../PortalActionsContext';
 import { OnboardingLayout } from '../../OnboardingLayout';
 import { CheckIcon } from '../../components/icons';
 import numbersStyles from '../../styles/numbers-styles.css';
@@ -49,7 +47,7 @@ import {
   earliestPortDate,
   portHolidayOn,
 } from './port-numbers';
-import { type NumState, type CardMode, numReducer, INITIAL_STATE, E911_POLL_MAX } from './types';
+import { type NumState, type CardMode, numReducer, INITIAL_STATE } from './types';
 import {
   getSidebarActiveKey,
   takesCallerId,
@@ -111,7 +109,6 @@ export const NumbersStep: React.FC = () => {
     reloadSharedData,
     entryMode,
   } = useOnboarding();
-  const { onSaveAndExit } = usePortalActions();
   // Port times are entered in the account's local time and sent with its zone.
   const focTimeZone = contextAccount?.config?.timezone || FOC_CARRIER_TIMEZONE;
   const [state, dispatch] = useReducer(numReducer, INITIAL_STATE);
@@ -122,8 +119,7 @@ export const NumbersStep: React.FC = () => {
   const didResumeRef = useRef(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const orderPollGenRef = useRef(0);
-  const e911GenRef = useRef(0);
-  const e911PollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const finishGenRef = useRef(0);
   const createdDialPlanIdRef = useRef<string | undefined>(undefined);
   const stateRef = useRef(state);
   useEffect(() => {
@@ -149,13 +145,12 @@ export const NumbersStep: React.FC = () => {
     [locale, platformName]
   );
 
-  // Cancel E911 and polls on unmount
+  // Cancel polls and the finishing setup on unmount
   useEffect(() => {
     return () => {
       if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
-      if (e911PollTimerRef.current) clearTimeout(e911PollTimerRef.current);
       orderPollGenRef.current++;
-      e911GenRef.current++;
+      finishGenRef.current++;
     };
   }, []);
 
@@ -637,119 +632,16 @@ export const NumbersStep: React.FC = () => {
     [t]
   );
 
-  // E911 polling: after provisioning, poll getLocation every 2s up to 5 times
-  const E911_POLL_INTERVAL_MS = 2000;
-
-  const startE911Polling = useCallback(
-    (locationId: string, gen: number) => {
-      if (e911PollTimerRef.current) clearTimeout(e911PollTimerRef.current);
-      let count = 0;
-
-      const pollNext = () => {
-        e911PollTimerRef.current = setTimeout(async () => {
-          if (e911GenRef.current !== gen) return;
-          count++;
-          try {
-            const loc = await dialstack.locations.retrieve(locationId);
-            if (e911GenRef.current !== gen) return;
-
-            if (loc.e911_status === 'provisioned') {
-              e911PollTimerRef.current = null;
-              dispatch({ type: 'e911_set_state', state: 'simple', location: loc, pollCount: 0 });
-            } else if (loc.e911_status === 'failed') {
-              e911PollTimerRef.current = null;
-              dispatch({ type: 'e911_set_state', state: 'failed', location: loc });
-            } else if (count < E911_POLL_MAX) {
-              dispatch({
-                type: 'e911_set_state',
-                state: 'running',
-                location: loc,
-                pollCount: count,
-              });
-              pollNext();
-            } else {
-              // Max polls reached, still pending — show soft success
-              e911PollTimerRef.current = null;
-              dispatch({
-                type: 'e911_set_state',
-                state: 'simple',
-                location: loc,
-                pollCount: count,
-              });
-            }
-          } catch (err) {
-            if (e911GenRef.current !== gen) return;
-            console.warn('[dialstack] E911 poll failed:', err);
-            e911PollTimerRef.current = null;
-            dispatch({ type: 'e911_set_state', state: 'failed' });
-          }
-        }, E911_POLL_INTERVAL_MS);
-      };
-
-      dispatch({ type: 'e911_set_state', state: 'running', pollCount: 0 });
-      pollNext();
-    },
-    [dialstack, E911_POLL_INTERVAL_MS]
-  );
-
-  /** After provisioning returns pending/binding, decide whether to poll or show result. */
-  const handleProvisionResult = useCallback(
-    (provisioned: OnboardingLocation, locationId: string, gen: number) => {
-      if (provisioned.e911_status === 'pending' || provisioned.e911_status === 'binding') {
-        dispatch({ type: 'e911_set_state', state: 'running', location: provisioned, pollCount: 0 });
-        startE911Polling(locationId, gen);
-      } else if (provisioned.e911_status === 'failed') {
-        dispatch({ type: 'e911_set_state', state: 'failed', location: provisioned });
-      } else {
-        dispatch({ type: 'e911_set_state', state: 'simple', location: provisioned });
-      }
-    },
-    [startE911Polling]
-  );
-
-  // Run validate + provision against a location, dispatching the appropriate
-  // terminal E911 state. Callers own the generation token so they can short-
-  // circuit if a newer attempt supersedes this one.
-  const runE911Check = useCallback(
-    async (locationId: string, gen: number, cancelled: () => boolean): Promise<void> => {
-      try {
-        await dialstack.locations.validateE911(locationId);
-        if (cancelled()) return;
-        const provisioned = await dialstack.locations.provisionE911(locationId);
-        if (cancelled()) return;
-        handleProvisionResult(provisioned, locationId, gen);
-      } catch (err) {
-        if (cancelled()) return;
-        console.warn('[dialstack] E911 check failed:', err);
-        dispatch({ type: 'e911_set_state', state: 'failed' });
-      }
-    },
-    [dialstack, handleProvisionResult]
-  );
-
-  // Retry button — re-asks the carrier without re-doing dial-plan or DID setup.
-  const retryE911 = useCallback(async () => {
-    if (e911PollTimerRef.current) clearTimeout(e911PollTimerRef.current);
-    const location = stateRef.current.e911ProvisionedLocation ?? contextLocations[0];
-    if (!location) {
-      dispatch({ type: 'e911_set_state', state: 'complex' });
-      return;
-    }
-    dispatch({ type: 'e911_set_state', state: 'running', location, pollCount: 0 });
-    const gen = ++e911GenRef.current;
-    await runE911Check(location.id, gen, () => e911GenRef.current !== gen);
-  }, [contextLocations, runE911Check]);
-
-  // Navigate to next main step: show complete state + trigger E911 provisioning
+  // Navigate to next main step: show the complete state once the numbers are
+  // routed to the default dial plan.
   const navigateToNext = useCallback(
     async (_currentState: NumState) => {
       if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
-      if (e911PollTimerRef.current) clearTimeout(e911PollTimerRef.current);
       dispatch({ type: 'set_complete' });
-      dispatch({ type: 'e911_set_state', state: 'running', pollCount: 0 });
+      dispatch({ type: 'set_finishing', finishing: true });
 
-      const gen = ++e911GenRef.current;
-      const cancelled = () => e911GenRef.current !== gen;
+      const gen = ++finishGenRef.current;
+      const cancelled = () => finishGenRef.current !== gen;
 
       try {
         const activeDIDs = await dialstack.fetchAllPages<DIDItem>((opts) =>
@@ -758,7 +650,7 @@ export const NumbersStep: React.FC = () => {
 
         if (cancelled()) return;
         if (activeDIDs.length === 0) {
-          dispatch({ type: 'e911_set_state', state: 'idle' });
+          dispatch({ type: 'set_finishing', finishing: false });
           return;
         }
 
@@ -801,48 +693,34 @@ export const NumbersStep: React.FC = () => {
         }
         if (cancelled()) return;
 
-        // Assign unrouted DIDs to the dial plan
+        // Assign unrouted DIDs to the dial plan. A number left unrouted gets no
+        // inbound calls, so any failure here holds back the success card.
+        const unroutedDIDs = activeDIDs.filter((d) => !d.routing_target);
+        let routed = unroutedDIDs.length === 0 || !!dialPlanId;
         if (dialPlanId) {
-          const unroutedDIDs = activeDIDs.filter((d) => !d.routing_target);
-          await Promise.all(
+          const planId = dialPlanId;
+          const results = await Promise.all(
             unroutedDIDs.map((did) =>
-              dialstack.phoneNumbers.updateRoute(did.id, dialPlanId!).catch((err) => {
-                console.warn(`[dialstack] Failed to route DID ${did.id}:`, err);
-              })
+              dialstack.phoneNumbers.updateRoute(did.id, planId).then(
+                () => true,
+                (err) => {
+                  console.warn(`[dialstack] Failed to route DID ${did.id}:`, err);
+                  return false;
+                }
+              )
             )
           );
+          routed = results.every(Boolean);
         }
         if (cancelled()) return;
-        // --- End dial plan logic ---
-
-        if (cancelled()) return;
-        if (contextLocations.length !== 1) {
-          dispatch({ type: 'e911_set_state', state: 'complex' });
-          return;
-        }
-
-        const location = contextLocations[0]!;
-        if (location.e911_status === 'provisioned') {
-          dispatch({ type: 'e911_set_state', state: 'simple', location });
-          return;
-        }
-        if (location.e911_status === 'pending' || location.e911_status === 'binding') {
-          dispatch({ type: 'e911_set_state', state: 'running', location, pollCount: 0 });
-          startE911Polling(location.id, gen);
-          return;
-        }
-        if (location.e911_status === 'none' || location.e911_status === 'failed') {
-          await runE911Check(location.id, gen, cancelled);
-          return;
-        }
-        dispatch({ type: 'e911_set_state', state: 'complex' });
+        dispatch({ type: 'set_finishing', finishing: false, failed: !routed });
       } catch (err) {
         if (cancelled()) return;
-        console.warn('[dialstack] E911 auto-provisioning failed:', err);
-        dispatch({ type: 'e911_set_state', state: 'failed' });
+        console.warn('[dialstack] Failed to finish number setup:', err);
+        dispatch({ type: 'set_finishing', finishing: false, failed: true });
       }
     },
-    [dialstack, contextLocations, startE911Polling, runE911Check, reloadSharedData]
+    [dialstack, t]
   );
 
   // Initialize single-DID directory listing state, then navigate to the substep.
@@ -1286,86 +1164,26 @@ export const NumbersStep: React.FC = () => {
       progressStore.setCurrentStep(findNextIncompleteStep(activeSteps, progressStore, 'numbers'));
     };
 
-    let e911Panel: React.ReactNode = null;
-    if (state.e911FlowState === 'running') {
-      const statusMsg =
-        state.e911PollCount > 0
-          ? t('accountOnboarding.complete.e911.pollingStatus')
-          : t('accountOnboarding.complete.e911.loading');
-      e911Panel = (
-        <div className="e911-panel">
-          <div className="center-state" role="status" aria-live="polite">
-            <div className="spinner" aria-hidden="true" />
-            <div className="center-title">{statusMsg}</div>
-          </div>
-        </div>
-      );
-    } else if (state.e911FlowState === 'simple') {
-      const e911Status = state.e911ProvisionedLocation?.e911_status;
-      let msg: React.ReactNode;
-      if (e911Status === 'provisioned') {
-        msg = (
-          <div className="center-title">
-            {/* SAFETY: CHECK_CIRCLE_SVG is a static SVG constant */}
-            {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- static SVG constant from our own source */}
-            <span dangerouslySetInnerHTML={{ __html: CHECK_CIRCLE_SVG }} />{' '}
-            {t('accountOnboarding.complete.e911.verified')}
-          </div>
-        );
-      } else if (e911Status === 'pending' || e911Status === 'binding') {
-        msg = (
-          <div className="center-title">
-            {state.e911PollCount >= E911_POLL_MAX
-              ? t('accountOnboarding.complete.e911.pendingAfterPolling')
-              : t('accountOnboarding.complete.e911.processing')}
-          </div>
-        );
-      } else {
-        msg = null;
-      }
-      if (msg) {
-        e911Panel = (
-          <div className="e911-panel">
-            <div className="center-state">{msg}</div>
-          </div>
-        );
-      }
-    } else if (state.e911FlowState === 'failed' || state.e911FlowState === 'complex') {
-      const title =
-        state.e911FlowState === 'failed' ? t('accountOnboarding.complete.e911.errorTitle') : null;
-      const detail =
-        state.e911FlowState === 'failed'
-          ? t('accountOnboarding.complete.e911.errorDescription')
-          : t('accountOnboarding.complete.e911.deferred');
-      e911Panel = (
-        <div className="e911-panel">
-          <div className="center-state">
-            {/* SAFETY: ERROR_SVG is a static SVG constant */}
-            {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- static SVG constant from our own source */}
-            <div className="center-icon error" dangerouslySetInnerHTML={{ __html: ERROR_SVG }} />
-            {title && <div className="center-title">{title}</div>}
-            <div className="center-detail">{detail}</div>
-          </div>
-        </div>
-      );
-    }
-
-    // Suppress the success celebration while E911 isn't yet a terminal success.
-    // 'running' is included so the success card doesn't flash between a failure
-    // and its retry.
-    const e911Blocking =
-      state.e911FlowState === 'running' ||
-      state.e911FlowState === 'complex' ||
-      state.e911FlowState === 'failed';
-    const e911HasProblem = state.e911FlowState === 'complex' || state.e911FlowState === 'failed';
-    const otherIncompleteStep = activeSteps.find(
-      (s) => s !== 'final_complete' && s !== 'numbers' && !progressStore.isStepComplete(s)
-    );
-
     return (
       <OnboardingLayout sidebar={sidebar} extraStylesheets={NUMBERS_EXTRA_STYLESHEETS}>
         <div className="card">
-          {!e911Blocking && (
+          {state.isFinishing ? (
+            <div className="center-state" role="status" aria-live="polite">
+              <div className="spinner" aria-hidden="true" />
+              <div className="center-title">{t('accountOnboarding.loading')}</div>
+            </div>
+          ) : state.finishFailed ? (
+            <div className="center-state" role="alert">
+              <div className="center-title">{t('accountOnboarding.numbers.routingError')}</div>
+              <button
+                className="btn btn-primary"
+                style={{ marginTop: 'var(--ds-layout-spacing-lg)' }}
+                onClick={() => void navigateToNext(state)}
+              >
+                {t('accountOnboarding.error.retry')}
+              </button>
+            </div>
+          ) : (
             <div className="placeholder" style={{ minHeight: 200 }}>
               {/* SAFETY: CHECK_SVG_WHITE is a static SVG constant */}
               {/* nosemgrep: javascript.react.dangerouslysetinnerhtml -- static SVG constant from our own source */}
@@ -1383,26 +1201,6 @@ export const NumbersStep: React.FC = () => {
               >
                 {t('accountOnboarding.stepComplete.done')}
               </button>
-            </div>
-          )}
-          {e911Panel}
-          {e911HasProblem && (
-            <div className="center-btn-row">
-              <button className="btn btn-secondary" onClick={() => void retryE911()}>
-                {t('accountOnboarding.complete.e911.retryButton')}
-              </button>
-              {otherIncompleteStep ? (
-                <button
-                  className="btn btn-primary"
-                  onClick={() => progressStore.setCurrentStep(otherIncompleteStep)}
-                >
-                  {t('accountOnboarding.nav.next')}
-                </button>
-              ) : (
-                <button className="btn btn-primary" onClick={onSaveAndExit}>
-                  {locale.onboardingPortal.saveAndExit}
-                </button>
-              )}
             </div>
           )}
         </div>

@@ -684,9 +684,21 @@ export interface LocationsResource {
   list(): Promise<OnboardingLocation[]>;
   /** Update a location */
   update(locationId: string, request: UpdateLocationRequest): Promise<OnboardingLocation>;
-  /** Validate a location for E911 */
+  /**
+   * Echoes the location's address back.
+   *
+   * @deprecated Emergency (E911) registration happens automatically when a
+   * location is created or its address changes, so there is nothing to
+   * validate first. Removed in the next major.
+   */
   validateE911(locationId: string): Promise<E911ValidationResult>;
-  /** Provision E911 for a location */
+  /**
+   * Returns the location. It no longer starts or retries emergency (E911)
+   * registration, including for a location whose registration failed.
+   *
+   * @deprecated Emergency (E911) registration happens automatically when a
+   * location is created or its address changes. Removed in the next major.
+   */
   provisionE911(locationId: string): Promise<OnboardingLocation>;
 }
 

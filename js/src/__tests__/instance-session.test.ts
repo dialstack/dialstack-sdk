@@ -122,6 +122,7 @@ describe('DialStackInstanceImplClass session behavior', () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  // NEXT MAJOR: deprecated surface; delete this test with the method.
   it('validateLocationE911 sends POST and returns validation result', async () => {
     const { DialStackInstanceImplClass } = await import('../core/instance');
     const instance = new DialStackInstanceImplClass({
@@ -164,6 +165,7 @@ describe('DialStackInstanceImplClass session behavior', () => {
     );
   });
 
+  // NEXT MAJOR: deprecated surface; delete this test with the method.
   it('provisionLocationE911 sends POST and returns updated location', async () => {
     const { DialStackInstanceImplClass } = await import('../core/instance');
     const instance = new DialStackInstanceImplClass({

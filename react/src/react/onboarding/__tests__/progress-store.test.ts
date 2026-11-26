@@ -66,7 +66,7 @@ describe('OnboardingProgressStore', () => {
       store.completeSubStep('numbers', 'overview');
 
       expect(store.getCompletedSubSteps('numbers').has('overview')).toBe(true);
-      expect(store.getStepProgressPercent('numbers')).toBe(25);
+      expect(store.getStepProgressPercent('numbers')).toBe(33);
     });
 
     it('does not re-notify when called for an already-completed substep', () => {

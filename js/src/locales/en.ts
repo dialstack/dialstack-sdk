@@ -760,11 +760,22 @@ export const en = {
       },
       saving: 'Saving...',
       saveError: 'Failed to save. Please try again.',
+      // Optional so that a locale written against an earlier release still
+      // compiles; the portal falls back to English when a locale omits it.
+      ...({
+        addressNotDispatchable:
+          "Emergency services can't use this address. Check the street, city, state, and postal code.",
+      } as { addressNotDispatchable?: string }),
     },
     numbers: {
       title: 'Phone Numbers',
       subtitle: "Choose how you'd like to set up your business numbers",
       defaultDialPlanName: 'Onboarding Dial Plan',
+      // Optional so that a locale written against an earlier release still
+      // compiles; the portal falls back to English when a locale omits it.
+      ...({
+        routingError: "Some of your numbers couldn't be set up to receive calls. Try again.",
+      } as { routingError?: string }),
       callerId: {
         title: 'Caller ID Setup',
         subtitle: 'Configure the name displayed when making outbound calls',
@@ -1178,6 +1189,12 @@ export const en = {
       // compiles; the portal falls back to English when a locale omits it.
       ...({ allSetTitle: "You're all set" } as { allSetTitle?: string }),
       subtitle: "It's time to start using your embedded voice system",
+      /**
+       * @deprecated No longer shown: emergency (E9-1-1) registration is automatic.
+       * Removed in the next major.
+       */
+      // NEXT MAJOR: delete this block. It stays only so custom locales written
+      // against the Locale type keep compiling.
       e911: {
         loading: 'Configuring emergency services...',
         pollingStatus: 'Verifying emergency services registration...',

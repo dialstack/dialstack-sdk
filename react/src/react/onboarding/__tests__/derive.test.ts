@@ -251,56 +251,7 @@ describe('deriveOnboardingState', () => {
     });
   });
 
-  describe('numbers — e911, caller-id, directory-listing', () => {
-    it('marks e911 complete when any location E911 address is provisioned', () => {
-      const { completed } = deriveOnboardingState({
-        ...emptySnapshot,
-        account: mkAccount(),
-        locations: [mkLocation({ e911_status: 'provisioned' })],
-      });
-      expect(completed.numbers.has('e911')).toBe(true);
-    });
-
-    it('ignores primary_did_id when deriving E911 readiness', () => {
-      const { completed } = deriveOnboardingState({
-        ...emptySnapshot,
-        account: mkAccount(),
-        locations: [mkLocation({ primary_did_id: 'did_missing', e911_status: 'provisioned' })],
-        dids: [mkDID({ id: 'did_a' })],
-      });
-      expect(completed.numbers.has('e911')).toBe(true);
-    });
-
-    it('does not mark e911 when E911 is pending', () => {
-      const { completed } = deriveOnboardingState({
-        ...emptySnapshot,
-        account: mkAccount(),
-        locations: [mkLocation({ primary_did_id: 'did_a', e911_status: 'pending' })],
-        dids: [mkDID({ id: 'did_a' })],
-      });
-      expect(completed.numbers.has('e911')).toBe(false);
-    });
-
-    it('does not mark e911 when E911 has failed', () => {
-      const { completed } = deriveOnboardingState({
-        ...emptySnapshot,
-        account: mkAccount(),
-        locations: [mkLocation({ primary_did_id: 'did_a', e911_status: 'failed' })],
-        dids: [mkDID({ id: 'did_a' })],
-      });
-      expect(completed.numbers.has('e911')).toBe(false);
-    });
-
-    it('does not mark e911 when E911 status is missing', () => {
-      const { completed } = deriveOnboardingState({
-        ...emptySnapshot,
-        account: mkAccount(),
-        locations: [mkLocation({ primary_did_id: 'did_a' })],
-        dids: [mkDID({ id: 'did_a' })],
-      });
-      expect(completed.numbers.has('e911')).toBe(false);
-    });
-
+  describe('numbers — caller-id, directory-listing', () => {
     it('marks caller-id when any DID has caller_id_name', () => {
       const { completed } = deriveOnboardingState({
         ...emptySnapshot,

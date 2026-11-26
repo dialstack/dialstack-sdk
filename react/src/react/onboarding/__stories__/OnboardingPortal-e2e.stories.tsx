@@ -104,8 +104,8 @@ async function clickButton(
 
 /**
  * Navigate through the Business Details step to its complete screen and Done.
- * The mock account already has users, so Done skips the completed Users step
- * and lands on Numbers.
+ * The mock account already has users and phone numbers, so Done skips the
+ * completed Users and Numbers steps and lands on Hardware.
  */
 async function completeAccountStep(
   canvas: ReturnType<typeof within>,
@@ -134,8 +134,37 @@ async function completeAccountStep(
     { timeout: DATA_TIMEOUT }
   );
 
-  // Done -> navigates to Numbers step
+  // Done -> navigates to Hardware step
   await userEvent.click(canvas.getByRole('button', { name: /^Done$/ }));
+}
+
+/**
+ * Wait for the wizard to land on Hardware, then open Numbers from the sidebar.
+ * The mock account's phone numbers already satisfy the Numbers step, so the
+ * wizard skips it on its own.
+ */
+async function openNumbersFromHardware(
+  canvas: ReturnType<typeof within>,
+  canvasElement: HTMLElement
+): Promise<void> {
+  await waitFor(
+    () => {
+      expect(canvas.getByText('Assign Devices')).toBeInTheDocument();
+    },
+    { timeout: DATA_TIMEOUT }
+  );
+  const sidebarItems = canvasElement.querySelectorAll('.portal-step-item');
+  const numbersItem = Array.from(sidebarItems).find((el) =>
+    el.textContent?.includes('Phone Numbers')
+  ) as HTMLElement | undefined;
+  expect(numbersItem).not.toBeUndefined();
+  await userEvent.click(numbersItem!);
+  await waitFor(
+    () => {
+      expect(canvas.getByRole('heading', { name: /Phone Numbers/i })).toBeInTheDocument();
+    },
+    { timeout: DATA_TIMEOUT }
+  );
 }
 
 /**
@@ -178,21 +207,11 @@ async function completeNumbersStep(
     { timeout: DATA_TIMEOUT }
   );
 
-  // Next -> Numbers Complete (triggers E911 + complete screen)
+  // Next -> Numbers Complete (routes the numbers, then the complete screen)
   await clickButton(canvas, canvasElement, /Next →/, { last: true });
   await waitFor(
     () => {
       expect(canvas.getByText('Phone Numbers Complete')).toBeInTheDocument();
-    },
-    { timeout: DATA_TIMEOUT }
-  );
-
-  // Wait for E911 provisioning to settle. navigateToNext kicks off
-  // validateE911 + provisionE911 async; clicking Done before they finish
-  // cancels the chain on unmount and emergency provisioning never marks complete.
-  await waitFor(
-    () => {
-      expect(canvasElement.querySelector('.e911-panel .spinner')).toBeNull();
     },
     { timeout: DATA_TIMEOUT }
   );
@@ -334,7 +353,7 @@ export const FullHappyPath: Story = {
       expect(canvas.getByText(/Save & Exit to Overview/)).toBeInTheDocument();
     });
 
-    await step('Next -> Business Details Complete -> Done -> Numbers', async () => {
+    await step('Next -> Business Details Complete -> Done -> Hardware -> Numbers', async () => {
       await clickButton(canvas, canvasElement, /Next →/, { last: true });
       await waitFor(
         () => {
@@ -343,16 +362,9 @@ export const FullHappyPath: Story = {
         { timeout: DATA_TIMEOUT }
       );
 
-      // The mock account already has users, so Done skips the Users step.
+      // The mock account already has users and numbers, so Done skips both.
       await userEvent.click(canvas.getByRole('button', { name: /^Done$/ }));
-
-      // Should auto-navigate to Numbers step
-      await waitFor(
-        () => {
-          expect(canvas.getByRole('heading', { name: /Phone Numbers/i })).toBeInTheDocument();
-        },
-        { timeout: DATA_TIMEOUT }
-      );
+      await openNumbersFromHardware(canvas, canvasElement);
     });
 
     await step('Numbers: overview -> caller ID -> complete', async () => {
@@ -402,27 +414,25 @@ export const SidebarNavigation: Story = {
       await completeAccountStep(canvas, canvasElement);
     });
 
-    await step('Verify sidebar shows Business Details and Users as completed', async () => {
-      // After account completion we should be on Numbers step
+    await step('Verify sidebar shows the first three steps as completed', async () => {
+      // After account completion we should be on the Hardware step
       await waitFor(
         () => {
-          expect(canvas.getByRole('heading', { name: /Phone Numbers/i })).toBeInTheDocument();
+          expect(canvas.getByText('Assign Devices')).toBeInTheDocument();
         },
         { timeout: DATA_TIMEOUT }
       );
 
-      // Business Details and Users sidebar items should have completed class
       const sidebarItems = canvasElement.querySelectorAll('.portal-step-item');
-      for (const label of ['Business Details', 'Users']) {
+      for (const label of ['Business Details', 'Users', 'Phone Numbers']) {
         const item = Array.from(sidebarItems).find((el) => el.textContent?.includes(label));
         expect(item?.classList.contains('completed')).toBe(true);
       }
 
-      // Numbers sidebar item should be active
-      const numbersItem = Array.from(sidebarItems).find((el) =>
-        el.textContent?.includes('Phone Numbers')
+      const hardwareItem = Array.from(sidebarItems).find((el) =>
+        el.textContent?.includes('Hardware Setup')
       );
-      expect(numbersItem?.classList.contains('active')).toBe(true);
+      expect(hardwareItem?.classList.contains('active')).toBe(true);
     });
 
     await step(
@@ -800,12 +810,7 @@ async function startAndReachNumbers(
 ): Promise<void> {
   await enterWizardAt(canvas, canvasElement, 0);
   await completeAccountStep(canvas, canvasElement);
-  await waitFor(
-    () => {
-      expect(canvas.getByRole('heading', { name: /Phone Numbers/i })).toBeInTheDocument();
-    },
-    { timeout: DATA_TIMEOUT }
-  );
+  await openNumbersFromHardware(canvas, canvasElement);
 }
 
 // ============================================================================
@@ -1626,14 +1631,7 @@ export const ComprehensiveValidation: Story = {
         { timeout: DATA_TIMEOUT }
       );
       await userEvent.click(canvas.getByRole('button', { name: /^Done$/ }));
-
-      // Wait for Numbers overview
-      await waitFor(
-        () => {
-          expect(canvas.getByRole('heading', { name: /Phone Numbers/i })).toBeInTheDocument();
-        },
-        { timeout: DATA_TIMEOUT }
-      );
+      await openNumbersFromHardware(canvas, canvasElement);
     });
 
     await step('Navigate directly to Caller ID', async () => {
