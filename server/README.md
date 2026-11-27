@@ -49,6 +49,26 @@ Pass the **raw** body. A framework that parses JSON before you see it re-seriali
 with different bytes, and the signature will not match. It throws on a bad
 signature or a timestamp outside the tolerance window (300s by default).
 
+### Media streams
+
+`MediaStream` wraps the WebSocket a voice app attaches to. Send the agent's audio
+as it arrives, in any size; DialStack plays it to the caller at real time and
+queues up to 20 seconds of it, emitting `overflow` when it has to drop some.
+`sendClear()` drops what is still queued when the caller talks over the agent, and
+`sendMark(name)` asks for a `mark` event once everything sent before it has been
+played.
+
+```ts
+import { MediaStream } from '@dialstack/sdk-server';
+
+wss.on('connection', (ws) => {
+  const stream = new MediaStream(ws);
+  agent.on('audio', (ulaw: Buffer) => stream.sendAudioBuffer(ulaw));
+  agent.on('interrupted', () => stream.sendClear());
+  stream.on('mark', ({ name, timestamp }) => console.log(name, 'played by', timestamp));
+});
+```
+
 ## Which package do I want?
 
 | You are building              | Install                                      |

@@ -6363,15 +6363,17 @@ export class DialStack {
 }
 
 // Re-export MediaStream for WebSocket handling
-export { MediaStream } from './media-stream.js';
+export { MediaStream, MAX_MARK_NAME_BYTES } from './media-stream.js';
 export type {
   WebSocketLike,
   AudioFormat,
   MediaStreamBeginEvent,
   MediaStreamAudioEvent,
   MediaStreamDtmfEvent,
+  MediaStreamMarkEvent,
   MediaStreamMessage,
   MediaStreamEvents,
+  MediaStreamOverflowEvent,
 } from './media-stream.js';
 
 /** Builds the /v1/presence query string from the per-type selectors. */

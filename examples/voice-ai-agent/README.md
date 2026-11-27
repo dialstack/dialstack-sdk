@@ -23,7 +23,7 @@ Caller ──► DialStack ──webhook──► this server ──► attaches
 2. The handler verifies the HMAC signature and calls `POST /v1/calls/{id}` with an `attach` action that points at `wss://<your-host>/media`.
 3. DialStack opens the media WebSocket. Audio frames flow in (μ-law 8 kHz, ~20 ms each).
 4. The example decodes μ-law → PCM, resamples to the provider's input rate (16 kHz), and forwards each frame.
-5. The provider streams PCM audio back; the example resamples to 8 kHz, re-encodes μ-law, and writes it back to the call at a 20 ms pace.
+5. The provider streams PCM audio back; the example resamples to 8 kHz, re-encodes μ-law, and writes it back to the call as it arrives. DialStack plays it at real time.
 
 ## Prerequisites
 
@@ -117,7 +117,7 @@ src/
 ### ElevenLabs
 
 - Set both audio formats on the agent to **μ-law 8000 Hz**: the input format (`asr.user_input_audio_format`) and the output format (`tts.agent_output_audio_format`). Neither is a per-conversation override, so the example sends no override and needs none enabled. It reads the formats from `conversation_initiation_metadata`: `ulaw_8000` is passed through, `pcm_16000` is transcoded, and any other format fails the call with an error log.
-- On an `interruption` event, ElevenLabs has already abandoned the agent's response, so the example drops the audio still queued for the caller and ignores late audio events of that response (lower `event_id`). If echo on the caller's line triggers interruptions, tune the agent's turn settings in ElevenLabs.
+- On an `interruption` event, ElevenLabs has already abandoned the agent's response, so the example sends `clear` so DialStack drops the audio still queued for the caller, and ignores late audio events of that response (lower `event_id`). If echo on the caller's line triggers interruptions, tune the agent's turn settings in ElevenLabs.
 - The caller's and called numbers are sent as the dynamic variables `caller_number` and `called_number`. Reference them in the agent's prompt or first message as `{{caller_number}}`.
 - To let the agent hand the caller to a person, add a **client tool** named `transfer_to_human` to the agent. When the agent calls it, the example issues a DialStack `transfer` action to `TRANSFER_TARGET`, or to the `extension` the agent names if it is in `TRANSFER_EXTENSIONS`. It does not use ElevenLabs' own transfer tools, which act on calls ElevenLabs carries itself.
 - The connection uses a signed URL fetched with `ELEVENLABS_API_KEY`. A `401` from `get-signed-url` means a bad key or one without `convai_write`, a `404` a bad `ELEVENLABS_AGENT_ID`.
@@ -133,7 +133,9 @@ src/
 - The session is configured with `audio/pcmu` (G.711 μ-law) for input and output, so audio passes through untouched in both directions.
 - Model, voice and instructions come from `OPENAI_MODEL` (default `gpt-realtime-2.1`), `OPENAI_VOICE` (default `marin`) and `OPENAI_INSTRUCTIONS`. The voice can't change once the agent has spoken in a session.
 - The agent speaks first: the example sends `response.create` as soon as `session.updated` confirms the configuration.
-- Barge-in: server VAD with `interrupt_response` cancels the response on OpenAI's side, and `input_audio_buffer.speech_started` drops any agent audio still queued for the caller. The example doesn't send `conversation.item.truncate`, so the model's transcript of an interrupted turn may include words the caller never heard.
+- Barge-in: server VAD with `interrupt_response` cancels the response on OpenAI's side, and `input_audio_buffer.speech_started` makes the session send `clear`, so DialStack drops any agent audio still queued for the caller.
+- Before that, the provider sends `conversation.item.truncate` for every item the caller has not fully heard, cut to the last point DialStack reported played. The session sends a `mark` every 200 ms of each item's audio for this, so the model forgets at most 200 ms the caller never heard, plus however long the last echo takes to arrive.
+- DialStack queues 20 seconds of audio. If a reply runs more than 17 seconds ahead of what the caller has heard, the session drops the rest of that reply rather than overflow DialStack's queue; the next reply plays normally.
 - When `TRANSFER_TARGET` or `TRANSFER_EXTENSIONS` is set, the session declares a `transfer_to_human` function with an optional `extension`, so the model can hand the caller to a person. Unset, the model is offered no transfer. OpenAI keeps no assistant on its side: tools and instructions are sent in each session's `session.update`.
 - Caller speech is transcribed (`gpt-4o-mini-transcribe`, billed per audio minute) only when the provider is created with `transcribe: true`, so its turns can be reported as `transcript` events. The example leaves it off. `LOG_TRANSCRIPTS` controls only whether the text is logged.
 
@@ -141,15 +143,15 @@ src/
 
 - The example connects with `input_sample_rate=8000`, so caller audio is only μ-law-decoded to PCM16 — no resampling on the way in.
 - The output rate is chosen by the assistant's voice, not the client. The example reads it from `session.created` and downsamples to 8 kHz, so changing the voice needs no code change.
-- Barge-in: `input_audio_buffer.speech_started` drops any agent audio still queued for the caller. (Gemini's interruption signal also fires on echo, so it is only logged.)
+- Barge-in: on `input_audio_buffer.speech_started` the session sends `clear`, so DialStack drops any agent audio still queued for the caller. (Gemini's interruption signal also fires on echo, so it is only logged.)
 - Greeting, prompt, voice and tools are all configured on the assistant in Telnyx; the example sends no instructions.
 - The caller's and called numbers are sent in the first `session.update` as the dynamic variables `caller_number` and `called_number`. Reference them in the assistant's instructions or greeting as `{{caller_number}}`.
 - To let the assistant hand the caller to a person, add a **client-side tool** named `transfer_to_human` to the assistant. When the assistant calls it, the example issues a DialStack `transfer` action to `TRANSFER_TARGET`, or to the `extension` the assistant names if it is in `TRANSFER_EXTENSIONS`.
 
 ## Audio plumbing notes
 
-- **Pacing**: outbound frames are emitted at exactly 50 frames/sec using a drift-compensated scheduler. A plain `setInterval(_, 20)` actually fires every ~20.8 ms in Node, which drops you to 48 frames/sec; the call leg then fills the gaps with comfort noise on the far end, which you hear as stutters and missing syllables. If you adapt this code, keep the deadline-anchored scheduler in `session.ts`.
-- **Barge-in**: when a provider emits `interrupt`, the session drops every agent frame still queued for the caller. Only emit it from a signal you trust not to fire on echo.
+- **Pacing**: none on this side. Agent audio is forwarded in whatever size the provider produces it, and DialStack plays it at real time (up to 20 seconds queued).
+- **Barge-in**: when a provider emits `interrupt`, the session sends `clear`, and DialStack drops every agent frame still queued for the caller. Only emit it from a signal you trust not to fire on echo.
 - **Format negotiation**: handlers are attached before the upstream WebSocket opens so the `conversation_initiation_metadata` message from ElevenLabs is never raced and dropped.
 
 ## Security notes

@@ -339,3 +339,180 @@ test('a refusal that arrives after the other response has started is still answe
   h.recv({ type: 'response.done', response: { id: 'vad', status: 'completed' } });
   assert.equal(h.raw.filter((m) => m.type === 'response.create').length, 2);
 });
+
+const ulawB64 = (bytes: number) => Buffer.alloc(bytes, 0xff).toString('base64');
+
+test('audio deltas carry the item and its cumulative ms', () => {
+  const h = harness();
+  const got: unknown[] = [];
+  h.p.on('audio', (ulaw, meta) => got.push({ bytes: ulaw.length, meta }));
+  h.recv({ type: 'response.created', response: { id: 'r1' } });
+  h.recv({
+    type: 'response.output_audio.delta',
+    response_id: 'r1',
+    item_id: 'i1',
+    delta: ulawB64(800),
+  });
+  h.recv({
+    type: 'response.output_audio.delta',
+    response_id: 'r1',
+    item_id: 'i1',
+    delta: ulawB64(1600),
+  });
+  h.recv({ type: 'response.output_audio.done', response_id: 'r1', item_id: 'i1' });
+  assert.deepEqual(got, [
+    { bytes: 800, meta: { itemId: 'i1', endMs: 100 } },
+    { bytes: 1600, meta: { itemId: 'i1', endMs: 300 } },
+    { bytes: 0, meta: { itemId: 'i1', endMs: 300, last: true } },
+  ]);
+});
+
+// The model must forget what the caller never heard, or it carries on as if
+// they had heard all of it.
+test('barge-in truncates the item to what was played before interrupting', () => {
+  const h = harness();
+  h.recv({ type: 'response.created', response: { id: 'r1' } });
+  h.recv({
+    type: 'response.output_audio.delta',
+    response_id: 'r1',
+    item_id: 'i1',
+    delta: ulawB64(8000),
+  });
+  h.p.audioPlayed('i1', 400);
+  h.p.audioPlayed('i1', 200); // a late, smaller echo never moves it back
+  let sentAtInterrupt = -1;
+  h.p.on('interrupt', () => (sentAtInterrupt = h.sent.length));
+  h.recv({ type: 'input_audio_buffer.speech_started' });
+
+  const truncate = {
+    type: 'conversation.item.truncate',
+    item_id: 'i1',
+    content_index: 0,
+    audio_end_ms: 400,
+  };
+  assert.deepEqual(h.sent.at(-1), truncate);
+  assert.equal(sentAtInterrupt, h.sent.length, 'truncate goes out before interrupt');
+});
+
+test('barge-in after the item was fully played sends no truncate', () => {
+  const h = harness();
+  h.recv({ type: 'response.created', response: { id: 'r1' } });
+  h.recv({
+    type: 'response.output_audio.delta',
+    response_id: 'r1',
+    item_id: 'i1',
+    delta: ulawB64(800),
+  });
+  h.recv({ type: 'response.output_audio.done', response_id: 'r1', item_id: 'i1' });
+  h.p.audioPlayed('i1', 100);
+  h.recv({ type: 'input_audio_buffer.speech_started' });
+  assert.equal(
+    h.sent.filter((m) => (m as { type: string }).type === 'conversation.item.truncate').length,
+    0
+  );
+});
+
+// A finished item can still be playing when the next one starts generating;
+// barge-in must cut both to what the caller heard.
+test('barge-in truncates every item not fully played', () => {
+  const h = harness();
+  h.recv({ type: 'response.created', response: { id: 'r1' } });
+  h.recv({
+    type: 'response.output_audio.delta',
+    response_id: 'r1',
+    item_id: 'i1',
+    delta: ulawB64(1600),
+  });
+  h.recv({ type: 'response.output_audio.done', response_id: 'r1', item_id: 'i1' });
+  h.recv({ type: 'response.created', response: { id: 'r2' } });
+  h.recv({
+    type: 'response.output_audio.delta',
+    response_id: 'r2',
+    item_id: 'i2',
+    delta: ulawB64(1600),
+  });
+  h.p.audioPlayed('i1', 100);
+  h.recv({ type: 'input_audio_buffer.speech_started' });
+
+  const truncates = h.sent.filter(
+    (m) => (m as { type: string }).type === 'conversation.item.truncate'
+  );
+  assert.deepEqual(truncates, [
+    { type: 'conversation.item.truncate', item_id: 'i1', content_index: 0, audio_end_ms: 100 },
+    { type: 'conversation.item.truncate', item_id: 'i2', content_index: 0, audio_end_ms: 0 },
+  ]);
+});
+
+// Audio of the interrupted response that arrives after barge-in is never
+// played, so its item is cut to nothing, once.
+test('an item first seen after barge-in is truncated to zero', () => {
+  const h = harness();
+  h.recv({ type: 'response.created', response: { id: 'r1' } });
+  h.recv({ type: 'input_audio_buffer.speech_started' });
+  let audio = 0;
+  h.p.on('audio', () => audio++);
+  h.recv({
+    type: 'response.output_audio.delta',
+    response_id: 'r1',
+    item_id: 'i9',
+    delta: ulawB64(800),
+  });
+  h.recv({
+    type: 'response.output_audio.delta',
+    response_id: 'r1',
+    item_id: 'i9',
+    delta: ulawB64(800),
+  });
+
+  assert.equal(audio, 0);
+  const truncates = h.sent.filter(
+    (m) => (m as { type: string }).type === 'conversation.item.truncate'
+  );
+  assert.deepEqual(truncates, [
+    { type: 'conversation.item.truncate', item_id: 'i9', content_index: 0, audio_end_ms: 0 },
+  ]);
+});
+
+function truncates(h: { sent: unknown[] }) {
+  return h.sent.filter((m) => (m as { type: string }).type === 'conversation.item.truncate');
+}
+
+// OpenAI keeps what it generated before the cancel, so an item still
+// generating is cut even when all of it delivered so far was heard.
+test('barge-in truncates an item still generating, even if all of it so far was heard', () => {
+  const h = harness();
+  h.recv({ type: 'response.created', response: { id: 'r1' } });
+  h.recv({ type: 'response.output_audio.delta', response_id: 'r1', item_id: 'i1', delta: ulawB64(800) });
+  h.p.audioPlayed('i1', 100);
+  h.recv({ type: 'input_audio_buffer.speech_started' });
+  assert.deepEqual(truncates(h), [
+    { type: 'conversation.item.truncate', item_id: 'i1', content_index: 0, audio_end_ms: 100 },
+  ]);
+});
+
+test('an item the session stopped forwarding is truncated once played to that point', () => {
+  const h = harness();
+  h.recv({ type: 'response.created', response: { id: 'r1' } });
+  h.recv({ type: 'response.output_audio.delta', response_id: 'r1', item_id: 'i1', delta: ulawB64(8000) });
+  h.p.audioDropped('i1', 400);
+  assert.equal(truncates(h).length, 0, 'not before the caller has heard it');
+  h.p.audioPlayed('i1', 400);
+  assert.deepEqual(truncates(h), [
+    { type: 'conversation.item.truncate', item_id: 'i1', content_index: 0, audio_end_ms: 400 },
+  ]);
+  h.recv({ type: 'input_audio_buffer.speech_started' });
+  assert.equal(truncates(h).length, 1, 'not cut again on a later barge-in');
+});
+
+test('late audio of a truncated item is not tracked again', () => {
+  const h = harness();
+  h.recv({ type: 'response.created', response: { id: 'r1' } });
+  h.recv({ type: 'response.output_audio.delta', response_id: 'r1', item_id: 'i1', delta: ulawB64(8000) });
+  h.p.audioDropped('i1', 400);
+  h.p.audioPlayed('i1', 400);
+  h.recv({ type: 'response.output_audio.delta', response_id: 'r1', item_id: 'i1', delta: ulawB64(800) });
+  h.recv({ type: 'input_audio_buffer.speech_started' });
+  assert.deepEqual(truncates(h), [
+    { type: 'conversation.item.truncate', item_id: 'i1', content_index: 0, audio_end_ms: 400 },
+  ]);
+});

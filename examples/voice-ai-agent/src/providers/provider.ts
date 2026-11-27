@@ -14,7 +14,10 @@
 // PCM 16 kHz in, PCM 24 kHz out) do the conversion in their own module.
 //
 // Providers emit `interrupt` when the caller barges in; the session then
-// drops any agent audio still queued for the caller. Providers whose
+// asks DialStack to drop any agent audio still queued for the caller.
+// Providers that can forget unheard audio (OpenAI) tag their audio with
+// `AudioMeta` and implement `audioPlayed`, which the session drives from
+// DialStack's play-out marks. Providers whose
 // barge-in signal also fires on echo (Gemini) don't emit it.
 // `close` fires when the upstream connection terminates. Providers that let
 // the agent ask for a human (Telnyx, ElevenLabs and OpenAI, via a tool named
@@ -35,8 +38,17 @@ export interface CallInfo {
   toNumber?: string;
 }
 
+/** Where a chunk of agent audio sits in the provider's own conversation. */
+export interface AudioMeta {
+  itemId: string;
+  /** The item's total audio in ms once this chunk is played. */
+  endMs: number;
+  /** The item has no more audio; the chunk may be empty. */
+  last?: boolean;
+}
+
 export interface VoiceProviderEvents {
-  audio: (ulaw: Uint8Array) => void;
+  audio: (ulaw: Uint8Array, meta?: AudioMeta) => void;
   interrupt: () => void;
   /**
    * The agent's `transfer_to_human` tool call, with its arguments. `done`
@@ -75,6 +87,19 @@ export interface VoiceProvider extends EventEmitter {
    * ElevenLabs and OpenAI Realtime implement it; Gemini does not yet.
    */
   sendText?(text: string): void;
+
+  /**
+   * DialStack has played `itemId` to the caller up to `endMs`. Lets a
+   * provider truncate an interrupted item to what the caller heard.
+   */
+  audioPlayed?(itemId: string, endMs: number): void;
+
+  /**
+   * The session stopped forwarding `itemId` after `sentMs`, because it ran
+   * too far ahead of the caller. Lets a provider truncate the item to that
+   * point once it has been played.
+   */
+  audioDropped?(itemId: string, sentMs: number): void;
 
   /** Tear down the upstream connection. */
   close(): void;

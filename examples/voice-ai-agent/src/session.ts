@@ -5,28 +5,55 @@
 // internally; we just shuttle bytes here.
 //
 // Lifecycle:
-//   1. We wait for the `begin` event from MediaStream to learn the call_id.
+//   1. We wait for the `begin` event from MediaStream to learn the call_id,
+//      and refuse a server older than media protocol 2.2.
 //   2. We call `provider.connect()`.
 //   3. Caller audio frames arrive ~every 20 ms (~160 μ-law bytes). We
 //      base64-decode them and hand the raw μ-law to the provider.
-//   4. Provider audio (also μ-law 8 kHz) is pushed onto an outbound queue.
-//      A drift-compensated 20 ms scheduler drains the queue and writes one
-//      160-byte frame per tick so DialStack never sees a stuttery stream.
-//   5. Either side closing closes the other side.
+//   4. Provider audio (also μ-law 8 kHz) is forwarded as it arrives, in
+//      whatever size the provider produced it: DialStack plays it at real
+//      time. On barge-in we send `clear`, which drops what is still queued.
+//   5. For providers that tag their audio (OpenAI), we send a `mark` every
+//      200 ms of an item and report each echo back with `audioPlayed`, so the
+//      provider can truncate an interrupted item to what the caller heard.
+//   6. Either side closing closes the other side.
 
 import { logger } from './logger.js';
 import { takeCall } from './calls.js';
-import type { CallInfo, VoiceProvider } from './providers/provider.js';
+import type { AudioMeta, CallInfo, VoiceProvider } from './providers/provider.js';
 import type {
   MediaStream,
   MediaStreamAudioEvent,
   MediaStreamBeginEvent,
+  MediaStreamMarkEvent,
 } from '@dialstack/sdk-server';
 import { resolveTransferTarget } from './transfer-target.js';
 
-const FRAME_MS = 20;
-const FRAME_BYTES_8K = 160; // 20 ms of μ-law @ 8 kHz
 const CONNECT_TIMEOUT_MS = 15_000;
+// One mark per 200 ms of an item bounds both the truncation error and the
+// marks pending at DialStack (20 s of audio queued is 100 marks, under 1024).
+const MARK_EVERY_BYTES = 1600;
+// DialStack queues about 20 s and drops what goes past it, and a mark after a
+// drop would report unheard audio as played. Unechoed audio is at least what is
+// queued, so audio is forwarded only while less than 17 s of it is unechoed,
+// which keeps the queue short of the limit (and of the `overflow` warning just
+// below it), and marks stay under DialStack's 1024 pending, counting echoes a
+// clear released that have not arrived yet. Past either, the rest of that item
+// is dropped here, where its last mark stays truthful.
+const MAX_UNECHOED_BYTES = 17 * 8000;
+const MAX_OUTSTANDING_MARKS = 900;
+const REQUIRED_PROTOCOL = [2, 2];
+
+/** True when `version` ("major.minor") is at least the protocol we need. */
+export function supportsProtocol(version: unknown): boolean {
+  if (typeof version !== 'string') return false;
+  const [major, minor] = version.split('.').map(Number);
+  if (!Number.isInteger(major) || !Number.isInteger(minor)) return false;
+  return (
+    major > REQUIRED_PROTOCOL[0] ||
+    (major === REQUIRED_PROTOCOL[0] && minor >= REQUIRED_PROTOCOL[1])
+  );
+}
 
 export interface SessionOptions {
   stream: MediaStream;
@@ -38,14 +65,33 @@ export interface SessionOptions {
 export function runSession({ stream, makeProvider, transfer }: SessionOptions): void {
   const log = logger.child({ component: 'session' });
 
-  const outQueue: Buffer[] = [];
-  let outCarry = Buffer.alloc(0);
   let provider: VoiceProvider | undefined;
-  let tickTimer: NodeJS.Timeout | undefined;
   let closed = false;
+  // Marks sent and not yet echoed, with the audio sent up to each, and those a
+  // clear released: their echoes say nothing about what was played.
+  const pendingMarks = new Map<string, { itemId: string; endMs: number; upTo: number }>();
+  let markSeq = 0;
+  const clearedMarks = new Set<string>();
+  let markedItem: string | undefined;
+  let itemBytes = 0;
+  let markedBytes = 0;
+  // Audio sent on the marked path, and how much of it an echo has covered.
+  let sentBytes = 0;
+  let echoedBytes = 0;
+  let droppingItem: string | undefined;
 
   stream.once('begin', async (begin: MediaStreamBeginEvent) => {
     log.info({ call_id: begin.call_id, account_id: begin.account_id }, 'call begin');
+
+    if (!supportsProtocol(begin.protocol_version)) {
+      // Only its type: the socket is not yet tied to a verified call.
+      log.error(
+        { protocol_version_type: typeof begin.protocol_version },
+        'needs DialStack media protocol 2.2; closing'
+      );
+      closeAll('unsupported media protocol');
+      return;
+    }
 
     const call = takeCall(begin.call_id);
     if (!call) {
@@ -62,8 +108,8 @@ export function runSession({ stream, makeProvider, transfer }: SessionOptions): 
     };
     provider = makeProvider(info);
 
-    provider.on('audio', (ulaw) => enqueueProviderAudio(ulaw));
-    provider.on('interrupt', () => flushProviderAudio());
+    provider.on('audio', (ulaw, meta) => forwardProviderAudio(ulaw, meta));
+    provider.on('interrupt', () => clearProviderAudio());
     provider.on('transfer', (args, done) => {
       // The transfer replaces the running attach; DialStack then closes this
       // media socket, which ends the session.
@@ -103,31 +149,20 @@ export function runSession({ stream, makeProvider, transfer }: SessionOptions): 
       closeAll('provider connect failed');
       return;
     }
-
-    // Drift-compensated scheduler. Plain `setInterval(_, 20)` actually fires
-    // every ~20.8 ms on Node, so we'd send ~48 frames/sec to DialStack
-    // instead of the 50 frames/sec a real-time μ-law stream needs. The call
-    // leg then fills the gap on the far end with comfort noise → the caller
-    // hears stutters, missing syllables and crackle as the underflow
-    // compounds. We anchor every tick against a fixed start time so a slow
-    // tick gets recovered by the next.
-    const tickStart = Date.now();
-    let tickIndex = 0;
-    const scheduleNextTick = (): void => {
-      tickIndex++;
-      const target = tickStart + tickIndex * FRAME_MS;
-      const delay = Math.max(0, target - Date.now());
-      tickTimer = setTimeout(() => {
-        drainOneFrame();
-        if (!closed) scheduleNextTick();
-      }, delay);
-    };
-    scheduleNextTick();
   });
 
   stream.on('audio', (event: MediaStreamAudioEvent) => {
     if (!provider) return;
     provider.sendAudio(new Uint8Array(Buffer.from(event.payload, 'base64')));
+  });
+
+  stream.on('mark', (event: MediaStreamMarkEvent) => {
+    if (clearedMarks.delete(event.name)) return;
+    const mark = pendingMarks.get(event.name);
+    if (!mark) return;
+    pendingMarks.delete(event.name);
+    echoedBytes = Math.max(echoedBytes, mark.upTo);
+    provider?.audioPlayed?.(mark.itemId, mark.endMs);
   });
 
   stream.on('close', (code: number, reason: string) => {
@@ -139,36 +174,68 @@ export function runSession({ stream, makeProvider, transfer }: SessionOptions): 
     closeAll('media stream error');
   });
 
-  function enqueueProviderAudio(ulaw: Uint8Array): void {
-    // Chunk to exact 20 ms frames so the scheduler can shift one frame per
-    // tick with no per-tick math; keep a small carry for the next batch.
-    let combined = Buffer.concat([
-      outCarry,
-      Buffer.from(ulaw.buffer, ulaw.byteOffset, ulaw.byteLength),
-    ]);
-    while (combined.length >= FRAME_BYTES_8K) {
-      outQueue.push(combined.subarray(0, FRAME_BYTES_8K));
-      combined = combined.subarray(FRAME_BYTES_8K);
+  function forwardProviderAudio(ulaw: Uint8Array, meta?: AudioMeta): void {
+    let chunk = Buffer.from(ulaw.buffer, ulaw.byteOffset, ulaw.byteLength);
+    if (!meta || !provider?.audioPlayed) {
+      if (chunk.length > 0) stream.sendAudioBuffer(chunk);
+      return;
     }
-    outCarry = combined;
+    if (meta.itemId === droppingItem) return;
+    if (meta.itemId !== markedItem) {
+      markedItem = meta.itemId;
+      itemBytes = markedBytes = 0;
+    }
+    // Split at each 200 ms boundary of the item, so a chunk of any size
+    // still gets a mark every 200 ms.
+    while (chunk.length > 0) {
+      const boundary = (Math.floor(itemBytes / MARK_EVERY_BYTES) + 1) * MARK_EVERY_BYTES;
+      const part = chunk.subarray(0, boundary - itemBytes);
+      if (sentBytes - echoedBytes + part.length > MAX_UNECHOED_BYTES || !markRoom()) {
+        dropRestOfItem(meta.itemId);
+        return;
+      }
+      stream.sendAudioBuffer(part);
+      itemBytes += part.length;
+      sentBytes += part.length;
+      chunk = chunk.subarray(part.length);
+      if (itemBytes === boundary) sendItemMark(meta.itemId);
+    }
+    if (meta.last && itemBytes > markedBytes && markRoom()) sendItemMark(meta.itemId);
   }
 
-  function flushProviderAudio(): void {
-    outQueue.length = 0;
-    outCarry = Buffer.alloc(0);
+  function markRoom(): boolean {
+    return pendingMarks.size + clearedMarks.size < MAX_OUTSTANDING_MARKS;
   }
 
-  function drainOneFrame(): void {
-    const frame = outQueue.shift();
-    if (!frame) return;
-    stream.sendAudio(frame.toString('base64'));
+  function dropRestOfItem(itemId: string): void {
+    droppingItem = itemId;
+    log.warn(
+      { item_id: itemId, sent_ms: Math.floor(itemBytes / 8) },
+      'agent audio too far ahead of the caller; dropping the rest of this reply'
+    );
+    if (itemBytes > markedBytes && markRoom()) sendItemMark(itemId);
+    provider?.audioDropped?.(itemId, Math.ceil(itemBytes / 8));
+  }
+
+  function sendItemMark(itemId: string): void {
+    // A counter, not the item id: ids can be long, and nothing is parsed back.
+    const name = String(++markSeq);
+    markedBytes = itemBytes;
+    pendingMarks.set(name, { itemId, endMs: Math.ceil(itemBytes / 8), upTo: sentBytes });
+    stream.sendMark(name);
+  }
+
+  function clearProviderAudio(): void {
+    for (const name of pendingMarks.keys()) clearedMarks.add(name);
+    pendingMarks.clear();
+    echoedBytes = sentBytes;
+    stream.sendClear();
   }
 
   function closeAll(why: string): void {
     if (closed) return;
     closed = true;
     log.info({ why }, 'closing session');
-    if (tickTimer) clearTimeout(tickTimer);
     provider?.close();
     stream.close();
   }

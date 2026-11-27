@@ -12,7 +12,10 @@
 //     server-side; `input_audio_buffer.speech_started` emits `interrupt`,
 //     which makes the session drop agent audio still queued for the caller.
 //     Deltas of the interrupted response that are already in flight are
-//     dropped by `response_id`.
+//     dropped by `response_id`. DialStack plays audio at real time, so the
+//     model has generated more than the caller heard: before `interrupt`, the
+//     item is truncated (`conversation.item.truncate`) to the ms DialStack
+//     last reported played (`audioPlayed`).
 //   • Tools: Realtime keeps no assistant on OpenAI's side, so the tools (and
 //     instructions) are declared in each session's `session.update`. A
 //     function named `transfer_to_human` emits `transfer`; any other emits
@@ -96,6 +99,18 @@ export class OpenAIProvider extends EventEmitter implements VoiceProvider {
   private createEventId?: string;
   private createCount = 0;
   private agentText = '';
+  // Audio items not yet known to be fully played: bytes generated, ms
+  // played, and whether generation finished. An item can still be playing
+  // after the next one starts generating.
+  // cutAtMs is set when the session stopped forwarding the item there: once
+  // played that far, the item is truncated to it.
+  private audioItems = new Map<
+    string,
+    { bytes: number; playedMs: number; done: boolean; cutAtMs?: number }
+  >();
+  // Items already truncated, by barge-in or because the session stopped
+  // forwarding them.
+  private truncatedLate = new Set<string>();
   private sessionResolve?: () => void;
   private sessionReject?: (err: Error) => void;
 
@@ -207,8 +222,64 @@ export class OpenAIProvider extends EventEmitter implements VoiceProvider {
     this.requestResponse();
   }
 
+  audioPlayed(itemId: string, endMs: number): void {
+    const item = this.audioItems.get(itemId);
+    if (!item) return;
+    item.playedMs = Math.max(item.playedMs, endMs);
+    if (item.cutAtMs !== undefined && item.playedMs >= item.cutAtMs) {
+      this.truncate(itemId, item.cutAtMs);
+      this.audioItems.delete(itemId);
+      this.truncatedLate.add(itemId);
+      return;
+    }
+    if (item.done && item.playedMs >= Math.floor(item.bytes / 8)) this.audioItems.delete(itemId);
+  }
+
+  audioDropped(itemId: string, sentMs: number): void {
+    const item = this.audioItems.get(itemId);
+    if (!item) return;
+    item.cutAtMs = sentMs;
+    this.audioPlayed(itemId, item.playedMs);
+  }
+
   close(): void {
     this.ws?.close();
+  }
+
+  // μ-law 8 kHz: 8 bytes per ms.
+  private trackAudio(itemId: string, bytes: number): number {
+    let item = this.audioItems.get(itemId);
+    if (!item) {
+      item = { bytes: 0, playedMs: 0, done: false };
+      this.audioItems.set(itemId, item);
+    }
+    item.bytes += bytes;
+    return Math.floor(item.bytes / 8);
+  }
+
+  // Everything still queued is about to be cleared, so every item not fully
+  // played is cut to what the caller heard.
+  private truncateUnheard(): void {
+    for (const [itemId, item] of this.audioItems) {
+      // An item still generating is cut even if all of it so far was heard:
+      // OpenAI keeps what it generated before the cancel.
+      if (!item.done || item.playedMs < Math.floor(item.bytes / 8)) {
+        this.truncate(itemId, item.playedMs);
+      }
+      this.truncatedLate.add(itemId);
+    }
+    this.audioItems.clear();
+  }
+
+  private truncate(itemId: string, audioEndMs: number): void {
+    this.ws?.send(
+      JSON.stringify({
+        type: 'conversation.item.truncate',
+        item_id: itemId,
+        content_index: 0,
+        audio_end_ms: audioEndMs,
+      })
+    );
   }
 
   private handleMessage(text: string): void {
@@ -244,8 +315,34 @@ export class OpenAIProvider extends EventEmitter implements VoiceProvider {
 
       case 'response.output_audio.delta': {
         if (typeof msg.delta !== 'string') return;
+        if (msg.response_id !== undefined && msg.response_id === this.interruptedResponseId) {
+          // Never played, but still in the conversation: cut it to nothing.
+          if (typeof msg.item_id === 'string' && !this.truncatedLate.has(msg.item_id)) {
+            this.truncatedLate.add(msg.item_id);
+            if (!this.audioItems.has(msg.item_id)) this.truncate(msg.item_id, 0);
+          }
+          return;
+        }
+        const audio = Buffer.from(msg.delta, 'base64');
+        if (typeof msg.item_id !== 'string') {
+          this.emit('audio', audio);
+          return;
+        }
+        // Already truncated: tracking it again would cut it again, to zero.
+        if (this.truncatedLate.has(msg.item_id)) return;
+        const endMs = this.trackAudio(msg.item_id, audio.length);
+        this.emit('audio', audio, { itemId: msg.item_id, endMs });
+        return;
+      }
+
+      case 'response.output_audio.done': {
+        if (typeof msg.item_id !== 'string') return;
         if (msg.response_id !== undefined && msg.response_id === this.interruptedResponseId) return;
-        this.emit('audio', Buffer.from(msg.delta, 'base64'));
+        const item = this.audioItems.get(msg.item_id);
+        if (!item) return;
+        item.done = true;
+        const endMs = Math.floor(item.bytes / 8);
+        this.emit('audio', new Uint8Array(0), { itemId: msg.item_id, endMs, last: true });
         return;
       }
 
@@ -300,6 +397,7 @@ export class OpenAIProvider extends EventEmitter implements VoiceProvider {
       case 'input_audio_buffer.speech_started':
         this.log.debug('speech started (barge-in)');
         this.interruptedResponseId = this.currentResponseId;
+        this.truncateUnheard();
         this.emit('interrupt');
         return;
 
