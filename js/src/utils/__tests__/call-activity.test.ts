@@ -30,6 +30,15 @@ describe('outcomeOf', () => {
 });
 
 describe('outcomeCounts', () => {
+  it('leaves blocked calls out of the outcomes and the inbound total', () => {
+    const counts = outcomeCounts([
+      { direction: 'inbound', status: 'completed', connected: true, count: 4 },
+      { direction: 'inbound', status: 'blocked', connected: false, count: 50 },
+    ]);
+    expect(counts.inbound).toBe(4);
+    expect(counts.failed).toBe(0);
+  });
+
   it('counts inbound calls only, busy and failed together', () => {
     const rows: CallSummaryCount[] = [
       { direction: 'inbound', status: 'completed', connected: true, count: 10 },

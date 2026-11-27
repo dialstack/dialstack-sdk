@@ -53,6 +53,35 @@ export interface E911NotificationConfig {
   emails?: string[];
 }
 
+/**
+ * Limits on inbound calls to an account's toll-free numbers. A call over a
+ * limit is refused and never answered or billed. A missing, zero or negative
+ * value means the default, so a limit can be raised but not turned off.
+ */
+export interface TollFreeLimits {
+  /**
+   * Calls one caller ID may have up at once to one toll-free number.
+   * @default 3
+   */
+  caller_concurrent_calls?: number;
+  /**
+   * Calls one caller ID may start per minute to one toll-free number.
+   * @default 10
+   */
+  caller_calls_per_minute?: number;
+  /**
+   * Calls up at once across all the account's toll-free numbers.
+   * @default 10
+   */
+  concurrent_calls?: number;
+  /**
+   * Billed inbound toll-free minutes per calendar month (UTC). Once reached,
+   * new toll-free calls are refused until the next month.
+   * @default 3600
+   */
+  monthly_minutes?: number;
+}
+
 /** Account admin permission for receiving an auto-answer intercom. */
 export type IntercomConfig =
   | { mode: 'off' | 'everyone'; users?: never }
@@ -127,6 +156,11 @@ export interface AccountConfig {
   timezone?: string;
   max_phone_numbers?: number;
   e911_notification?: E911NotificationConfig;
+  /**
+   * Limits on inbound calls to the account's toll-free numbers. Sending an
+   * object replaces all four limits: a field left out takes its default.
+   */
+  toll_free_limits?: TollFreeLimits | null;
   /**
    * Account-level override for whether the managed AI agent is offered when
    * creating a voice app. Tri-state: null/undefined inherits the platform

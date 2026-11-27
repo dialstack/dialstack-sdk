@@ -69,7 +69,9 @@ export type OutcomeCounts = Record<CallOutcome, number> & { inbound: number };
 export function outcomeCounts(breakdown: CallSummaryCount[] | undefined): OutcomeCounts {
   const counts: OutcomeCounts = { missed: 0, abandoned: 0, voicemail: 0, failed: 0, inbound: 0 };
   for (const row of breakdown ?? []) {
-    if (row.direction !== 'inbound') continue;
+    // A blocked call was refused before it rang: nobody could serve it, so
+    // it is neither an outcome nor part of the inbound total.
+    if (row.direction !== 'inbound' || row.status === 'blocked') continue;
     counts.inbound += row.count;
     const outcome = outcomeOf(row.status, row.connected);
     if (outcome) counts[outcome] += row.count;

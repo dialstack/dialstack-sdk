@@ -43,7 +43,8 @@ function sameStatuses(a: CallLogFilters['status'], b: CallLogFilters['status']):
   return statusList(a).join(',') === statusList(b).join(',');
 }
 
-const STATUSES = ['completed', 'no-answer', 'busy', 'failed', 'voicemail'] as const;
+const STATUSES = ['completed', 'no-answer', 'busy', 'failed', 'voicemail', 'blocked'] as const;
+
 /** The status select's value for a host-preset set of several statuses. */
 const MULTIPLE_STATUSES = '__several';
 
@@ -942,6 +943,7 @@ export class CallLogsComponent extends BaseComponent {
         return 'badge-no-answer';
       case 'busy':
       case 'failed':
+      case 'blocked':
         return 'badge-failed';
       case 'voicemail':
         return 'badge-voicemail';
@@ -1070,6 +1072,14 @@ export class CallLogsComponent extends BaseComponent {
     }
     const statusKey = status === 'no-answer' ? 'noAnswer' : status;
     return this.t(`callLogs.statuses.${statusKey}`);
+  }
+
+  /**
+   * The status badge. Which limit refused a blocked call is the call's detail
+   * (blocked_reason), not the list's.
+   */
+  private formatStatusCell(call: CallLog): string {
+    return `<span class="badge ${this.getStatusClass(call.status)}" part="badge badge-status">${this.formatStatus(call.status)}</span>`;
   }
 
   /**
@@ -2160,7 +2170,7 @@ ${this.renderDateFilter()}
             ${showFrom ? `<td part="cell cell-from">${this.formatFromCell(call)}</td>` : ''}
             ${showTo ? `<td part="cell cell-to">${this.formatToCell(call)}</td>` : ''}
             ${showDuration ? `<td part="cell cell-duration">${this.formatDuration(call.duration_seconds || 0)}</td>` : ''}
-            ${showStatus ? `<td part="cell cell-status"><span class="badge ${this.getStatusClass(call.status)}" part="badge badge-status">${this.formatStatus(call.status)}</span></td>` : ''}
+            ${showStatus ? `<td part="cell cell-status">${this.formatStatusCell(call)}</td>` : ''}
             ${showQuality ? `<td part="cell cell-quality"><span class="badge ${this.getMosClass(mos)}" part="badge badge-quality" title="${this.getMosTooltip(mos)}">${this.formatMos(mos)}</span></td>` : ''}
             ${showSentiment ? `<td part="cell cell-sentiment">${this.formatSentimentCell(call)}</td>` : ''}
           </tr>

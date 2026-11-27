@@ -261,6 +261,7 @@ export const en = {
       busy: 'Busy',
       failed: 'Failed',
       voicemail: 'Voicemail',
+      blocked: 'Blocked',
     },
     quality: {
       good: 'Good',

@@ -235,6 +235,35 @@ export type IntercomConfig =
   | { mode: 'off' | 'everyone'; users?: never }
   | { mode: 'selected_users'; /** Up to 1000 distinct active account users. */ users?: string[] };
 
+/**
+ * Limits on inbound calls to an account's toll-free numbers. A call over a
+ * limit is refused and never answered or billed. A missing, zero or negative
+ * value means the default, so a limit can be raised but not turned off.
+ */
+export interface TollFreeLimits {
+  /**
+   * Calls one caller ID may have up at once to one toll-free number.
+   * @default 3
+   */
+  caller_concurrent_calls?: number;
+  /**
+   * Calls one caller ID may start per minute to one toll-free number.
+   * @default 10
+   */
+  caller_calls_per_minute?: number;
+  /**
+   * Calls up at once across all the account's toll-free numbers.
+   * @default 10
+   */
+  concurrent_calls?: number;
+  /**
+   * Billed inbound toll-free minutes per calendar month (UTC). Once reached,
+   * new toll-free calls are refused until the next month.
+   * @default 3600
+   */
+  monthly_minutes?: number;
+}
+
 export interface AccountConfig {
   /** Admin-key-only intercom recipient policy; component sessions cannot change it.
    * Omit on update to preserve it; null resets to Off. */
@@ -298,6 +327,11 @@ export interface AccountConfig {
   recording_retention_days?: number;
   /** IANA timezone (default: "UTC") */
   timezone?: string;
+  /**
+   * Limits on inbound calls to the account's toll-free numbers. Sending an
+   * object replaces all four limits: a field left out takes its default.
+   */
+  toll_free_limits?: TollFreeLimits | null;
   /**
    * Account-level override for whether the managed AI agent is offered when
    * creating a voice app. Tri-state: null/undefined inherits the platform
@@ -1063,7 +1097,22 @@ export interface DIDSummary {
 
 export type CallDirection = 'inbound' | 'outbound' | 'internal';
 
-export type CallStatus = 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
+export type CallStatus = 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail' | 'blocked';
+
+/**
+ * Why an inbound call was refused before it rang.
+ *
+ * - `blocklist`: the caller is on the account's blocked numbers.
+ * - `invalid_caller_id`: a call to a toll-free number with a missing or
+ *   invalid caller ID.
+ * - `caller_limit`: one caller had too many calls up at once, or started too
+ *   many in a minute, to one toll-free number.
+ * - `call_cap`: the account's toll-free numbers had as many calls up at once
+ *   as its toll-free call cap allows.
+ * - `minute_cap`: the account reached its toll-free minute cap for the month.
+ */
+export type CallBlockedReason =
+  'blocklist' | 'invalid_caller_id' | 'caller_limit' | 'call_cap' | 'minute_cap';
 
 /**
  * Record of a completed or attempted call. The `id` is an opaque call log
@@ -1143,6 +1192,11 @@ export interface CallLog {
   status: CallStatus | null;
   /** Q.850 hangup cause of the destination leg when the call couldn't connect. */
   hangup_cause: number | null;
+  /**
+   * Why the call was refused before it rang, or null for every call that was
+   * not refused. A refused call has the status `blocked`.
+   */
+  blocked_reason: CallBlockedReason | null;
   summary: string | null;
   sentiment?: Sentiment | null;
   /** Signed recording download URL, valid for 10 minutes. */

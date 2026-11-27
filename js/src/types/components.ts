@@ -295,7 +295,22 @@ export interface CallListParams extends SentimentFilters {
 }
 
 /** A call's final status. */
-export type CallStatus = 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail';
+export type CallStatus = 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail' | 'blocked';
+
+/**
+ * Why an inbound call was refused before it rang.
+ *
+ * - `blocklist`: the caller is on the account's blocked numbers.
+ * - `invalid_caller_id`: a call to a toll-free number with a missing or
+ *   invalid caller ID.
+ * - `caller_limit`: one caller had too many calls up at once, or started too
+ *   many in a minute, to one toll-free number.
+ * - `call_cap`: the account's toll-free numbers had as many calls up at once
+ *   as its toll-free call cap allows.
+ * - `minute_cap`: the account reached its toll-free minute cap for the month.
+ */
+export type CallBlockedReason =
+  'blocklist' | 'invalid_caller_id' | 'caller_limit' | 'call_cap' | 'minute_cap';
 
 /**
  * Query parameters for `calls.summary`. The same filters as `calls.list`, so a
@@ -640,11 +655,16 @@ export interface CallLog {
    * Final call status. Null while the call is still live (in progress) — the
    * status values are terminal only.
    */
-  status: 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail' | null;
+  status: 'completed' | 'no-answer' | 'busy' | 'failed' | 'voicemail' | 'blocked' | null;
   // Q.850 hangup cause code of the destination leg when the call could not be
   // connected (e.g. 17 user busy, 21 call rejected). Set even if the
   // originating side was answered (e.g. click-to-call). Null otherwise.
   hangup_cause: number | null;
+  /**
+   * Why the call was refused before it rang, or null for every call that was
+   * not refused. A refused call has the status `blocked`.
+   */
+  blocked_reason: CallBlockedReason | null;
   summary: string | null;
   /**
    * AI-derived sentiment of the call transcript. Null if the call was not
